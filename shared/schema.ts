@@ -18,6 +18,7 @@ export const products = pgTable("products", {
   servingTemp: text("serving_temp"),
   tastingNotes: text("tasting_notes"),
   foodPairings: text("food_pairings"),
+  funFacts: text("fun_facts"),
   isStaffPick: boolean("is_staff_pick").notNull().default(false),
   isFeatured: boolean("is_featured").notNull().default(false),
   sku: text("sku"),

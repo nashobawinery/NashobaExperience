@@ -226,3 +226,35 @@ export async function emailFavorites(sessionId: string, email: string): Promise<
   });
   if (!response.ok) throw new Error("Failed to email favorites");
 }
+
+export async function downloadProductTemplate(): Promise<void> {
+  const response = await fetch("/api/admin/products/template");
+  if (!response.ok) throw new Error("Failed to download template");
+  
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "product-template.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
+export async function uploadProducts(file: File): Promise<{ success: number; failed: number; errors?: string[] }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  const response = await fetch("/api/admin/products/import", {
+    method: "POST",
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Failed to upload products" }));
+    throw new Error(errorData.message || "Failed to upload products");
+  }
+  
+  return response.json();
+}

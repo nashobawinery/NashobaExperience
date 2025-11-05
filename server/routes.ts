@@ -388,6 +388,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Excel Import/Export endpoints
+  const multer = (await import("multer")).default;
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB max
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedMimes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+      ];
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only Excel files (.xlsx, .xls) are allowed'));
+      }
+    },
+  });
+
+  app.get("/api/admin/products/template", async (req, res) => {
+    try {
+      const { generateExcelTemplate } = await import("./excel-import");
+      const buffer = generateExcelTemplate();
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=product-template.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error generating template:", error);
+      res.status(500).json({ message: "Failed to generate template" });
+    }
+  });
+
+  app.post("/api/admin/products/import", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { parseExcelFile } = await import("./excel-import");
+      const parseResult = parseExcelFile(req.file.buffer);
+
+      // Import all valid products
+      const results = {
+        success: 0,
+        failed: 0,
+        skipped: parseResult.skipped,
+        errors: [...parseResult.errors], // Include parsing errors
+      };
+
+      for (const product of parseResult.products) {
+        try {
+          await storage.createProduct(product);
+          results.success++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Failed to import "${product.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const message = results.success > 0
+        ? `Import completed: ${results.success} products added${results.failed > 0 ? `, ${results.failed} failed` : ''}${results.skipped > 0 ? `, ${results.skipped} blank rows skipped` : ''}`
+        : 'No products imported';
+
+      res.json({
+        message,
+        ...results,
+      });
+    } catch (error) {
+      console.error("Error importing Excel file:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to import Excel file" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

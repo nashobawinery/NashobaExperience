@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2 } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -16,9 +16,12 @@ import {
   getTriviaQuestions,
   createTriviaQuestion,
   updateTriviaQuestion,
-  deleteTriviaQuestion
+  deleteTriviaQuestion,
+  downloadProductTemplate,
+  uploadProducts
 } from "@/lib/api";
 import type { Product, TriviaQuestion } from "@shared/schema";
+import { useState, useRef } from "react";
 
 interface AdminDashboardProps {
   onBackToGuest?: () => void;
@@ -26,6 +29,9 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const { toast } = useToast();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch products from backend
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -195,6 +201,91 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     }
   };
 
+  // Excel import/export mutations
+  const downloadTemplateMutation = useMutation({
+    mutationFn: downloadProductTemplate,
+    onSuccess: () => {
+      toast({ 
+        title: "Template Downloaded", 
+        description: "Excel template has been downloaded to your computer" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to download template",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const uploadProductsMutation = useMutation({
+    mutationFn: uploadProducts,
+    onSuccess: (result) => {
+      setUploadResult(result);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      
+      if (result.failed === 0) {
+        toast({ 
+          title: "Import Successful", 
+          description: `Successfully imported ${result.success} products` 
+        });
+      } else {
+        toast({ 
+          title: "Import Completed with Errors", 
+          description: `${result.success} products imported, ${result.failed} failed`,
+          variant: "destructive"
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Import Failed", 
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Excel import handlers
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const validTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ];
+      
+      if (validTypes.includes(file.type) || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        setSelectedFile(file);
+        setUploadResult(null);
+      } else {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select an Excel file (.xlsx or .xls)",
+          variant: "destructive"
+        });
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    }
+  };
+
+  const handleUpload = () => {
+    if (selectedFile) {
+      uploadProductsMutation.mutate(selectedFile);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    downloadTemplateMutation.mutate();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -257,31 +348,141 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="import">
             <Card className="p-8">
-              <div className="text-center space-y-6">
-                <div>
-                  <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                  <h2 className="font-serif text-2xl font-medium mb-2">Import from Shopify</h2>
+              <div className="space-y-6">
+                <div className="text-center">
+                  <FileSpreadsheet className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h2 className="font-serif text-2xl font-medium mb-2">Product Import/Export</h2>
                   <p className="text-muted-foreground">
-                    Upload your Shopify CSV export to bulk import or update products
+                    Upload an Excel file to bulk import or update products
                   </p>
-                  <div className="mt-4 p-4 bg-muted rounded-lg max-w-md mx-auto">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>Note:</strong> CSV import functionality will be implemented in a future update.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="max-w-md mx-auto">
-                  <div className="border-2 border-dashed border-muted rounded-lg p-12 opacity-50 cursor-not-allowed">
-                    <p className="text-sm text-muted-foreground">
-                      Drag & drop your CSV file here, or click to browse
-                    </p>
-                  </div>
                 </div>
 
-                <div className="flex gap-3 justify-center">
-                  <Button variant="outline" disabled>Download Template</Button>
-                  <Button disabled>Upload CSV</Button>
+                <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="bg-muted rounded-lg p-6">
+                    <h3 className="font-medium mb-3 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Excel Format Instructions
+                    </h3>
+                    <ul className="text-sm text-muted-foreground space-y-2">
+                      <li>• Download the template to see the required column structure</li>
+                      <li>• Required fields: Name, Category, Price</li>
+                      <li>• Optional fields: Description, Wine Color, Sweetness, Stock Status</li>
+                      <li>• Use the exact column names from the template</li>
+                      <li>• Accepted file formats: .xlsx, .xls</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex gap-3 justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleDownloadTemplate}
+                      disabled={downloadTemplateMutation.isPending}
+                      data-testid="button-download-template"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {downloadTemplateMutation.isPending ? "Downloading..." : "Download Template"}
+                    </Button>
+                  </div>
+
+                  <div className="border-2 border-dashed border-muted rounded-lg p-8">
+                    <div className="text-center space-y-4">
+                      <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
+                      <div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                          id="excel-file-input"
+                          data-testid="input-excel-file"
+                        />
+                        <label htmlFor="excel-file-input">
+                          <Button variant="outline" asChild data-testid="button-select-file">
+                            <span className="cursor-pointer">
+                              <FileSpreadsheet className="w-4 h-4 mr-2" />
+                              Select Excel File
+                            </span>
+                          </Button>
+                        </label>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          or drag and drop your .xlsx or .xls file here
+                        </p>
+                      </div>
+
+                      {selectedFile && (
+                        <div className="flex items-center justify-center gap-2 p-3 bg-muted rounded-lg">
+                          <FileSpreadsheet className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium" data-testid="text-selected-file">
+                            {selectedFile.name}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedFile(null);
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = '';
+                              }
+                            }}
+                            data-testid="button-clear-file"
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={handleUpload}
+                      disabled={!selectedFile || uploadProductsMutation.isPending}
+                      data-testid="button-upload-products"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadProductsMutation.isPending ? "Uploading..." : "Upload Products"}
+                    </Button>
+                  </div>
+
+                  {uploadResult && (
+                    <div className="space-y-4">
+                      <div className={`p-4 rounded-lg ${uploadResult.failed === 0 ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+                        <div className="flex items-start gap-3">
+                          {uploadResult.failed === 0 ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                          )}
+                          <div className="flex-1">
+                            <h4 className="font-medium mb-1" data-testid="text-upload-result-title">
+                              {uploadResult.failed === 0 ? 'Import Successful' : 'Import Completed with Issues'}
+                            </h4>
+                            <p className="text-sm" data-testid="text-upload-result-summary">
+                              <strong>{uploadResult.success}</strong> products successfully imported
+                              {uploadResult.failed > 0 && (
+                                <>, <strong>{uploadResult.failed}</strong> products failed</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {uploadResult.errors && uploadResult.errors.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <h4 className="font-medium text-red-900 mb-2 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            Import Errors
+                          </h4>
+                          <ul className="text-sm text-red-800 space-y-1" data-testid="list-upload-errors">
+                            {uploadResult.errors.map((error, index) => (
+                              <li key={index}>• {error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
