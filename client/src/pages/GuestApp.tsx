@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import WelcomeScreen from "@/components/WelcomeScreen";
 import ProductCard from "@/components/ProductCard";
 import ProductFilters from "@/components/ProductFilters";
@@ -9,85 +11,13 @@ import AIRecommendations from "@/components/AIRecommendations";
 import TriviaPopup from "@/components/TriviaPopup";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-
-const mockProducts = [
-  {
-    id: '1',
-    name: 'Reserve Cabernet Sauvignon',
-    category: 'Wine',
-    price: 34.99,
-    description: 'Rich and full-bodied with notes of dark cherry, oak, and subtle vanilla undertones',
-    image: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400&q=80',
-    wineColor: 'red',
-    sweetness: 'dry',
-  },
-  {
-    id: '2',
-    name: 'Aged Apple Brandy',
-    category: 'Spirits',
-    price: 45.00,
-    description: 'Smooth and refined with hints of caramel and oak',
-    image: 'https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=400&q=80',
-  },
-  {
-    id: '3',
-    name: 'Chardonnay Reserve',
-    category: 'Wine',
-    price: 28.99,
-    description: 'Crisp and elegant with notes of citrus and mineral',
-    image: 'https://images.unsplash.com/photo-1474722883778-792e7990302f?w=400&q=80',
-    wineColor: 'white',
-    sweetness: 'dry',
-  },
-  {
-    id: '4',
-    name: 'Sparkling Rosé',
-    category: 'Wine',
-    price: 32.99,
-    description: 'Delicate bubbles with strawberry and floral notes',
-    image: 'https://images.unsplash.com/photo-1547595628-c61a29f496f0?w=400&q=80',
-    wineColor: 'rosé',
-    sweetness: 'off-dry',
-  },
-  {
-    id: '5',
-    name: 'Blueberry Hard Cider',
-    category: 'Beer',
-    price: 12.99,
-    description: 'Refreshing cider with natural blueberry flavor',
-    image: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400&q=80',
-  },
-  {
-    id: '6',
-    name: 'Peach Bellini Can',
-    category: 'Canned Cocktails',
-    price: 8.99,
-    description: 'Ready-to-drink sparkling cocktail with peach',
-    image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&q=80',
-  },
-];
-
-const mockTriviaQuestions = [
-  {
-    id: '1',
-    question: 'What region of France is Cabernet Sauvignon most famously associated with?',
-    answers: ['Burgundy', 'Bordeaux', 'Champagne', 'Loire Valley'],
-    correctIndex: 1,
-    explanation: 'Bordeaux is the most famous region for Cabernet Sauvignon, particularly in the left bank areas like Pauillac and Margaux.',
-  },
-  {
-    id: '2',
-    question: 'At what temperature should red wine typically be served?',
-    answers: ['Ice cold (40°F)', 'Refrigerator temp (45°F)', 'Cool room temp (55-65°F)', 'Warm (75°F)'],
-    correctIndex: 2,
-    explanation: 'Red wine is best served slightly below room temperature, around 55-65°F, to bring out its full flavor profile.',
-  },
-];
+import * as api from "@/lib/api";
+import type { Product, TriviaQuestion } from "@shared/schema";
 
 export default function GuestApp() {
   const { toast } = useToast();
   const [guestName, setGuestName] = useState("");
-  const [hasStarted, setHasStarted] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("browse");
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,129 +27,287 @@ export default function GuestApp() {
   const [wineColor, setWineColor] = useState("all");
   const [sweetness, setSweetness] = useState("all");
   
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [favoriteNotes, setFavoriteNotes] = useState<Record<string, string>>({});
-  const [cartItems, setCartItems] = useState<Record<string, number>>({});
-  const [viewHistory, setViewHistory] = useState<Record<string, number>>({});
-  
   const [showTrivia, setShowTrivia] = useState(false);
-  const [triviaScore, setTriviaScore] = useState(0);
-  const [triviaAnswered, setTriviaAnswered] = useState(0);
-  const [askedQuestions, setAskedQuestions] = useState<string[]>([]);
-  const [triviaCredit, setTriviaCredit] = useState(0);
+
+  const hasStarted = !!sessionId;
+
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ["/api/products", { search: searchQuery, category: selectedCategory, wineColor, sweetness, priceRange }],
+    queryFn: async () => {
+      const filters: any = {};
+      if (searchQuery) filters.search = searchQuery;
+      if (selectedCategory !== 'all') filters.category = selectedCategory;
+      if (wineColor !== 'all') filters.wineColor = wineColor;
+      if (sweetness !== 'all') filters.sweetness = sweetness;
+      
+      if (priceRange !== 'all') {
+        const [min, max] = priceRange.split('-').map(Number);
+        if (min) filters.minPrice = min;
+        if (max) filters.maxPrice = max;
+      }
+      
+      return api.getProducts(filters);
+    },
+    enabled: hasStarted,
+  });
+
+  const { data: favoritesData = [] } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "favorites"],
+    queryFn: () => api.getFavorites(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const { data: cartData = [] } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "cart"],
+    queryFn: () => api.getCartItems(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const { data: viewHistoryData = [] } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "views"],
+    queryFn: () => api.getViewHistory(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const { data: triviaScores = [] } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "trivia", "scores"],
+    queryFn: () => api.getTriviaScores(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const { data: nextTriviaQuestion } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "trivia", "next"],
+    queryFn: () => api.getNextTriviaQuestion(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const createSessionMutation = useMutation({
+    mutationFn: (name: string) => api.createSession(name),
+    onSuccess: (session) => {
+      setSessionId(session.id);
+      setGuestName(session.guestName);
+      toast({
+        title: `Welcome, ${session.guestName}!`,
+        description: "Let's find your perfect selection",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start session",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addFavoriteMutation = useMutation({
+    mutationFn: (productId: string) => api.addFavorite(sessionId!, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "favorites"] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add favorite",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeFavoriteMutation = useMutation({
+    mutationFn: (productId: string) => api.removeFavorite(sessionId!, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "favorites"] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove favorite",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ favoriteId, note }: { favoriteId: string; note: string }) =>
+      api.updateFavoriteNote(favoriteId, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "favorites"] });
+    },
+  });
+
+  const addToCartMutation = useMutation({
+    mutationFn: (productId: string) => api.addToCart(sessionId!, productId, 1),
+    onSuccess: (_, productId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "cart"] });
+      const product = products.find(p => p.id === productId);
+      toast({
+        title: "Added to cart",
+        description: product?.name,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add to cart",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateCartQuantityMutation = useMutation({
+    mutationFn: ({ cartItemId, quantity }: { cartItemId: string; quantity: number }) =>
+      api.updateCartQuantity(cartItemId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "cart"] });
+    },
+  });
+
+  const removeFromCartMutation = useMutation({
+    mutationFn: (cartItemId: string) => api.removeFromCart(cartItemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "cart"] });
+    },
+  });
+
+  const recordViewMutation = useMutation({
+    mutationFn: (productId: string) => api.recordView(sessionId!, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "views"] });
+    },
+  });
+
+  const recordTriviaAnswerMutation = useMutation({
+    mutationFn: ({ questionId, isCorrect }: { questionId: string; isCorrect: boolean }) =>
+      api.recordTriviaAnswer(sessionId!, questionId, isCorrect),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "trivia", "scores"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "trivia", "next"] });
+    },
+  });
 
   const handleStart = (name: string) => {
-    setGuestName(name);
-    setHasStarted(true);
-    toast({
-      title: `Welcome, ${name}!`,
-      description: "Let's find your perfect selection",
-    });
+    createSessionMutation.mutate(name);
   };
 
-  const handleFavoriteToggle = (id: string) => {
-    setFavorites(prev => 
-      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
-    );
-  };
-
-  const handleUpdateNote = (id: string, note: string) => {
-    setFavoriteNotes(prev => ({ ...prev, [id]: note }));
-  };
-
-  const handleAddToCart = (id: string) => {
-    setCartItems(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-    toast({
-      title: "Added to cart",
-      description: mockProducts.find(p => p.id === id)?.name,
-    });
-  };
-
-  const handleUpdateQuantity = (id: string, quantity: number) => {
-    if (quantity === 0) {
-      const newItems = { ...cartItems };
-      delete newItems[id];
-      setCartItems(newItems);
+  const handleFavoriteToggle = (productId: string) => {
+    const isFavorite = favoritesData.some(f => f.productId === productId);
+    if (isFavorite) {
+      removeFavoriteMutation.mutate(productId);
     } else {
-      setCartItems(prev => ({ ...prev, [id]: quantity }));
+      addFavoriteMutation.mutate(productId);
     }
   };
 
-  const handleProductClick = (id: string) => {
-    setViewHistory(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  const handleUpdateNote = (productId: string, note: string) => {
+    const favorite = favoritesData.find(f => f.productId === productId);
+    if (favorite) {
+      updateNoteMutation.mutate({ favoriteId: favorite.id, note });
+    }
+  };
+
+  const handleAddToCart = (productId: string) => {
+    addToCartMutation.mutate(productId);
+  };
+
+  const handleUpdateQuantity = (cartItemId: string, quantity: number) => {
+    if (quantity === 0) {
+      removeFromCartMutation.mutate(cartItemId);
+    } else {
+      updateCartQuantityMutation.mutate({ cartItemId, quantity });
+    }
+  };
+
+  const handleProductClick = (productId: string) => {
+    recordViewMutation.mutate(productId);
   };
 
   const handleTriviaAnswer = (correct: boolean) => {
-    if (correct) {
-      setTriviaScore(prev => prev + 1);
+    if (nextTriviaQuestion) {
+      recordTriviaAnswerMutation.mutate(
+        { questionId: nextTriviaQuestion.id, isCorrect: correct },
+        {
+          onSuccess: () => {
+            const newScore = triviaScores.filter(s => s.isCorrect).length + (correct ? 1 : 0);
+            const newTotal = triviaScores.length + 1;
+            
+            if (newTotal === 10 && newScore === 10) {
+              toast({
+                title: "🎉 Perfect Score!",
+                description: "$5 credit added to your cart!",
+              });
+            }
+          },
+        }
+      );
     }
-    setTriviaAnswered(prev => {
-      const newCount = prev + 1;
-      if (newCount === 10 && triviaScore + (correct ? 1 : 0) === 10) {
-        setTriviaCredit(5);
-        toast({
-          title: "🎉 Perfect Score!",
-          description: "$5 credit added to your cart!",
-        });
-      }
-      return newCount;
-    });
     setShowTrivia(false);
   };
 
-  const filteredProducts = mockProducts.filter(product => {
-    if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) {
-      return false;
-    }
-    if (selectedCategory === 'Wine') {
-      if (wineColor !== 'all' && product.wineColor !== wineColor) {
-        return false;
-      }
-      if (sweetness !== 'all' && product.sweetness !== sweetness) {
-        return false;
-      }
-    }
-    if (priceRange !== 'all') {
-      const [min, max] = priceRange.split('-').map(Number);
-      if (max) {
-        if (product.price < min || product.price > max) return false;
-      } else {
-        if (product.price < min) return false;
-      }
-    }
-    return true;
-  });
+  const viewHistoryMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    viewHistoryData.forEach(vh => {
+      map[vh.productId] = vh.viewCount;
+    });
+    return map;
+  }, [viewHistoryData]);
 
-  const cartItemsArray = Object.entries(cartItems).map(([id, quantity]) => {
-    const product = mockProducts.find(p => p.id === id)!;
-    return {
-      id,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      quantity,
-    };
-  });
+  const favoriteIds = useMemo(() => {
+    return new Set(favoritesData.map(f => f.productId));
+  }, [favoritesData]);
 
-  const favoritesArray = favorites.map(id => {
-    const product = mockProducts.find(p => p.id === id)!;
-    return {
-      id,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      image: product.image,
-      note: favoriteNotes[id],
-    };
-  });
+  const favoritesArray = useMemo(() => {
+    return favoritesData.map(fav => ({
+      id: fav.productId,
+      name: fav.product.name,
+      category: fav.product.category,
+      price: parseFloat(fav.product.price),
+      image: fav.product.image || '',
+      note: fav.note || undefined,
+    }));
+  }, [favoritesData]);
 
-  const nextTrivia = mockTriviaQuestions.find(q => !askedQuestions.includes(q.id));
+  const cartItemsArray = useMemo(() => {
+    return cartData.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.product.name,
+      category: item.product.category,
+      price: parseFloat(item.product.price),
+      quantity: item.quantity,
+    }));
+  }, [cartData]);
+
+  const cartCount = useMemo(() => {
+    return cartData.reduce((sum, item) => sum + item.quantity, 0);
+  }, [cartData]);
+
+  const triviaScore = useMemo(() => {
+    return triviaScores.filter(s => s.isCorrect).length;
+  }, [triviaScores]);
+
+  const triviaAnswered = triviaScores.length;
+
+  const triviaCredit = useMemo(() => {
+    if (triviaAnswered === 10 && triviaScore === 10) {
+      return 5;
+    }
+    return 0;
+  }, [triviaAnswered, triviaScore]);
 
   if (!hasStarted) {
     return <WelcomeScreen onStart={handleStart} />;
+  }
+
+  if (productsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -231,13 +319,10 @@ export default function GuestApp() {
               <h1 className="font-serif text-2xl font-medium">Welcome, {guestName}</h1>
               <p className="text-sm text-muted-foreground">Tasting Session</p>
             </div>
-            {nextTrivia && triviaAnswered < 10 && (
+            {nextTriviaQuestion && triviaAnswered < 10 && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowTrivia(true);
-                  setAskedQuestions(prev => [...prev, nextTrivia.id]);
-                }}
+                onClick={() => setShowTrivia(true)}
                 data-testid="button-start-trivia"
               >
                 Try Trivia
@@ -275,12 +360,17 @@ export default function GuestApp() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProducts.map(product => (
+              {products.map(product => (
                 <ProductCard
                   key={product.id}
-                  {...product}
-                  isFavorite={favorites.includes(product.id)}
-                  viewCount={viewHistory[product.id]}
+                  id={product.id}
+                  name={product.name}
+                  category={product.category}
+                  price={parseFloat(product.price)}
+                  description={product.description || ''}
+                  image={product.image || ''}
+                  isFavorite={favoriteIds.has(product.id)}
+                  viewCount={viewHistoryMap[product.id]}
                   onFavoriteToggle={handleFavoriteToggle}
                   onAddToCart={handleAddToCart}
                   onClick={handleProductClick}
@@ -328,7 +418,7 @@ export default function GuestApp() {
               items={cartItemsArray}
               triviaCredit={triviaCredit}
               onUpdateQuantity={handleUpdateQuantity}
-              onRemoveItem={(id) => handleUpdateQuantity(id, 0)}
+              onRemoveItem={(cartItemId) => handleUpdateQuantity(cartItemId, 0)}
               onCheckout={() => {
                 toast({
                   title: "Order sent!",
@@ -350,14 +440,17 @@ export default function GuestApp() {
 
       <BottomNav
         activeTab={activeTab}
-        cartCount={Object.values(cartItems).reduce((a, b) => a + b, 0)}
-        favoritesCount={favorites.length}
+        cartCount={cartCount}
+        favoritesCount={favoritesData.length}
         onTabChange={setActiveTab}
       />
 
-      {showTrivia && nextTrivia && (
+      {showTrivia && nextTriviaQuestion && (
         <TriviaPopup
-          question={nextTrivia}
+          question={{
+            ...nextTriviaQuestion,
+            image: nextTriviaQuestion.image || undefined,
+          }}
           currentScore={triviaScore}
           totalAnswered={triviaAnswered}
           onAnswer={handleTriviaAnswer}

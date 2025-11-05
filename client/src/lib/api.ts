@@ -1,0 +1,177 @@
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore } from "@shared/schema";
+
+export async function createSession(guestName: string): Promise<GuestSession> {
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guestName }),
+  });
+  if (!response.ok) throw new Error("Failed to create session");
+  return response.json();
+}
+
+export async function updateSessionActivity(sessionId: string): Promise<void> {
+  await fetch(`/api/sessions/${sessionId}/activity`, {
+    method: "POST",
+  });
+}
+
+export async function getProducts(filters?: {
+  search?: string;
+  category?: string;
+  wineColor?: string;
+  sweetness?: string;
+  minPrice?: number;
+  maxPrice?: number;
+}): Promise<Product[]> {
+  const params = new URLSearchParams();
+  if (filters?.search) params.set("search", filters.search);
+  if (filters?.category && filters.category !== 'all') params.set("category", filters.category);
+  if (filters?.wineColor && filters.wineColor !== 'all') params.set("wineColor", filters.wineColor);
+  if (filters?.sweetness && filters.sweetness !== 'all') params.set("sweetness", filters.sweetness);
+  if (filters?.minPrice) params.set("minPrice", filters.minPrice.toString());
+  if (filters?.maxPrice) params.set("maxPrice", filters.maxPrice.toString());
+  
+  const response = await fetch(`/api/products?${params}`);
+  if (!response.ok) throw new Error("Failed to fetch products");
+  return response.json();
+}
+
+export async function getFavorites(sessionId: string): Promise<Array<Favorite & { product: Product }>> {
+  const response = await fetch(`/api/sessions/${sessionId}/favorites`);
+  if (!response.ok) throw new Error("Failed to fetch favorites");
+  return response.json();
+}
+
+export async function addFavorite(sessionId: string, productId: string): Promise<Favorite> {
+  const response = await fetch(`/api/sessions/${sessionId}/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId }),
+  });
+  if (!response.ok) throw new Error("Failed to add favorite");
+  return response.json();
+}
+
+export async function removeFavorite(sessionId: string, productId: string): Promise<void> {
+  const response = await fetch(`/api/sessions/${sessionId}/favorites/${productId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to remove favorite");
+}
+
+export async function updateFavoriteNote(favoriteId: string, note: string): Promise<Favorite> {
+  const response = await fetch(`/api/favorites/${favoriteId}/note`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!response.ok) throw new Error("Failed to update note");
+  return response.json();
+}
+
+export async function recordView(sessionId: string, productId: string): Promise<void> {
+  await fetch(`/api/sessions/${sessionId}/views`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId }),
+  });
+}
+
+export async function getViewHistory(sessionId: string): Promise<Array<ViewHistory & { product: Product }>> {
+  const response = await fetch(`/api/sessions/${sessionId}/views`);
+  if (!response.ok) throw new Error("Failed to fetch view history");
+  return response.json();
+}
+
+export async function getCartItems(sessionId: string): Promise<Array<CartItem & { product: Product }>> {
+  const response = await fetch(`/api/sessions/${sessionId}/cart`);
+  if (!response.ok) throw new Error("Failed to fetch cart");
+  return response.json();
+}
+
+export async function addToCart(sessionId: string, productId: string, quantity = 1): Promise<CartItem> {
+  const response = await fetch(`/api/sessions/${sessionId}/cart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId, quantity }),
+  });
+  if (!response.ok) throw new Error("Failed to add to cart");
+  return response.json();
+}
+
+export async function updateCartQuantity(cartItemId: string, quantity: number): Promise<CartItem> {
+  const response = await fetch(`/api/cart/${cartItemId}/quantity`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity }),
+  });
+  if (!response.ok) throw new Error("Failed to update quantity");
+  return response.json();
+}
+
+export async function removeFromCart(cartItemId: string): Promise<void> {
+  const response = await fetch(`/api/cart/${cartItemId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to remove from cart");
+}
+
+export async function getTriviaQuestions(activeOnly = true): Promise<TriviaQuestion[]> {
+  const params = new URLSearchParams();
+  if (activeOnly) params.set("activeOnly", "true");
+  
+  const response = await fetch(`/api/trivia/questions?${params}`);
+  if (!response.ok) throw new Error("Failed to fetch trivia questions");
+  return response.json();
+}
+
+export async function getNextTriviaQuestion(sessionId: string): Promise<TriviaQuestion | null> {
+  const response = await fetch(`/api/sessions/${sessionId}/trivia/next`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Failed to fetch next question");
+  return response.json();
+}
+
+export async function recordTriviaAnswer(sessionId: string, questionId: string, isCorrect: boolean): Promise<TriviaScore> {
+  const response = await fetch(`/api/sessions/${sessionId}/trivia/scores`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId, isCorrect }),
+  });
+  if (!response.ok) throw new Error("Failed to record answer");
+  return response.json();
+}
+
+export async function getTriviaScores(sessionId: string): Promise<TriviaScore[]> {
+  const response = await fetch(`/api/sessions/${sessionId}/trivia/scores`);
+  if (!response.ok) throw new Error("Failed to fetch scores");
+  return response.json();
+}
+
+export async function createProduct(product: any): Promise<Product> {
+  const response = await fetch("/api/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) throw new Error("Failed to create product");
+  return response.json();
+}
+
+export async function updateProduct(id: string, product: any): Promise<Product> {
+  const response = await fetch(`/api/products/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) throw new Error("Failed to update product");
+  return response.json();
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const response = await fetch(`/api/products/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete product");
+}
