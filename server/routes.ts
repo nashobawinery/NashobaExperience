@@ -293,16 +293,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Recommendations endpoint (placeholder for now)
+  // Email endpoints
+  app.post("/api/sessions/:sessionId/email/cart", async (req, res) => {
+    try {
+      const { generateCartEmail, sendEmail } = await import("./email");
+      const session = await storage.getGuestSession(req.params.sessionId);
+      const cartItems = await storage.getCartItems(req.params.sessionId);
+      
+      if (!session || cartItems.length === 0) {
+        return res.status(400).json({ message: "No cart items to email" });
+      }
+
+      const { subtotal, discount, triviaCredit, total } = req.body;
+      
+      const emailData = generateCartEmail({
+        guestName: session.guestName,
+        items: cartItems,
+        subtotal,
+        discount,
+        triviaCredit,
+        total,
+      });
+
+      await sendEmail(
+        "onsiteorder@nashobawinery.com",
+        emailData.subject,
+        emailData.html,
+        emailData.text
+      );
+
+      res.json({ success: true, message: "Order sent to staff" });
+    } catch (error) {
+      console.error("Error sending cart email:", error);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/email/favorites", async (req, res) => {
+    try {
+      const { generateFavoritesEmail, sendEmail } = await import("./email");
+      const session = await storage.getGuestSession(req.params.sessionId);
+      const favorites = await storage.getFavorites(req.params.sessionId);
+      
+      if (!session || favorites.length === 0) {
+        return res.status(400).json({ message: "No favorites to email" });
+      }
+
+      const emailData = generateFavoritesEmail({
+        guestName: session.guestName,
+        favorites,
+      });
+
+      const guestEmail = req.body.email;
+      if (!guestEmail) {
+        return res.status(400).json({ message: "Email address required" });
+      }
+
+      await sendEmail(
+        guestEmail,
+        emailData.subject,
+        emailData.html,
+        emailData.text
+      );
+
+      res.json({ success: true, message: "Favorites sent to your email" });
+    } catch (error) {
+      console.error("Error sending favorites email:", error);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
+  // AI Recommendations endpoint
   app.get("/api/sessions/:sessionId/recommendations", async (req, res) => {
-    const favorites = await storage.getFavorites(req.params.sessionId);
-    const viewHistory = await storage.getViewHistory(req.params.sessionId);
-    
-    res.json({
-      favorites,
-      viewHistory,
-      recommendations: [],
-    });
+    try {
+      const [favorites, viewHistory, cartItems, allProducts] = await Promise.all([
+        storage.getFavorites(req.params.sessionId),
+        storage.getViewHistory(req.params.sessionId),
+        storage.getCartItems(req.params.sessionId),
+        storage.getProducts(),
+      ]);
+
+      const { generateRecommendations } = await import("./ai-recommendations");
+      
+      const recommendations = await generateRecommendations(allProducts, {
+        favorites,
+        viewHistory,
+        cartItems,
+      });
+
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error generating recommendations:", error);
+      res.status(500).json({ message: "Failed to generate recommendations" });
+    }
   });
 
   const httpServer = createServer(app);

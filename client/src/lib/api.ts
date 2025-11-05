@@ -149,6 +149,33 @@ export async function getTriviaScores(sessionId: string): Promise<TriviaScore[]>
   return response.json();
 }
 
+export async function createTriviaQuestion(question: any): Promise<TriviaQuestion> {
+  const response = await fetch("/api/trivia/questions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(question),
+  });
+  if (!response.ok) throw new Error("Failed to create trivia question");
+  return response.json();
+}
+
+export async function updateTriviaQuestion(id: string, question: any): Promise<TriviaQuestion> {
+  const response = await fetch(`/api/trivia/questions/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(question),
+  });
+  if (!response.ok) throw new Error("Failed to update trivia question");
+  return response.json();
+}
+
+export async function deleteTriviaQuestion(id: string): Promise<void> {
+  const response = await fetch(`/api/trivia/questions/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete trivia question");
+}
+
 export async function createProduct(product: any): Promise<Product> {
   const response = await fetch("/api/products", {
     method: "POST",
@@ -174,4 +201,28 @@ export async function deleteProduct(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) throw new Error("Failed to delete product");
+}
+
+export async function getRecommendations(sessionId: string): Promise<Array<{ product: Product; reason: string }>> {
+  const response = await fetch(`/api/sessions/${sessionId}/recommendations`);
+  if (!response.ok) throw new Error("Failed to fetch recommendations");
+  return response.json();
+}
+
+export async function emailCart(sessionId: string, cartData: { subtotal: number; discount: number; triviaCredit: number; total: number }): Promise<void> {
+  const response = await fetch(`/api/sessions/${sessionId}/email/cart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cartData),
+  });
+  if (!response.ok) throw new Error("Failed to email cart");
+}
+
+export async function emailFavorites(sessionId: string, email: string): Promise<void> {
+  const response = await fetch(`/api/sessions/${sessionId}/email/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) throw new Error("Failed to email favorites");
 }

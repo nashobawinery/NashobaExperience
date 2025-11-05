@@ -12,17 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, Plus, Edit, Trash2, Eye, Package } from "lucide-react";
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: string;
-  views: number;
-  isStaffPick: boolean;
-  isFeatured: boolean;
-}
+import type { Product } from "@shared/schema";
 
 interface AdminProductManagerProps {
   products: Product[];
@@ -49,7 +39,7 @@ export default function AdminProductManager({
     total: products.length,
     inStock: products.filter(p => p.stock === 'in-stock').length,
     outOfStock: products.filter(p => p.stock === 'out-of-stock').length,
-    totalViews: products.reduce((sum, p) => sum + p.views, 0),
+    staffPicks: products.filter(p => p.isStaffPick).length,
   };
 
   return (
@@ -88,10 +78,10 @@ export default function AdminProductManager({
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <Eye className="w-8 h-8 text-chart-2" />
+            <Package className="w-8 h-8 text-chart-2" />
             <div>
-              <p className="text-2xl font-serif font-semibold">{stats.totalViews}</p>
-              <p className="text-sm text-muted-foreground">Total Views</p>
+              <p className="text-2xl font-serif font-semibold">{stats.staffPicks}</p>
+              <p className="text-sm text-muted-foreground">Staff Picks</p>
             </div>
           </div>
         </Card>
@@ -128,7 +118,6 @@ export default function AdminProductManager({
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Views</TableHead>
                 <TableHead>Badges</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -136,7 +125,7 @@ export default function AdminProductManager({
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>
@@ -147,7 +136,7 @@ export default function AdminProductManager({
                     <TableCell>
                       <Badge variant="secondary">{product.category}</Badge>
                     </TableCell>
-                    <TableCell>${product.price.toFixed(2)}</TableCell>
+                    <TableCell>${Number(product.price).toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge
                         variant={product.stock === 'in-stock' ? 'default' : 'destructive'}
@@ -157,9 +146,8 @@ export default function AdminProductManager({
                         {product.stock === 'in-stock' ? 'In Stock' : 'Out of Stock'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{product.views}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap">
                         {product.isStaffPick && (
                           <Badge variant="secondary" className="text-xs">Staff Pick</Badge>
                         )}

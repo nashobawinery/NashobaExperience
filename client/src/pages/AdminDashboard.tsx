@@ -1,53 +1,24 @@
-import { useState } from "react";
 import AdminProductManager from "@/components/AdminProductManager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const mockProducts = [
-  {
-    id: '1',
-    name: 'Reserve Cabernet Sauvignon',
-    category: 'Wine',
-    price: 34.99,
-    stock: 'in-stock' as const,
-    views: 145,
-    isStaffPick: true,
-    isFeatured: true,
-  },
-  {
-    id: '2',
-    name: 'Aged Apple Brandy',
-    category: 'Spirits',
-    price: 45.00,
-    stock: 'in-stock' as const,
-    views: 89,
-    isStaffPick: false,
-    isFeatured: false,
-  },
-  {
-    id: '3',
-    name: 'Chardonnay Reserve',
-    category: 'Wine',
-    price: 28.99,
-    stock: 'in-stock' as const,
-    views: 203,
-    isStaffPick: true,
-    isFeatured: false,
-  },
-  {
-    id: '4',
-    name: 'Sparkling Rosé',
-    category: 'Wine',
-    price: 32.99,
-    stock: 'out-of-stock' as const,
-    views: 167,
-    isStaffPick: false,
-    isFeatured: true,
-  },
-];
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { 
+  getProducts, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct,
+  getTriviaQuestions,
+  createTriviaQuestion,
+  updateTriviaQuestion,
+  deleteTriviaQuestion
+} from "@/lib/api";
+import type { Product, TriviaQuestion } from "@shared/schema";
 
 interface AdminDashboardProps {
   onBackToGuest?: () => void;
@@ -55,7 +26,174 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const { toast } = useToast();
-  const [products] = useState(mockProducts);
+
+  // Fetch products from backend
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['/api/products'],
+    queryFn: () => getProducts(),
+  });
+
+  // Fetch trivia questions from backend
+  const { data: triviaQuestions = [], isLoading: triviaLoading } = useQuery({
+    queryKey: ['/api/trivia/questions'],
+    queryFn: () => getTriviaQuestions(false), // Get all questions, not just active ones
+  });
+
+  // Product mutations
+  const createProductMutation = useMutation({
+    mutationFn: createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({ 
+        title: "Product Created", 
+        description: "The product was successfully created" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to create product",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const updateProductMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateProduct(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({ 
+        title: "Product Updated", 
+        description: "The product was successfully updated" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to update product",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: deleteProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({ 
+        title: "Product Deleted", 
+        description: "The product was successfully removed" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete product",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Trivia mutations
+  const createTriviaMutation = useMutation({
+    mutationFn: createTriviaQuestion,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
+      toast({ 
+        title: "Question Created", 
+        description: "The trivia question was successfully created" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to create trivia question",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const updateTriviaMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateTriviaQuestion(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
+      toast({ 
+        title: "Question Updated", 
+        description: "The trivia question was successfully updated" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to update trivia question",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const deleteTriviaMutation = useMutation({
+    mutationFn: deleteTriviaQuestion,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
+      toast({ 
+        title: "Question Deleted", 
+        description: "The trivia question was successfully removed" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete trivia question",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Handler functions
+  const handleAddProduct = () => {
+    toast({ title: "Add Product", description: "Product form would open here" });
+  };
+
+  const handleEditProduct = (id: string) => {
+    toast({ title: "Edit Product", description: `Editing product ${id}` });
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    deleteProductMutation.mutate(id);
+  };
+
+  const handleToggleStock = (id: string) => {
+    const product = products.find((p: Product) => p.id === id);
+    if (product) {
+      const newStock = product.stock === 'in-stock' ? 'out-of-stock' : 'in-stock';
+      updateProductMutation.mutate({ 
+        id, 
+        data: { stock: newStock } 
+      });
+    }
+  };
+
+  const handleAddTrivia = () => {
+    toast({ title: "Add Question", description: "Trivia form would open here" });
+  };
+
+  const handleEditTrivia = (id: string) => {
+    toast({ title: "Edit Question", description: `Editing question ${id}` });
+  };
+
+  const handleDeleteTrivia = (id: string) => {
+    deleteTriviaMutation.mutate(id);
+  };
+
+  const handleToggleTriviaActive = (id: string) => {
+    const question = triviaQuestions.find((q: TriviaQuestion) => q.id === id);
+    if (question) {
+      updateTriviaMutation.mutate({ 
+        id, 
+        data: { isActive: !question.isActive } 
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,21 +236,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="products">
-            <AdminProductManager
-              products={products}
-              onAddProduct={() => {
-                toast({ title: "Add Product", description: "Product form would open here" });
-              }}
-              onEditProduct={(id) => {
-                toast({ title: "Edit Product", description: `Editing product ${id}` });
-              }}
-              onDeleteProduct={(id) => {
-                toast({ title: "Product Deleted", description: `Product ${id} removed` });
-              }}
-              onToggleStock={(id) => {
-                toast({ title: "Stock Updated", description: `Product ${id} stock toggled` });
-              }}
-            />
+            {productsLoading ? (
+              <Card className="p-6">
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              </Card>
+            ) : (
+              <AdminProductManager
+                products={products}
+                onAddProduct={handleAddProduct}
+                onEditProduct={handleEditProduct}
+                onDeleteProduct={handleDeleteProduct}
+                onToggleStock={handleToggleStock}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="import">
@@ -124,10 +264,15 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <p className="text-muted-foreground">
                     Upload your Shopify CSV export to bulk import or update products
                   </p>
+                  <div className="mt-4 p-4 bg-muted rounded-lg max-w-md mx-auto">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Note:</strong> CSV import functionality will be implemented in a future update.
+                    </p>
+                  </div>
                 </div>
                 
                 <div className="max-w-md mx-auto">
-                  <div className="border-2 border-dashed border-muted rounded-lg p-12 hover-elevate cursor-pointer">
+                  <div className="border-2 border-dashed border-muted rounded-lg p-12 opacity-50 cursor-not-allowed">
                     <p className="text-sm text-muted-foreground">
                       Drag & drop your CSV file here, or click to browse
                     </p>
@@ -135,8 +280,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 </div>
 
                 <div className="flex gap-3 justify-center">
-                  <Button variant="outline">Download Template</Button>
-                  <Button>Upload CSV</Button>
+                  <Button variant="outline" disabled>Download Template</Button>
+                  <Button disabled>Upload CSV</Button>
                 </div>
               </div>
             </Card>
@@ -149,36 +294,69 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <h2 className="font-serif text-2xl font-medium mb-2">Trivia Questions</h2>
                   <p className="text-muted-foreground">Manage fun facts and quiz questions</p>
                 </div>
-                <Button data-testid="button-add-trivia">
+                <Button onClick={handleAddTrivia} data-testid="button-add-trivia">
                   <HelpCircle className="w-4 h-4 mr-2" />
                   Add Question
                 </Button>
               </div>
 
-              <div className="grid gap-4">
-                <Card className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium mb-2">
-                        What region of France is Cabernet Sauvignon most famously associated with?
-                      </p>
-                      <div className="flex gap-2 items-center">
-                        <span className="text-sm text-muted-foreground">4 answers</span>
-                        <span className="text-sm text-muted-foreground">•</span>
-                        <span className="text-sm text-green-600">Active</span>
+              {triviaLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : triviaQuestions.length === 0 ? (
+                <div className="text-center py-12">
+                  <HelpCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">No trivia questions yet. Create one to get started!</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {triviaQuestions.map((question: TriviaQuestion) => (
+                    <Card key={question.id} className="p-4" data-testid={`card-trivia-${question.id}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium mb-2">
+                            {question.question}
+                          </p>
+                          <div className="flex gap-2 items-center flex-wrap">
+                            <span className="text-sm text-muted-foreground">
+                              {Array.isArray(question.answers) ? question.answers.length : 0} answers
+                            </span>
+                            <span className="text-sm text-muted-foreground">•</span>
+                            <Badge 
+                              variant={question.isActive ? "default" : "secondary"}
+                              className="cursor-pointer"
+                              onClick={() => handleToggleTriviaActive(question.id)}
+                              data-testid={`badge-trivia-status-${question.id}`}
+                            >
+                              {question.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEditTrivia(question.id)}
+                            data-testid={`button-edit-trivia-${question.id}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDeleteTrivia(question.id)}
+                            data-testid={`button-delete-trivia-${question.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon">
-                        <SettingsIcon className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon">
-                        <Package className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </Card>
           </TabsContent>
 

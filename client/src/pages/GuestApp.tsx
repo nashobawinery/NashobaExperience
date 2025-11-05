@@ -81,6 +81,15 @@ export default function GuestApp() {
     enabled: !!sessionId,
   });
 
+  const totalInteractions = favoritesData.length + viewHistoryData.length;
+  const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
+
+  const { data: recommendationsData = [], isLoading: recommendationsLoading } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "recommendations"],
+    queryFn: () => api.getRecommendations(sessionId!),
+    enabled: shouldFetchRecommendations,
+  });
+
   const createSessionMutation = useMutation({
     mutationFn: (name: string) => api.createSession(name),
     onSuccess: (session) => {
@@ -186,6 +195,41 @@ export default function GuestApp() {
     },
   });
 
+  const emailCartMutation = useMutation({
+    mutationFn: (cartData: { subtotal: number; discount: number; triviaCredit: number; total: number }) =>
+      api.emailCart(sessionId!, cartData),
+    onSuccess: () => {
+      toast({
+        title: "Order sent!",
+        description: "Staff will prepare your order shortly",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send order email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const emailFavoritesMutation = useMutation({
+    mutationFn: (email: string) => api.emailFavorites(sessionId!, email),
+    onSuccess: () => {
+      toast({
+        title: "Email sent!",
+        description: "Check your inbox for your favorites and notes",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send favorites email",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleStart = (name: string) => {
     createSessionMutation.mutate(name);
   };
@@ -242,6 +286,44 @@ export default function GuestApp() {
       );
     }
     setShowTrivia(false);
+  };
+
+  const handleRefreshRecommendations = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "recommendations"] });
+  };
+
+  const handleEmailFavorites = () => {
+    const email = window.prompt("Enter your email address to receive your favorites:");
+    if (email && email.trim()) {
+      emailFavoritesMutation.mutate(email.trim());
+    }
+  };
+
+  const handleCheckout = () => {
+    const wineSpiritsCount = cartItemsArray
+      .filter(item => ['Wine', 'Spirits'].includes(item.category))
+      .reduce((sum, item) => sum + item.quantity, 0);
+
+    const calculateDiscount = (count: number): number => {
+      if (count >= 24) return 0.24;
+      if (count >= 12) return 0.15;
+      if (count >= 6) return 0.10;
+      if (count >= 3) return 0.05;
+      return 0;
+    };
+
+    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discountRate = calculateDiscount(wineSpiritsCount);
+    const discountAmount = subtotal * discountRate;
+    const afterDiscount = subtotal - discountAmount;
+    const total = Math.max(0, afterDiscount - triviaCredit);
+
+    emailCartMutation.mutate({
+      subtotal,
+      discount: discountAmount,
+      triviaCredit,
+      total,
+    });
   };
 
   const viewHistoryMap = useMemo(() => {
@@ -387,25 +469,24 @@ export default function GuestApp() {
               onUpdateNote={handleUpdateNote}
               onRemoveFavorite={handleFavoriteToggle}
               onAddToCart={handleAddToCart}
-              onEmailFavorites={() => {
-                toast({
-                  title: "Email sent!",
-                  description: "Check your inbox for your favorites and notes",
-                });
-              }}
+              onEmailFavorites={handleEmailFavorites}
             />
           </div>
         )}
 
         {activeTab === 'recommendations' && (
           <AIRecommendations
-            products={[]}
-            onRefresh={() => {
-              toast({
-                title: "Recommendations refreshed",
-                description: "Analyzing your preferences...",
-              });
-            }}
+            products={recommendationsData.map(rec => ({
+              id: rec.product.id,
+              name: rec.product.name,
+              category: rec.product.category,
+              price: parseFloat(rec.product.price),
+              image: rec.product.image || '',
+              description: rec.product.description || '',
+              reason: rec.reason,
+            }))}
+            isLoading={recommendationsLoading}
+            onRefresh={handleRefreshRecommendations}
             onProductClick={handleProductClick}
             onAddToCart={handleAddToCart}
             onFavoriteToggle={handleFavoriteToggle}
@@ -419,12 +500,7 @@ export default function GuestApp() {
               triviaCredit={triviaCredit}
               onUpdateQuantity={handleUpdateQuantity}
               onRemoveItem={(cartItemId) => handleUpdateQuantity(cartItemId, 0)}
-              onCheckout={() => {
-                toast({
-                  title: "Order sent!",
-                  description: "Staff will prepare your order shortly",
-                });
-              }}
+              onCheckout={handleCheckout}
             />
           </div>
         )}
