@@ -1,0 +1,151 @@
+Nashoba Tasting Experience App - Complete Overview
+Core Purpose
+An interactive digital companion for tasting room guests that educates, entertains, personalizes recommendations, and facilitates purchases while collecting valuable feedback.
+
+Guest Experience Flow
+Welcome & Name Entry - Guest enters name, creating their unique session with aerial winery video background
+Optional Preference Quiz - 3-question quiz for immediate personalized recommendations (can skip)
+Interactive Browsing - Explore products by category, view details, add favorites with notes, build cart
+Trivia Challenges - Fun fact popups appear periodically (configurable timing)
+AI Recommendations - After 2+ interactions, AI suggests 4-6 personalized products
+Tasting Complete & Checkout - Review favorites, add to cart, email notes and order
+Feedback Survey - Post-tasting survey to improve experience
+Key Features
+🍷 Product Browsing
+Categories: Wine, Spirits, Beer, Canned Cocktails, Canned Wine
+Filters: Wine color, sweetness level, body, price range
+Search: By name, type, or description
+Sort Options: Name, price, popularity, newest
+Detailed Info: Descriptions, tasting notes, food pairings, ABV, serving temp
+❤️ Favorites System
+One-click favoriting with heart icon
+Personal notes on each favorite
+Email summary of favorites and notes
+Quick add to cart from favorites page
+👁️ Smart View History
+Automatic tracking of what guests view
+View counter per product
+Used by AI for understanding preferences
+✨ Recommendation Systems
+Similar Products: "If you like this, try these..." based on characteristics
+Based on Favorites: Products similar to favorited items
+AI-Powered: Advanced machine learning recommendations (see below)
+🧠 AI Recommendation Engine
+How It Works:
+
+Data Collection - Tracks favorites, views, notes, cart additions
+Profile Building - Creates taste profile (wine characteristics, types, flavors, patterns)
+AI Analysis - Sends to language model that analyzes like a sommelier
+Personalized Display - Shows 4-6 "AI Picks" with explanations
+Requirements:
+
+Activates after 2+ interactions
+Auto-generates when data available
+Guest can manually refresh anytime
+🎯 Interactive Trivia System
+Timing: Popups at configurable intervals (default: first after 2 min, then every 4 min)
+Format: Multiple choice with 4 answer options
+Feedback: Immediate feedback with explanation
+Progress Tracking: Score card shows progress
+No Repeats: Won't show same question twice
+10 Question Cap: Stops after 10 questions
+Perfect Score Reward:
+
+10/10 correct = $5 credit applied to cart
+Celebration screen with confetti
+One-time reward per session
+🛒 Shopping Cart & Auto-Discounts
+Cart Features:
+
+Add items from product pages
+Adjust quantities
+Remove items
+Add personal notes to items
+Real-time total calculation
+Email order to checkout staff
+Automatic Wine & Spirit Discounts:
+
+Tier 1: 3-5 bottles = 5% off
+Tier 2: 6-11 bottles = 10% off
+Tier 3: 12-23 bottles = 15% off
+Tier 4: 24+ bottles = 24% off
+Discounts apply automatically to combined wine + spirit bottles Trivia credit stacks on top of quantity discounts
+
+Admin Management Tools
+📦 Products Tab
+View all products with stats dashboard
+Search and filter by multiple criteria
+Add/edit products with complete details
+Quick actions: Available/sold out, feature, staff pick
+Upload product images
+Set wine characteristics for recommendations
+Delete products
+📥 Import/Export Tab
+Import products from Shopify CSV export
+Preview changes before applying
+Automatic matching by SKU or name
+Bulk create/update products
+Detailed import results with error reporting
+🎯 Fun Facts Tab
+Create trivia questions with 4 answer options
+Add images to questions
+Write explanations shown after answers
+Activate/deactivate questions
+See stats (total, active, with images)
+Configure popup timing
+⚙️ Settings Tab
+Configure all 4 discount tiers
+Upload/change hero video for welcome page
+Preview settings before saving
+See live previews of cart effects
+Data Entities
+Product - Full product catalog with characteristics, pricing, stock
+TastingNote - Guest tasting notes and ratings
+ShoppingList - Cart items per session
+FunFact - Trivia questions and answers
+Settings - App configuration (timing, video, discounts)
+Favorite - Favorited products with guest notes
+ViewHistory - Product view tracking for recommendations
+QuizScore - Trivia progress and rewards
+Survey - Post-tasting feedback
+FeatureRequest - Staff suggestions and improvements
+Best Practices for Staff
+Introducing the App:
+
+"Welcome! Use our digital companion on your phone - like having a personal sommelier!"
+Highlight: favorites with notes, trivia for $5 credit, AI recommendations, cart building
+During Tasting:
+
+Let app enhance, not replace your interaction
+Encourage note-taking: "You'll get these emailed later!"
+Highlight AI picks: "Check your recommendations - they're eerily accurate!"
+Gamify: "10 right answers = $5 off!"
+Upsell naturally: "Add one more bottle for 10% off instead of 5%!"
+At Checkout:
+
+Orders sent to onsiteorder@nashobawinery.com
+Verify discounts and trivia credits applied
+Fulfill items from email
+Confirm guest received email confirmation
+Product Management:
+
+Mark sold out immediately
+Update prices when they change
+Use badges for seasonal items, new arrivals, staff favorites
+Import from Shopify weekly
+Add high-quality photos
+Technical Details
+Built with:
+
+React, Tailwind CSS, TypeScript
+Base44 backend-as-a-service
+Entity database for all data
+AI integration for recommendations
+Email integration for orders
+Color Scheme:
+
+Burgundy: #5C2535
+Dark: #3A1B24
+Gold: #C9A961
+Cream: #F5F5F0
+Green: #3D5A3C
