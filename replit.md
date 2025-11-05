@@ -204,9 +204,63 @@ Preferred communication style: Simple, everyday language.
    
 4. Access at: `http://localhost:5000` or your Replit URL
 
+## Product Schema (31 Comprehensive Fields)
+
+The product catalog now supports professional winery inventory management with:
+
+**Required Fields:**
+- `name` - Product name
+- `category` - Wine, Spirits, Beer, Canned Cocktails
+- `price` - Retail price
+- `description` - Product description
+
+**Product Details:**
+- `type` - Product type (e.g., "Red Wine", "White Wine")
+- `varietal` - Grape varietal (e.g., "Cabernet Sauvignon")
+- `vintage_year` - Year of production
+- `region` - Geographic origin
+- `tasting_notes` - Flavor profile and tasting experience
+- `food_pairings` - Recommended food matches
+- `serving_temp` - Ideal serving temperature
+- `alcohol_content` - ABV percentage
+- `bottle_size` - Volume (e.g., "750ml")
+
+**Pricing & Inventory:**
+- `cost` - Wholesale/production cost
+- `wholesale_pricing` - Wholesale selling price
+- `sku` - Stock keeping unit code
+- `stock_quantity` - Current inventory count
+- `low_stock_threshold` - Alert threshold for reordering
+
+**Images:**
+- `image_url` - Primary product image
+- `label_image_url` - Bottle label image
+- `lifestyle_image_url` - Lifestyle/serving image
+
+**Production Details:**
+- `characteristics` - Key product attributes
+- `production_method` - How it's made
+- `aging_process` - Barrel aging or fermentation details
+- `awards` - Competition medals and recognition
+- `rating` - Product rating (e.g., 4.5/5.0)
+
+**Merchandising Flags:**
+- `available` - Currently available for sale
+- `featured` - Featured product showcase
+- `new_arrival` - New to inventory
+- `staff_pick` - Staff recommendation
+- `wine_of_month` - Monthly featured wine
+- `tags` - Searchable tags (array)
+
+**Excel Import:**
+- Download template with all 31 fields pre-configured
+- Upload .xlsx/.xls files (max 10MB)
+- Automatic validation and normalization
+- Bulk product import with detailed error reporting
+
 ## Database Seed Data
 
-- **8 Products**: Mix of wines (red, white, rosé, sparkling), spirits (brandy), beer (cider, stout), and canned cocktails
+- **Products**: Currently empty - ready for bulk import via Excel
 - **10 Trivia Questions**: Wine and spirits knowledge questions
-- **Discount Tiers**: Pre-configured 4-tier discount system
+- **Discount Tiers**: Pre-configured 4-tier discount system (3/6/12/24 bottles)
 - **Settings**: Default configurations loaded
