@@ -76,8 +76,8 @@
   --chart-4: 30 28% 45%;
   --chart-5: 200 18% 42%;
 
-  --font-sans: Inter, system-ui, -apple-system, sans-serif;
-  --font-serif: Cormorant Garamond, Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
   --font-mono: Menlo, Consolas, monospace;
   --radius: .75rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(345 20% 20% / 0.04);
