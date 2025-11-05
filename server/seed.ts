@@ -235,3 +235,14 @@ export async function seedDatabase() {
     throw error;
   }
 }
+
+// Run the seed if this file is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  seedDatabase().then(() => {
+    console.log("Seed complete, exiting...");
+    process.exit(0);
+  }).catch((error) => {
+    console.error("Seed failed:", error);
+    process.exit(1);
+  });
+}
