@@ -168,7 +168,8 @@ Preferred communication style: Simple, everyday language.
 ✅ Stock level toggling  
 ✅ Trivia question management  
 ✅ Settings configuration display  
-🔄 CSV import (marked for future enhancement)  
+✅ **Excel upload** for bulk product imports with template download  
+✅ **Fun Facts field** added to products for engaging guest information  
 
 ### Technical Implementation
 ✅ PostgreSQL database with Neon serverless  
@@ -181,9 +182,9 @@ Preferred communication style: Simple, everyday language.
 ## Known Limitations & Future Enhancements
 
 1. **Email Delivery**: Currently logs to console. Integrate SendGrid/Resend for production.
-2. **CSV Import**: Admin dashboard prepared but implementation pending.
-3. **Trivia Modal**: Minor intermittent closing behavior (doesn't affect functionality).
-4. **Analytics**: Consider adding guest behavior analytics dashboard for business insights.
+2. **Trivia Modal**: Minor intermittent closing behavior (doesn't affect functionality).
+3. **Analytics**: Consider adding guest behavior analytics dashboard for business insights.
+4. **Product Images**: Upload functionality could be enhanced with image hosting integration.
 
 ## Running the Application
 
