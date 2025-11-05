@@ -344,7 +344,7 @@ export default function GuestApp() {
       name: fav.product.name,
       category: fav.product.category,
       price: parseFloat(fav.product.price),
-      image: fav.product.image || '',
+      image: fav.product.imageUrl || '',
       note: fav.note || undefined,
     }));
   }, [favoritesData]);
