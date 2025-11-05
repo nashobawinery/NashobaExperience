@@ -2,23 +2,38 @@ import * as XLSX from 'xlsx';
 import type { InsertProduct } from '@shared/schema';
 
 export interface ExcelProductRow {
-  Name?: string;
-  Category?: string;
-  Price?: number | string;
-  Description?: string;
-  Stock?: string;
-  'Wine Color'?: string;
-  Sweetness?: string;
-  Body?: string;
-  ABV?: string;
-  'Serving Temp'?: string;
-  'Tasting Notes'?: string;
-  'Food Pairings'?: string;
-  'Fun Facts'?: string;
-  'Staff Pick'?: string | boolean;
-  Featured?: string | boolean;
-  SKU?: string;
-  Image?: string;
+  name?: string;
+  category?: string;
+  type?: string;
+  varietal?: string;
+  vintage_year?: string;
+  region?: string;
+  description?: string;
+  tasting_notes?: string;
+  food_pairings?: string;
+  serving_temp?: string;
+  alcohol_content?: string;
+  bottle_size?: string;
+  price?: number | string;
+  cost?: number | string;
+  wholesale_pricing?: number | string;
+  sku?: string;
+  stock_quantity?: number | string;
+  low_stock_threshold?: number | string;
+  image_url?: string;
+  label_image_url?: string;
+  lifestyle_image_url?: string;
+  characteristics?: string;
+  production_method?: string;
+  aging_process?: string;
+  awards?: string;
+  rating?: number | string;
+  available?: string | boolean;
+  featured?: string | boolean;
+  new_arrival?: string | boolean;
+  staff_pick?: string | boolean;
+  wine_of_month?: string | boolean;
+  tags?: string;
 }
 
 export interface ParseResult {
@@ -42,18 +57,18 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
     const rowNum = index + 2; // Excel row number (header is row 1)
 
     // Validate required fields
-    if (!row.Name || !row.Name.trim()) {
+    if (!row.name || !row.name.trim()) {
       skipped++;
       return; // Skip blank rows
     }
 
-    if (!row.Price || isNaN(Number(row.Price))) {
-      errors.push(`Row ${rowNum}: Invalid or missing price for "${row.Name}"`);
+    if (!row.price || isNaN(Number(row.price))) {
+      errors.push(`Row ${rowNum}: Invalid or missing price for "${row.name}"`);
       return;
     }
 
-    if (!row.Description || !row.Description.trim()) {
-      errors.push(`Row ${rowNum}: Missing description for "${row.Name}"`);
+    if (!row.description || !row.description.trim()) {
+      errors.push(`Row ${rowNum}: Missing description for "${row.name}"`);
       return;
     }
 
@@ -67,33 +82,45 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
       return false;
     };
 
-    // Normalize stock status
-    const normalizeStock = (val: string | undefined): 'in-stock' | 'low-stock' | 'out-of-stock' => {
-      if (!val) return 'in-stock';
-      const normalized = val.toLowerCase().replace(/[^a-z-]/g, ''); // Remove spaces and special chars
-      if (normalized === 'lowstock' || normalized === 'low-stock') return 'low-stock';
-      if (normalized === 'outofstock' || normalized === 'out-of-stock') return 'out-of-stock';
-      return 'in-stock';
+    // Parse tags (comma-separated string to array)
+    const parseTags = (val: string | undefined): string[] | null => {
+      if (!val || !val.trim()) return null;
+      return val.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
     };
 
     products.push({
-      name: row.Name.trim(),
-      category: row.Category?.trim() || 'Wine',
-      price: String(Number(row.Price).toFixed(2)),
-      description: row.Description.trim(),
-      stock: normalizeStock(row.Stock),
-      wineColor: row['Wine Color']?.trim() || null,
-      sweetness: row.Sweetness?.trim() || null,
-      body: row.Body?.trim() || null,
-      abv: row.ABV?.trim() || null,
-      servingTemp: row['Serving Temp']?.trim() || null,
-      tastingNotes: row['Tasting Notes']?.trim() || null,
-      foodPairings: row['Food Pairings']?.trim() || null,
-      funFacts: row['Fun Facts']?.trim() || null,
-      isStaffPick: normalizeBool(row['Staff Pick']),
-      isFeatured: normalizeBool(row.Featured),
-      sku: row.SKU?.trim() || null,
-      image: row.Image?.trim() || null,
+      name: row.name.trim(),
+      category: row.category?.trim() || 'Wine',
+      type: row.type?.trim() || null,
+      varietal: row.varietal?.trim() || null,
+      vintageYear: row.vintage_year?.trim() || null,
+      region: row.region?.trim() || null,
+      description: row.description.trim(),
+      tastingNotes: row.tasting_notes?.trim() || null,
+      foodPairings: row.food_pairings?.trim() || null,
+      servingTemp: row.serving_temp?.trim() || null,
+      alcoholContent: row.alcohol_content?.trim() || null,
+      bottleSize: row.bottle_size?.trim() || null,
+      price: String(Number(row.price).toFixed(2)),
+      cost: row.cost ? String(Number(row.cost).toFixed(2)) : null,
+      wholesalePricing: row.wholesale_pricing ? String(Number(row.wholesale_pricing).toFixed(2)) : null,
+      sku: row.sku?.trim() || null,
+      stockQuantity: row.stock_quantity ? Number(row.stock_quantity) : 0,
+      lowStockThreshold: row.low_stock_threshold ? Number(row.low_stock_threshold) : 10,
+      imageUrl: row.image_url?.trim() || null,
+      labelImageUrl: row.label_image_url?.trim() || null,
+      lifestyleImageUrl: row.lifestyle_image_url?.trim() || null,
+      characteristics: row.characteristics?.trim() || null,
+      productionMethod: row.production_method?.trim() || null,
+      agingProcess: row.aging_process?.trim() || null,
+      awards: row.awards?.trim() || null,
+      rating: row.rating ? String(Number(row.rating).toFixed(1)) : null,
+      available: normalizeBool(row.available !== undefined ? row.available : true),
+      featured: normalizeBool(row.featured),
+      newArrival: normalizeBool(row.new_arrival),
+      staffPick: normalizeBool(row.staff_pick),
+      wineOfMonth: normalizeBool(row.wine_of_month),
+      tags: parseTags(row.tags),
     });
   });
 
@@ -103,23 +130,38 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
 export function generateExcelTemplate(): Buffer {
   const templateData: ExcelProductRow[] = [
     {
-      Name: 'Example Wine Name',
-      Category: 'Wine',
-      Price: 29.99,
-      Description: 'A delightful wine with complex flavors',
-      Stock: 'in-stock',
-      'Wine Color': 'red',
-      Sweetness: 'dry',
-      Body: 'full',
-      ABV: '13.5%',
-      'Serving Temp': '60-65°F',
-      'Tasting Notes': 'Cherry, oak, vanilla',
-      'Food Pairings': 'Steak, lamb, aged cheeses',
-      'Fun Facts': 'This wine won a gold medal at the 2023 Wine Competition!',
-      'Staff Pick': 'Yes',
-      Featured: 'No',
-      SKU: 'WINE-001',
-      Image: '',
+      name: 'Reserve Cabernet Sauvignon',
+      category: 'Wine',
+      type: 'Red Wine',
+      varietal: 'Cabernet Sauvignon',
+      vintage_year: '2020',
+      region: 'Napa Valley, California',
+      description: 'A rich, full-bodied Cabernet Sauvignon with complex layers of dark fruit',
+      tasting_notes: 'Dark cherry, blackberry, vanilla, tobacco, oak',
+      food_pairings: 'Grilled steak, roasted lamb, aged cheeses',
+      serving_temp: '60-65°F',
+      alcohol_content: '13.5%',
+      bottle_size: '750ml',
+      price: 34.99,
+      cost: 15.00,
+      wholesale_pricing: 24.99,
+      sku: 'WINE-CAB-2020',
+      stock_quantity: 48,
+      low_stock_threshold: 12,
+      image_url: '',
+      label_image_url: '',
+      lifestyle_image_url: '',
+      characteristics: 'Full-bodied, dry, complex, balanced',
+      production_method: 'Estate-grown grapes, stainless steel fermentation',
+      aging_process: 'Aged 18 months in French oak barrels',
+      awards: 'Gold Medal - 2023 Wine Competition',
+      rating: 4.5,
+      available: 'Yes',
+      featured: 'Yes',
+      new_arrival: 'No',
+      staff_pick: 'Yes',
+      wine_of_month: 'No',
+      tags: 'red wine, cabernet, premium, award-winning',
     },
   ];
 
