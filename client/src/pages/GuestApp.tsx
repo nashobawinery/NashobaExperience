@@ -450,7 +450,7 @@ export default function GuestApp() {
                   category={product.category}
                   price={parseFloat(product.price)}
                   description={product.description || ''}
-                  image={product.image || ''}
+                  image={product.imageUrl || ''}
                   isFavorite={favoriteIds.has(product.id)}
                   viewCount={viewHistoryMap[product.id]}
                   onFavoriteToggle={handleFavoriteToggle}
@@ -481,7 +481,7 @@ export default function GuestApp() {
               name: rec.product.name,
               category: rec.product.category,
               price: parseFloat(rec.product.price),
-              image: rec.product.image || '',
+              image: rec.product.imageUrl || '',
               description: rec.product.description || '',
               reason: rec.reason,
             }))}
