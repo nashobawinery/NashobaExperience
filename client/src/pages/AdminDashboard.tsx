@@ -34,8 +34,9 @@ import {
   getFilterOptions
 } from "@/lib/api";
 import type { Product, TriviaQuestion, FilterOption } from "@shared/schema";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import QRCodeLib from "qrcode";
 
 interface AdminDashboardProps {
   onBackToGuest?: () => void;
@@ -48,6 +49,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [guestAppUrl, setGuestAppUrl] = useState("");
   
   // Product edit dialog state
   const [editProductId, setEditProductId] = useState<string | null>(null);
@@ -95,6 +98,30 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
     return grouped;
   }, [filterOptions]);
+
+  // Generate QR code for documentation tab
+  useEffect(() => {
+    const url = window.location.origin;
+    setGuestAppUrl(url);
+
+    if (qrCanvasRef.current && url) {
+      QRCodeLib.toCanvas(
+        qrCanvasRef.current,
+        url,
+        {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: "#7C2D3A", // Primary burgundy color
+            light: "#FFFFFF",
+          },
+        },
+        (error) => {
+          if (error) console.error("QR Code generation error:", error);
+        }
+      );
+    }
+  }, []);
 
   // Product mutations
   const createProductMutation = useMutation({
@@ -739,6 +766,30 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <BookOpen className="w-16 h-16 mx-auto mb-4 text-primary" />
                   <h2 className="font-serif text-3xl font-medium mb-2">Nashoba Tasting Experience App</h2>
                   <p className="text-lg text-muted-foreground">Staff Training Guide</p>
+                </div>
+
+                {/* QR Code Display */}
+                <div className="mb-8 p-6 bg-muted/50 rounded-lg border-2 border-primary/20">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-shrink-0">
+                      <canvas ref={qrCanvasRef} className="border-2 border-primary/20 rounded-lg" />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                      <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                        <QrCode className="w-5 h-5 text-primary" />
+                        <h3 className="font-serif text-xl font-medium">Guest Access QR Code</h3>
+                      </div>
+                      <p className="text-muted-foreground mb-3">
+                        Have guests scan this code to access the tasting app on their phones
+                      </p>
+                      <p className="text-sm text-muted-foreground/80 font-mono break-all">
+                        {guestAppUrl}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-3 italic">
+                        For a printable version, visit the QR Code tab
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-8">
