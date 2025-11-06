@@ -7,6 +7,7 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Product-agnostic language**: All hardcoded "wine" references replaced with generic "product" terminology to support spirits, beers, and other non-wine items; works equally well for all 5 product categories
 - ✅ **Sonoma-Cutrer-style product detail modal**: Two-column layout with large bottle image (left 50%) and elegant details (right 50%), serif typography, quantity selector (1-12 bottles), clean technical specs grid, professional winery aesthetic matching high-end tasting room sites
 - ✅ **Compact list view**: Guest product browsing redesigned as elegant single-column list (wine menu style) showing 5+ products on screen vs previous 3-4, with small thumbnails, category badges, and characteristics; prices/cart buttons hidden until product clicked
 - ✅ **Comprehensive product editor**: Admin can now edit ALL 32+ database fields via organized edit dialog (basic info, wine details, tasting/serving, production, pricing/inventory, images, recognition, flags/tags)
