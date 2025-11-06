@@ -2,6 +2,7 @@ import AdminProductManager from "@/components/AdminProductManager";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import GuestAppQRCode from "@/components/GuestAppQRCode";
+import SlideshowImageManager from "@/components/SlideshowImageManager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -448,7 +449,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-5xl">
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="w-4 h-4 mr-2" />
               Products
@@ -460,6 +461,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <TabsTrigger value="filters" data-testid="tab-filters">
               <Filter className="w-4 h-4 mr-2" />
               Filters
+            </TabsTrigger>
+            <TabsTrigger value="slideshow" data-testid="tab-slideshow">
+              <Image className="w-4 h-4 mr-2" />
+              Slideshow
             </TabsTrigger>
             <TabsTrigger value="trivia" data-testid="tab-trivia">
               <HelpCircle className="w-4 h-4 mr-2" />
@@ -713,6 +718,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="filters">
             <FilterOptionsManager />
+          </TabsContent>
+
+          <TabsContent value="slideshow">
+            <SlideshowImageManager />
           </TabsContent>
 
           <TabsContent value="qrcode">
