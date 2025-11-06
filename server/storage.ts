@@ -141,12 +141,12 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(products.type, `%${filters.wineColor}%`));
     }
     if (filters?.sweetness) {
-      // Filter by characteristics field which can contain sweetness levels
-      conditions.push(ilike(products.characteristics, `%${filters.sweetness}%`));
+      // Filter by dedicated sweetness field
+      conditions.push(ilike(products.sweetness, `%${filters.sweetness}%`));
     }
     if (filters?.body) {
-      // Filter by characteristics field which can contain body information
-      conditions.push(ilike(products.characteristics, `%${filters.body}%`));
+      // Filter by dedicated body field
+      conditions.push(ilike(products.body, `%${filters.body}%`));
     }
     if (filters?.characteristics) {
       // Filter by characteristics field for specific traits like "Crisp", "Rich", etc.

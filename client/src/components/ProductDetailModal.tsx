@@ -25,6 +25,8 @@ interface ProductDetailModalProps {
     alcoholContent?: string | null;
     bottleSize?: string | null;
     characteristics?: string | null;
+    sweetness?: string | null;
+    body?: string | null;
     productionMethod?: string | null;
     agingProcess?: string | null;
     awards?: string | null;
@@ -128,34 +130,26 @@ export default function ProductDetailModal({
                     {product.category}
                   </Badge>
                   
-                  {/* Wine Color (only for wines) */}
-                  {product.category?.toLowerCase() === 'wine' && product.type && (
+                  {/* Wine Color - show for all products if not N/A */}
+                  {product.type && product.type !== 'N/A' && (
                     <Badge variant="outline" data-testid="badge-wine-color">
                       {product.type}
                     </Badge>
                   )}
                   
-                  {/* Sweetness & Body from characteristics */}
-                  {product.characteristics && product.characteristics.split(',').map((char, idx) => {
-                    const trimmed = char.trim();
-                    const sweetnessLevels = ['Dry', 'Off-Dry', 'Semi-Sweet', 'Sweet', 'Dessert Wine'];
-                    const bodyLevels = ['Light-Bodied', 'Medium-Bodied', 'Full-Bodied', 'Light', 'Medium', 'Full'];
-                    
-                    if (sweetnessLevels.includes(trimmed)) {
-                      return (
-                        <Badge key={idx} variant="outline" data-testid="badge-sweetness">
-                          {trimmed}
-                        </Badge>
-                      );
-                    } else if (bodyLevels.includes(trimmed)) {
-                      return (
-                        <Badge key={idx} variant="outline" data-testid="badge-body">
-                          {trimmed}
-                        </Badge>
-                      );
-                    }
-                    return null;
-                  })}
+                  {/* Sweetness - from dedicated field */}
+                  {product.sweetness && product.sweetness !== 'N/A' && (
+                    <Badge variant="outline" data-testid="badge-sweetness">
+                      {product.sweetness}
+                    </Badge>
+                  )}
+                  
+                  {/* Body - from dedicated field */}
+                  {product.body && product.body !== 'N/A' && (
+                    <Badge variant="outline" data-testid="badge-body">
+                      {product.body}
+                    </Badge>
+                  )}
                 </div>
                 
                 {/* Feature Badges */}

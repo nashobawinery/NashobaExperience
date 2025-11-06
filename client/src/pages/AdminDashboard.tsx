@@ -801,34 +801,61 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
             {/* Product Details */}
             <div className="space-y-4">
-              <h3 className="font-medium text-sm text-muted-foreground">Product Details</h3>
+              <h3 className="font-medium text-sm text-muted-foreground">Product Details & Search Criteria</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-type">Type {editProductData.category === 'wine' && '(Wine Color)'}</Label>
-                  {editProductData.category === 'wine' ? (
-                    <Select
-                      value={editProductData.type || ''}
-                      onValueChange={(value) => setEditProductData({ ...editProductData, type: value })}
-                    >
-                      <SelectTrigger data-testid="select-edit-wine-color">
-                        <SelectValue placeholder="Select wine color" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groupedOptions.wine_color?.map((option) => (
-                          <SelectItem key={option.id} value={option.optionValue}>
-                            {option.displayLabel}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="edit-type"
-                      value={editProductData.type || ''}
-                      onChange={(e) => setEditProductData({ ...editProductData, type: e.target.value })}
-                      placeholder="e.g., Whiskey, IPA, Hard Seltzer"
-                    />
-                  )}
+                  <Label htmlFor="edit-wine-color">Wine Color</Label>
+                  <Select
+                    value={editProductData.type || ''}
+                    onValueChange={(value) => setEditProductData({ ...editProductData, type: value })}
+                  >
+                    <SelectTrigger data-testid="select-edit-wine-color">
+                      <SelectValue placeholder="Select wine color" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupedOptions.wine_color?.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-sweetness">Sweetness</Label>
+                  <Select
+                    value={editProductData.sweetness || ''}
+                    onValueChange={(value) => setEditProductData({ ...editProductData, sweetness: value })}
+                  >
+                    <SelectTrigger data-testid="select-edit-sweetness">
+                      <SelectValue placeholder="Select sweetness level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupedOptions.sweetness?.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-body">Body</Label>
+                  <Select
+                    value={editProductData.body || ''}
+                    onValueChange={(value) => setEditProductData({ ...editProductData, body: value })}
+                  >
+                    <SelectTrigger data-testid="select-edit-body">
+                      <SelectValue placeholder="Select body" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupedOptions.body?.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-varietal">Varietal</Label>
