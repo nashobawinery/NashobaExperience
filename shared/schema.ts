@@ -101,8 +101,13 @@ export const appSettings = pgTable("app_settings", {
 export const surveys = pgTable("surveys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sessionId: varchar("session_id").notNull().references(() => guestSessions.id, { onDelete: 'cascade' }),
-  rating: integer("rating"),
-  feedback: text("feedback"),
+  easeOfUse: integer("ease_of_use"),
+  helpfulness: integer("helpfulness"),
+  staffReplacement: integer("staff_replacement"),
+  recommendation: integer("recommendation"),
+  favoriteFeature: text("favorite_feature"),
+  improvements: text("improvements"),
+  additionalComments: text("additional_comments"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

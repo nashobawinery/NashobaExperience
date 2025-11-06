@@ -258,3 +258,20 @@ export async function uploadProducts(file: File): Promise<{ success: number; fai
   
   return response.json();
 }
+
+export async function submitSurvey(sessionId: string, surveyData: {
+  easeOfUse: number | null;
+  helpfulness: number | null;
+  staffReplacement: number | null;
+  recommendation: number | null;
+  favoriteFeature: string;
+  improvements: string;
+  additionalComments: string;
+}): Promise<void> {
+  const response = await fetch(`/api/sessions/${sessionId}/survey`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(surveyData),
+  });
+  if (!response.ok) throw new Error("Failed to submit survey");
+}

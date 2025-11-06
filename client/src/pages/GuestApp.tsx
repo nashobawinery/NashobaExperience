@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import WelcomeScreen from "@/components/WelcomeScreen";
+import IntroductionModal from "@/components/IntroductionModal";
+import TastingSurvey from "@/components/TastingSurvey";
 import ProductCard from "@/components/ProductCard";
 import ProductFilters from "@/components/ProductFilters";
 import ProductDetailModal from "@/components/ProductDetailModal";
@@ -14,12 +16,15 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import * as api from "@/lib/api";
 import type { Product, TriviaQuestion } from "@shared/schema";
+import type { SurveyData } from "@/components/TastingSurvey";
 
 export default function GuestApp() {
   const { toast } = useToast();
   const [guestName, setGuestName] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("browse");
+  const [showIntroduction, setShowIntroduction] = useState(false);
+  const [showSurvey, setShowSurvey] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -128,15 +133,30 @@ export default function GuestApp() {
     onSuccess: (session) => {
       setSessionId(session.id);
       setGuestName(session.guestName);
-      toast({
-        title: `Welcome, ${session.guestName}!`,
-        description: "Let's find your perfect selection",
-      });
+      setShowIntroduction(true);
     },
     onError: () => {
       toast({
         title: "Error",
         description: "Failed to start session",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitSurveyMutation = useMutation({
+    mutationFn: (surveyData: SurveyData) => api.submitSurvey(sessionId!, surveyData),
+    onSuccess: () => {
+      setShowSurvey(false);
+      toast({
+        title: "Thank you!",
+        description: "Your feedback helps us improve the experience",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to submit survey",
         variant: "destructive",
       });
     },
@@ -581,9 +601,19 @@ export default function GuestApp() {
 
         {activeTab === 'profile' && (
           <div className="max-w-2xl mx-auto text-center py-12">
-            <h2 className="font-serif text-3xl mb-4">Profile & Feedback</h2>
-            <p className="text-muted-foreground mb-6">Complete your tasting and share your experience</p>
-            <Button size="lg">Complete Survey</Button>
+            <div className="bg-card rounded-lg p-8 border border-card-border">
+              <h2 className="font-serif text-3xl mb-4">{guestName}'s Tasting</h2>
+              <p className="text-muted-foreground mb-8">
+                Thank you for using our Interactive Tasting Companion! We'd love to hear your feedback.
+              </p>
+              <Button 
+                size="lg" 
+                onClick={() => setShowSurvey(true)}
+                data-testid="button-complete-tasting"
+              >
+                Complete Tasting & Give Feedback
+              </Button>
+            </div>
           </div>
         )}
       </main>
@@ -617,6 +647,19 @@ export default function GuestApp() {
         onFavoriteToggle={handleProductDetailFavorite}
         onAddToCart={handleProductDetailAddToCart}
         onUpdateNote={handleProductDetailNoteUpdate}
+      />
+
+      <IntroductionModal
+        open={showIntroduction}
+        onContinue={() => setShowIntroduction(false)}
+        guestName={guestName}
+      />
+
+      <TastingSurvey
+        open={showSurvey}
+        onClose={() => setShowSurvey(false)}
+        onSubmit={(data) => submitSurveyMutation.mutate(data)}
+        submitting={submitSurveyMutation.isPending}
       />
     </div>
   );
