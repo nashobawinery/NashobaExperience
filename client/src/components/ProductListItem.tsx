@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Heart } from "lucide-react";
+import { Heart, Wine } from "lucide-react";
 
 interface ProductListItemProps {
   id: string;
@@ -41,8 +41,8 @@ export default function ProductListItem({
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-2xl">
-            🍷
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+            <Wine className="w-6 h-6" />
           </div>
         )}
       </div>
