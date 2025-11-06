@@ -23,14 +23,14 @@ const slides = [
     image: justinPhoto,
     title: "Welcome to Nashoba Valley Winery!",
     content: (guestName: string) => (
-      <div className="space-y-4">
-        <p className="text-xl leading-relaxed">
+      <div className="space-y-3">
+        <p className="text-lg">
           Hello <span className="font-serif text-primary font-semibold">{guestName}</span>!
         </p>
-        <p className="text-lg leading-relaxed">
+        <p className="text-base">
           I'm Justin Pelletier, owner of Nashoba Valley Winery. We're thrilled to have you here today.
         </p>
-        <p className="text-base leading-relaxed text-foreground/80">
+        <p className="text-sm text-foreground/80">
           We've created something special to enhance your tasting experience, and I'm excited to show you how it works.
         </p>
       </div>
@@ -41,26 +41,26 @@ const slides = [
     image: justinPhoto,
     title: "Your Interactive Tasting Companion",
     content: () => (
-      <div className="space-y-4">
-        <p className="text-lg leading-relaxed">
+      <div className="space-y-3">
+        <p className="text-sm">
           This digital companion is designed to make your visit more engaging and memorable.
         </p>
-        <div className="grid grid-cols-1 gap-3">
-          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
-            <BookOpen className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <span className="text-base">Discover detailed flavor notes and vineyard stories for each product</span>
+        <div className="grid grid-cols-1 gap-2">
+          <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
+            <BookOpen className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <span className="text-sm">Discover detailed flavor notes and vineyard stories</span>
           </div>
-          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
-            <Heart className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <span className="text-base">Save your favorites and record tasting impressions</span>
+          <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
+            <Heart className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <span className="text-sm">Save favorites and record tasting impressions</span>
           </div>
-          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
-            <Gift className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <span className="text-base">Get AI-powered recommendations based on your preferences</span>
+          <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
+            <Gift className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <span className="text-sm">Get AI-powered recommendations</span>
           </div>
-          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
-            <Wine className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <span className="text-base">Test your knowledge with trivia and earn rewards!</span>
+          <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
+            <Wine className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <span className="text-sm">Test your knowledge with trivia and earn rewards!</span>
           </div>
         </div>
       </div>
@@ -71,19 +71,19 @@ const slides = [
     image: justinPhoto,
     title: "Here to Enhance, Not Replace",
     content: () => (
-      <div className="space-y-4">
-        <div className="bg-primary/10 border-l-4 border-primary p-4 rounded-r-lg">
-          <p className="text-lg font-medium mb-3">
+      <div className="space-y-3">
+        <div className="bg-primary/10 border-l-4 border-primary p-3 rounded-r-lg">
+          <p className="text-base font-medium mb-2">
             Our Promise to You
           </p>
-          <p className="text-base leading-relaxed">
+          <p className="text-sm">
             This app is <strong>not meant to replace</strong> our knowledgeable tasting staff. They're here to guide you, answer questions, and share their expertise.
           </p>
         </div>
-        <p className="text-base leading-relaxed text-foreground/80">
+        <p className="text-sm text-foreground/80">
           Instead, think of this as an added layer of engagement — a way to explore at your own pace, dive deeper into the products you love, and take home detailed notes from your experience.
         </p>
-        <p className="text-base leading-relaxed text-foreground/80">
+        <p className="text-sm text-foreground/80">
           Our team is always here to make your visit special. The app simply gives you more tools to enjoy and remember it.
         </p>
       </div>
@@ -94,22 +94,22 @@ const slides = [
     image: justinPhoto,
     title: "Thank You for Being Here",
     content: () => (
-      <div className="space-y-5">
-        <p className="text-lg leading-relaxed">
+      <div className="space-y-3">
+        <p className="text-base">
           We're honored to share our passion for winemaking with you today.
         </p>
-        <div className="bg-accent/20 border border-accent/30 rounded-lg p-5">
-          <p className="text-base leading-relaxed mb-3">
-            <strong className="text-lg font-semibold">Help Us Improve!</strong>
+        <div className="bg-accent/20 border border-accent/30 rounded-lg p-3">
+          <p className="text-sm mb-2">
+            <strong className="font-semibold">Help Us Improve!</strong>
           </p>
-          <p className="text-base leading-relaxed">
+          <p className="text-sm">
             You're among the first to experience this new tool. Your feedback is invaluable in making it better for future guests.
           </p>
-          <p className="text-base leading-relaxed mt-3">
+          <p className="text-sm mt-2">
             At the end of your tasting, please share your thoughts through our quick survey by clicking <strong>"Tasting Complete"</strong>.
           </p>
         </div>
-        <p className="text-lg font-serif text-primary text-center mt-6">
+        <p className="text-base font-serif text-primary text-center mt-4">
           Enjoy your tasting experience!
         </p>
       </div>
@@ -182,13 +182,13 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent 
-        className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
+        className="max-w-6xl p-0 gap-0 overflow-hidden border-0" 
         data-testid="dialog-introduction"
       >
         <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
-        <div className="relative h-[85vh] max-h-[700px] flex flex-col">
-          {/* Image Section with Overlay */}
-          <div className="relative h-[45%] overflow-hidden">
+        <div className="flex h-[85vh] max-h-[650px]">
+          {/* Left Column - Photo */}
+          <div className="relative w-1/2 overflow-hidden">
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
                 key={currentSlide}
@@ -207,13 +207,17 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                   src={getBackgroundImage(currentSlide)}
                   alt={slide.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error('Image failed to load:', getBackgroundImage(currentSlide));
+                    e.currentTarget.src = justinPhoto;
+                  }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
               </motion.div>
             </AnimatePresence>
 
             {/* Progress Dots */}
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-10">
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-10">
               {slides.map((_, index) => (
                 <button
                   key={index}
@@ -230,19 +234,20 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
             </div>
           </div>
 
-          {/* Content Section */}
-          <div className="flex-1 overflow-y-auto bg-background">
-            <div className="p-8">
+          {/* Right Column - Text Content */}
+          <div className="w-1/2 flex flex-col bg-background">
+            {/* Content Area (no scrolling) */}
+            <div className="flex-1 flex flex-col justify-center p-8">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentSlide}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
-                  className="space-y-6"
+                  className="space-y-4"
                 >
-                  <h2 className="font-serif text-3xl text-primary leading-tight">
+                  <h2 className="font-serif text-2xl text-primary leading-tight">
                     {slide.title}
                   </h2>
                   <div className="text-foreground/90">
@@ -251,35 +256,33 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                 </motion.div>
               </AnimatePresence>
             </div>
-          </div>
 
-          {/* Navigation Buttons */}
-          <div className="border-t bg-background p-4 flex justify-between items-center gap-4">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={prevSlide}
-              disabled={currentSlide === 0}
-              className="gap-2"
-              data-testid="button-prev-slide"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </Button>
+            {/* Navigation Footer */}
+            <div className="border-t bg-background p-4 flex justify-between items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={prevSlide}
+                disabled={currentSlide === 0}
+                className="gap-2"
+                data-testid="button-prev-slide"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </Button>
 
-            <div className="text-sm text-muted-foreground">
-              {currentSlide + 1} / {slides.length}
+              <div className="text-sm text-muted-foreground">
+                {currentSlide + 1} / {slides.length}
+              </div>
+
+              <Button
+                onClick={nextSlide}
+                className="gap-2"
+                data-testid="button-next-slide"
+              >
+                {currentSlide === slides.length - 1 ? "Let's Begin!" : "Next"}
+                {currentSlide < slides.length - 1 && <ChevronRight className="w-4 h-4" />}
+              </Button>
             </div>
-
-            <Button
-              size="lg"
-              onClick={nextSlide}
-              className="gap-2"
-              data-testid="button-next-slide"
-            >
-              {currentSlide === slides.length - 1 ? "Let's Begin!" : "Next"}
-              {currentSlide < slides.length - 1 && <ChevronRight className="w-4 h-4" />}
-            </Button>
           </div>
         </div>
       </DialogContent>
