@@ -144,6 +144,17 @@ export const filterOptions = pgTable("filter_options", {
   uniqueFieldValue: unique().on(table.fieldType, table.optionValue),
 }));
 
+export const slideshowImages = pgTable("slideshow_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  filename: text("filename").notNull(),
+  caption: text("caption"),
+  description: text("description"),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const updateProductSchema = insertProductSchema.partial(); // All fields optional for updates
@@ -157,6 +168,7 @@ export const insertAppSettingSchema = createInsertSchema(appSettings).omit({ id:
 export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, createdAt: true });
 export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -191,3 +203,6 @@ export type ProductNote = typeof productNotes.$inferSelect;
 
 export type InsertFilterOption = z.infer<typeof insertFilterOptionSchema>;
 export type FilterOption = typeof filterOptions.$inferSelect;
+
+export type InsertSlideshowImage = z.infer<typeof insertSlideshowImageSchema>;
+export type SlideshowImage = typeof slideshowImages.$inferSelect;
