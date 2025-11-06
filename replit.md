@@ -6,7 +6,10 @@ The Nashoba Tasting Experience App is an interactive digital companion for winer
 
 **Status**: ✅ Fully functional and tested. All core features implemented and working.
 
-**Recent Completion Date**: November 5, 2025
+**Recent Updates**: November 6, 2025
+- ✅ Product Detail Modal with comprehensive information display
+- ✅ Enhanced wine filtering with professional classification system
+- ✅ Category switching bug fix (wine filters no longer interfere with other categories)
 
 ## User Preferences
 
@@ -152,7 +155,9 @@ Preferred communication style: Simple, everyday language.
 ### Guest Experience
 ✅ Welcome screen with guest name collection  
 ✅ Product browsing with 8 seeded products (wines, spirits, beer, cocktails)  
-✅ Category and price filtering  
+✅ **Product Detail Modal** - Click any product to view comprehensive details, favorite, add notes, and add to cart  
+✅ **Professional Wine Filtering** - Type (Red/White/Rosé/Sparkling/Fortified), Sweetness (Dry/Off-Dry/Semi-Sweet/Sweet), Body (Light/Medium/Full), Characteristics (Crisp/Rich/Fruit-Forward/Aromatic/Tannic)  
+✅ Category and price filtering with smart filter isolation  
 ✅ Add to favorites with personal notes  
 ✅ View history tracking for preference learning  
 ✅ Shopping cart with tier-based discounts (3/6/12/24 bottle tiers: 5%/10%/15%/24% off)  
@@ -179,12 +184,36 @@ Preferred communication style: Simple, everyday language.
 ✅ TanStack Query for state management  
 ✅ End-to-end testing passed  
 
+## Recent Feature Additions (November 6, 2025)
+
+### Product Detail Modal
+- **Full Product Information Display**: Click any product card to open a modal overlay showing comprehensive product details including images, tasting notes, food pairings, and pricing
+- **Integrated Actions**: Favorite toggle with heart icon, add to cart button, and personal notes field all accessible from the modal
+- **Smart Note Management**: Notes field appears when product is favorited, allowing guests to save personalized tasting impressions
+- **Seamless UX**: Modal integrates with favorites and cart systems, with toast notifications confirming actions
+
+### Enhanced Wine Filtering System
+- **Professional Wine Classification**: 
+  - **Type Filter**: Red Wine, White Wine, Rosé, Sparkling, Fortified/Port
+  - **Sweetness Scale**: Dry, Off-Dry, Semi-Sweet, Sweet/Dessert, Port-Style
+  - **Body Classification**: Light-bodied, Medium-bodied, Full-bodied
+  - **Characteristics**: Crisp & Acidic, Rich & Oaky, Fruit-Forward, Aromatic & Floral, Tannic & Bold
+- **Collapsible Advanced Filters**: Wine-specific filters accessible via "Advanced" button to keep UI clean
+- **Active Filter Badges**: Visual indicators showing applied filters with one-click removal
+- **Smart Category Isolation**: Wine filters automatically reset when switching to non-wine categories (Spirits, Beer, etc.), preventing empty search results
+
+### Technical Improvements
+- **Backend Filtering Enhancement**: Added support for `body` and `characteristics` parameters in product API with case-insensitive partial matching (PostgreSQL ILIKE)
+- **React Query Cache Optimization**: Fixed race condition where wine filters persisted across category changes by implementing conditional queryKey logic
+- **Type-Safe Integration**: All new features maintain TypeScript type safety throughout frontend and backend
+
 ## Known Limitations & Future Enhancements
 
 1. **Email Delivery**: Currently logs to console. Integrate SendGrid/Resend for production.
 2. **Trivia Modal**: Minor intermittent closing behavior (doesn't affect functionality).
 3. **Analytics**: Consider adding guest behavior analytics dashboard for business insights.
 4. **Product Images**: Upload functionality could be enhanced with image hosting integration.
+5. **Advanced Filter UI Testing**: Automated test agent occasionally has trouble with Advanced filter toggle (manual testing confirms functionality works correctly).
 
 ## Running the Application
 
