@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Heart, ShoppingCart, X, Wine } from "lucide-react";
+import { Heart, ShoppingCart, Wine } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ProductDetailModalProps {
@@ -56,6 +56,7 @@ export default function ProductDetailModal({
   onUpdateNote,
 }: ProductDetailModalProps) {
   const [localNote, setLocalNote] = useState(note);
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     setLocalNote(note);
@@ -66,31 +67,35 @@ export default function ProductDetailModal({
     onUpdateNote?.(value);
   };
 
+  const handleAddToCart = () => {
+    for (let i = 0; i < quantity; i++) {
+      onAddToCart?.();
+    }
+  };
+
   if (!product) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0" data-testid="product-detail-modal">
-        <ScrollArea className="max-h-[90vh]">
-          <div className="relative">
-            {/* Header Image */}
-            <div className="relative w-full h-64 bg-muted">
+      <DialogContent className="max-w-6xl max-h-[95vh] p-0" data-testid="product-detail-modal">
+        <ScrollArea className="max-h-[95vh]">
+          <div className="grid md:grid-cols-2 gap-0">
+            {/* Left Column - Bottle Image */}
+            <div className="relative bg-muted flex items-center justify-center p-12 min-h-[600px]">
               {product.imageUrl ? (
                 <img
                   src={product.imageUrl}
                   alt={product.name}
-                  className="w-full h-full object-cover"
+                  className="max-h-[550px] w-auto object-contain"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Wine className="w-24 h-24 text-muted-foreground/30" />
-                </div>
+                <Wine className="w-48 h-48 text-muted-foreground/20" />
               )}
               
               {/* Favorite Button */}
               <button
                 onClick={onFavoriteToggle}
-                className="absolute top-4 right-4 p-3 rounded-full bg-background/80 backdrop-blur-sm hover-elevate active-elevate-2"
+                className="absolute top-6 right-6 p-3 rounded-full bg-background/80 backdrop-blur-sm hover-elevate active-elevate-2"
                 data-testid="button-favorite-product"
               >
                 <Heart
@@ -99,166 +104,183 @@ export default function ProductDetailModal({
               </button>
             </div>
 
-            {/* Content */}
-            <div className="p-6 space-y-6">
-              <DialogHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <DialogTitle className="font-serif text-3xl mb-2" data-testid="text-product-name">
-                      {product.name}
-                    </DialogTitle>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <Badge variant="secondary">{product.category}</Badge>
-                      {product.type && <Badge variant="outline">{product.type}</Badge>}
-                      {product.varietal && <Badge variant="outline">{product.varietal}</Badge>}
-                      {product.staffPick && (
-                        <Badge className="bg-chart-2 text-background">⭐ Staff Pick</Badge>
-                      )}
-                      {product.featured && (
-                        <Badge className="bg-primary text-primary-foreground">Featured</Badge>
-                      )}
-                      {product.wineOfMonth && (
-                        <Badge className="bg-chart-1 text-background">Wine of the Month</Badge>
-                      )}
-                    </div>
-                    <div className="text-3xl font-semibold text-primary" data-testid="text-product-price">
-                      ${parseFloat(product.price).toFixed(2)}
-                    </div>
-                  </div>
+            {/* Right Column - Product Details */}
+            <div className="p-8 space-y-6">
+              {/* Title & Vintage */}
+              <div>
+                <h1 className="font-serif text-4xl font-medium mb-2" data-testid="text-product-name">
+                  {product.name}
+                </h1>
+                {product.vintageYear && (
+                  <p className="text-xl text-muted-foreground mb-3">
+                    {product.vintageYear} {product.varietal || product.type}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {product.staffPick && (
+                    <Badge className="bg-chart-2 text-background">Staff Pick</Badge>
+                  )}
+                  {product.featured && (
+                    <Badge className="bg-primary text-primary-foreground">Featured</Badge>
+                  )}
+                  {product.wineOfMonth && (
+                    <Badge className="bg-chart-1 text-background">Wine of the Month</Badge>
+                  )}
                 </div>
-              </DialogHeader>
+              </div>
 
-              {/* Vintage & Region */}
-              {(product.vintageYear || product.region) && (
-                <div className="flex flex-wrap gap-4 text-sm">
-                  {product.vintageYear && (
+              {/* Description */}
+              {product.description && (
+                <p className="text-base leading-relaxed text-muted-foreground">
+                  {product.description}
+                </p>
+              )}
+
+              {/* Tasting Notes */}
+              {product.tastingNotes && (
+                <p className="text-base leading-relaxed text-muted-foreground">
+                  {product.tastingNotes}
+                </p>
+              )}
+
+              {/* Quantity & Price */}
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-2">Quantity</label>
+                    <select
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value))}
+                      className="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      data-testid="select-quantity"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {product.bottleSize && (
                     <div>
-                      <span className="text-muted-foreground">Vintage:</span>{' '}
-                      <span className="font-medium">{product.vintageYear}</span>
+                      <label className="text-sm text-muted-foreground block mb-2">Bottle Size</label>
+                      <div className="h-10 px-3 py-2 text-sm font-medium">
+                        {product.bottleSize}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <div className="text-3xl font-semibold text-primary" data-testid="text-product-price">
+                    ${parseFloat(product.price).toFixed(2)}
+                  </div>
+                  <Button
+                    size="lg"
+                    className="gap-2 px-8"
+                    onClick={handleAddToCart}
+                    data-testid="button-add-to-cart-detail"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    Add to Cart
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Technical Specifications */}
+              <div className="space-y-4">
+                <h3 className="font-serif text-xl font-medium">About this Wine</h3>
+                
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                  {product.alcoholContent && (
+                    <div>
+                      <span className="text-muted-foreground">Alcohol</span>
+                      <p className="font-medium">{product.alcoholContent}</p>
                     </div>
                   )}
                   {product.region && (
                     <div>
-                      <span className="text-muted-foreground">Region:</span>{' '}
-                      <span className="font-medium">{product.region}</span>
+                      <span className="text-muted-foreground">Region</span>
+                      <p className="font-medium">{product.region}</p>
+                    </div>
+                  )}
+                  {product.characteristics && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Composition</span>
+                      <p className="font-medium">{product.characteristics}</p>
+                    </div>
+                  )}
+                  {product.agingProcess && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Fermentation</span>
+                      <p className="font-medium">{product.agingProcess}</p>
+                    </div>
+                  )}
+                  {product.servingTemp && (
+                    <div>
+                      <span className="text-muted-foreground">Serving Temp</span>
+                      <p className="font-medium">{product.servingTemp}</p>
+                    </div>
+                  )}
+                  {product.rating && (
+                    <div>
+                      <span className="text-muted-foreground">Rating</span>
+                      <p className="font-medium">{parseFloat(product.rating).toFixed(1)} / 5.0</p>
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* Description */}
-              <div>
-                <p className="text-muted-foreground leading-relaxed">{product.description}</p>
-              </div>
-
-              {/* Tasting Notes */}
-              {product.tastingNotes && (
-                <div>
-                  <h3 className="font-semibold mb-2">Tasting Notes</h3>
-                  <p className="text-muted-foreground">{product.tastingNotes}</p>
-                </div>
-              )}
-
-              {/* Product Details Grid */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                {product.alcoholContent && (
-                  <div>
-                    <span className="text-muted-foreground">Alcohol:</span>{' '}
-                    <span className="font-medium">{product.alcoholContent}</span>
+                {/* Food Pairings */}
+                {product.foodPairings && (
+                  <div className="pt-2">
+                    <span className="text-sm text-muted-foreground block mb-2">Pairs well with</span>
+                    <p className="font-medium">{product.foodPairings}</p>
                   </div>
                 )}
-                {product.bottleSize && (
-                  <div>
-                    <span className="text-muted-foreground">Size:</span>{' '}
-                    <span className="font-medium">{product.bottleSize}</span>
+
+                {/* Production Method */}
+                {product.productionMethod && (
+                  <div className="pt-2">
+                    <p className="text-sm text-muted-foreground">{product.productionMethod}</p>
                   </div>
                 )}
-                {product.servingTemp && (
-                  <div>
-                    <span className="text-muted-foreground">Serving Temp:</span>{' '}
-                    <span className="font-medium">{product.servingTemp}</span>
-                  </div>
-                )}
-                {product.rating && (
-                  <div>
-                    <span className="text-muted-foreground">Rating:</span>{' '}
-                    <span className="font-medium">{parseFloat(product.rating).toFixed(1)} / 5.0</span>
+
+                {/* Awards */}
+                {product.awards && (
+                  <div className="pt-2">
+                    <span className="text-sm text-muted-foreground block mb-2">Awards & Recognition</span>
+                    <p className="font-medium text-sm">{product.awards}</p>
                   </div>
                 )}
               </div>
-
-              {/* Characteristics */}
-              {product.characteristics && (
-                <div>
-                  <h3 className="font-semibold mb-2">Characteristics</h3>
-                  <p className="text-muted-foreground">{product.characteristics}</p>
-                </div>
-              )}
-
-              {/* Food Pairings */}
-              {product.foodPairings && (
-                <div>
-                  <h3 className="font-semibold mb-2">Food Pairings</h3>
-                  <p className="text-muted-foreground">{product.foodPairings}</p>
-                </div>
-              )}
-
-              {/* Production Details */}
-              {(product.productionMethod || product.agingProcess) && (
-                <div>
-                  <h3 className="font-semibold mb-2">Production</h3>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    {product.productionMethod && <p>{product.productionMethod}</p>}
-                    {product.agingProcess && <p>{product.agingProcess}</p>}
-                  </div>
-                </div>
-              )}
-
-              {/* Awards */}
-              {product.awards && (
-                <div>
-                  <h3 className="font-semibold mb-2">Awards & Recognition</h3>
-                  <p className="text-muted-foreground">{product.awards}</p>
-                </div>
-              )}
 
               <Separator />
 
               {/* Customer Notes */}
               <div>
-                <h3 className="font-semibold mb-2">Your Tasting Notes</h3>
+                <h3 className="font-serif text-lg font-medium mb-3">Your Tasting Notes</h3>
                 <Textarea
-                  placeholder="Add your personal notes about this product..."
+                  placeholder="Add your personal notes about this wine..."
                   value={localNote}
                   onChange={(e) => handleNoteChange(e.target.value)}
                   className="min-h-[100px]"
                   data-testid="textarea-product-notes"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Your notes are saved automatically for all products you view
+                  Your notes are saved automatically
                 </p>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  className="flex-1 gap-2"
-                  size="lg"
-                  onClick={onAddToCart}
-                  data-testid="button-add-to-cart-detail"
-                >
-                  <ShoppingCart className="w-5 h-5" />
-                  Add to Cart
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={onClose}
-                  data-testid="button-close-detail"
-                >
-                  Close
-                </Button>
-              </div>
+              {/* Close Button */}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={onClose}
+                data-testid="button-close-detail"
+              >
+                Close
+              </Button>
             </div>
           </div>
         </ScrollArea>
