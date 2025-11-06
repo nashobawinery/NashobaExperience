@@ -7,6 +7,10 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Per-product inventory control**: New `ignoreInventory` boolean field (default: true) allows fine-grained stock management
+- ✅ **Inventory toggle UI**: Admin dashboard displays clickable badge ("Ignored" or "Tracked") per product for instant inventory mode switching
+- ✅ **Smart filtering**: Products with ignoreInventory=true always appear in guest view regardless of stock; tracked products only show if in stock
+- ✅ **Fixed schema bugs**: PostgreSQL enum casting and filter option validation issues resolved
 - ✅ **Dynamic filter management**: Admins can add, edit, delete filter options via admin dashboard
 - ✅ **Database-driven filters**: All filter options (categories, wine colors, sweetness, body, characteristics) managed in `filter_options` table
 - ✅ **5 filter types**: category, wine_color, sweetness, body, characteristics - each fully customizable
@@ -42,8 +46,9 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (detailed inventory with 31 fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management).
+- **Database Schema**: Includes `products` (detailed inventory with 32 fields including `ignoreInventory`), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management).
 - **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards ($5 for 10/10 trivia), and a multi-algorithm product recommendation engine.
+- **Inventory Management**: Per-product `ignoreInventory` flag (default: true) allows products to always appear regardless of stock, or be tracked normally. Admin toggle UI provides instant control.
 - **Dynamic Filtering**: Database-driven filter system with CRUD API endpoints, supporting 5 field types with customizable options, sort orders, and active/inactive states.
 
 ### AI Integration
@@ -72,7 +77,7 @@ Preferred communication style: Simple, everyday language.
   - Comprehensive 7-question tasting survey with prominent thank you message
   - Email order/favorites summary
   - Mobile-first bottom navigation
-- **Admin Dashboard**: Product CRUD, stock toggling, filter options management, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types.
+- **Admin Dashboard**: Product CRUD, stock toggling, **per-product inventory control** (toggle between "Ignored" and "Tracked" modes), filter options management, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types.
 
 ## External Dependencies
 
