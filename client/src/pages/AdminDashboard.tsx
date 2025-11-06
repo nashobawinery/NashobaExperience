@@ -1,5 +1,6 @@
 import AdminProductManager from "@/components/AdminProductManager";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
+import DiscountTiersManager from "@/components/DiscountTiersManager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -583,39 +584,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="settings">
             <div className="grid gap-6">
-              <Card className="p-6">
-                <h2 className="font-serif text-xl font-medium mb-4">Discount Tiers</h2>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">Tier 1: 3-5 bottles</p>
-                      <p className="text-sm text-muted-foreground">Wine & Spirits combined</p>
-                    </div>
-                    <p className="font-semibold">5% off</p>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">Tier 2: 6-11 bottles</p>
-                      <p className="text-sm text-muted-foreground">Wine & Spirits combined</p>
-                    </div>
-                    <p className="font-semibold">10% off</p>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">Tier 3: 12-23 bottles</p>
-                      <p className="text-sm text-muted-foreground">Wine & Spirits combined</p>
-                    </div>
-                    <p className="font-semibold">15% off</p>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">Tier 4: 24+ bottles</p>
-                      <p className="text-sm text-muted-foreground">Wine & Spirits combined</p>
-                    </div>
-                    <p className="font-semibold">24% off</p>
-                  </div>
-                </div>
-              </Card>
+              <DiscountTiersManager />
 
               <Card className="p-6">
                 <h2 className="font-serif text-xl font-medium mb-4">Welcome Video</h2>

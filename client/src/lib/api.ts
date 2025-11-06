@@ -344,3 +344,41 @@ export async function deleteFilterOption(id: string): Promise<void> {
   });
   if (!response.ok) throw new Error("Failed to delete filter option");
 }
+
+export async function updateFilterOptionOrder(updates: { id: string; sortOrder: number }[]): Promise<void> {
+  const response = await fetch('/api/filter-options/reorder', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates }),
+  });
+  if (!response.ok) throw new Error('Failed to reorder filter options');
+}
+
+export interface DiscountTier {
+  min: number;
+  max: number;
+  discount: number;
+}
+
+export interface DiscountTiers {
+  tier1: DiscountTier;
+  tier2: DiscountTier;
+  tier3: DiscountTier;
+  tier4: DiscountTier;
+}
+
+export async function getDiscountTiers(): Promise<DiscountTiers> {
+  const response = await fetch('/api/settings/discount_tiers');
+  if (!response.ok) throw new Error('Failed to fetch discount tiers');
+  const setting = await response.json();
+  return setting.value;
+}
+
+export async function updateDiscountTiers(tiers: DiscountTiers): Promise<void> {
+  const response = await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'discount_tiers', value: tiers }),
+  });
+  if (!response.ok) throw new Error('Failed to update discount tiers');
+}
