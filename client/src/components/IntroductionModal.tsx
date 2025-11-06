@@ -24,13 +24,13 @@ const slides = [
     title: "Welcome to Nashoba Valley Winery!",
     content: (guestName: string) => (
       <div className="space-y-3">
-        <p className="text-lg">
+        <p className="text-base">
           Hello <span className="font-serif text-primary font-semibold">{guestName}</span>!
         </p>
         <p className="text-base">
           I'm Justin Pelletier, owner of Nashoba Valley Winery. We're thrilled to have you here today.
         </p>
-        <p className="text-sm text-foreground/80">
+        <p className="text-base text-foreground/80">
           We've created something special to enhance your tasting experience, and I'm excited to show you how it works.
         </p>
       </div>
@@ -42,25 +42,25 @@ const slides = [
     title: "Your Interactive Tasting Companion",
     content: () => (
       <div className="space-y-3">
-        <p className="text-sm">
+        <p className="text-base">
           This digital companion is designed to make your visit more engaging and memorable.
         </p>
         <div className="grid grid-cols-1 gap-2">
           <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
             <BookOpen className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span className="text-sm">Discover detailed flavor notes and vineyard stories</span>
+            <span className="text-base">Discover detailed flavor notes and vineyard stories</span>
           </div>
           <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
             <Heart className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span className="text-sm">Save favorites and record tasting impressions</span>
+            <span className="text-base">Save favorites and record tasting impressions</span>
           </div>
           <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
             <Gift className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span className="text-sm">Get AI-powered recommendations</span>
+            <span className="text-base">Get AI-powered recommendations</span>
           </div>
           <div className="flex gap-2 items-start bg-muted/30 p-2 rounded-lg">
             <Wine className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span className="text-sm">Test your knowledge with trivia and earn rewards!</span>
+            <span className="text-base">Test your knowledge with trivia and earn rewards!</span>
           </div>
         </div>
       </div>
@@ -76,14 +76,14 @@ const slides = [
           <p className="text-base font-medium mb-2">
             Our Promise to You
           </p>
-          <p className="text-sm">
+          <p className="text-base">
             This app is <strong>not meant to replace</strong> our knowledgeable tasting staff. They're here to guide you, answer questions, and share their expertise.
           </p>
         </div>
-        <p className="text-sm text-foreground/80">
+        <p className="text-base text-foreground/80">
           Instead, think of this as an added layer of engagement — a way to explore at your own pace, dive deeper into the products you love, and take home detailed notes from your experience.
         </p>
-        <p className="text-sm text-foreground/80">
+        <p className="text-base text-foreground/80">
           Our team is always here to make your visit special. The app simply gives you more tools to enjoy and remember it.
         </p>
       </div>
@@ -99,13 +99,13 @@ const slides = [
           We're honored to share our passion for winemaking with you today.
         </p>
         <div className="bg-accent/20 border border-accent/30 rounded-lg p-3">
-          <p className="text-sm mb-2">
+          <p className="text-base mb-2">
             <strong className="font-semibold">Help Us Improve!</strong>
           </p>
-          <p className="text-sm">
+          <p className="text-base">
             You're among the first to experience this new tool. Your feedback is invaluable in making it better for future guests.
           </p>
-          <p className="text-sm mt-2">
+          <p className="text-base mt-2">
             At the end of your tasting, please share your thoughts through our quick survey by clicking <strong>"Tasting Complete"</strong>.
           </p>
         </div>
