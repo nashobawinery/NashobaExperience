@@ -28,6 +28,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
             src={logoUrl} 
             alt="Nashoba Valley Winery Logo" 
             className="w-48 h-auto object-contain drop-shadow-2xl"
+            style={{ mixBlendMode: 'multiply' }}
           />
         </div>
         
