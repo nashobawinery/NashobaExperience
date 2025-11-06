@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -78,6 +79,9 @@ export default function ProductDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl max-h-[95vh] p-0" data-testid="product-detail-modal">
+        <VisuallyHidden>
+          <DialogTitle>{product.name}</DialogTitle>
+        </VisuallyHidden>
         <ScrollArea className="max-h-[95vh]">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Left Column - Bottle Image */}
