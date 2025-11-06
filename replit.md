@@ -7,6 +7,12 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Dynamic filter management**: Admins can add, edit, delete filter options via admin dashboard
+- ✅ **Database-driven filters**: All filter options (categories, wine colors, sweetness, body, characteristics) managed in `filter_options` table
+- ✅ **5 filter types**: category, wine_color, sweetness, body, characteristics - each fully customizable
+- ✅ **Admin UI**: New "Filters" tab in admin dashboard with inline editing, sort order management, and active/inactive toggling
+- ✅ **Guest experience**: ProductFilters component dynamically loads options from API, ensuring real-time updates
+- ✅ **24 seeded options**: Pre-populated with all existing filter values for immediate use
 - ✅ **Auto-popup trivia**: Trivia questions automatically appear every 4 minutes (no manual button)
 - ✅ **10 random questions per session**: $5 credit awarded for perfect score (10/10 correct)
 - ✅ **Heart icon in header**: Replaces "Try Trivia" button, opens favorites panel with count badge
@@ -36,8 +42,9 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (detailed inventory with 31 fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, and `surveys`.
+- **Database Schema**: Includes `products` (detailed inventory with 31 fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management).
 - **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards ($5 for 10/10 trivia), and a multi-algorithm product recommendation engine.
+- **Dynamic Filtering**: Database-driven filter system with CRUD API endpoints, supporting 5 field types with customizable options, sort orders, and active/inactive states.
 
 ### AI Integration
 
@@ -65,7 +72,7 @@ Preferred communication style: Simple, everyday language.
   - Comprehensive 7-question tasting survey with prominent thank you message
   - Email order/favorites summary
   - Mobile-first bottom navigation
-- **Admin Dashboard**: Product CRUD, stock toggling, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products.
+- **Admin Dashboard**: Product CRUD, stock toggling, filter options management, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types.
 
 ## External Dependencies
 
