@@ -116,7 +116,7 @@ export class DatabaseStorage implements IStorage {
       );
     }
     if (filters?.category) {
-      conditions.push(eq(products.category, filters.category));
+      conditions.push(sql`lower(${products.category}) = lower(${filters.category})`);
     }
     if (filters?.wineColor) {
       // Filter by the 'type' field which contains wine types like "Red Wine", "White Wine", etc.
