@@ -13,6 +13,7 @@ import {
   surveys,
   productNotes,
   filterOptions,
+  slideshowImages,
   type InsertProduct,
   type Product,
   type InsertGuestSession,
@@ -35,6 +36,8 @@ import {
   type ProductNote,
   type InsertFilterOption,
   type FilterOption,
+  type InsertSlideshowImage,
+  type SlideshowImage,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -104,6 +107,14 @@ export interface IStorage {
   updateFilterOption(id: string, option: Partial<InsertFilterOption>): Promise<FilterOption | undefined>;
   deleteFilterOption(id: string): Promise<boolean>;
   updateFilterOptionOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
+
+  // Slideshow Images
+  getSlideshowImages(activeOnly?: boolean): Promise<SlideshowImage[]>;
+  getSlideshowImage(id: string): Promise<SlideshowImage | undefined>;
+  createSlideshowImage(image: InsertSlideshowImage): Promise<SlideshowImage>;
+  updateSlideshowImage(id: string, image: Partial<InsertSlideshowImage>): Promise<SlideshowImage | undefined>;
+  deleteSlideshowImage(id: string): Promise<boolean>;
+  updateSlideshowImageOrder(updates: { id: string; displayOrder: number }[]): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -501,6 +512,50 @@ export class DatabaseStorage implements IStorage {
         .update(filterOptions)
         .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
         .where(eq(filterOptions.id, update.id));
+    }
+  }
+
+  // Slideshow Images
+  async getSlideshowImages(activeOnly?: boolean): Promise<SlideshowImage[]> {
+    let query = db.select().from(slideshowImages).orderBy(slideshowImages.displayOrder);
+    
+    if (activeOnly) {
+      query = query.where(eq(slideshowImages.isActive, true)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getSlideshowImage(id: string): Promise<SlideshowImage | undefined> {
+    const result = await db.select().from(slideshowImages).where(eq(slideshowImages.id, id));
+    return result[0];
+  }
+
+  async createSlideshowImage(image: InsertSlideshowImage): Promise<SlideshowImage> {
+    const result = await db.insert(slideshowImages).values(image).returning();
+    return result[0];
+  }
+
+  async updateSlideshowImage(id: string, image: Partial<InsertSlideshowImage>): Promise<SlideshowImage | undefined> {
+    const result = await db
+      .update(slideshowImages)
+      .set({ ...image, updatedAt: new Date() })
+      .where(eq(slideshowImages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSlideshowImage(id: string): Promise<boolean> {
+    const result = await db.delete(slideshowImages).where(eq(slideshowImages.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async updateSlideshowImageOrder(updates: { id: string; displayOrder: number }[]): Promise<void> {
+    for (const update of updates) {
+      await db
+        .update(slideshowImages)
+        .set({ displayOrder: update.displayOrder, updatedAt: new Date() })
+        .where(eq(slideshowImages.id, update.id));
     }
   }
 }

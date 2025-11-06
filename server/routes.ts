@@ -13,6 +13,7 @@ import {
   insertSurveySchema,
   insertProductNoteSchema,
   insertFilterOptionSchema,
+  insertSlideshowImageSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -562,6 +563,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/filter-options/reorder", async (req, res) => {
     try {
       await storage.updateFilterOptionOrder(req.body.updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  // Slideshow Images Management
+  app.get("/api/slideshow-images", async (req, res) => {
+    const activeOnly = req.query.activeOnly === 'true';
+    const images = await storage.getSlideshowImages(activeOnly);
+    res.json(images);
+  });
+
+  app.get("/api/slideshow-images/:id", async (req, res) => {
+    const image = await storage.getSlideshowImage(req.params.id);
+    if (!image) {
+      return res.status(404).json({ message: "Slideshow image not found" });
+    }
+    res.json(image);
+  });
+
+  app.post("/api/slideshow-images", async (req, res) => {
+    try {
+      const data = insertSlideshowImageSchema.parse(req.body);
+      const image = await storage.createSlideshowImage(data);
+      res.json(image);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.patch("/api/slideshow-images/:id", async (req, res) => {
+    try {
+      const image = await storage.updateSlideshowImage(req.params.id, req.body);
+      if (!image) {
+        return res.status(404).json({ message: "Slideshow image not found" });
+      }
+      res.json(image);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/slideshow-images/:id", async (req, res) => {
+    const success = await storage.deleteSlideshowImage(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Slideshow image not found" });
+    }
+    res.json({ success: true });
+  });
+
+  app.post("/api/slideshow-images/reorder", async (req, res) => {
+    try {
+      await storage.updateSlideshowImageOrder(req.body.updates);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
