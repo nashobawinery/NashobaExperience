@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
+import { getDiscountTiers } from "@/lib/api";
 
 interface CartItem {
   id: string;
@@ -29,15 +31,27 @@ export default function ShoppingCartPanel({
   onRemoveItem,
   onCheckout,
 }: ShoppingCartPanelProps) {
+  const { data: discountTiers } = useQuery({
+    queryKey: ['/api/settings/discount_tiers'],
+    queryFn: getDiscountTiers,
+  });
+
   const wineSpiritsCount = items
     .filter(item => ['Wine', 'Spirits'].includes(item.category))
     .reduce((sum, item) => sum + item.quantity, 0);
 
   const calculateDiscount = (count: number): number => {
-    if (count >= 24) return 0.24;
-    if (count >= 12) return 0.15;
-    if (count >= 6) return 0.10;
-    if (count >= 3) return 0.05;
+    if (!discountTiers) {
+      return 0; // No discount until tiers are loaded
+    }
+
+    // Check tiers in reverse order (highest to lowest) to get best discount
+    const tiers = [discountTiers.tier4, discountTiers.tier3, discountTiers.tier2, discountTiers.tier1];
+    for (const tier of tiers) {
+      if (count >= tier.min && count <= tier.max) {
+        return tier.discount;
+      }
+    }
     return 0;
   };
 
@@ -46,6 +60,27 @@ export default function ShoppingCartPanel({
   const discountAmount = subtotal * discountRate;
   const afterDiscount = subtotal - discountAmount;
   const total = Math.max(0, afterDiscount - triviaCredit);
+
+  // Calculate next tier guidance message
+  const getNextTierMessage = (): string | null => {
+    if (!discountTiers) return null;
+    
+    const tiers = [
+      { ...discountTiers.tier1, name: 'tier1' },
+      { ...discountTiers.tier2, name: 'tier2' },
+      { ...discountTiers.tier3, name: 'tier3' },
+      { ...discountTiers.tier4, name: 'tier4' }
+    ].sort((a, b) => a.min - b.min);
+
+    for (const tier of tiers) {
+      if (wineSpiritsCount < tier.min) {
+        const bottlesNeeded = tier.min - wineSpiritsCount;
+        const discountPercent = (tier.discount * 100).toFixed(0);
+        return `Add ${bottlesNeeded} more for ${discountPercent}% off`;
+      }
+    }
+    return null;
+  };
 
   return (
     <Card className="h-full flex flex-col">
@@ -136,11 +171,11 @@ export default function ShoppingCartPanel({
                   {wineSpiritsCount} bottles: {(discountRate * 100).toFixed(0)}% discount applied!
                 </p>
               </div>
-              <p className="text-xs text-green-700 dark:text-green-300">
-                {wineSpiritsCount < 6 && `Add ${6 - wineSpiritsCount} more for 10% off`}
-                {wineSpiritsCount >= 6 && wineSpiritsCount < 12 && `Add ${12 - wineSpiritsCount} more for 15% off`}
-                {wineSpiritsCount >= 12 && wineSpiritsCount < 24 && `Add ${24 - wineSpiritsCount} more for 24% off`}
-              </p>
+              {getNextTierMessage() && (
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  {getNextTierMessage()}
+                </p>
+              )}
             </div>
           )}
 
