@@ -192,73 +192,78 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                 />
               </motion.div>
             </AnimatePresence>
-
-            {/* Progress Dots */}
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-10">
-              {slides.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    index === currentSlide
-                      ? "w-8 bg-white"
-                      : "w-2 bg-white/50 hover:bg-white/75"
-                  }`}
-                  data-testid={`dot-slide-${index}`}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
-            </div>
           </div>
 
           {/* Right Column - Text Content */}
           <div className="w-3/5 flex flex-col bg-background">
-            {/* Content Area (no scrolling) */}
-            <div className="flex-1 flex flex-col justify-center p-8">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentSlide}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="space-y-4"
-                >
-                  <h2 className="font-serif text-2xl text-primary leading-tight">
-                    {slide.title}
-                  </h2>
-                  <div className="text-foreground/90">
-                    {slide.content(guestName)}
-                  </div>
-                </motion.div>
-              </AnimatePresence>
+            {/* Content Area with scrolling */}
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="min-h-full flex flex-col justify-center">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentSlide}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-4"
+                  >
+                    <h2 className="font-serif text-2xl text-primary leading-tight">
+                      {slide.title}
+                    </h2>
+                    <div className="text-foreground/90">
+                      {slide.content(guestName)}
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Navigation Footer */}
-            <div className="border-t bg-background p-4 flex justify-between items-center gap-4">
-              <Button
-                variant="outline"
-                onClick={prevSlide}
-                disabled={currentSlide === 0}
-                className="gap-2"
-                data-testid="button-prev-slide"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </Button>
+            <div className="border-t bg-background p-4 space-y-3">
+              {/* Navigation Buttons */}
+              <div className="flex justify-between items-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={prevSlide}
+                  disabled={currentSlide === 0}
+                  className="gap-2"
+                  data-testid="button-prev-slide"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back
+                </Button>
 
-              <div className="text-sm text-muted-foreground">
-                {currentSlide + 1} / {slides.length}
+                <div className="text-sm text-muted-foreground">
+                  {currentSlide + 1} / {slides.length}
+                </div>
+
+                <Button
+                  onClick={nextSlide}
+                  className="gap-2"
+                  data-testid="button-next-slide"
+                >
+                  {currentSlide === slides.length - 1 ? "Let's Begin!" : "Next"}
+                  {currentSlide < slides.length - 1 && <ChevronRight className="w-4 h-4" />}
+                </Button>
               </div>
 
-              <Button
-                onClick={nextSlide}
-                className="gap-2"
-                data-testid="button-next-slide"
-              >
-                {currentSlide === slides.length - 1 ? "Let's Begin!" : "Next"}
-                {currentSlide < slides.length - 1 && <ChevronRight className="w-4 h-4" />}
-              </Button>
+              {/* Progress Dots - moved to bottom of right column */}
+              <div className="flex justify-center gap-2 pt-2">
+                {slides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => goToSlide(index)}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      index === currentSlide
+                        ? "w-8 bg-primary"
+                        : "w-2.5 bg-muted-foreground/40 hover:bg-muted-foreground/60"
+                    }`}
+                    data-testid={`dot-slide-${index}`}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
