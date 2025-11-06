@@ -5,6 +5,7 @@ import WelcomeScreen from "@/components/WelcomeScreen";
 import IntroductionModal from "@/components/IntroductionModal";
 import TastingSurvey from "@/components/TastingSurvey";
 import ProductCard from "@/components/ProductCard";
+import ProductListItem from "@/components/ProductListItem";
 import ProductFilters from "@/components/ProductFilters";
 import ProductDetailModal from "@/components/ProductDetailModal";
 import BottomNav from "@/components/BottomNav";
@@ -585,22 +586,17 @@ export default function GuestApp() {
               }}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-2 max-w-3xl mx-auto">
               {products.map(product => (
-                <ProductCard
+                <ProductListItem
                   key={product.id}
                   id={product.id}
                   name={product.name}
                   category={product.category}
-                  price={parseFloat(product.price)}
-                  description={product.description || ''}
                   image={product.imageUrl || ''}
+                  characteristics={product.characteristics || ''}
                   isFavorite={favoriteIds.has(product.id)}
-                  viewCount={viewHistoryMap[product.id]}
-                  stockQuantity={product.stockQuantity ?? 0}
-                  ignoreInventory={product.ignoreInventory ?? true}
                   onFavoriteToggle={handleFavoriteToggle}
-                  onAddToCart={handleAddToCart}
                   onClick={handleProductClick}
                 />
               ))}
