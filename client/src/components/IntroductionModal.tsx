@@ -33,7 +33,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
               <Wine className="w-5 h-5 text-primary" />
               What This App Offers:
             </h3>
-            <ul className="space-y-3 text-sm">
+            <ul className="space-y-3 text-base">
               <li className="flex gap-3">
                 <BookOpen className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <span>Background on each product with detailed flavor notes and vineyard stories</span>
@@ -54,14 +54,14 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
           </div>
 
           <div className="border-l-4 border-primary/30 pl-4 py-2 bg-primary/5 rounded-r">
-            <p className="text-sm italic">
+            <p className="text-base italic">
               <strong>Our goal:</strong> This app is not meant to replace our knowledgeable tasting staff, but to add a layer of engagement — letting you explore at your own pace, discover what you enjoy most, and take home your tasting notes with ease.
             </p>
           </div>
 
           <div className="bg-accent/10 rounded-lg p-4 border border-accent/20">
-            <p className="text-sm">
-              <strong className="text-accent">Thank you for helping us test!</strong> Your feedback is invaluable in making this better for future guests. At the end of your tasting, click the <strong>"Tasting Complete"</strong> button to share your thoughts through a quick survey.
+            <p className="text-base">
+              <strong className="text-accent font-bold text-lg">Thank you for helping us test!</strong> Your feedback is invaluable in making this better for future guests. At the end of your tasting, click the <strong>"Tasting Complete"</strong> button to share your thoughts through a quick survey.
             </p>
           </div>
 
