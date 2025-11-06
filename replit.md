@@ -7,6 +7,7 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Interactive slideshow welcome experience**: Transformed introduction modal into engaging 4-slide presentation with smooth animations (framer-motion), featuring Justin Pelletier owner photo, tasting scenes, staff interaction imagery, and vineyard views; includes clickable progress dots, back/next navigation, and personalized greetings
 - ✅ **Dedicated search criteria fields with N/A options**: Added dedicated `sweetness` and `body` columns to products table (wine color uses existing `type` field); all three fields now admin-manageable via dropdowns with N/A option for fields that don't apply to specific products (e.g., wine color for spirits)
 - ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color, sweetness, body) below product name; badges automatically hidden when value is 'N/A'
 - ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation); all three search criteria dropdowns visible for ALL product categories
@@ -76,7 +77,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Guest Experience**: 
   - Welcome screen with name entry
-  - Introduction modal explaining app purpose and staff complement role
+  - **Interactive slideshow introduction**: 4-slide animated presentation featuring owner greeting (Justin Pelletier), app features, staff complement message, and thank you; includes smooth transitions, clickable progress dots, and navigation buttons
   - Product browsing with advanced filtering (professional wine classification by type, sweetness, body, characteristics)
   - Product detail modal with favorites, notes (on ALL products), and add-to-cart
   - Favorites management accessible via heart icon in header with count badge
@@ -94,7 +95,7 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
-- **UI**: `@radix-ui/*`, `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `cmdk`, `embla-carousel-react`, `react-day-picker`.
+- **UI**: `@radix-ui/*`, `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `cmdk`, `embla-carousel-react`, `react-day-picker`, `framer-motion`.
 - **Form Handling**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
 - **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`.
 - **Development Tools**: `@replit/vite-plugin-*`, `drizzle-kit`, `esbuild`, `tsx`.
