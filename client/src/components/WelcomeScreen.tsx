@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Wine } from "lucide-react";
+import logoUrl from "@assets/logo_1762392067491.jpg";
 
 interface WelcomeScreenProps {
   onStart: (name: string) => void;
@@ -24,13 +24,17 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
       
       <div className="relative z-20 w-full max-w-md px-6 text-center">
         <div className="mb-8 flex justify-center">
-          <div className="rounded-full bg-primary-foreground/10 backdrop-blur-sm p-6 border border-primary-foreground/20">
-            <Wine className="w-16 h-16 text-primary-foreground" />
+          <div className="rounded-full bg-white/95 backdrop-blur-sm p-4 border border-primary-foreground/20 shadow-lg">
+            <img 
+              src={logoUrl} 
+              alt="Nashoba Valley Winery Logo" 
+              className="w-32 h-32 object-contain"
+            />
           </div>
         </div>
         
-        <h1 className="font-serif text-5xl md:text-6xl font-light text-primary-foreground mb-4 tracking-wide">
-          Welcome to Nashoba
+        <h1 className="font-serif text-4xl md:text-5xl font-light text-primary-foreground mb-4 tracking-wide leading-tight">
+          Welcome to Nashoba Valley Winery,<br />Distillery and Brewery Tasting Room
         </h1>
         <p className="text-xl text-primary-foreground/90 mb-12 font-light">
           Your personal tasting companion
