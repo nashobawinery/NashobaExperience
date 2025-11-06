@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -24,10 +28,12 @@ import {
   updateTriviaQuestion,
   deleteTriviaQuestion,
   downloadProductTemplate,
-  uploadProducts
+  uploadProducts,
+  getFilterOptions
 } from "@/lib/api";
-import type { Product, TriviaQuestion } from "@shared/schema";
-import { useState, useRef } from "react";
+import type { Product, TriviaQuestion, FilterOption } from "@shared/schema";
+import { useState, useRef, useMemo } from "react";
+import { cn } from "@/lib/utils";
 
 interface AdminDashboardProps {
   onBackToGuest?: () => void;
@@ -38,10 +44,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   
   // Product edit dialog state
   const [editProductId, setEditProductId] = useState<string | null>(null);
   const [editProductData, setEditProductData] = useState<Partial<Product>>({});
+  const [selectedCharacteristics, setSelectedCharacteristics] = useState<string[]>([]);
+  const [characteristicsOpen, setCharacteristicsOpen] = useState(false);
   
   // Trivia edit dialog state
   const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
@@ -58,6 +68,31 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     queryKey: ['/api/trivia/questions'],
     queryFn: () => getTriviaQuestions(false), // Get all questions, not just active ones
   });
+
+  // Fetch filter options for dropdowns
+  const { data: filterOptions = [] } = useQuery<FilterOption[]>({
+    queryKey: ['/api/filter-options'],
+    queryFn: () => getFilterOptions(),
+  });
+
+  // Group filter options by type
+  const groupedOptions = useMemo(() => {
+    const grouped = filterOptions.reduce((acc, option) => {
+      if (!acc[option.fieldType]) {
+        acc[option.fieldType] = [];
+      }
+      if (option.isActive) {
+        acc[option.fieldType].push(option);
+      }
+      return acc;
+    }, {} as Record<string, FilterOption[]>);
+
+    Object.keys(grouped).forEach((key) => {
+      grouped[key].sort((a, b) => a.sortOrder - b.sortOrder);
+    });
+
+    return grouped;
+  }, [filterOptions]);
 
   // Product mutations
   const createProductMutation = useMutation({
@@ -179,23 +214,40 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     if (product) {
       setEditProductId(id);
       setEditProductData(product);
+      // Parse characteristics string into array for multi-select
+      if (product.characteristics) {
+        const chars = product.characteristics.split(',').map(c => c.trim()).filter(Boolean);
+        setSelectedCharacteristics(chars);
+      } else {
+        setSelectedCharacteristics([]);
+      }
     }
   };
 
   const handleSaveProduct = () => {
     if (editProductId && editProductData) {
+      // Join selected characteristics into comma-separated string
+      const updatedData = {
+        ...editProductData,
+        characteristics: selectedCharacteristics.length > 0 
+          ? selectedCharacteristics.join(', ') 
+          : null
+      };
+      
       updateProductMutation.mutate({ 
         id: editProductId, 
-        data: editProductData 
+        data: updatedData 
       });
       setEditProductId(null);
       setEditProductData({});
+      setSelectedCharacteristics([]);
     }
   };
 
   const handleCancelProductEdit = () => {
     setEditProductId(null);
     setEditProductData({});
+    setSelectedCharacteristics([]);
   };
 
   const handleDeleteProduct = (id: string) => {
@@ -220,6 +272,30 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         id, 
         data: { ignoreInventory: !product.ignoreInventory } 
       });
+    }
+  };
+
+  const handleVideoUploadClick = () => {
+    videoInputRef.current?.click();
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('video/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select a video file",
+          variant: "destructive"
+        });
+        return;
+      }
+      setSelectedVideo(file);
+      toast({
+        title: "Video Selected",
+        description: `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
+      });
+      // TODO: Implement video upload to server when endpoint is available
     }
   };
 
@@ -643,7 +719,22 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 <p className="text-sm text-muted-foreground mb-4">
                   Upload an aerial winery video for the welcome screen background
                 </p>
-                <Button variant="outline">Upload Video</Button>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleVideoChange}
+                  data-testid="input-video-upload"
+                />
+                <Button 
+                  variant="outline" 
+                  onClick={handleVideoUploadClick}
+                  data-testid="button-upload-video"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {selectedVideo ? `Selected: ${selectedVideo.name}` : 'Upload Video'}
+                </Button>
               </Card>
             </div>
           </TabsContent>
@@ -672,18 +763,21 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-category">Category *</Label>
-                  <select
-                    id="edit-category"
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  <Select
                     value={editProductData.category || ''}
-                    onChange={(e) => setEditProductData({ ...editProductData, category: e.target.value as "wine" | "spirits" | "beer" | "canned_cocktail" | "canned_wine" })}
+                    onValueChange={(value) => setEditProductData({ ...editProductData, category: value as "wine" | "spirits" | "beer" | "canned_cocktail" | "canned_wine" })}
                   >
-                    <option value="wine">Wine</option>
-                    <option value="spirits">Spirits</option>
-                    <option value="beer">Beer</option>
-                    <option value="canned_cocktail">Canned Cocktail</option>
-                    <option value="canned_wine">Canned Wine</option>
-                  </select>
+                    <SelectTrigger data-testid="select-edit-category">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupedOptions.category?.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid gap-2">
@@ -710,13 +804,31 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               <h3 className="font-medium text-sm text-muted-foreground">Product Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-type">Type</Label>
-                  <Input
-                    id="edit-type"
-                    value={editProductData.type || ''}
-                    onChange={(e) => setEditProductData({ ...editProductData, type: e.target.value })}
-                    placeholder="e.g., Red Wine, Whiskey"
-                  />
+                  <Label htmlFor="edit-type">Type {editProductData.category === 'wine' && '(Wine Color)'}</Label>
+                  {editProductData.category === 'wine' ? (
+                    <Select
+                      value={editProductData.type || ''}
+                      onValueChange={(value) => setEditProductData({ ...editProductData, type: value })}
+                    >
+                      <SelectTrigger data-testid="select-edit-wine-color">
+                        <SelectValue placeholder="Select wine color" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupedOptions.wine_color?.map((option) => (
+                          <SelectItem key={option.id} value={option.optionValue}>
+                            {option.displayLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="edit-type"
+                      value={editProductData.type || ''}
+                      onChange={(e) => setEditProductData({ ...editProductData, type: e.target.value })}
+                      placeholder="e.g., Whiskey, IPA, Hard Seltzer"
+                    />
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-varietal">Varietal</Label>
@@ -772,12 +884,121 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-characteristics">Characteristics</Label>
-                  <Input
-                    id="edit-characteristics"
-                    value={editProductData.characteristics || ''}
-                    onChange={(e) => setEditProductData({ ...editProductData, characteristics: e.target.value })}
-                    placeholder="e.g., Dry, Full-bodied, Crisp"
-                  />
+                  <Popover open={characteristicsOpen} onOpenChange={setCharacteristicsOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={characteristicsOpen}
+                        className="w-full justify-between font-normal h-auto min-h-9"
+                        data-testid="button-edit-characteristics"
+                      >
+                        <div className="flex flex-wrap gap-1">
+                          {selectedCharacteristics.length > 0 ? (
+                            selectedCharacteristics.map((char) => (
+                              <Badge
+                                key={char}
+                                variant="secondary"
+                                className="text-xs"
+                              >
+                                {char}
+                                <button
+                                  className="ml-1 hover:bg-muted rounded-full"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCharacteristics(selectedCharacteristics.filter(c => c !== char));
+                                  }}
+                                  type="button"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground">Select characteristics...</span>
+                          )}
+                        </div>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search characteristics..." />
+                        <CommandEmpty>No characteristics found.</CommandEmpty>
+                        <CommandList>
+                          {/* Sweetness options */}
+                          {groupedOptions.sweetness && groupedOptions.sweetness.length > 0 && (
+                            <CommandGroup heading="Sweetness">
+                              {groupedOptions.sweetness.map((option) => (
+                                <CommandItem
+                                  key={option.id}
+                                  onSelect={() => {
+                                    setSelectedCharacteristics(
+                                      selectedCharacteristics.includes(option.optionValue)
+                                        ? selectedCharacteristics.filter((c) => c !== option.optionValue)
+                                        : [...selectedCharacteristics, option.optionValue]
+                                    );
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={selectedCharacteristics.includes(option.optionValue)}
+                                    className="mr-2"
+                                  />
+                                  {option.displayLabel}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                          {/* Body options */}
+                          {groupedOptions.body && groupedOptions.body.length > 0 && (
+                            <CommandGroup heading="Body">
+                              {groupedOptions.body.map((option) => (
+                                <CommandItem
+                                  key={option.id}
+                                  onSelect={() => {
+                                    setSelectedCharacteristics(
+                                      selectedCharacteristics.includes(option.optionValue)
+                                        ? selectedCharacteristics.filter((c) => c !== option.optionValue)
+                                        : [...selectedCharacteristics, option.optionValue]
+                                    );
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={selectedCharacteristics.includes(option.optionValue)}
+                                    className="mr-2"
+                                  />
+                                  {option.displayLabel}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                          {/* Characteristics options */}
+                          {groupedOptions.characteristics && groupedOptions.characteristics.length > 0 && (
+                            <CommandGroup heading="Other Characteristics">
+                              {groupedOptions.characteristics.map((option) => (
+                                <CommandItem
+                                  key={option.id}
+                                  onSelect={() => {
+                                    setSelectedCharacteristics(
+                                      selectedCharacteristics.includes(option.optionValue)
+                                        ? selectedCharacteristics.filter((c) => c !== option.optionValue)
+                                        : [...selectedCharacteristics, option.optionValue]
+                                    );
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={selectedCharacteristics.includes(option.optionValue)}
+                                    className="mr-2"
+                                  />
+                                  {option.displayLabel}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
