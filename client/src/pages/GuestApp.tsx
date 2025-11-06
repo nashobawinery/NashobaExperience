@@ -519,25 +519,27 @@ export default function GuestApp() {
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-30 bg-card border-b border-card-border">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="font-serif text-2xl font-medium">Welcome, {guestName}</h1>
               <p className="text-sm text-muted-foreground">Tasting Session</p>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setActiveTab('favorites')}
-              data-testid="button-favorites-header"
-              className="relative"
-            >
-              <Heart className={`w-5 h-5 ${favoritesData.length > 0 ? 'fill-primary text-primary' : ''}`} />
-              {favoritesData.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {favoritesData.length}
-                </span>
-              )}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setActiveTab('favorites')}
+                data-testid="button-favorites-header"
+                className="relative"
+              >
+                <Heart className={`w-5 h-5 ${favoritesData.length > 0 ? 'fill-primary text-primary' : ''}`} />
+                {favoritesData.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {favoritesData.length}
+                  </span>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
