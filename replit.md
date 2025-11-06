@@ -7,6 +7,7 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color for wines, sweetness, body) below product name, making it easy for guests to see which search criteria apply to each product
 - ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation)
 - ✅ **Multi-select characteristics field**: Characteristics field in product editor upgraded to Command-based multi-select popover with grouped options (Sweetness, Body, Other Characteristics)
 - ✅ **Backend validation**: Added Zod updateProductSchema in routes.ts to validate product updates server-side, ensuring only valid enum values are accepted
