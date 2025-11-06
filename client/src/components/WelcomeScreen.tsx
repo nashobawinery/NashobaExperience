@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import logoUrl from "@assets/logo_1762392067491.jpg";
+import logoUrl from "@assets/NVW logo no background_1762469370864.png";
 import wineryAerialUrl from "@assets/Winery-areal_1762431445607.webp";
 
 interface WelcomeScreenProps {
