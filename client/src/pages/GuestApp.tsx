@@ -597,6 +597,8 @@ export default function GuestApp() {
                   image={product.imageUrl || ''}
                   isFavorite={favoriteIds.has(product.id)}
                   viewCount={viewHistoryMap[product.id]}
+                  stockQuantity={product.stockQuantity ?? 0}
+                  ignoreInventory={product.ignoreInventory ?? true}
                   onFavoriteToggle={handleFavoriteToggle}
                   onAddToCart={handleAddToCart}
                   onClick={handleProductClick}

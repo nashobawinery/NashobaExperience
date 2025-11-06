@@ -6,6 +6,10 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -34,6 +38,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Product edit dialog state
+  const [editProductId, setEditProductId] = useState<string | null>(null);
+  const [editProductData, setEditProductData] = useState<Partial<Product>>({});
+  
+  // Trivia edit dialog state
+  const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
+  const [editTriviaData, setEditTriviaData] = useState<Partial<TriviaQuestion>>({});
 
   // Fetch products from backend
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -163,7 +175,27 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   };
 
   const handleEditProduct = (id: string) => {
-    toast({ title: "Edit Product", description: `Editing product ${id}` });
+    const product = products.find((p: Product) => p.id === id);
+    if (product) {
+      setEditProductId(id);
+      setEditProductData(product);
+    }
+  };
+
+  const handleSaveProduct = () => {
+    if (editProductId && editProductData) {
+      updateProductMutation.mutate({ 
+        id: editProductId, 
+        data: editProductData 
+      });
+      setEditProductId(null);
+      setEditProductData({});
+    }
+  };
+
+  const handleCancelProductEdit = () => {
+    setEditProductId(null);
+    setEditProductData({});
   };
 
   const handleDeleteProduct = (id: string) => {
@@ -196,7 +228,27 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   };
 
   const handleEditTrivia = (id: string) => {
-    toast({ title: "Edit Question", description: `Editing question ${id}` });
+    const question = triviaQuestions.find((q: TriviaQuestion) => q.id === id);
+    if (question) {
+      setEditTriviaId(id);
+      setEditTriviaData(question);
+    }
+  };
+
+  const handleSaveTrivia = () => {
+    if (editTriviaId && editTriviaData) {
+      updateTriviaMutation.mutate({ 
+        id: editTriviaId, 
+        data: editTriviaData 
+      });
+      setEditTriviaId(null);
+      setEditTriviaData({});
+    }
+  };
+
+  const handleCancelTriviaEdit = () => {
+    setEditTriviaId(null);
+    setEditTriviaData({});
   };
 
   const handleDeleteTrivia = (id: string) => {
@@ -597,6 +649,123 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Product Edit Dialog */}
+      <Dialog open={editProductId !== null} onOpenChange={(open) => !open && handleCancelProductEdit()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+            <DialogDescription>Update the product details</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Product Name</Label>
+              <Input
+                id="edit-name"
+                value={editProductData.name || ''}
+                onChange={(e) => setEditProductData({ ...editProductData, name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editProductData.description || ''}
+                onChange={(e) => setEditProductData({ ...editProductData, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-price">Price</Label>
+              <Input
+                id="edit-price"
+                type="number"
+                step="0.01"
+                value={editProductData.price || ''}
+                onChange={(e) => setEditProductData({ ...editProductData, price: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-tasting-notes">Tasting Notes</Label>
+              <Textarea
+                id="edit-tasting-notes"
+                value={editProductData.tastingNotes || ''}
+                onChange={(e) => setEditProductData({ ...editProductData, tastingNotes: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelProductEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveProduct}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trivia Edit Dialog */}
+      <Dialog open={editTriviaId !== null} onOpenChange={(open) => !open && handleCancelTriviaEdit()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Trivia Question</DialogTitle>
+            <DialogDescription>Update the question and answers</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-question">Question</Label>
+              <Textarea
+                id="edit-question"
+                value={editTriviaData.question || ''}
+                onChange={(e) => setEditTriviaData({ ...editTriviaData, question: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Answers (one per line)</Label>
+              <Textarea
+                value={Array.isArray(editTriviaData.answers) ? editTriviaData.answers.join('\n') : ''}
+                onChange={(e) => setEditTriviaData({ 
+                  ...editTriviaData, 
+                  answers: e.target.value.split('\n').filter(a => a.trim())
+                })}
+                rows={4}
+                placeholder="Answer 1&#10;Answer 2&#10;Answer 3&#10;Answer 4"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-correct-index">Correct Answer Index (0-3)</Label>
+              <Input
+                id="edit-correct-index"
+                type="number"
+                min="0"
+                max="3"
+                value={editTriviaData.correctIndex ?? 0}
+                onChange={(e) => setEditTriviaData({ ...editTriviaData, correctIndex: parseInt(e.target.value) })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-explanation">Explanation</Label>
+              <Textarea
+                id="edit-explanation"
+                value={editTriviaData.explanation || ''}
+                onChange={(e) => setEditTriviaData({ ...editTriviaData, explanation: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelTriviaEdit}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTrivia}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

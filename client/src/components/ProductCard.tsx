@@ -15,6 +15,8 @@ interface ProductCardProps {
   viewCount?: number;
   isStaffPick?: boolean;
   isFeatured?: boolean;
+  stockQuantity?: number;
+  ignoreInventory?: boolean;
   onFavoriteToggle?: (id: string) => void;
   onAddToCart?: (id: string) => void;
   onClick?: (id: string) => void;
@@ -31,11 +33,16 @@ export default function ProductCard({
   viewCount = 0,
   isStaffPick = false,
   isFeatured = false,
+  stockQuantity = 0,
+  ignoreInventory = true,
   onFavoriteToggle,
   onAddToCart,
   onClick,
 }: ProductCardProps) {
   const [favorite, setFavorite] = useState(isFavorite);
+  
+  // Determine if product is out of stock
+  const isOutOfStock = !ignoreInventory && stockQuantity === 0;
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,10 +84,15 @@ export default function ProductCard({
           />
         </button>
 
-        <div className="absolute bottom-3 right-3">
+        <div className="absolute bottom-3 right-3 flex flex-col gap-2 items-end">
           <Badge className="bg-chart-2 text-background font-semibold">
             ${price.toFixed(2)}
           </Badge>
+          {isOutOfStock && (
+            <Badge variant="destructive" className="font-semibold">
+              Out of Stock
+            </Badge>
+          )}
         </div>
 
         {viewCount > 0 && (
@@ -127,10 +139,11 @@ export default function ProductCard({
           size="sm"
           className="w-full gap-2"
           onClick={handleAddToCart}
+          disabled={isOutOfStock}
           data-testid={`button-add-to-cart-${id}`}
         >
           <ShoppingCart className="w-4 h-4" />
-          Add to Cart
+          {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
         </Button>
       </div>
     </Card>
