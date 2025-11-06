@@ -7,6 +7,8 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Comprehensive product editor**: Admin can now edit ALL 32+ database fields via organized edit dialog (basic info, wine details, tasting/serving, production, pricing/inventory, images, recognition, flags/tags)
+- ✅ **Out-of-stock display**: Products show red "Out of Stock" badge and disabled cart button when ignoreInventory=false and stockQuantity=0
 - ✅ **Per-product inventory control**: New `ignoreInventory` boolean field (default: true) allows fine-grained stock management
 - ✅ **Inventory toggle UI**: Admin dashboard displays clickable badge ("Ignored" or "Tracked") per product for instant inventory mode switching
 - ✅ **Smart filtering**: Products with ignoreInventory=true always appear in guest view regardless of stock; tracked products only show if in stock
