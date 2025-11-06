@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import WelcomeScreen from "@/components/WelcomeScreen";
@@ -37,15 +37,31 @@ export default function GuestApp() {
   const hasStarted = !!sessionId;
 
   const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["/api/products", { search: searchQuery, category: selectedCategory, wineColor, sweetness, body, characteristics, priceRange }],
+    queryKey: [
+      "/api/products", 
+      { 
+        search: searchQuery, 
+        category: selectedCategory, 
+        // Only include wine filters in cache key when Wine category is selected
+        wineColor: selectedCategory === 'Wine' ? wineColor : 'all',
+        sweetness: selectedCategory === 'Wine' ? sweetness : 'all',
+        body: selectedCategory === 'Wine' ? body : 'all',
+        characteristics: selectedCategory === 'Wine' ? characteristics : 'all',
+        priceRange 
+      }
+    ],
     queryFn: async () => {
       const filters: any = {};
       if (searchQuery) filters.search = searchQuery;
       if (selectedCategory !== 'all') filters.category = selectedCategory;
-      if (wineColor !== 'all') filters.wineColor = wineColor;
-      if (sweetness !== 'all') filters.sweetness = sweetness;
-      if (body !== 'all') filters.body = body;
-      if (characteristics !== 'all') filters.characteristics = characteristics;
+      
+      // Only include wine-specific filters when Wine category is selected
+      if (selectedCategory === 'Wine') {
+        if (wineColor !== 'all') filters.wineColor = wineColor;
+        if (sweetness !== 'all') filters.sweetness = sweetness;
+        if (body !== 'all') filters.body = body;
+        if (characteristics !== 'all') filters.characteristics = characteristics;
+      }
       
       if (priceRange !== 'all') {
         const [min, max] = priceRange.split('-').map(Number);
@@ -57,6 +73,16 @@ export default function GuestApp() {
     },
     enabled: hasStarted,
   });
+
+  // Reset wine-specific filters when switching away from Wine category
+  useEffect(() => {
+    if (selectedCategory !== 'Wine' && selectedCategory !== 'all') {
+      setWineColor('all');
+      setSweetness('all');
+      setBody('all');
+      setCharacteristics('all');
+    }
+  }, [selectedCategory]);
 
   const { data: favoritesData = [] } = useQuery({
     queryKey: ["/api/sessions", sessionId, "favorites"],
