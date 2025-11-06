@@ -7,6 +7,7 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **QR code for guest access**: New QR Code tab in admin dashboard generates scannable code pointing to guest app; includes download as PNG and print-ready formatted page for physical signage at tasting bar
 - ✅ **Interactive slideshow welcome experience**: Transformed introduction modal into engaging 4-slide presentation with smooth animations (framer-motion), featuring Justin Pelletier owner photo, tasting scenes, staff interaction imagery, and vineyard views; includes clickable progress dots, back/next navigation, and personalized greetings
 - ✅ **Dedicated search criteria fields with N/A options**: Added dedicated `sweetness` and `body` columns to products table (wine color uses existing `type` field); all three fields now admin-manageable via dropdowns with N/A option for fields that don't apply to specific products (e.g., wine color for spirits)
 - ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color, sweetness, body) below product name; badges automatically hidden when value is 'N/A'
@@ -90,14 +91,14 @@ Preferred communication style: Simple, everyday language.
   - Comprehensive 7-question tasting survey with prominent thank you message
   - Email order/favorites summary
   - Mobile-first bottom navigation
-- **Admin Dashboard**: Product CRUD, stock toggling, **per-product inventory control** (toggle between "Ignored" and "Tracked" modes), filter options management, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types.
+- **Admin Dashboard**: Product CRUD, stock toggling, **per-product inventory control** (toggle between "Ignored" and "Tracked" modes), filter options management, trivia management, **QR code generator** for guest app access, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types. QR code can be downloaded or printed for physical signage.
 
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
 - **UI**: `@radix-ui/*`, `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `cmdk`, `embla-carousel-react`, `react-day-picker`, `framer-motion`.
 - **Form Handling**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
-- **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`.
+- **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`.
 - **Development Tools**: `@replit/vite-plugin-*`, `drizzle-kit`, `esbuild`, `tsx`.
 - **AI/ML**: `openai` (requires `OPENAI_API_KEY`).
 - **Database**: PostgreSQL (via Neon serverless, requires `DATABASE_URL`), `connect-pg-simple` for session persistence.
