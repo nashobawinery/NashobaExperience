@@ -196,15 +196,6 @@ export default function ProductDetailModal({
                       ))}
                     </select>
                   </div>
-                  
-                  {product.bottleSize && (
-                    <div>
-                      <label className="text-sm text-muted-foreground block mb-2">Bottle Size</label>
-                      <div className="h-10 px-3 py-2 text-sm font-medium">
-                        {product.bottleSize}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
@@ -225,15 +216,40 @@ export default function ProductDetailModal({
 
               <Separator />
 
-              {/* Technical Specifications */}
+              {/* Product Details & Search Criteria */}
               <div className="space-y-4">
-                <h3 className="font-serif text-xl font-medium">About this Product</h3>
+                <h3 className="font-serif text-xl font-medium">Product Details</h3>
                 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                  {product.alcoholContent && (
+                  {/* Search Criteria Fields */}
+                  {product.type && product.type !== 'N/A' && (
                     <div>
-                      <span className="text-muted-foreground">Alcohol</span>
-                      <p className="font-medium">{product.alcoholContent}</p>
+                      <span className="text-muted-foreground">Color</span>
+                      <p className="font-medium">{product.type}</p>
+                    </div>
+                  )}
+                  {product.sweetness && product.sweetness !== 'N/A' && (
+                    <div>
+                      <span className="text-muted-foreground">Sweetness</span>
+                      <p className="font-medium">{product.sweetness}</p>
+                    </div>
+                  )}
+                  {product.body && product.body !== 'N/A' && (
+                    <div>
+                      <span className="text-muted-foreground">Body</span>
+                      <p className="font-medium">{product.body}</p>
+                    </div>
+                  )}
+                  {product.varietal && (
+                    <div>
+                      <span className="text-muted-foreground">Varietal</span>
+                      <p className="font-medium">{product.varietal}</p>
+                    </div>
+                  )}
+                  {product.vintageYear && (
+                    <div>
+                      <span className="text-muted-foreground">Vintage</span>
+                      <p className="font-medium">{product.vintageYear}</p>
                     </div>
                   )}
                   {product.region && (
@@ -242,22 +258,46 @@ export default function ProductDetailModal({
                       <p className="font-medium">{product.region}</p>
                     </div>
                   )}
-                  {product.characteristics && (
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Composition</span>
-                      <p className="font-medium">{product.characteristics}</p>
-                    </div>
-                  )}
-                  {product.agingProcess && (
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Fermentation</span>
-                      <p className="font-medium">{product.agingProcess}</p>
+                  {product.bottleSize && (
+                    <div>
+                      <span className="text-muted-foreground">Bottle Size</span>
+                      <p className="font-medium">{product.bottleSize}</p>
                     </div>
                   )}
                   {product.servingTemp && (
                     <div>
                       <span className="text-muted-foreground">Serving Temp</span>
                       <p className="font-medium">{product.servingTemp}</p>
+                    </div>
+                  )}
+                  {product.alcoholContent && (
+                    <div>
+                      <span className="text-muted-foreground">Alcohol Content</span>
+                      <p className="font-medium">{product.alcoholContent}</p>
+                    </div>
+                  )}
+                  {product.productionMethod && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Production</span>
+                      <p className="font-medium">{product.productionMethod}</p>
+                    </div>
+                  )}
+                  {product.agingProcess && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Aging</span>
+                      <p className="font-medium">{product.agingProcess}</p>
+                    </div>
+                  )}
+                  {product.awards && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Awards</span>
+                      <p className="font-medium">{product.awards}</p>
+                    </div>
+                  )}
+                  {product.characteristics && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Composition</span>
+                      <p className="font-medium">{product.characteristics}</p>
                     </div>
                   )}
                   {product.rating && (
@@ -273,21 +313,6 @@ export default function ProductDetailModal({
                   <div className="pt-2">
                     <span className="text-sm text-muted-foreground block mb-2">Pairs well with</span>
                     <p className="font-medium">{product.foodPairings}</p>
-                  </div>
-                )}
-
-                {/* Production Method */}
-                {product.productionMethod && (
-                  <div className="pt-2">
-                    <p className="text-sm text-muted-foreground">{product.productionMethod}</p>
-                  </div>
-                )}
-
-                {/* Awards */}
-                {product.awards && (
-                  <div className="pt-2">
-                    <span className="text-sm text-muted-foreground block mb-2">Awards & Recognition</span>
-                    <p className="font-medium text-sm">{product.awards}</p>
                   </div>
                 )}
               </div>

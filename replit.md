@@ -7,6 +7,9 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Enhanced product detail fields**: Product detail modal now displays comprehensive information grid including Color, Sweetness, Body, Varietal, Vintage, Region, Bottle Size, Serving Temp, Alcohol Content, Production, Aging, and Awards fields; all fields conditionally displayed only when not blank/null
+- ✅ **Mobile scrolling fix**: Introduction modal content now fully scrollable on mobile devices; navigation buttons relocated above progress dots for better accessibility
+- ✅ **Documentation tab**: New comprehensive staff training guide in admin dashboard with integrated QR code at top showing guest app access link
 - ✅ **Database-driven slideshow management**: Slideshow images now fully managed through admin dashboard with upload, edit, delete, reorder, and activate/deactivate controls; replaces hardcoded images with dynamic system using `slideshow_images` table
 - ✅ **Slideshow admin UI**: New "Slideshow" tab in admin dashboard for managing welcome presentation photos; includes warning banner when no images are active and active image count indicator
 - ✅ **Empty state handling**: IntroductionModal gracefully handles zero-active-images scenario with personalized welcome message and Continue button to prevent guest onboarding from stalling
