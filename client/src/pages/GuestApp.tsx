@@ -14,8 +14,9 @@ import FavoritesPanel from "@/components/FavoritesPanel";
 import AIRecommendations from "@/components/AIRecommendations";
 import TriviaPopup from "@/components/TriviaPopup";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Heart } from "lucide-react";
+import { Heart, Trophy, Gift } from "lucide-react";
 import * as api from "@/lib/api";
 import type { Product, TriviaQuestion } from "@shared/schema";
 import type { SurveyData } from "@/components/TastingSurvey";
@@ -39,6 +40,7 @@ export default function GuestApp() {
   const [characteristics, setCharacteristics] = useState("all");
   
   const [showTrivia, setShowTrivia] = useState(false);
+  const [showTriviaInfo, setShowTriviaInfo] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductDetail, setShowProductDetail] = useState(false);
 
@@ -151,6 +153,27 @@ export default function GuestApp() {
 
     return () => clearInterval(interval);
   }, [sessionId, nextTriviaQuestion, triviaScores.length]);
+
+  // Show trivia info popup after 5 seconds on first visit
+  useEffect(() => {
+    if (!sessionId || activeTab !== 'browse') {
+      return;
+    }
+
+    // Check if popup has been shown before
+    const hasSeenTriviaInfo = localStorage.getItem('hasSeenTriviaInfo');
+    if (hasSeenTriviaInfo) {
+      return;
+    }
+
+    // Show popup after 5 seconds
+    const timer = setTimeout(() => {
+      setShowTriviaInfo(true);
+      localStorage.setItem('hasSeenTriviaInfo', 'true');
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [sessionId, activeTab]);
 
   const totalInteractions = favoritesData.length + viewHistoryData.length;
   const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
@@ -715,6 +738,61 @@ export default function GuestApp() {
         onSubmit={(data) => submitSurveyMutation.mutate(data)}
         submitting={submitSurveyMutation.isPending}
       />
+
+      {/* Trivia Info Popup */}
+      <Dialog open={showTriviaInfo} onOpenChange={setShowTriviaInfo}>
+        <DialogContent className="max-w-lg" data-testid="trivia-info-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Trophy className="w-7 h-7 text-primary" />
+              Fun Facts & Rewards!
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Learn about our trivia rewards program
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <p className="text-base leading-relaxed">
+              <strong>10 fun facts</strong> will appear during your tasting experience to test your knowledge!
+            </p>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+                <Trophy className="w-6 h-6 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold mb-1">Perfect Score Reward</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get <strong className="text-foreground">10 out of 10 correct</strong> and earn a <strong className="text-primary">$5.00 certificate</strong> for products purchased on this platform!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 bg-chart-2/10 rounded-lg border border-chart-2/20">
+                <Gift className="w-6 h-6 text-chart-2 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold mb-1">Almost Perfect Reward</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get <strong className="text-foreground">8 or 9 out of 10</strong> and receive an <strong className="text-chart-2">additional tasting chip</strong> to enjoy a complimentary tasting on us!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground text-center">
+              Questions will appear automatically as you explore. Good luck! 🍷
+            </p>
+
+            <Button 
+              onClick={() => setShowTriviaInfo(false)} 
+              className="w-full"
+              data-testid="button-close-trivia-info"
+            >
+              Got It!
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

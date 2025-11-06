@@ -7,6 +7,7 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Trivia rewards info popup**: New automatic popup appears 5 seconds after guests start browsing, explaining trivia rewards ($5 certificate for 10/10, tasting chip for 8-9/10); shows once per session using localStorage
 - ✅ **Enhanced product detail fields**: Product detail modal now displays comprehensive information grid including Color, Sweetness, Body, Varietal, Vintage, Region, Bottle Size, Serving Temp, Alcohol Content, Production, Aging, and Awards fields; all fields conditionally displayed only when not blank/null
 - ✅ **Mobile scrolling fix**: Introduction modal content now fully scrollable on mobile devices; navigation buttons relocated above progress dots for better accessibility
 - ✅ **Documentation tab**: New comprehensive staff training guide in admin dashboard with integrated QR code at top showing guest app access link
@@ -38,7 +39,8 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 - ✅ **Guest experience**: ProductFilters component dynamically loads options from API, ensuring real-time updates
 - ✅ **24 seeded options**: Pre-populated with all existing filter values for immediate use
 - ✅ **Auto-popup trivia**: Trivia questions automatically appear every 4 minutes (no manual button)
-- ✅ **10 random questions per session**: $5 credit awarded for perfect score (10/10 correct)
+- ✅ **10 random questions per session**: $5 credit awarded for perfect score (10/10 correct); tasting chip for 8-9 correct
+- ✅ **Trivia rewards announcement**: Popup appears after 5 seconds on browse tab explaining rewards (shows once per session)
 - ✅ **Heart icon in header**: Replaces "Try Trivia" button, opens favorites panel with count badge
 - ✅ **Notes on ALL products**: New `product_notes` table enables tasting notes on any product, not just favorites
 - ✅ **Enhanced thank you page**: Profile tab shows prominent thank you message before survey
