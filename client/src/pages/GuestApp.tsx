@@ -652,7 +652,7 @@ export default function GuestApp() {
             <div className="bg-card rounded-lg p-8 border border-card-border space-y-6">
               <h2 className="font-serif text-4xl mb-4">Thank You, {guestName}!</h2>
               <p className="text-lg leading-relaxed">
-                We hope you enjoyed exploring our wines, beers, and spirits with our Interactive Tasting Companion. 
+                We hope you enjoyed exploring our products with our Interactive Tasting Companion. 
                 Your experience and feedback are invaluable to us.
               </p>
               <p className="text-muted-foreground">

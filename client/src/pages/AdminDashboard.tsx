@@ -705,9 +705,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               </div>
             </div>
 
-            {/* Wine Details */}
+            {/* Product Details */}
             <div className="space-y-4">
-              <h3 className="font-medium text-sm text-muted-foreground">Wine Details</h3>
+              <h3 className="font-medium text-sm text-muted-foreground">Product Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-type">Type</Label>
@@ -1018,7 +1018,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     onChange={(e) => setEditProductData({ ...editProductData, wineOfMonth: e.target.checked })}
                     className="w-4 h-4 rounded border-input"
                   />
-                  <Label htmlFor="edit-wine-of-month" className="cursor-pointer">Wine of the Month</Label>
+                  <Label htmlFor="edit-wine-of-month" className="cursor-pointer">Product of the Month</Label>
                 </div>
               </div>
               <div className="grid gap-2">

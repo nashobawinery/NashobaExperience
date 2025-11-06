@@ -128,7 +128,7 @@ export default function ProductDetailModal({
                     <Badge className="bg-primary text-primary-foreground">Featured</Badge>
                   )}
                   {product.wineOfMonth && (
-                    <Badge className="bg-chart-1 text-background">Wine of the Month</Badge>
+                    <Badge className="bg-chart-1 text-background">Product of the Month</Badge>
                   )}
                 </div>
               </div>
@@ -194,7 +194,7 @@ export default function ProductDetailModal({
 
               {/* Technical Specifications */}
               <div className="space-y-4">
-                <h3 className="font-serif text-xl font-medium">About this Wine</h3>
+                <h3 className="font-serif text-xl font-medium">About this Product</h3>
                 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                   {product.alcoholContent && (
@@ -265,7 +265,7 @@ export default function ProductDetailModal({
               <div>
                 <h3 className="font-serif text-lg font-medium mb-3">Your Tasting Notes</h3>
                 <Textarea
-                  placeholder="Add your personal notes about this wine..."
+                  placeholder="Add your personal tasting notes..."
                   value={localNote}
                   onChange={(e) => handleNoteChange(e.target.value)}
                   className="min-h-[100px]"
