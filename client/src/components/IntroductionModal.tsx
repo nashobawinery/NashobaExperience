@@ -61,7 +61,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
 
           <div className="bg-accent/10 rounded-lg p-4 border border-accent/20">
             <p className="text-base">
-              <strong className="text-accent font-bold text-lg">Thank you for helping us test!</strong> Your feedback is invaluable in making this better for future guests. At the end of your tasting, click the <strong>"Tasting Complete"</strong> button to share your thoughts through a quick survey.
+              <strong className="text-foreground font-bold text-lg">Thank you for helping us test!</strong> Your feedback is invaluable in making this better for future guests. At the end of your tasting, click the <strong>"Tasting Complete"</strong> button to share your thoughts through a quick survey.
             </p>
           </div>
 
