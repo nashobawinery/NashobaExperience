@@ -11,6 +11,7 @@ import {
   insertTriviaScoreSchema,
   insertSurveySchema,
   insertProductNoteSchema,
+  insertFilterOptionSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -501,6 +502,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing Excel file:", error);
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to import Excel file" });
+    }
+  });
+
+  // Filter Options Management
+  app.get("/api/filter-options", async (req, res) => {
+    const fieldType = req.query.fieldType as string | undefined;
+    const options = await storage.getFilterOptions(fieldType);
+    res.json(options);
+  });
+
+  app.get("/api/filter-options/:id", async (req, res) => {
+    const option = await storage.getFilterOption(req.params.id);
+    if (!option) {
+      return res.status(404).json({ message: "Filter option not found" });
+    }
+    res.json(option);
+  });
+
+  app.post("/api/filter-options", async (req, res) => {
+    try {
+      const data = insertFilterOptionSchema.parse(req.body);
+      const option = await storage.createFilterOption(data);
+      res.json(option);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.patch("/api/filter-options/:id", async (req, res) => {
+    try {
+      const option = await storage.updateFilterOption(req.params.id, req.body);
+      if (!option) {
+        return res.status(404).json({ message: "Filter option not found" });
+      }
+      res.json(option);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/filter-options/:id", async (req, res) => {
+    const success = await storage.deleteFilterOption(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Filter option not found" });
+    }
+    res.json({ success: true });
+  });
+
+  app.post("/api/filter-options/reorder", async (req, res) => {
+    try {
+      await storage.updateFilterOptionOrder(req.body.updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
     }
   });
 

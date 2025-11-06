@@ -12,6 +12,7 @@ import {
   appSettings,
   surveys,
   productNotes,
+  filterOptions,
   type InsertProduct,
   type Product,
   type InsertGuestSession,
@@ -32,6 +33,8 @@ import {
   type Survey,
   type InsertProductNote,
   type ProductNote,
+  type InsertFilterOption,
+  type FilterOption,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -93,6 +96,14 @@ export interface IStorage {
   getProductNote(sessionId: string, productId: string): Promise<ProductNote | undefined>;
   saveProductNote(note: InsertProductNote): Promise<ProductNote>;
   deleteProductNote(sessionId: string, productId: string): Promise<boolean>;
+
+  // Filter Options
+  getFilterOptions(fieldType?: string): Promise<FilterOption[]>;
+  getFilterOption(id: string): Promise<FilterOption | undefined>;
+  createFilterOption(option: InsertFilterOption): Promise<FilterOption>;
+  updateFilterOption(id: string, option: Partial<InsertFilterOption>): Promise<FilterOption | undefined>;
+  deleteFilterOption(id: string): Promise<boolean>;
+  updateFilterOptionOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -122,6 +133,7 @@ export class DatabaseStorage implements IStorage {
       );
     }
     if (filters?.category) {
+      console.log(`Category filter: "${filters.category}" -> lowercase: "${filters.category.toLowerCase()}"`);
       conditions.push(eq(lower(products.category), filters.category.toLowerCase()));
     }
     if (filters?.wineColor) {
@@ -441,6 +453,49 @@ export class DatabaseStorage implements IStorage {
       .delete(productNotes)
       .where(and(eq(productNotes.sessionId, sessionId), eq(productNotes.productId, productId)));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getFilterOptions(fieldType?: string): Promise<FilterOption[]> {
+    let query = db.select().from(filterOptions).orderBy(filterOptions.fieldType, filterOptions.sortOrder);
+    
+    if (fieldType) {
+      query = query.where(eq(filterOptions.fieldType, fieldType)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getFilterOption(id: string): Promise<FilterOption | undefined> {
+    const result = await db.select().from(filterOptions).where(eq(filterOptions.id, id));
+    return result[0];
+  }
+
+  async createFilterOption(option: InsertFilterOption): Promise<FilterOption> {
+    const result = await db.insert(filterOptions).values(option).returning();
+    return result[0];
+  }
+
+  async updateFilterOption(id: string, option: Partial<InsertFilterOption>): Promise<FilterOption | undefined> {
+    const result = await db
+      .update(filterOptions)
+      .set({ ...option, updatedAt: new Date() })
+      .where(eq(filterOptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteFilterOption(id: string): Promise<boolean> {
+    const result = await db.delete(filterOptions).where(eq(filterOptions.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async updateFilterOptionOrder(updates: { id: string; sortOrder: number }[]): Promise<void> {
+    for (const update of updates) {
+      await db
+        .update(filterOptions)
+        .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
+        .where(eq(filterOptions.id, update.id));
+    }
   }
 }
 

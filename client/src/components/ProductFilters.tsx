@@ -90,15 +90,15 @@ export default function ProductFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="Wine">Wine</SelectItem>
-            <SelectItem value="Spirits">Spirits</SelectItem>
-            <SelectItem value="Beer">Beer</SelectItem>
-            <SelectItem value="Canned Cocktails">Canned Cocktails</SelectItem>
-            <SelectItem value="Canned Wine">Canned Wine</SelectItem>
+            <SelectItem value="wine">Wine</SelectItem>
+            <SelectItem value="spirits">Spirits</SelectItem>
+            <SelectItem value="beer">Beer</SelectItem>
+            <SelectItem value="canned_cocktail">Canned Cocktails</SelectItem>
+            <SelectItem value="canned_wine">Canned Wine</SelectItem>
           </SelectContent>
         </Select>
 
-        {selectedCategory === 'Wine' && (
+        {selectedCategory === 'wine' && (
           <>
             <Select value={wineColor} onValueChange={onWineColorChange}>
               <SelectTrigger className="w-[150px]" data-testid="select-wine-color">

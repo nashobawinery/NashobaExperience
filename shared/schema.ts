@@ -1,12 +1,18 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Define enums for consistent data
+export const categoryEnum = pgEnum("category", ["wine", "spirits", "beer", "canned_cocktail", "canned_wine"]);
+export const wineColorEnum = pgEnum("wine_color", ["red", "white", "rosé", "sparkling", "dessert"]);
+export const sweetnessEnum = pgEnum("sweetness", ["dry", "off-dry", "semi-sweet", "sweet"]);
+export const bodyEnum = pgEnum("body", ["light", "medium", "full"]);
 
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  category: text("category").notNull(),
+  category: categoryEnum("category").notNull(),
   type: text("type"),
   varietal: text("varietal"),
   vintageYear: text("vintage_year"),
@@ -122,6 +128,19 @@ export const productNotes = pgTable("product_notes", {
   uniqueSessionProduct: unique().on(table.sessionId, table.productId),
 }));
 
+export const filterOptions = pgTable("filter_options", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fieldType: text("field_type").notNull(), // 'category', 'wine_color', 'sweetness', 'body', 'characteristics'
+  optionValue: text("option_value").notNull(), // The actual value stored in the database (e.g., 'spirits', 'red')
+  displayLabel: text("display_label").notNull(), // What users see (e.g., 'Spirits', 'Red Wine')
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueFieldValue: unique().on(table.fieldType, table.optionValue),
+}));
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const insertGuestSessionSchema = createInsertSchema(guestSessions).omit({ id: true, createdAt: true, lastActiveAt: true });
@@ -133,6 +152,7 @@ export const insertTriviaScoreSchema = createInsertSchema(triviaScores).omit({ i
 export const insertAppSettingSchema = createInsertSchema(appSettings).omit({ id: true, updatedAt: true });
 export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, createdAt: true });
 export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -164,3 +184,6 @@ export type Survey = typeof surveys.$inferSelect;
 
 export type InsertProductNote = z.infer<typeof insertProductNoteSchema>;
 export type ProductNote = typeof productNotes.$inferSelect;
+
+export type InsertFilterOption = z.infer<typeof insertFilterOptionSchema>;
+export type FilterOption = typeof filterOptions.$inferSelect;

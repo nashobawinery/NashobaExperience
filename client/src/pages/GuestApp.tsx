@@ -49,11 +49,11 @@ export default function GuestApp() {
       { 
         search: searchQuery, 
         category: selectedCategory, 
-        // Only include wine filters in cache key when Wine category is selected
-        wineColor: selectedCategory === 'Wine' ? wineColor : 'all',
-        sweetness: selectedCategory === 'Wine' ? sweetness : 'all',
-        body: selectedCategory === 'Wine' ? body : 'all',
-        characteristics: selectedCategory === 'Wine' ? characteristics : 'all',
+        // Only include wine filters in cache key when wine category is selected
+        wineColor: selectedCategory === 'wine' ? wineColor : 'all',
+        sweetness: selectedCategory === 'wine' ? sweetness : 'all',
+        body: selectedCategory === 'wine' ? body : 'all',
+        characteristics: selectedCategory === 'wine' ? characteristics : 'all',
         priceRange 
       }
     ],
@@ -62,8 +62,8 @@ export default function GuestApp() {
       if (searchQuery) filters.search = searchQuery;
       if (selectedCategory !== 'all') filters.category = selectedCategory;
       
-      // Only include wine-specific filters when Wine category is selected
-      if (selectedCategory === 'Wine') {
+      // Only include wine-specific filters when wine category is selected
+      if (selectedCategory === 'wine') {
         if (wineColor !== 'all') filters.wineColor = wineColor;
         if (sweetness !== 'all') filters.sweetness = sweetness;
         if (body !== 'all') filters.body = body;
@@ -90,9 +90,9 @@ export default function GuestApp() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset wine-specific filters when switching away from Wine category
+  // Reset wine-specific filters when switching away from wine category
   useEffect(() => {
-    if (selectedCategory !== 'Wine' && selectedCategory !== 'all') {
+    if (selectedCategory !== 'wine' && selectedCategory !== 'all') {
       setWineColor('all');
       setSweetness('all');
       setBody('all');
