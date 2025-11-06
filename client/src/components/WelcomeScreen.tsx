@@ -22,15 +22,13 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
       <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=1920&q=80')] bg-cover bg-center" />
       
-      <div className="relative z-20 w-full max-w-md px-6 text-center">
+      <div className="relative z-20 w-full max-w-2xl px-6 text-center">
         <div className="mb-8 flex justify-center">
-          <div className="rounded-full bg-white/95 backdrop-blur-sm p-4 border border-primary-foreground/20 shadow-lg">
-            <img 
-              src={logoUrl} 
-              alt="Nashoba Valley Winery Logo" 
-              className="w-32 h-32 object-contain"
-            />
-          </div>
+          <img 
+            src={logoUrl} 
+            alt="Nashoba Valley Winery Logo" 
+            className="w-48 h-auto object-contain drop-shadow-2xl"
+          />
         </div>
         
         <h1 className="font-serif text-4xl md:text-5xl font-light text-primary-foreground mb-4 tracking-wide leading-tight">
