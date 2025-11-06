@@ -9,6 +9,7 @@ import { Wine, BookOpen, Heart, Gift, ChevronRight, ChevronLeft } from "lucide-r
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import type { SlideshowImage } from "@shared/schema";
+import justinPhoto from "@assets/image_1762437724457.png";
 
 interface IntroductionModalProps {
   open: boolean;
@@ -16,12 +17,112 @@ interface IntroductionModalProps {
   guestName: string;
 }
 
+const slides = [
+  {
+    id: 1,
+    image: justinPhoto,
+    title: "Welcome to Nashoba Valley Winery!",
+    content: (guestName: string) => (
+      <div className="space-y-4">
+        <p className="text-xl leading-relaxed">
+          Hello <span className="font-serif text-primary font-semibold">{guestName}</span>!
+        </p>
+        <p className="text-lg leading-relaxed">
+          I'm Justin Pelletier, owner of Nashoba Valley Winery. We're thrilled to have you here today.
+        </p>
+        <p className="text-base leading-relaxed text-foreground/80">
+          We've created something special to enhance your tasting experience, and I'm excited to show you how it works.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 2,
+    image: justinPhoto,
+    title: "Your Interactive Tasting Companion",
+    content: () => (
+      <div className="space-y-4">
+        <p className="text-lg leading-relaxed">
+          This digital companion is designed to make your visit more engaging and memorable.
+        </p>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
+            <BookOpen className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <span className="text-base">Discover detailed flavor notes and vineyard stories for each product</span>
+          </div>
+          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
+            <Heart className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <span className="text-base">Save your favorites and record tasting impressions</span>
+          </div>
+          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
+            <Gift className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <span className="text-base">Get AI-powered recommendations based on your preferences</span>
+          </div>
+          <div className="flex gap-3 items-start bg-muted/30 p-3 rounded-lg">
+            <Wine className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <span className="text-base">Test your knowledge with trivia and earn rewards!</span>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 3,
+    image: justinPhoto,
+    title: "Here to Enhance, Not Replace",
+    content: () => (
+      <div className="space-y-4">
+        <div className="bg-primary/10 border-l-4 border-primary p-4 rounded-r-lg">
+          <p className="text-lg font-medium mb-3">
+            Our Promise to You
+          </p>
+          <p className="text-base leading-relaxed">
+            This app is <strong>not meant to replace</strong> our knowledgeable tasting staff. They're here to guide you, answer questions, and share their expertise.
+          </p>
+        </div>
+        <p className="text-base leading-relaxed text-foreground/80">
+          Instead, think of this as an added layer of engagement — a way to explore at your own pace, dive deeper into the products you love, and take home detailed notes from your experience.
+        </p>
+        <p className="text-base leading-relaxed text-foreground/80">
+          Our team is always here to make your visit special. The app simply gives you more tools to enjoy and remember it.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 4,
+    image: justinPhoto,
+    title: "Thank You for Being Here",
+    content: () => (
+      <div className="space-y-5">
+        <p className="text-lg leading-relaxed">
+          We're honored to share our passion for winemaking with you today.
+        </p>
+        <div className="bg-accent/20 border border-accent/30 rounded-lg p-5">
+          <p className="text-base leading-relaxed mb-3">
+            <strong className="text-lg font-semibold">Help Us Improve!</strong>
+          </p>
+          <p className="text-base leading-relaxed">
+            You're among the first to experience this new tool. Your feedback is invaluable in making it better for future guests.
+          </p>
+          <p className="text-base leading-relaxed mt-3">
+            At the end of your tasting, please share your thoughts through our quick survey by clicking <strong>"Tasting Complete"</strong>.
+          </p>
+        </div>
+        <p className="text-lg font-serif text-primary text-center mt-6">
+          Enjoy your tasting experience!
+        </p>
+      </div>
+    ),
+  },
+];
+
 export default function IntroductionModal({ open, onContinue, guestName }: IntroductionModalProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(0);
 
-  // Fetch active slideshow images from database
-  const { data: slideshowImages = [], isLoading } = useQuery<SlideshowImage[]>({
+  // Fetch active slideshow images from database to use as backgrounds (optional enhancement)
+  const { data: slideshowImages = [] } = useQuery<SlideshowImage[]>({
     queryKey: ["/api/slideshow-images", { activeOnly: true }],
     queryFn: async () => {
       const response = await fetch("/api/slideshow-images?activeOnly=true");
@@ -31,66 +132,14 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
     enabled: open,
   });
 
-  // Build slides from database images
-  const slides = slideshowImages.map((image) => ({
-    id: image.id,
-    imageUrl: `/attached_assets/winery_photos/${image.filename}`,
-    title: image.caption || "Welcome to Nashoba Valley Winery",
-    description: image.description || "",
-  }));
-
-  // Show loading state while fetching
-  if (isLoading) {
-    return (
-      <Dialog open={open} onOpenChange={() => {}}>
-        <DialogContent 
-          className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
-          data-testid="dialog-introduction"
-        >
-          <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
-          <div className="relative h-[85vh] max-h-[700px] flex items-center justify-center">
-            <p className="text-muted-foreground">Loading slideshow...</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // If no slides available, show empty state and allow continuing
-  if (slides.length === 0) {
-    return (
-      <Dialog open={open} onOpenChange={() => {}}>
-        <DialogContent 
-          className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
-          data-testid="dialog-introduction"
-        >
-          <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
-          <div className="relative h-[85vh] max-h-[700px] flex flex-col items-center justify-center p-8 gap-6">
-            <div className="text-center space-y-4 max-w-lg">
-              <h2 className="font-serif text-3xl text-primary">
-                Welcome to Nashoba Valley Winery!
-              </h2>
-              <p className="text-lg text-foreground/80">
-                Hello <span className="font-serif text-primary font-semibold">{guestName}</span>!
-              </p>
-              <p className="text-base text-muted-foreground">
-                We're thrilled to have you here today. Let's begin your tasting experience.
-              </p>
-            </div>
-            <Button 
-              size="lg" 
-              onClick={onContinue}
-              className="gap-2"
-              data-testid="button-begin-experience"
-            >
-              Let's Begin!
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  // Use database images as backgrounds if available, otherwise use default
+  const getBackgroundImage = (slideIndex: number) => {
+    if (slideshowImages.length > 0) {
+      const imageIndex = slideIndex % slideshowImages.length;
+      return `/attached_assets/winery_photos/${slideshowImages[imageIndex].filename}`;
+    }
+    return slides[slideIndex].image;
+  };
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
@@ -155,7 +204,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                 className="absolute inset-0"
               >
                 <img
-                  src={slide.imageUrl}
+                  src={getBackgroundImage(currentSlide)}
                   alt={slide.title}
                   className="w-full h-full object-cover"
                 />
@@ -196,11 +245,9 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                   <h2 className="font-serif text-3xl text-primary leading-tight">
                     {slide.title}
                   </h2>
-                  {slide.description && (
-                    <div className="text-foreground/90">
-                      <p className="text-lg leading-relaxed">{slide.description}</p>
-                    </div>
-                  )}
+                  <div className="text-foreground/90">
+                    {slide.content(guestName)}
+                  </div>
                 </motion.div>
               </AnimatePresence>
             </div>
