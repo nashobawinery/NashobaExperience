@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -68,6 +68,29 @@ export async function updateFavoriteNote(favoriteId: string, note: string): Prom
   });
   if (!response.ok) throw new Error("Failed to update note");
   return response.json();
+}
+
+export async function getProductNotes(sessionId: string): Promise<ProductNote[]> {
+  const response = await fetch(`/api/sessions/${sessionId}/notes`);
+  if (!response.ok) throw new Error("Failed to fetch product notes");
+  return response.json();
+}
+
+export async function saveProductNote(sessionId: string, productId: string, note: string): Promise<ProductNote> {
+  const response = await fetch(`/api/sessions/${sessionId}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId, note }),
+  });
+  if (!response.ok) throw new Error("Failed to save note");
+  return response.json();
+}
+
+export async function deleteProductNote(sessionId: string, productId: string): Promise<void> {
+  const response = await fetch(`/api/sessions/${sessionId}/notes/${productId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete note");
 }
 
 export async function recordView(sessionId: string, productId: string): Promise<void> {

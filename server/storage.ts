@@ -10,6 +10,7 @@ import {
   triviaScores,
   appSettings,
   surveys,
+  productNotes,
   type InsertProduct,
   type Product,
   type InsertGuestSession,
@@ -28,6 +29,8 @@ import {
   type AppSetting,
   type InsertSurvey,
   type Survey,
+  type InsertProductNote,
+  type ProductNote,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -78,6 +81,12 @@ export interface IStorage {
 
   // Surveys
   createSurvey(survey: InsertSurvey): Promise<Survey>;
+
+  // Product Notes
+  getProductNotes(sessionId: string): Promise<ProductNote[]>;
+  getProductNote(sessionId: string, productId: string): Promise<ProductNote | undefined>;
+  saveProductNote(note: InsertProductNote): Promise<ProductNote>;
+  deleteProductNote(sessionId: string, productId: string): Promise<boolean>;
 }
 
 export interface ProductFilters {
@@ -387,6 +396,45 @@ export class DatabaseStorage implements IStorage {
   async createSurvey(survey: InsertSurvey): Promise<Survey> {
     const result = await db.insert(surveys).values(survey).returning();
     return result[0];
+  }
+
+  async getProductNotes(sessionId: string): Promise<ProductNote[]> {
+    return await db
+      .select()
+      .from(productNotes)
+      .where(eq(productNotes.sessionId, sessionId))
+      .orderBy(desc(productNotes.updatedAt));
+  }
+
+  async getProductNote(sessionId: string, productId: string): Promise<ProductNote | undefined> {
+    const result = await db
+      .select()
+      .from(productNotes)
+      .where(and(eq(productNotes.sessionId, sessionId), eq(productNotes.productId, productId)));
+    return result[0];
+  }
+
+  async saveProductNote(note: InsertProductNote): Promise<ProductNote> {
+    const existing = await this.getProductNote(note.sessionId, note.productId);
+    
+    if (existing) {
+      const result = await db
+        .update(productNotes)
+        .set({ note: note.note, updatedAt: new Date() })
+        .where(and(eq(productNotes.sessionId, note.sessionId), eq(productNotes.productId, note.productId)))
+        .returning();
+      return result[0];
+    }
+
+    const result = await db.insert(productNotes).values(note).returning();
+    return result[0];
+  }
+
+  async deleteProductNote(sessionId: string, productId: string): Promise<boolean> {
+    const result = await db
+      .delete(productNotes)
+      .where(and(eq(productNotes.sessionId, sessionId), eq(productNotes.productId, productId)));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

@@ -14,6 +14,7 @@ import AIRecommendations from "@/components/AIRecommendations";
 import TriviaPopup from "@/components/TriviaPopup";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Heart } from "lucide-react";
 import * as api from "@/lib/api";
 import type { Product, TriviaQuestion } from "@shared/schema";
 import type { SurveyData } from "@/components/TastingSurvey";
@@ -107,6 +108,12 @@ export default function GuestApp() {
     enabled: !!sessionId,
   });
 
+  const { data: productNotes = [] } = useQuery({
+    queryKey: ["/api/sessions", sessionId, "notes"],
+    queryFn: () => api.getProductNotes(sessionId!),
+    enabled: !!sessionId,
+  });
+
   const { data: triviaScores = [] } = useQuery({
     queryKey: ["/api/sessions", sessionId, "trivia", "scores"],
     queryFn: () => api.getTriviaScores(sessionId!),
@@ -118,6 +125,21 @@ export default function GuestApp() {
     queryFn: () => api.getNextTriviaQuestion(sessionId!),
     enabled: !!sessionId,
   });
+
+  // Auto-popup trivia every 4 minutes
+  useEffect(() => {
+    if (!sessionId || !nextTriviaQuestion || triviaScores.length >= 10) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (nextTriviaQuestion && triviaScores.length < 10) {
+        setShowTrivia(true);
+      }
+    }, 240000); // 4 minutes in milliseconds
+
+    return () => clearInterval(interval);
+  }, [sessionId, nextTriviaQuestion, triviaScores.length]);
 
   const totalInteractions = favoritesData.length + viewHistoryData.length;
   const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
@@ -195,6 +217,14 @@ export default function GuestApp() {
       api.updateFavoriteNote(favoriteId, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "favorites"] });
+    },
+  });
+
+  const saveProductNoteMutation = useMutation({
+    mutationFn: ({ productId, note }: { productId: string; note: string }) =>
+      api.saveProductNote(sessionId!, productId, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "notes"] });
     },
   });
 
@@ -347,10 +377,7 @@ export default function GuestApp() {
 
   const handleProductDetailNoteUpdate = (note: string) => {
     if (selectedProduct) {
-      const favorite = favoritesData.find(f => f.productId === selectedProduct.id);
-      if (favorite) {
-        handleUpdateNote(selectedProduct.id, note);
-      }
+      saveProductNoteMutation.mutate({ productId: selectedProduct.id, note });
     }
   };
 
@@ -426,6 +453,14 @@ export default function GuestApp() {
     return new Set(favoritesData.map(f => f.productId));
   }, [favoritesData]);
 
+  const productNotesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    productNotes.forEach(note => {
+      map[note.productId] = note.note;
+    });
+    return map;
+  }, [productNotes]);
+
   const favoritesArray = useMemo(() => {
     return favoritesData.map(fav => ({
       id: fav.productId,
@@ -489,18 +524,20 @@ export default function GuestApp() {
               <h1 className="font-serif text-2xl font-medium">Welcome, {guestName}</h1>
               <p className="text-sm text-muted-foreground">Tasting Session</p>
             </div>
-            {nextTriviaQuestion && triviaAnswered < 10 && (
-              <Button
-                variant="outline"
-                onClick={() => setShowTrivia(true)}
-                data-testid="button-start-trivia"
-              >
-                Try Trivia
-                {triviaScore > 0 && (
-                  <span className="ml-2 text-xs">({triviaScore}/{triviaAnswered})</span>
-                )}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setActiveTab('favorites')}
+              data-testid="button-favorites-header"
+              className="relative"
+            >
+              <Heart className={`w-5 h-5 ${favoritesData.length > 0 ? 'fill-primary text-primary' : ''}`} />
+              {favoritesData.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {favoritesData.length}
+                </span>
+              )}
+            </Button>
           </div>
         </div>
       </header>
@@ -601,17 +638,23 @@ export default function GuestApp() {
 
         {activeTab === 'profile' && (
           <div className="max-w-2xl mx-auto text-center py-12">
-            <div className="bg-card rounded-lg p-8 border border-card-border">
-              <h2 className="font-serif text-3xl mb-4">{guestName}'s Tasting</h2>
-              <p className="text-muted-foreground mb-8">
-                Thank you for using our Interactive Tasting Companion! We'd love to hear your feedback.
+            <div className="bg-card rounded-lg p-8 border border-card-border space-y-6">
+              <h2 className="font-serif text-4xl mb-4">Thank You, {guestName}!</h2>
+              <p className="text-lg leading-relaxed">
+                We hope you enjoyed exploring our wines, beers, and spirits with our Interactive Tasting Companion. 
+                Your experience and feedback are invaluable to us.
+              </p>
+              <p className="text-muted-foreground">
+                Please take a moment to share your thoughts by completing our quick survey. 
+                Your input helps us improve the tasting experience for future guests.
               </p>
               <Button 
                 size="lg" 
                 onClick={() => setShowSurvey(true)}
                 data-testid="button-complete-tasting"
+                className="mt-4"
               >
-                Complete Tasting & Give Feedback
+                Take Survey
               </Button>
             </div>
           </div>
@@ -642,7 +685,7 @@ export default function GuestApp() {
         product={selectedProduct}
         isOpen={showProductDetail}
         isFavorite={selectedProduct ? favoriteIds.has(selectedProduct.id) : false}
-        note={selectedProduct ? favoritesData.find(f => f.productId === selectedProduct.id)?.note || '' : ''}
+        note={selectedProduct ? (productNotesMap[selectedProduct.id] || '') : ''}
         onClose={handleCloseProductDetail}
         onFavoriteToggle={handleProductDetailFavorite}
         onAddToCart={handleProductDetailAddToCart}

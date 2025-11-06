@@ -235,7 +235,7 @@ export default function ProductDetailModal({
                   data-testid="textarea-product-notes"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Your notes are saved automatically and will be included when you email your favorites
+                  Your notes are saved automatically for all products you view
                 </p>
               </div>
 

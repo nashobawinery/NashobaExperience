@@ -10,6 +10,7 @@ import {
   insertTriviaQuestionSchema,
   insertTriviaScoreSchema,
   insertSurveySchema,
+  insertProductNoteSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -126,6 +127,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const success = await storage.removeFavorite(req.params.sessionId, req.params.productId);
     if (!success) {
       return res.status(404).json({ message: "Favorite not found" });
+    }
+    res.json({ success: true });
+  });
+
+  // Product Notes
+  app.get("/api/sessions/:sessionId/notes", async (req, res) => {
+    const notes = await storage.getProductNotes(req.params.sessionId);
+    res.json(notes);
+  });
+
+  app.get("/api/sessions/:sessionId/notes/:productId", async (req, res) => {
+    const note = await storage.getProductNote(req.params.sessionId, req.params.productId);
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
+    res.json(note);
+  });
+
+  app.post("/api/sessions/:sessionId/notes", async (req, res) => {
+    try {
+      const data = insertProductNoteSchema.parse({
+        sessionId: req.params.sessionId,
+        productId: req.body.productId,
+        note: req.body.note,
+      });
+      const note = await storage.saveProductNote(data);
+      res.json(note);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/sessions/:sessionId/notes/:productId", async (req, res) => {
+    const success = await storage.deleteProductNote(req.params.sessionId, req.params.productId);
+    if (!success) {
+      return res.status(404).json({ message: "Note not found" });
     }
     res.json({ success: true });
   });

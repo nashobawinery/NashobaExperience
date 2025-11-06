@@ -7,10 +7,13 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Auto-popup trivia**: Trivia questions automatically appear every 4 minutes (no manual button)
+- ✅ **10 random questions per session**: $5 credit awarded for perfect score (10/10 correct)
+- ✅ **Heart icon in header**: Replaces "Try Trivia" button, opens favorites panel with count badge
+- ✅ **Notes on ALL products**: New `product_notes` table enables tasting notes on any product, not just favorites
+- ✅ **Enhanced thank you page**: Profile tab shows prominent thank you message before survey
 - ✅ Welcome message modal after name entry explaining app purpose and emphasizing staff complement role
 - ✅ Comprehensive 7-question tasting survey (4 rating scales + 3 text fields) for guest feedback
-- ✅ Profile tab with "Complete Tasting & Give Feedback" button
-- ✅ Updated survey database schema with detailed feedback fields
 - ✅ 28 Nashoba-specific trivia questions (winery history, location, products, heritage)
 - ✅ Product detail modal with favorites, notes, and add-to-cart
 - ✅ Professional wine filtering (type, sweetness, body, characteristics)
@@ -33,8 +36,8 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (detailed inventory with 31 fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `trivia_questions`, `trivia_scores`, `app_settings`, and `surveys`.
-- **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards, and a multi-algorithm product recommendation engine.
+- **Database Schema**: Includes `products` (detailed inventory with 31 fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, and `surveys`.
+- **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards ($5 for 10/10 trivia), and a multi-algorithm product recommendation engine.
 
 ### AI Integration
 
@@ -49,15 +52,17 @@ Preferred communication style: Simple, everyday language.
 
 - **Guest Experience**: 
   - Welcome screen with name entry
-  - **NEW**: Introduction modal explaining app purpose and staff complement role
+  - Introduction modal explaining app purpose and staff complement role
   - Product browsing with advanced filtering (professional wine classification by type, sweetness, body, characteristics)
-  - Product detail modal with favorites, notes, and add-to-cart
-  - Favorites management with personal notes
+  - Product detail modal with favorites, notes (on ALL products), and add-to-cart
+  - Favorites management accessible via heart icon in header with count badge
   - View history tracking
+  - **Auto-popup trivia**: 10 random Nashoba-specific questions appear every 4 minutes
   - Shopping cart with tier-based discounts (5-24% off)
+  - Trivia credit: $5 for perfect score (10/10 correct)
   - AI-powered recommendations (requires 2+ interactions)
-  - 10-question Nashoba trivia with $5 credit rewards
-  - **NEW**: Comprehensive 7-question tasting survey for feedback
+  - **Tasting notes on any product**: Notes saved for all viewed products, not just favorites
+  - Comprehensive 7-question tasting survey with prominent thank you message
   - Email order/favorites summary
   - Mobile-first bottom navigation
 - **Admin Dashboard**: Product CRUD, stock toggling, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products.
