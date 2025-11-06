@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import logoUrl from "@assets/logo_1762392067491.jpg";
+import wineryAerialUrl from "@assets/Winery-areal_1762431445607.webp";
 
 interface WelcomeScreenProps {
   onStart: (name: string) => void;
@@ -20,7 +21,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
-      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=1920&q=80')] bg-cover bg-center" />
+      <img src={wineryAerialUrl} alt="Nashoba Valley Winery Aerial View" className="absolute inset-0 w-full h-full object-cover" />
       
       <div className="relative z-20 w-full max-w-2xl px-6 text-center">
         <div className="mb-8 flex justify-center">
