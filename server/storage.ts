@@ -153,8 +153,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(products.characteristics, `%${filters.characteristics}%`));
     }
     if (filters?.stock) {
-      // Only filter by stock if the product doesn't have ignoreInventory set to true
-      conditions.push(sql`(${products.ignoreInventory} = true OR ${products.stockQuantity} > 0)`);
+      // When filtering for in-stock items, include products with ignoreInventory=true OR stock > 0
+      // When filtering for out-of-stock items, only show products that are tracked (ignoreInventory=false) AND have 0 stock
+      if (filters.stock === 'in-stock' || filters.stock === 'true') {
+        conditions.push(sql`(${products.ignoreInventory} = true OR ${products.stockQuantity} > 0)`);
+      } else if (filters.stock === 'out-of-stock' || filters.stock === 'false') {
+        conditions.push(sql`(${products.ignoreInventory} = false AND ${products.stockQuantity} = 0)`);
+      }
     }
     if (filters?.minPrice !== undefined) {
       conditions.push(sql`${products.price}::numeric >= ${filters.minPrice}`);
