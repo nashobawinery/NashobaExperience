@@ -4,6 +4,18 @@
 
 The Nashoba Tasting Experience App is a mobile-first digital companion for winery guests, enhancing their tasting experience. It offers product education, personalized AI-powered recommendations, engaging trivia, and streamlined purchasing, while also collecting valuable feedback. The app aims to provide a sophisticated, elegant, and practical tool to enrich the physical wine tasting journey.
 
+**Status**: ✅ Fully functional and tested
+
+**Recent Updates**: November 6, 2025
+- ✅ Welcome message modal after name entry explaining app purpose and emphasizing staff complement role
+- ✅ Comprehensive 7-question tasting survey (4 rating scales + 3 text fields) for guest feedback
+- ✅ Profile tab with "Complete Tasting & Give Feedback" button
+- ✅ Updated survey database schema with detailed feedback fields
+- ✅ 28 Nashoba-specific trivia questions (winery history, location, products, heritage)
+- ✅ Product detail modal with favorites, notes, and add-to-cart
+- ✅ Professional wine filtering (type, sweetness, body, characteristics)
+- ✅ Category switching bug fix (wine filters isolated to Wine category)
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -35,7 +47,19 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 
-- **Guest Experience**: Welcome screen, product browsing with advanced filtering (including professional wine classification by type, sweetness, body, characteristics), product detail modal, favorites with notes, view history, shopping cart with discounts, AI recommendations, 10-question trivia with rewards, email order/favorites summary, mobile-first navigation.
+- **Guest Experience**: 
+  - Welcome screen with name entry
+  - **NEW**: Introduction modal explaining app purpose and staff complement role
+  - Product browsing with advanced filtering (professional wine classification by type, sweetness, body, characteristics)
+  - Product detail modal with favorites, notes, and add-to-cart
+  - Favorites management with personal notes
+  - View history tracking
+  - Shopping cart with tier-based discounts (5-24% off)
+  - AI-powered recommendations (requires 2+ interactions)
+  - 10-question Nashoba trivia with $5 credit rewards
+  - **NEW**: Comprehensive 7-question tasting survey for feedback
+  - Email order/favorites summary
+  - Mobile-first bottom navigation
 - **Admin Dashboard**: Product CRUD, stock toggling, trivia management, settings, bulk product import via Excel with template download, "Fun Facts" field for products.
 
 ## External Dependencies
