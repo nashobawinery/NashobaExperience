@@ -7,8 +7,11 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Database-driven slideshow management**: Slideshow images now fully managed through admin dashboard with upload, edit, delete, reorder, and activate/deactivate controls; replaces hardcoded images with dynamic system using `slideshow_images` table
+- ✅ **Slideshow admin UI**: New "Slideshow" tab in admin dashboard for managing welcome presentation photos; includes warning banner when no images are active and active image count indicator
+- ✅ **Empty state handling**: IntroductionModal gracefully handles zero-active-images scenario with personalized welcome message and Continue button to prevent guest onboarding from stalling
 - ✅ **QR code for guest access**: New QR Code tab in admin dashboard generates scannable code pointing to guest app; includes download as PNG and print-ready formatted page for physical signage at tasting bar
-- ✅ **Interactive slideshow welcome experience**: Transformed introduction modal into engaging 4-slide presentation with smooth animations (framer-motion), featuring Justin Pelletier owner photo, tasting scenes, staff interaction imagery, and vineyard views; includes clickable progress dots, back/next navigation, and personalized greetings
+- ✅ **Interactive slideshow welcome experience**: Dynamic slideshow presentation with smooth animations (framer-motion), featuring database-managed winery photos; includes clickable progress dots, back/next navigation, and personalized greetings
 - ✅ **Dedicated search criteria fields with N/A options**: Added dedicated `sweetness` and `body` columns to products table (wine color uses existing `type` field); all three fields now admin-manageable via dropdowns with N/A option for fields that don't apply to specific products (e.g., wine color for spirits)
 - ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color, sweetness, body) below product name; badges automatically hidden when value is 'N/A'
 - ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation); all three search criteria dropdowns visible for ALL product categories
@@ -60,7 +63,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (detailed inventory with 32+ fields including `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management with N/A options).
+- **Database Schema**: Includes `products` (detailed inventory with 32+ fields including `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (dynamic filter management with N/A options), and `slideshow_images` (database-driven welcome slideshow with caption, description, sort order, and active status).
 - **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards ($5 for 10/10 trivia), and a multi-algorithm product recommendation engine.
 - **Inventory Management**: Per-product `ignoreInventory` flag (default: true) allows products to always appear regardless of stock, or be tracked normally. Admin toggle UI provides instant control.
 - **Dynamic Filtering**: Database-driven filter system with CRUD API endpoints, supporting 5 field types with customizable options, sort orders, and active/inactive states.
@@ -91,7 +94,7 @@ Preferred communication style: Simple, everyday language.
   - Comprehensive 7-question tasting survey with prominent thank you message
   - Email order/favorites summary
   - Mobile-first bottom navigation
-- **Admin Dashboard**: Product CRUD, stock toggling, **per-product inventory control** (toggle between "Ignored" and "Tracked" modes), filter options management, trivia management, **QR code generator** for guest app access, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types. QR code can be downloaded or printed for physical signage.
+- **Admin Dashboard**: Product CRUD, stock toggling, **per-product inventory control** (toggle between "Ignored" and "Tracked" modes), filter options management, **slideshow image management** (upload, edit, delete, reorder, activate/deactivate welcome presentation photos with warning when no images active), trivia management, **QR code generator** for guest app access, settings, bulk product import via Excel with template download, "Fun Facts" field for products. Filter management allows adding/editing/deleting/reordering searchable options across 5 field types. QR code can be downloaded or printed for physical signage.
 
 ## External Dependencies
 

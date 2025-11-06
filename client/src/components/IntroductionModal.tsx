@@ -39,8 +39,8 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
     description: image.description || "",
   }));
 
-  // Don't render content if no slides available
-  if (isLoading || slides.length === 0) {
+  // Show loading state while fetching
+  if (isLoading) {
     return (
       <Dialog open={open} onOpenChange={() => {}}>
         <DialogContent 
@@ -50,6 +50,42 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
           <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
           <div className="relative h-[85vh] max-h-[700px] flex items-center justify-center">
             <p className="text-muted-foreground">Loading slideshow...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // If no slides available, show empty state and allow continuing
+  if (slides.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={() => {}}>
+        <DialogContent 
+          className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
+          data-testid="dialog-introduction"
+        >
+          <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
+          <div className="relative h-[85vh] max-h-[700px] flex flex-col items-center justify-center p-8 gap-6">
+            <div className="text-center space-y-4 max-w-lg">
+              <h2 className="font-serif text-3xl text-primary">
+                Welcome to Nashoba Valley Winery!
+              </h2>
+              <p className="text-lg text-foreground/80">
+                Hello <span className="font-serif text-primary font-semibold">{guestName}</span>!
+              </p>
+              <p className="text-base text-muted-foreground">
+                We're thrilled to have you here today. Let's begin your tasting experience.
+              </p>
+            </div>
+            <Button 
+              size="lg" 
+              onClick={onContinue}
+              className="gap-2"
+              data-testid="button-begin-experience"
+            >
+              Let's Begin!
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

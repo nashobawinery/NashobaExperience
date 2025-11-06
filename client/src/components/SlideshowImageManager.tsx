@@ -26,9 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, GripVertical, Eye, EyeOff } from "lucide-react";
+import { Plus, Edit, Trash2, GripVertical, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import type { SlideshowImage } from "@shared/schema";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const imageSchema = z.object({
   filename: z.string().min(1, "Filename is required"),
@@ -173,13 +174,31 @@ export default function SlideshowImageManager() {
     return <div>Loading slideshow images...</div>;
   }
 
+  const activeImageCount = images.filter(img => img.isActive).length;
+  const hasNoActiveImages = activeImageCount === 0 && images.length > 0;
+
   return (
     <Card className="p-6">
+      {hasNoActiveImages && (
+        <Alert className="mb-6 border-destructive/50 bg-destructive/10">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <AlertDescription className="text-destructive">
+            <strong>Warning:</strong> No active slideshow images. Guests will see a simplified welcome message. 
+            Activate at least one image to display the full slideshow experience.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold">Slideshow Images</h3>
           <p className="text-sm text-muted-foreground">
             Manage the images shown in the welcome slideshow
+            {activeImageCount > 0 && (
+              <span className="ml-2 text-primary font-medium">
+                ({activeImageCount} active)
+              </span>
+            )}
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
