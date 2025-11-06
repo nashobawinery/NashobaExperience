@@ -34,6 +34,8 @@ export const products = pgTable("products", {
   labelImageUrl: text("label_image_url"),
   lifestyleImageUrl: text("lifestyle_image_url"),
   characteristics: text("characteristics"),
+  sweetness: text("sweetness"), // Dry, Off-Dry, Semi-Sweet, Sweet, Dessert Wine, N/A
+  body: text("body"), // Light-Bodied, Medium-Bodied, Full-Bodied, Light, Medium, Full, N/A
   productionMethod: text("production_method"),
   agingProcess: text("aging_process"),
   awards: text("awards"),
