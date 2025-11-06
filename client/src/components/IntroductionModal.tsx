@@ -7,9 +7,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Wine, BookOpen, Heart, Gift, ChevronRight, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import type { SlideshowImage } from "@shared/schema";
-import justinPhoto from "@assets/image_1762437724457.png";
+import justinPhoto from "@assets/jp_1762469142187.jfif";
+import barrelsPhoto from "@assets/better barrels_1762469157470.jpg";
+import pavilionPhoto from "@assets/Pavillion gather_1762469172841.jpg";
+import charcuPhoto from "@assets/charcu_1762469188641.jpg";
 
 interface IntroductionModalProps {
   open: boolean;
@@ -20,7 +21,7 @@ interface IntroductionModalProps {
 const slides = [
   {
     id: 1,
-    image: justinPhoto,
+    image: justinPhoto, // Justin Pelletier photo
     title: "Welcome to Nashoba Valley Winery!",
     content: (guestName: string) => (
       <div className="space-y-3">
@@ -38,7 +39,7 @@ const slides = [
   },
   {
     id: 2,
-    image: justinPhoto,
+    image: barrelsPhoto, // Wine barrels
     title: "Your Interactive Tasting Companion",
     content: () => (
       <div className="space-y-3">
@@ -68,7 +69,7 @@ const slides = [
   },
   {
     id: 3,
-    image: justinPhoto,
+    image: pavilionPhoto, // People gathering at pavilion
     title: "Here to Enhance, Not Replace",
     content: () => (
       <div className="space-y-3">
@@ -91,7 +92,7 @@ const slides = [
   },
   {
     id: 4,
-    image: justinPhoto,
+    image: charcuPhoto, // Charcuterie platter
     title: "Thank You for Being Here",
     content: () => (
       <div className="space-y-3">
@@ -120,26 +121,6 @@ const slides = [
 export default function IntroductionModal({ open, onContinue, guestName }: IntroductionModalProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(0);
-
-  // Fetch active slideshow images from database to use as backgrounds (optional enhancement)
-  const { data: slideshowImages = [] } = useQuery<SlideshowImage[]>({
-    queryKey: ["/api/slideshow-images", { activeOnly: true }],
-    queryFn: async () => {
-      const response = await fetch("/api/slideshow-images?activeOnly=true");
-      if (!response.ok) throw new Error("Failed to fetch slideshow images");
-      return response.json();
-    },
-    enabled: open,
-  });
-
-  // Use database images as backgrounds if available, otherwise use default
-  const getBackgroundImage = (slideIndex: number) => {
-    if (slideshowImages.length > 0) {
-      const imageIndex = slideIndex % slideshowImages.length;
-      return `/attached_assets/winery_photos/${slideshowImages[imageIndex].filename}`;
-    }
-    return slides[slideIndex].image;
-  };
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
@@ -204,13 +185,9 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                 className="absolute inset-0"
               >
                 <img
-                  src={getBackgroundImage(currentSlide)}
+                  src={slide.image}
                   alt={slide.title}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error('Image failed to load:', getBackgroundImage(currentSlide));
-                    e.currentTarget.src = justinPhoto;
-                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
               </motion.div>
