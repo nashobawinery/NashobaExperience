@@ -7,10 +7,11 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
-- ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color for wines, sweetness, body) below product name, making it easy for guests to see which search criteria apply to each product
-- ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation)
+- ✅ **Dedicated search criteria fields with N/A options**: Added dedicated `sweetness` and `body` columns to products table (wine color uses existing `type` field); all three fields now admin-manageable via dropdowns with N/A option for fields that don't apply to specific products (e.g., wine color for spirits)
+- ✅ **Search criteria badges on product pages**: Product detail modal now displays filter attributes as outline badges (category, wine color, sweetness, body) below product name; badges automatically hidden when value is 'N/A'
+- ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation); all three search criteria dropdowns visible for ALL product categories
 - ✅ **Multi-select characteristics field**: Characteristics field in product editor upgraded to Command-based multi-select popover with grouped options (Sweetness, Body, Other Characteristics)
-- ✅ **Backend validation**: Added Zod updateProductSchema in routes.ts to validate product updates server-side, ensuring only valid enum values are accepted
+- ✅ **Backend validation and filtering**: Added Zod updateProductSchema in routes.ts to validate product updates server-side; search filtering now uses dedicated sweetness and body fields instead of parsing from characteristics array
 - ✅ **Video upload button wired**: Settings tab Upload Video button now properly connected to hidden file input with video/* validation and toast feedback
 - ✅ **Custom welcome screen background**: Replaced generic stock photo with actual Nashoba Valley Winery aerial photograph showing winery building, vineyards, and pond with kayaks
 - ✅ **Product-agnostic language**: All hardcoded "wine" references replaced with generic "product" terminology to support spirits, beers, and other non-wine items; works equally well for all 5 product categories
@@ -57,7 +58,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (detailed inventory with 32 fields including `ignoreInventory`), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management).
+- **Database Schema**: Includes `products` (detailed inventory with 32+ fields including `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes` (notes on any product), `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, and `filter_options` (dynamic filter management with N/A options).
 - **Business Logic**: Automatic tier-based discount calculation (5-24% off for 3/6/12/24 bottles), trivia credit rewards ($5 for 10/10 trivia), and a multi-algorithm product recommendation engine.
 - **Inventory Management**: Per-product `ignoreInventory` flag (default: true) allows products to always appear regardless of stock, or be tracked normally. Admin toggle UI provides instant control.
 - **Dynamic Filtering**: Database-driven filter system with CRUD API endpoints, supporting 5 field types with customizable options, sort orders, and active/inactive states.
