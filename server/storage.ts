@@ -133,8 +133,8 @@ export class DatabaseStorage implements IStorage {
       );
     }
     if (filters?.category) {
-      console.log(`Category filter: "${filters.category}" -> lowercase: "${filters.category.toLowerCase()}"`);
-      conditions.push(eq(lower(products.category), filters.category.toLowerCase()));
+      // Cast enum to text before using lower() to avoid PostgreSQL enum comparison errors
+      conditions.push(sql`lower(${products.category}::text) = ${filters.category.toLowerCase()}`);
     }
     if (filters?.wineColor) {
       // Filter by the 'type' field which contains wine types like "Red Wine", "White Wine", etc.

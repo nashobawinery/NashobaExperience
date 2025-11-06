@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -297,4 +297,50 @@ export async function submitSurvey(sessionId: string, surveyData: {
     body: JSON.stringify(surveyData),
   });
   if (!response.ok) throw new Error("Failed to submit survey");
+}
+
+export async function getFilterOptions(fieldType?: string): Promise<FilterOption[]> {
+  const params = fieldType ? `?fieldType=${fieldType}` : "";
+  const response = await fetch(`/api/filter-options${params}`);
+  if (!response.ok) throw new Error("Failed to fetch filter options");
+  return response.json();
+}
+
+export async function createFilterOption(option: {
+  fieldType: string;
+  optionValue: string;
+  displayLabel: string;
+  sortOrder: number;
+  isActive: boolean;
+}): Promise<FilterOption> {
+  const response = await fetch("/api/filter-options", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(option),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Failed to create filter option" }));
+    throw new Error(errorData.message || "Failed to create filter option");
+  }
+  return response.json();
+}
+
+export async function updateFilterOption(id: string, data: Partial<FilterOption>): Promise<FilterOption> {
+  const response = await fetch(`/api/filter-options/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Failed to update filter option" }));
+    throw new Error(errorData.message || "Failed to update filter option");
+  }
+  return response.json();
+}
+
+export async function deleteFilterOption(id: string): Promise<void> {
+  const response = await fetch(`/api/filter-options/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete filter option");
 }

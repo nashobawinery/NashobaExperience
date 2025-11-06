@@ -1,10 +1,11 @@
 import AdminProductManager from "@/components/AdminProductManager";
+import FilterOptionsManager from "@/components/FilterOptionsManager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -171,10 +172,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const handleToggleStock = (id: string) => {
     const product = products.find((p: Product) => p.id === id);
     if (product) {
-      const newStock = product.stock === 'in-stock' ? 'out-of-stock' : 'in-stock';
+      const newStockQuantity = product.stockQuantity > 0 ? 0 : 50;
       updateProductMutation.mutate({ 
         id, 
-        data: { stock: newStock } 
+        data: { stockQuantity: newStockQuantity } 
       });
     }
   };
@@ -307,7 +308,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="w-4 h-4 mr-2" />
               Products
@@ -315,6 +316,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <TabsTrigger value="import" data-testid="tab-import">
               <Upload className="w-4 h-4 mr-2" />
               Import/Export
+            </TabsTrigger>
+            <TabsTrigger value="filters" data-testid="tab-filters">
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
             </TabsTrigger>
             <TabsTrigger value="trivia" data-testid="tab-trivia">
               <HelpCircle className="w-4 h-4 mr-2" />
@@ -559,6 +564,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 </div>
               )}
             </Card>
+          </TabsContent>
+
+          <TabsContent value="filters">
+            <FilterOptionsManager />
           </TabsContent>
 
           <TabsContent value="settings">

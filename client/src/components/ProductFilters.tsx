@@ -10,7 +10,10 @@ import {
 } from "@/components/ui/select";
 import { Search, X, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getFilterOptions } from "@/lib/api";
+import type { FilterOption } from "@shared/schema";
 
 interface ProductFiltersProps {
   searchQuery: string;
@@ -53,6 +56,29 @@ export default function ProductFilters({
 }: ProductFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   
+  const { data: filterOptions = [] } = useQuery<FilterOption[]>({
+    queryKey: ['/api/filter-options'],
+    queryFn: () => getFilterOptions(),
+  });
+
+  const groupedOptions = useMemo(() => {
+    const grouped = filterOptions.reduce((acc, option) => {
+      if (!acc[option.fieldType]) {
+        acc[option.fieldType] = [];
+      }
+      if (option.isActive) {
+        acc[option.fieldType].push(option);
+      }
+      return acc;
+    }, {} as Record<string, FilterOption[]>);
+
+    Object.keys(grouped).forEach((key) => {
+      grouped[key].sort((a, b) => a.sortOrder - b.sortOrder);
+    });
+
+    return grouped;
+  }, [filterOptions]);
+  
   const hasActiveFilters = selectedCategory !== 'all' || priceRange !== 'all' || 
     wineColor !== 'all' || sweetness !== 'all' || body !== 'all' || characteristics !== 'all';
 
@@ -90,11 +116,11 @@ export default function ProductFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="wine">Wine</SelectItem>
-            <SelectItem value="spirits">Spirits</SelectItem>
-            <SelectItem value="beer">Beer</SelectItem>
-            <SelectItem value="canned_cocktail">Canned Cocktails</SelectItem>
-            <SelectItem value="canned_wine">Canned Wine</SelectItem>
+            {groupedOptions.category?.map((option) => (
+              <SelectItem key={option.id} value={option.optionValue}>
+                {option.displayLabel}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -106,11 +132,11 @@ export default function ProductFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="Red Wine">🍷 Red Wine</SelectItem>
-                <SelectItem value="White Wine">🥂 White Wine</SelectItem>
-                <SelectItem value="Rosé">🌸 Rosé</SelectItem>
-                <SelectItem value="Sparkling">🍾 Sparkling</SelectItem>
-                <SelectItem value="Fortified">🥃 Fortified/Port</SelectItem>
+                {groupedOptions.wine_color?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -120,11 +146,11 @@ export default function ProductFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sweetness</SelectItem>
-                <SelectItem value="Dry">💧 Dry</SelectItem>
-                <SelectItem value="Off-Dry">🍯 Off-Dry</SelectItem>
-                <SelectItem value="Semi-Sweet">🍬 Semi-Sweet</SelectItem>
-                <SelectItem value="Sweet">🧁 Sweet/Dessert</SelectItem>
-                <SelectItem value="Port-Style">🍷 Port-Style</SelectItem>
+                {groupedOptions.sweetness?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -178,9 +204,11 @@ export default function ProductFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Body Types</SelectItem>
-              <SelectItem value="Light">🪶 Light-bodied</SelectItem>
-              <SelectItem value="Medium">⚖️ Medium-bodied</SelectItem>
-              <SelectItem value="Full">🏋️ Full-bodied</SelectItem>
+              {groupedOptions.body?.map((option) => (
+                <SelectItem key={option.id} value={option.optionValue}>
+                  {option.displayLabel}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -190,11 +218,11 @@ export default function ProductFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Characteristics</SelectItem>
-              <SelectItem value="Crisp">🍋 Crisp & Acidic</SelectItem>
-              <SelectItem value="Rich">🪵 Rich & Oaky</SelectItem>
-              <SelectItem value="Fruit-Forward">🍇 Fruit-Forward</SelectItem>
-              <SelectItem value="Aromatic">🌿 Aromatic & Floral</SelectItem>
-              <SelectItem value="Tannic">💪 Tannic & Bold</SelectItem>
+              {groupedOptions.characteristics?.map((option) => (
+                <SelectItem key={option.id} value={option.optionValue}>
+                  {option.displayLabel}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
