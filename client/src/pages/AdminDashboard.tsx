@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -449,7 +449,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7 max-w-5xl">
+          <TabsList className="grid w-full grid-cols-8 max-w-6xl">
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="w-4 h-4 mr-2" />
               Products
@@ -473,6 +473,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <TabsTrigger value="qrcode" data-testid="tab-qrcode">
               <QrCode className="w-4 h-4 mr-2" />
               QR Code
+            </TabsTrigger>
+            <TabsTrigger value="documentation" data-testid="tab-documentation">
+              <BookOpen className="w-4 h-4 mr-2" />
+              Documentation
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">
               <SettingsIcon className="w-4 h-4 mr-2" />
@@ -726,6 +730,329 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="qrcode">
             <GuestAppQRCode />
+          </TabsContent>
+
+          <TabsContent value="documentation">
+            <Card className="p-8">
+              <div className="max-w-4xl mx-auto">
+                <div className="mb-8 text-center">
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-primary" />
+                  <h2 className="font-serif text-3xl font-medium mb-2">Nashoba Tasting Experience App</h2>
+                  <p className="text-lg text-muted-foreground">Staff Training Guide</p>
+                </div>
+
+                <div className="space-y-8">
+                  {/* Overview Section */}
+                  <section>
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Overview</h3>
+                    <p className="text-muted-foreground leading-relaxed mb-4">
+                      The Nashoba Tasting Experience App is a mobile-first digital companion designed to enhance the guest experience during wine tastings. The app provides product education, personalized AI-powered recommendations, engaging trivia, streamlined purchasing, and valuable feedback collection. It complements—never replaces—the expertise and personal touch of our staff.
+                    </p>
+                  </section>
+
+                  {/* Guest Experience Section */}
+                  <section>
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Guest Experience Flow</h3>
+                    
+                    <div className="space-y-6">
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">1</span>
+                          Welcome & Introduction
+                        </h4>
+                        <p className="text-muted-foreground ml-10">
+                          Guests scan a QR code (available in the QR Code tab) to access the app. They enter their name and are greeted with a beautiful 4-slide introduction featuring winery photos, explaining the app's purpose, and emphasizing that the app complements our staff's expertise.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">2</span>
+                          Browse Products
+                        </h4>
+                        <p className="text-muted-foreground ml-10 mb-3">
+                          Guests can browse all available products (wines, spirits, beers, canned cocktails, ciders) with professional filtering options:
+                        </p>
+                        <ul className="text-muted-foreground ml-10 space-y-1">
+                          <li>• Category (Wine, Spirit, Beer, Canned Cocktail, Cider)</li>
+                          <li>• Wine color (Red, White, Rosé, Sparkling)</li>
+                          <li>• Sweetness levels (Dry, Off-Dry, Semi-Sweet, Sweet)</li>
+                          <li>• Body (Light, Medium, Full)</li>
+                          <li>• Characteristics (Fruity, Oak-Aged, Crisp, etc.)</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">3</span>
+                          Product Details & Notes
+                        </h4>
+                        <p className="text-muted-foreground ml-10 mb-3">
+                          Clicking any product opens an elegant detail page showing:
+                        </p>
+                        <ul className="text-muted-foreground ml-10 space-y-1">
+                          <li>• Large bottle image</li>
+                          <li>• Full description and tasting notes</li>
+                          <li>• Technical details (alcohol %, vintage, varietals)</li>
+                          <li>• Awards and recognition</li>
+                          <li>• Ability to favorite, add notes, and add to cart</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">4</span>
+                          Auto-Popup Trivia
+                        </h4>
+                        <p className="text-muted-foreground ml-10 mb-3">
+                          Every 4 minutes, a trivia popup automatically appears with 10 random Nashoba-specific questions about winery history, products, and heritage. This keeps guests engaged during the tasting experience.
+                        </p>
+                        <p className="text-muted-foreground ml-10 font-medium">
+                          Reward: Perfect score (10/10) earns guests a $5 credit applied to their cart.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">5</span>
+                          AI-Powered Recommendations
+                        </h4>
+                        <p className="text-muted-foreground ml-10">
+                          After guests interact with at least 2 products (viewing, favoriting, or adding to cart), the AI recommendation engine analyzes their preferences and suggests personalized product matches with natural language explanations, just like a sommelier would.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">6</span>
+                          Shopping Cart & Discounts
+                        </h4>
+                        <p className="text-muted-foreground ml-10 mb-3">
+                          Guests can add products to their cart with automatic tier-based discounts:
+                        </p>
+                        <ul className="text-muted-foreground ml-10 space-y-1">
+                          <li>• 3-5 bottles: 5% off</li>
+                          <li>• 6-11 bottles: 12% off</li>
+                          <li>• 12-23 bottles: 18% off</li>
+                          <li>• 24+ bottles: 24% off</li>
+                        </ul>
+                        <p className="text-muted-foreground ml-10 mt-3">
+                          Note: Discount tiers are configurable in the Settings tab.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3 flex items-center gap-2">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium">7</span>
+                          Email Summary & Survey
+                        </h4>
+                        <p className="text-muted-foreground ml-10 mb-3">
+                          Guests can email their cart order or favorites list to onsiteorder@nashobawinery.com. The email includes:
+                        </p>
+                        <ul className="text-muted-foreground ml-10 space-y-1">
+                          <li>• Product details with guest notes</li>
+                          <li>• Pricing and discount breakdowns</li>
+                          <li>• Total amounts</li>
+                        </ul>
+                        <p className="text-muted-foreground ml-10 mt-3">
+                          After emailing, guests are prompted to complete a 7-question tasting survey for valuable feedback.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Admin Tools Section */}
+                  <section>
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Admin Dashboard Tools</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Products Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Full CRUD operations for managing product inventory. Edit all 32+ fields including descriptions, images, pricing, stock levels, wine details, tasting notes, and recognition. Toggle inventory tracking per product (Ignored vs Tracked).
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Import/Export Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Bulk import/update products via Excel file. Download a template with proper column structure, fill it in, and upload to create or update multiple products at once.
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Filters Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Manage all filter options (categories, wine colors, sweetness, body, characteristics). Add, edit, delete, reorder, and activate/deactivate options. Changes appear instantly in the guest app.
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Slideshow Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Upload and manage winery photos for the welcome screen slideshow. Add captions, descriptions, reorder slides, and activate/deactivate images. Warning appears if no images are active.
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Fun Facts Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Create and manage trivia questions that appear to guests every 4 minutes. Each question includes 4 possible answers, explanation, and difficulty level. Currently contains 28 Nashoba-specific questions.
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">QR Code Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Generate a QR code that guests can scan to access the app. Download as PNG for digital signage or print directly for physical display at the tasting bar.
+                        </p>
+                      </div>
+
+                      <div className="border-l-4 border-primary pl-4">
+                        <h4 className="font-medium mb-2">Settings Tab</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Configure discount tiers (bottle quantities and percentages) and upload welcome screen videos. Discount changes apply immediately to all guest carts.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Key Features Section */}
+                  <section>
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Key Features</h3>
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">Product-Agnostic Language</h4>
+                        <p className="text-sm text-muted-foreground">
+                          The app uses generic "product" terminology, not wine-specific language, making it suitable for wines, spirits, beers, canned cocktails, and ciders.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">Mobile-First Design</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Optimized for smartphones with bottom navigation, elegant card layouts, and burgundy/gold color scheme matching Nashoba branding.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">Session-Based Tracking</h4>
+                        <p className="text-sm text-muted-foreground">
+                          No login required. Each guest's preferences, favorites, cart, and notes are tracked throughout their visit for personalized recommendations.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">Inventory Control</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Per-product inventory toggle: "Ignored" products always appear regardless of stock; "Tracked" products only show when in stock.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">Favorites & Notes</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Guests can favorite any product and add personal tasting notes to ALL products (not just favorites), creating a personalized tasting journal.
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <h4 className="font-medium mb-2">AI Recommendations</h4>
+                        <p className="text-sm text-muted-foreground">
+                          GPT-4 powered recommendation engine analyzes guest preferences to suggest products with natural language explanations (requires 2+ interactions).
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Staff Guidelines Section */}
+                  <section className="border-t pt-6">
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Staff Guidelines</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="bg-primary/5 rounded-lg p-6 border-l-4 border-primary">
+                        <h4 className="font-medium text-lg mb-3">The App Complements, Never Replaces</h4>
+                        <p className="text-muted-foreground mb-3">
+                          The app is designed to enhance the tasting experience, not replace our staff's expertise and personal touch. Encourage guests to:
+                        </p>
+                        <ul className="text-muted-foreground space-y-2">
+                          <li>• Use the app while waiting or between tastings</li>
+                          <li>• Reference product details and notes during conversations</li>
+                          <li>• Share their favorites and notes with staff for better recommendations</li>
+                          <li>• Ask staff questions beyond what the app provides</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-primary/5 rounded-lg p-6 border-l-4 border-primary">
+                        <h4 className="font-medium text-lg mb-3">How to Introduce the App</h4>
+                        <p className="text-muted-foreground mb-3">
+                          When guests arrive, briefly mention:
+                        </p>
+                        <p className="text-muted-foreground italic">
+                          "We have a digital companion app you can access by scanning this QR code. It has product details, tasting notes, and fun trivia about Nashoba. Feel free to use it during your visit, and don't hesitate to ask me any questions!"
+                        </p>
+                      </div>
+
+                      <div className="bg-primary/5 rounded-lg p-6 border-l-4 border-primary">
+                        <h4 className="font-medium text-lg mb-3">Handling Orders</h4>
+                        <p className="text-muted-foreground">
+                          When guests email their cart, the order arrives at onsiteorder@nashobawinery.com with full details, guest notes, and discount calculations. Staff can review and process these orders through your existing fulfillment system.
+                        </p>
+                      </div>
+
+                      <div className="bg-primary/5 rounded-lg p-6 border-l-4 border-primary">
+                        <h4 className="font-medium text-lg mb-3">Product Updates</h4>
+                        <p className="text-muted-foreground">
+                          Keep product information current by regularly updating descriptions, stock levels, and featured products in the Products tab. Changes appear instantly in the guest app.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Technical Information Section */}
+                  <section className="border-t pt-6">
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Technical Information</h3>
+                    
+                    <div className="bg-muted/50 rounded-lg p-6">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-medium mb-2">Email Configuration</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Orders sent to: <span className="font-mono">onsiteorder@nashobawinery.com</span>
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Trivia Timing</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Auto-popup every 4 minutes with 10 random questions
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">AI Requirements</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Minimum 2 guest interactions to activate recommendations
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Database</h4>
+                          <p className="text-sm text-muted-foreground">
+                            PostgreSQL with real-time updates across all features
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Contact Information */}
+                  <section className="border-t pt-6 text-center">
+                    <p className="text-muted-foreground">
+                      For technical support or questions about the app, please contact your IT administrator.
+                    </p>
+                  </section>
+                </div>
+              </div>
+            </Card>
           </TabsContent>
 
           <TabsContent value="settings">
