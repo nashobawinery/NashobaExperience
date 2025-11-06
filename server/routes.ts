@@ -53,7 +53,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,
     };
 
+    console.log('Product filters received:', JSON.stringify(filters));
     const products = await storage.getProducts(filters);
+    console.log(`Returned ${products.length} products`);
     res.json(products);
   });
 
