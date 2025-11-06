@@ -33,7 +33,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         </div>
         
         <h1 className="font-serif text-4xl md:text-5xl font-light text-primary-foreground mb-4 tracking-wide leading-tight">
-          Welcome to Nashoba Valley Winery,<br />Distillery and Brewery Tasting Room
+          Welcome to Nashoba Valley Winery, Distillery and Brewery<br />Tasting Room
         </h1>
         <p className="text-xl text-primary-foreground/90 mb-12 font-light">
           Your personal tasting companion
