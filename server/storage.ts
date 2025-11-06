@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
+import { eq, and, desc, ilike, or, sql, type SQL } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm";
 import {
   products,
   guestSessions,
@@ -32,6 +33,11 @@ import {
   type InsertProductNote,
   type ProductNote,
 } from "@shared/schema";
+
+// Helper function for case-insensitive comparisons
+function lower(column: AnyColumn): SQL {
+  return sql`lower(${column})`;
+}
 
 export interface IStorage {
   // Products
@@ -116,7 +122,7 @@ export class DatabaseStorage implements IStorage {
       );
     }
     if (filters?.category) {
-      conditions.push(sql`lower(${products.category}) = lower(${filters.category})`);
+      conditions.push(eq(lower(products.category), filters.category.toLowerCase()));
     }
     if (filters?.wineColor) {
       // Filter by the 'type' field which contains wine types like "Red Wine", "White Wine", etc.
