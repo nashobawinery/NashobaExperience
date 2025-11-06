@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import justinPhoto from "@assets/jp_1762469142187.jfif";
 import barrelsPhoto from "@assets/better barrels_1762469157470.jpg";
 import pavilionPhoto from "@assets/Pavillion gather_1762469172841.jpg";
-import charcuPhoto from "@assets/charcu_1762469188641.jpg";
+import jprpPhoto from "@assets/jprp_1762469663189.jfif";
 
 interface IntroductionModalProps {
   open: boolean;
@@ -92,7 +92,7 @@ const slides = [
   },
   {
     id: 4,
-    image: charcuPhoto, // Charcuterie platter
+    image: jprpPhoto, // Justin Pelletier & RP photo
     title: "Thank You for Being Here",
     content: () => (
       <div className="space-y-3">
@@ -169,7 +169,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
         <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
         <div className="flex h-[85vh] max-h-[650px]">
           {/* Left Column - Photo with dark background */}
-          <div className="relative w-2/5 overflow-hidden bg-black flex items-center justify-center p-8">
+          <div className="relative w-2/5 overflow-hidden bg-black flex items-center justify-center p-6">
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
                 key={currentSlide}
@@ -182,12 +182,13 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                   x: { type: "spring", stiffness: 300, damping: 30 },
                   opacity: { duration: 0.2 },
                 }}
-                className="relative w-full h-auto max-h-full flex items-center justify-center"
+                className="relative w-full h-full flex items-center justify-center"
               >
                 <img
                   src={slide.image}
                   alt={slide.title}
                   className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  style={{ maxWidth: '125%', maxHeight: '125%' }}
                 />
               </motion.div>
             </AnimatePresence>
