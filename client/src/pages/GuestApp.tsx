@@ -27,6 +27,7 @@ export default function GuestApp() {
   const [showIntroduction, setShowIntroduction] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
   
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("name");
@@ -79,6 +80,15 @@ export default function GuestApp() {
     },
     enabled: hasStarted,
   });
+
+  // Debounce search input - wait 400ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Reset wine-specific filters when switching away from Wine category
   useEffect(() => {
@@ -548,7 +558,7 @@ export default function GuestApp() {
         {activeTab === 'browse' && (
           <div className="space-y-6">
             <ProductFilters
-              searchQuery={searchQuery}
+              searchQuery={searchInput}
               selectedCategory={selectedCategory}
               sortBy={sortBy}
               priceRange={priceRange}
@@ -556,7 +566,7 @@ export default function GuestApp() {
               sweetness={sweetness}
               body={body}
               characteristics={characteristics}
-              onSearchChange={setSearchQuery}
+              onSearchChange={setSearchInput}
               onCategoryChange={setSelectedCategory}
               onSortChange={setSortBy}
               onPriceRangeChange={setPriceRange}
@@ -565,6 +575,7 @@ export default function GuestApp() {
               onBodyChange={setBody}
               onCharacteristicsChange={setCharacteristics}
               onClearFilters={() => {
+                setSearchInput('');
                 setSelectedCategory('all');
                 setPriceRange('all');
                 setWineColor('all');
