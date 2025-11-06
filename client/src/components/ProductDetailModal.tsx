@@ -120,6 +120,45 @@ export default function ProductDetailModal({
                     {product.vintageYear} {product.varietal || product.type}
                   </p>
                 )}
+                
+                {/* Search Criteria Badges */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {/* Category */}
+                  <Badge variant="outline" className="capitalize" data-testid="badge-category">
+                    {product.category}
+                  </Badge>
+                  
+                  {/* Wine Color (only for wines) */}
+                  {product.category?.toLowerCase() === 'wine' && product.type && (
+                    <Badge variant="outline" data-testid="badge-wine-color">
+                      {product.type}
+                    </Badge>
+                  )}
+                  
+                  {/* Sweetness & Body from characteristics */}
+                  {product.characteristics && product.characteristics.split(',').map((char, idx) => {
+                    const trimmed = char.trim();
+                    const sweetnessLevels = ['Dry', 'Off-Dry', 'Semi-Sweet', 'Sweet', 'Dessert Wine'];
+                    const bodyLevels = ['Light-Bodied', 'Medium-Bodied', 'Full-Bodied', 'Light', 'Medium', 'Full'];
+                    
+                    if (sweetnessLevels.includes(trimmed)) {
+                      return (
+                        <Badge key={idx} variant="outline" data-testid="badge-sweetness">
+                          {trimmed}
+                        </Badge>
+                      );
+                    } else if (bodyLevels.includes(trimmed)) {
+                      return (
+                        <Badge key={idx} variant="outline" data-testid="badge-body">
+                          {trimmed}
+                        </Badge>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+                
+                {/* Feature Badges */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {product.staffPick && (
                     <Badge className="bg-chart-2 text-background">Staff Pick</Badge>
