@@ -180,6 +180,16 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     }
   };
 
+  const handleToggleIgnoreInventory = (id: string) => {
+    const product = products.find((p: Product) => p.id === id);
+    if (product) {
+      updateProductMutation.mutate({ 
+        id, 
+        data: { ignoreInventory: !product.ignoreInventory } 
+      });
+    }
+  };
+
   const handleAddTrivia = () => {
     toast({ title: "Add Question", description: "Trivia form would open here" });
   };
@@ -347,6 +357,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 onEditProduct={handleEditProduct}
                 onDeleteProduct={handleDeleteProduct}
                 onToggleStock={handleToggleStock}
+                onToggleIgnoreInventory={handleToggleIgnoreInventory}
               />
             )}
           </TabsContent>

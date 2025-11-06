@@ -153,7 +153,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(products.characteristics, `%${filters.characteristics}%`));
     }
     if (filters?.stock) {
-      conditions.push(sql`${products.stockQuantity} > 0`);
+      // Only filter by stock if the product doesn't have ignoreInventory set to true
+      conditions.push(sql`(${products.ignoreInventory} = true OR ${products.stockQuantity} > 0)`);
     }
     if (filters?.minPrice !== undefined) {
       conditions.push(sql`${products.price}::numeric >= ${filters.minPrice}`);

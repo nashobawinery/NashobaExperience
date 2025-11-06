@@ -29,6 +29,7 @@ export const products = pgTable("products", {
   sku: text("sku"),
   stockQuantity: integer("stock_quantity").default(0),
   lowStockThreshold: integer("low_stock_threshold").default(10),
+  ignoreInventory: boolean("ignore_inventory").notNull().default(true),
   imageUrl: text("image_url"),
   labelImageUrl: text("label_image_url"),
   lifestyleImageUrl: text("lifestyle_image_url"),

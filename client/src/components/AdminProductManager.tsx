@@ -20,6 +20,7 @@ interface AdminProductManagerProps {
   onEditProduct?: (id: string) => void;
   onDeleteProduct?: (id: string) => void;
   onToggleStock?: (id: string) => void;
+  onToggleIgnoreInventory?: (id: string) => void;
 }
 
 export default function AdminProductManager({
@@ -28,6 +29,7 @@ export default function AdminProductManager({
   onEditProduct,
   onDeleteProduct,
   onToggleStock,
+  onToggleIgnoreInventory,
 }: AdminProductManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -37,9 +39,9 @@ export default function AdminProductManager({
 
   const stats = {
     total: products.length,
-    inStock: products.filter(p => p.stock === 'in-stock').length,
-    outOfStock: products.filter(p => p.stock === 'out-of-stock').length,
-    staffPicks: products.filter(p => p.isStaffPick).length,
+    inStock: products.filter(p => (p.stockQuantity ?? 0) > 0).length,
+    outOfStock: products.filter(p => (p.stockQuantity ?? 0) === 0).length,
+    staffPicks: products.filter(p => p.staffPick).length,
   };
 
   return (
@@ -117,7 +119,8 @@ export default function AdminProductManager({
                 <TableHead>Product</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead>Inventory</TableHead>
                 <TableHead>Badges</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -125,7 +128,7 @@ export default function AdminProductManager({
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>
@@ -139,19 +142,30 @@ export default function AdminProductManager({
                     <TableCell>${Number(product.price).toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={product.stock === 'in-stock' ? 'default' : 'destructive'}
+                        variant={(product.stockQuantity ?? 0) > 0 ? 'default' : 'destructive'}
                         className="cursor-pointer"
                         onClick={() => onToggleStock?.(product.id)}
+                        data-testid={`badge-stock-${product.id}`}
                       >
-                        {product.stock === 'in-stock' ? 'In Stock' : 'Out of Stock'}
+                        {(product.stockQuantity ?? 0) > 0 ? `${product.stockQuantity ?? 0} in stock` : 'Out of Stock'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={product.ignoreInventory ? 'default' : 'outline'}
+                        className="cursor-pointer"
+                        onClick={() => onToggleIgnoreInventory?.(product.id)}
+                        data-testid={`badge-inventory-${product.id}`}
+                      >
+                        {product.ignoreInventory ? 'Ignored' : 'Tracked'}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
-                        {product.isStaffPick && (
+                        {product.staffPick && (
                           <Badge variant="secondary" className="text-xs">Staff Pick</Badge>
                         )}
-                        {product.isFeatured && (
+                        {product.featured && (
                           <Badge className="text-xs">Featured</Badge>
                         )}
                       </div>
