@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Wine, BookOpen, Heart, Gift, ChevronRight, ChevronLeft } from "lucide-react";
@@ -20,22 +21,40 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
   const [direction, setDirection] = useState(0);
 
   // Fetch active slideshow images from database
-  const { data: slideshowImages = [] } = useQuery<SlideshowImage[]>({
+  const { data: slideshowImages = [], isLoading } = useQuery<SlideshowImage[]>({
     queryKey: ["/api/slideshow-images", { activeOnly: true }],
     queryFn: async () => {
       const response = await fetch("/api/slideshow-images?activeOnly=true");
       if (!response.ok) throw new Error("Failed to fetch slideshow images");
       return response.json();
     },
+    enabled: open,
   });
 
   // Build slides from database images
-  const slides = slideshowImages.map((image, index) => ({
+  const slides = slideshowImages.map((image) => ({
     id: image.id,
     imageUrl: `/attached_assets/winery_photos/${image.filename}`,
     title: image.caption || "Welcome to Nashoba Valley Winery",
     description: image.description || "",
   }));
+
+  // Don't render content if no slides available
+  if (isLoading || slides.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={() => {}}>
+        <DialogContent 
+          className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
+          data-testid="dialog-introduction"
+        >
+          <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
+          <div className="relative h-[85vh] max-h-[700px] flex items-center justify-center">
+            <p className="text-muted-foreground">Loading slideshow...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
@@ -81,6 +100,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
         className="max-w-4xl p-0 gap-0 overflow-hidden border-0" 
         data-testid="dialog-introduction"
       >
+        <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
         <div className="relative h-[85vh] max-h-[700px] flex flex-col">
           {/* Image Section with Overlay */}
           <div className="relative h-[45%] overflow-hidden">
