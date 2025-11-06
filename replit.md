@@ -7,6 +7,10 @@ The Nashoba Tasting Experience App is a mobile-first digital companion for winer
 **Status**: ✅ Fully functional and tested
 
 **Recent Updates**: November 6, 2025
+- ✅ **Database-driven product editor dropdowns**: Product edit form now uses Select dropdowns populated from filter_options table for category, wine color, sweetness, and body fields (replacing text inputs for validation)
+- ✅ **Multi-select characteristics field**: Characteristics field in product editor upgraded to Command-based multi-select popover with grouped options (Sweetness, Body, Other Characteristics)
+- ✅ **Backend validation**: Added Zod updateProductSchema in routes.ts to validate product updates server-side, ensuring only valid enum values are accepted
+- ✅ **Video upload button wired**: Settings tab Upload Video button now properly connected to hidden file input with video/* validation and toast feedback
 - ✅ **Custom welcome screen background**: Replaced generic stock photo with actual Nashoba Valley Winery aerial photograph showing winery building, vineyards, and pond with kayaks
 - ✅ **Product-agnostic language**: All hardcoded "wine" references replaced with generic "product" terminology to support spirits, beers, and other non-wine items; works equally well for all 5 product categories
 - ✅ **Sonoma-Cutrer-style product detail modal**: Two-column layout with large bottle image (left 50%) and elegant details (right 50%), serif typography, quantity selector (1-12 bottles), clean technical specs grid, professional winery aesthetic matching high-end tasting room sites
