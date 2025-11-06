@@ -11,6 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Search, Plus, Edit, Trash2, Eye, Package } from "lucide-react";
 import type { Product } from "@shared/schema";
 
@@ -32,6 +42,8 @@ export default function AdminProductManager({
   onToggleIgnoreInventory,
 }: AdminProductManagerProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -183,7 +195,10 @@ export default function AdminProductManager({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => onDeleteProduct?.(product.id)}
+                          onClick={() => {
+                            setProductToDelete(product.id);
+                            setDeleteDialogOpen(true);
+                          }}
                           data-testid={`button-delete-${product.id}`}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -197,6 +212,31 @@ export default function AdminProductManager({
           </Table>
         </div>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the product from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">No</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (productToDelete) {
+                  onDeleteProduct?.(productToDelete);
+                  setProductToDelete(null);
+                }
+              }}
+              data-testid="button-confirm-delete"
+            >
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
