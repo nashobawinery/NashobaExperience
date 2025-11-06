@@ -205,7 +205,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const handleToggleStock = (id: string) => {
     const product = products.find((p: Product) => p.id === id);
     if (product) {
-      const newStockQuantity = product.stockQuantity > 0 ? 0 : 50;
+      const newStockQuantity = (product.stockQuantity ?? 0) > 0 ? 0 : 50;
       updateProductMutation.mutate({ 
         id, 
         data: { stockQuantity: newStockQuantity } 
@@ -652,47 +652,387 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       {/* Product Edit Dialog */}
       <Dialog open={editProductId !== null} onOpenChange={(open) => !open && handleCancelProductEdit()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>Update the product details</DialogDescription>
+            <DialogDescription>Update all product details</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Product Name</Label>
-              <Input
-                id="edit-name"
-                value={editProductData.name || ''}
-                onChange={(e) => setEditProductData({ ...editProductData, name: e.target.value })}
-              />
+          <div className="grid gap-6 py-4">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name">Product Name *</Label>
+                  <Input
+                    id="edit-name"
+                    value={editProductData.name || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-category">Category *</Label>
+                  <select
+                    id="edit-category"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={editProductData.category || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, category: e.target.value as "wine" | "spirits" | "beer" | "canned_cocktail" | "canned_wine" })}
+                  >
+                    <option value="wine">Wine</option>
+                    <option value="spirits">Spirits</option>
+                    <option value="beer">Beer</option>
+                    <option value="canned_cocktail">Canned Cocktail</option>
+                    <option value="canned_wine">Canned Wine</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Description *</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editProductData.description || ''}
+                  onChange={(e) => setEditProductData({ ...editProductData, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-sku">SKU</Label>
+                <Input
+                  id="edit-sku"
+                  value={editProductData.sku || ''}
+                  onChange={(e) => setEditProductData({ ...editProductData, sku: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                value={editProductData.description || ''}
-                onChange={(e) => setEditProductData({ ...editProductData, description: e.target.value })}
-                rows={3}
-              />
+
+            {/* Wine Details */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Wine Details</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-type">Type</Label>
+                  <Input
+                    id="edit-type"
+                    value={editProductData.type || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, type: e.target.value })}
+                    placeholder="e.g., Red Wine, Whiskey"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-varietal">Varietal</Label>
+                  <Input
+                    id="edit-varietal"
+                    value={editProductData.varietal || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, varietal: e.target.value })}
+                    placeholder="e.g., Cabernet Sauvignon"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-vintage">Vintage Year</Label>
+                  <Input
+                    id="edit-vintage"
+                    value={editProductData.vintageYear || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, vintageYear: e.target.value })}
+                    placeholder="e.g., 2020"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-region">Region</Label>
+                  <Input
+                    id="edit-region"
+                    value={editProductData.region || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, region: e.target.value })}
+                    placeholder="e.g., Nashoba Valley"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-price">Price</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                step="0.01"
-                value={editProductData.price || ''}
-                onChange={(e) => setEditProductData({ ...editProductData, price: e.target.value })}
-              />
+
+            {/* Tasting & Serving */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Tasting & Serving</h3>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-tasting-notes">Tasting Notes</Label>
+                  <Textarea
+                    id="edit-tasting-notes"
+                    value={editProductData.tastingNotes || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, tastingNotes: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-food-pairings">Food Pairings</Label>
+                  <Textarea
+                    id="edit-food-pairings"
+                    value={editProductData.foodPairings || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, foodPairings: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-characteristics">Characteristics</Label>
+                  <Input
+                    id="edit-characteristics"
+                    value={editProductData.characteristics || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, characteristics: e.target.value })}
+                    placeholder="e.g., Dry, Full-bodied, Crisp"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-serving-temp">Serving Temperature</Label>
+                    <Input
+                      id="edit-serving-temp"
+                      value={editProductData.servingTemp || ''}
+                      onChange={(e) => setEditProductData({ ...editProductData, servingTemp: e.target.value })}
+                      placeholder="e.g., 55-60°F"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-alcohol">Alcohol Content</Label>
+                    <Input
+                      id="edit-alcohol"
+                      value={editProductData.alcoholContent || ''}
+                      onChange={(e) => setEditProductData({ ...editProductData, alcoholContent: e.target.value })}
+                      placeholder="e.g., 13.5%"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-tasting-notes">Tasting Notes</Label>
-              <Textarea
-                id="edit-tasting-notes"
-                value={editProductData.tastingNotes || ''}
-                onChange={(e) => setEditProductData({ ...editProductData, tastingNotes: e.target.value })}
-                rows={3}
-              />
+
+            {/* Production */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Production</h3>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-production-method">Production Method</Label>
+                  <Textarea
+                    id="edit-production-method"
+                    value={editProductData.productionMethod || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, productionMethod: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-aging">Aging Process</Label>
+                  <Textarea
+                    id="edit-aging"
+                    value={editProductData.agingProcess || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, agingProcess: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-bottle-size">Bottle Size</Label>
+                  <Input
+                    id="edit-bottle-size"
+                    value={editProductData.bottleSize || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, bottleSize: e.target.value })}
+                    placeholder="e.g., 750ml"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing & Inventory */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Pricing & Inventory</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-price">Retail Price *</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    step="0.01"
+                    value={editProductData.price || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, price: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-cost">Cost</Label>
+                  <Input
+                    id="edit-cost"
+                    type="number"
+                    step="0.01"
+                    value={editProductData.cost || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, cost: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-wholesale">Wholesale Price</Label>
+                  <Input
+                    id="edit-wholesale"
+                    type="number"
+                    step="0.01"
+                    value={editProductData.wholesalePricing || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, wholesalePricing: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-stock">Stock Quantity</Label>
+                  <Input
+                    id="edit-stock"
+                    type="number"
+                    value={editProductData.stockQuantity || 0}
+                    onChange={(e) => setEditProductData({ ...editProductData, stockQuantity: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-low-stock">Low Stock Threshold</Label>
+                  <Input
+                    id="edit-low-stock"
+                    type="number"
+                    value={editProductData.lowStockThreshold || 10}
+                    onChange={(e) => setEditProductData({ ...editProductData, lowStockThreshold: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Images */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Images</h3>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-image-url">Main Image URL</Label>
+                  <Input
+                    id="edit-image-url"
+                    value={editProductData.imageUrl || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, imageUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-label-image">Label Image URL</Label>
+                  <Input
+                    id="edit-label-image"
+                    value={editProductData.labelImageUrl || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, labelImageUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-lifestyle-image">Lifestyle Image URL</Label>
+                  <Input
+                    id="edit-lifestyle-image"
+                    value={editProductData.lifestyleImageUrl || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, lifestyleImageUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Recognition */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Recognition</h3>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-awards">Awards</Label>
+                  <Textarea
+                    id="edit-awards"
+                    value={editProductData.awards || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, awards: e.target.value })}
+                    rows={2}
+                    placeholder="List awards and recognitions"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-rating">Rating (0-5)</Label>
+                  <Input
+                    id="edit-rating"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="5"
+                    value={editProductData.rating || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, rating: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Flags & Tags */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground">Flags & Tags</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-available"
+                    checked={editProductData.available ?? true}
+                    onChange={(e) => setEditProductData({ ...editProductData, available: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-available" className="cursor-pointer">Available for Purchase</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-ignore-inventory"
+                    checked={editProductData.ignoreInventory ?? true}
+                    onChange={(e) => setEditProductData({ ...editProductData, ignoreInventory: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-ignore-inventory" className="cursor-pointer">Ignore Inventory</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-featured"
+                    checked={editProductData.featured ?? false}
+                    onChange={(e) => setEditProductData({ ...editProductData, featured: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-featured" className="cursor-pointer">Featured Product</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-new-arrival"
+                    checked={editProductData.newArrival ?? false}
+                    onChange={(e) => setEditProductData({ ...editProductData, newArrival: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-new-arrival" className="cursor-pointer">New Arrival</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-staff-pick"
+                    checked={editProductData.staffPick ?? false}
+                    onChange={(e) => setEditProductData({ ...editProductData, staffPick: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-staff-pick" className="cursor-pointer">Staff Pick</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-wine-of-month"
+                    checked={editProductData.wineOfMonth ?? false}
+                    onChange={(e) => setEditProductData({ ...editProductData, wineOfMonth: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                  />
+                  <Label htmlFor="edit-wine-of-month" className="cursor-pointer">Wine of the Month</Label>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-tags">Tags (comma-separated)</Label>
+                <Input
+                  id="edit-tags"
+                  value={Array.isArray(editProductData.tags) ? editProductData.tags.join(', ') : ''}
+                  onChange={(e) => setEditProductData({ 
+                    ...editProductData, 
+                    tags: e.target.value.split(',').map(t => t.trim()).filter(t => t)
+                  })}
+                  placeholder="e.g., organic, local, award-winning"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
