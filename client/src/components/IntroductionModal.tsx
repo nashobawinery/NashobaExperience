@@ -168,8 +168,8 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
       >
         <DialogTitle className="sr-only">Welcome to Nashoba Valley Winery</DialogTitle>
         <div className="flex h-[85vh] max-h-[650px]">
-          {/* Left Column - Photo */}
-          <div className="relative w-1/2 overflow-hidden">
+          {/* Left Column - Photo with dark background */}
+          <div className="relative w-2/5 overflow-hidden bg-black flex items-center justify-center p-8">
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
                 key={currentSlide}
@@ -182,14 +182,13 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                   x: { type: "spring", stiffness: 300, damping: 30 },
                   opacity: { duration: 0.2 },
                 }}
-                className="absolute inset-0"
+                className="relative w-full h-auto max-h-full flex items-center justify-center"
               >
                 <img
                   src={slide.image}
                   alt={slide.title}
-                  className="w-full h-full object-cover"
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent" />
               </motion.div>
             </AnimatePresence>
 
@@ -212,7 +211,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
           </div>
 
           {/* Right Column - Text Content */}
-          <div className="w-1/2 flex flex-col bg-background">
+          <div className="w-3/5 flex flex-col bg-background">
             {/* Content Area (no scrolling) */}
             <div className="flex-1 flex flex-col justify-center p-8">
               <AnimatePresence mode="wait">
