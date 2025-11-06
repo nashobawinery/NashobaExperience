@@ -45,6 +45,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       category: req.query.category as string,
       wineColor: req.query.wineColor as string,
       sweetness: req.query.sweetness as string,
+      body: req.query.body as string,
+      characteristics: req.query.characteristics as string,
       stock: req.query.stock as string,
       minPrice: req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined,
       maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,

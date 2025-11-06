@@ -4,6 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import WelcomeScreen from "@/components/WelcomeScreen";
 import ProductCard from "@/components/ProductCard";
 import ProductFilters from "@/components/ProductFilters";
+import ProductDetailModal from "@/components/ProductDetailModal";
 import BottomNav from "@/components/BottomNav";
 import ShoppingCartPanel from "@/components/ShoppingCartPanel";
 import FavoritesPanel from "@/components/FavoritesPanel";
@@ -26,19 +27,25 @@ export default function GuestApp() {
   const [priceRange, setPriceRange] = useState("all");
   const [wineColor, setWineColor] = useState("all");
   const [sweetness, setSweetness] = useState("all");
+  const [body, setBody] = useState("all");
+  const [characteristics, setCharacteristics] = useState("all");
   
   const [showTrivia, setShowTrivia] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showProductDetail, setShowProductDetail] = useState(false);
 
   const hasStarted = !!sessionId;
 
   const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["/api/products", { search: searchQuery, category: selectedCategory, wineColor, sweetness, priceRange }],
+    queryKey: ["/api/products", { search: searchQuery, category: selectedCategory, wineColor, sweetness, body, characteristics, priceRange }],
     queryFn: async () => {
       const filters: any = {};
       if (searchQuery) filters.search = searchQuery;
       if (selectedCategory !== 'all') filters.category = selectedCategory;
       if (wineColor !== 'all') filters.wineColor = wineColor;
       if (sweetness !== 'all') filters.sweetness = sweetness;
+      if (body !== 'all') filters.body = body;
+      if (characteristics !== 'all') filters.characteristics = characteristics;
       
       if (priceRange !== 'all') {
         const [min, max] = priceRange.split('-').map(Number);
@@ -264,6 +271,41 @@ export default function GuestApp() {
 
   const handleProductClick = (productId: string) => {
     recordViewMutation.mutate(productId);
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      setSelectedProduct(product);
+      setShowProductDetail(true);
+    }
+  };
+
+  const handleCloseProductDetail = () => {
+    setShowProductDetail(false);
+    setSelectedProduct(null);
+  };
+
+  const handleProductDetailFavorite = () => {
+    if (selectedProduct) {
+      handleFavoriteToggle(selectedProduct.id);
+    }
+  };
+
+  const handleProductDetailAddToCart = () => {
+    if (selectedProduct) {
+      handleAddToCart(selectedProduct.id);
+      toast({
+        title: "Added to cart",
+        description: `${selectedProduct.name} added to your cart`,
+      });
+    }
+  };
+
+  const handleProductDetailNoteUpdate = (note: string) => {
+    if (selectedProduct) {
+      const favorite = favoritesData.find(f => f.productId === selectedProduct.id);
+      if (favorite) {
+        handleUpdateNote(selectedProduct.id, note);
+      }
+    }
   };
 
   const handleTriviaAnswer = (correct: boolean) => {
@@ -427,17 +469,23 @@ export default function GuestApp() {
               priceRange={priceRange}
               wineColor={wineColor}
               sweetness={sweetness}
+              body={body}
+              characteristics={characteristics}
               onSearchChange={setSearchQuery}
               onCategoryChange={setSelectedCategory}
               onSortChange={setSortBy}
               onPriceRangeChange={setPriceRange}
               onWineColorChange={setWineColor}
               onSweetnessChange={setSweetness}
+              onBodyChange={setBody}
+              onCharacteristicsChange={setCharacteristics}
               onClearFilters={() => {
                 setSelectedCategory('all');
                 setPriceRange('all');
                 setWineColor('all');
                 setSweetness('all');
+                setBody('all');
+                setCharacteristics('all');
               }}
             />
 
@@ -533,6 +581,17 @@ export default function GuestApp() {
           onClose={() => setShowTrivia(false)}
         />
       )}
+
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={showProductDetail}
+        isFavorite={selectedProduct ? favoriteIds.has(selectedProduct.id) : false}
+        note={selectedProduct ? favoritesData.find(f => f.productId === selectedProduct.id)?.note || '' : ''}
+        onClose={handleCloseProductDetail}
+        onFavoriteToggle={handleProductDetailFavorite}
+        onAddToCart={handleProductDetailAddToCart}
+        onUpdateNote={handleProductDetailNoteUpdate}
+      />
     </div>
   );
 }

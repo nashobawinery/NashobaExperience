@@ -85,6 +85,8 @@ export interface ProductFilters {
   category?: string;
   wineColor?: string;
   sweetness?: string;
+  body?: string;
+  characteristics?: string;
   minPrice?: number;
   maxPrice?: number;
   stock?: string;
@@ -99,7 +101,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         or(
           ilike(products.name, `%${filters.search}%`),
-          ilike(products.description, `%${filters.search}%`)
+          ilike(products.description, `%${filters.search}%`),
+          ilike(products.tastingNotes, `%${filters.search}%`)
         )
       );
     }
@@ -107,13 +110,23 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(products.category, filters.category));
     }
     if (filters?.wineColor) {
-      conditions.push(eq(products.wineColor, filters.wineColor));
+      // Filter by the 'type' field which contains wine types like "Red Wine", "White Wine", etc.
+      conditions.push(ilike(products.type, `%${filters.wineColor}%`));
     }
     if (filters?.sweetness) {
-      conditions.push(eq(products.sweetness, filters.sweetness));
+      // Filter by characteristics field which can contain sweetness levels
+      conditions.push(ilike(products.characteristics, `%${filters.sweetness}%`));
+    }
+    if (filters?.body) {
+      // Filter by characteristics field which can contain body information
+      conditions.push(ilike(products.characteristics, `%${filters.body}%`));
+    }
+    if (filters?.characteristics) {
+      // Filter by characteristics field for specific traits like "Crisp", "Rich", etc.
+      conditions.push(ilike(products.characteristics, `%${filters.characteristics}%`));
     }
     if (filters?.stock) {
-      conditions.push(eq(products.stock, filters.stock));
+      conditions.push(sql`${products.stockQuantity} > 0`);
     }
     if (filters?.minPrice !== undefined) {
       conditions.push(sql`${products.price}::numeric >= ${filters.minPrice}`);
