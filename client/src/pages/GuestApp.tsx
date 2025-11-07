@@ -145,7 +145,7 @@ export default function GuestApp() {
 
   // Auto-popup trivia: First question 1 minute after info popup, then every 4 minutes
   useEffect(() => {
-    if (!sessionId || !nextTriviaQuestion || triviaScores.length >= 10) {
+    if (!sessionId || !nextTriviaQuestion || triviaScores.length >= 10 || showIntroduction || showTriviaInfo) {
       return;
     }
 
@@ -155,7 +155,7 @@ export default function GuestApp() {
       return; // Wait for info popup to be shown first
     }
 
-    // First question: Show 1 minute after info popup
+    // First question: Show 1 minute after info popup is dismissed
     if (triviaScores.length === 0) {
       const firstQuestionTimer = setTimeout(() => {
         if (nextTriviaQuestion && triviaScores.length === 0) {
@@ -174,11 +174,11 @@ export default function GuestApp() {
     }, 240000); // 4 minutes in milliseconds
 
     return () => clearInterval(interval);
-  }, [sessionId, nextTriviaQuestion, triviaScores.length]);
+  }, [sessionId, nextTriviaQuestion, triviaScores.length, showIntroduction, showTriviaInfo]);
 
-  // Show trivia info popup after 5 seconds on first visit
+  // Show trivia info popup after 5 seconds on first visit (after intro modal is closed)
   useEffect(() => {
-    if (!sessionId || activeTab !== 'browse') {
+    if (!sessionId || activeTab !== 'browse' || showIntroduction) {
       return;
     }
 
@@ -195,11 +195,11 @@ export default function GuestApp() {
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [sessionId, activeTab]);
+  }, [sessionId, activeTab, showIntroduction]);
 
-  // Show favorites info popup after 10 minutes on first visit
+  // Show favorites info popup after 10 minutes on first visit (after intro modal is closed)
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || showIntroduction) {
       return;
     }
 
@@ -216,11 +216,11 @@ export default function GuestApp() {
     }, 600000); // 10 minutes = 600000ms
 
     return () => clearTimeout(timer);
-  }, [sessionId]);
+  }, [sessionId, showIntroduction]);
 
-  // Show discount info popup after 25 minutes on first visit
+  // Show discount info popup after 25 minutes on first visit (after intro modal is closed)
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || showIntroduction) {
       return;
     }
 
@@ -237,7 +237,7 @@ export default function GuestApp() {
     }, 1500000); // 25 minutes = 1500000ms
 
     return () => clearTimeout(timer);
-  }, [sessionId]);
+  }, [sessionId, showIntroduction]);
 
   const totalInteractions = favoritesData.length + viewHistoryData.length;
   const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
