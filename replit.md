@@ -96,6 +96,7 @@ The "Export All Data" and "Import All Data" buttons provide one-click synchroniz
   - **TriviaQuestions**: Quiz questions, answers, and explanations
   - **SlideshowImages**: Welcome carousel images with titles, descriptions, and order
   - **AppSettings**: Application configuration (discount tiers, etc.)
+  - **MediaLibrary**: Cloud storage file metadata (filename, URLs, categories, descriptions, tags)
 - File naming: `nashoba-all-data-YYYY-MM-DD.xlsx`
 - API endpoint: `GET /api/admin/data/export-all`
 
@@ -140,12 +141,19 @@ The "Export All Data" and "Import All Data" buttons provide one-click synchroniz
 - Metadata: Stored in PostgreSQL `media_library` table (needs sync between environments)
 - Public URLs: Generated automatically and remain accessible across environments
 
+**Syncing Media Library Between Environments**:
+- Files in cloud storage are accessible from BOTH preview and production (cross-environment)
+- Metadata (descriptions, alt text, tags, categories) is environment-specific
+- Use Export All Data / Import All Data to sync metadata between environments
+- After importing, all files will be accessible via their stored public URLs
+
 **Best Practices**:
 - Use descriptive filenames
 - Add alt text for all images for accessibility
 - Organize files into appropriate categories
 - Use tags to make files easily searchable
 - Copy URLs from media library instead of hardcoding paths
+- Use Export/Import to sync metadata when moving between preview and production
 
 **Database Schema** (`media_library` table):
 - `id`: Unique identifier
