@@ -42,23 +42,23 @@ Preferred communication style: Simple, everyday language.
 
 ## Email System Status
 
-**Current State**: Email functionality is **NOT** fully operational. The system generates HTML emails for cart orders and favorites, but emails are only logged to console instead of being sent.
+**Current State**: Email functionality is **OPERATIONAL** using Resend API.
 
 **Technical Details**:
-- Email templates are fully functional (cart orders, favorites with notes)
-- Routes exist: `/api/sessions/:id/email/cart` and `/api/sessions/:id/email/favorites`
-- `sendEmail()` function in `server/email.ts` currently only logs to console
-- Emails would be sent to:
+- Email service: Resend (via `resend` npm package)
+- API Key: Stored securely in `RESEND_API_KEY` environment secret
+- Email templates: Fully functional HTML emails for cart orders and favorites
+- Routes: `/api/sessions/:id/email/cart` and `/api/sessions/:id/email/favorites`
+- Email recipients:
   - Cart orders → `onsiteorder@nashobawinery.com`
-  - Favorites → User's provided email address
+  - Favorites → User-provided email address
 
-**Integration Options** (User declined Resend integration):
-1. **Manual SMTP Setup**: User can provide SMTP credentials (host, port, username, password) to store as secrets
-2. **SendGrid**: User can set up SendGrid API key
-3. **Gmail/Outlook**: User can configure Gmail or Outlook API access
-4. **Other**: Any standard SMTP service or email API
+**Current Setup**:
+- From address: `Nashoba Winery <onboarding@resend.dev>` (Resend's test domain)
+- Status: Fully functional for testing and development
 
-**Action Required**: User needs to choose an email service and provide credentials before email functionality will work. Until then, emails are logged to server console only.
+**Production Recommendation**:
+For production use, verify your domain (nashobawinery.com) in the Resend dashboard and update the `RESEND_FROM_EMAIL` environment secret to use your verified domain (e.g., `orders@nashobawinery.com` or `noreply@nashobawinery.com`).
 
 ## External Dependencies
 
