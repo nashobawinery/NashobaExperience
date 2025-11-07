@@ -19,7 +19,7 @@ export default function BottomNav({
     { id: 'favorites', label: 'Favorites', icon: Heart, count: favoritesCount },
     { id: 'recommendations', label: 'AI Picks', icon: Sparkles },
     { id: 'cart', label: 'Cart', icon: ShoppingCart, count: cartCount },
-    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'profile', label: 'Finish', icon: User },
   ];
 
   return (

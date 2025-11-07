@@ -40,6 +40,26 @@ Preferred communication style: Simple, everyday language.
 - **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
 - **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, settings, and bulk product import.
 
+## Email System Status
+
+**Current State**: Email functionality is **NOT** fully operational. The system generates HTML emails for cart orders and favorites, but emails are only logged to console instead of being sent.
+
+**Technical Details**:
+- Email templates are fully functional (cart orders, favorites with notes)
+- Routes exist: `/api/sessions/:id/email/cart` and `/api/sessions/:id/email/favorites`
+- `sendEmail()` function in `server/email.ts` currently only logs to console
+- Emails would be sent to:
+  - Cart orders → `onsiteorder@nashobawinery.com`
+  - Favorites → User's provided email address
+
+**Integration Options** (User declined Resend integration):
+1. **Manual SMTP Setup**: User can provide SMTP credentials (host, port, username, password) to store as secrets
+2. **SendGrid**: User can set up SendGrid API key
+3. **Gmail/Outlook**: User can configure Gmail or Outlook API access
+4. **Other**: Any standard SMTP service or email API
+
+**Action Required**: User needs to choose an email service and provide credentials before email functionality will work. Until then, emails are logged to server console only.
+
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
