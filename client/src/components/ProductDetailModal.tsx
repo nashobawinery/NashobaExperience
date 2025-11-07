@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -60,14 +60,30 @@ export default function ProductDetailModal({
 }: ProductDetailModalProps) {
   const [localNote, setLocalNote] = useState(note);
   const [quantity, setQuantity] = useState(1);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setLocalNote(note);
   }, [note]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleNoteChange = (value: string) => {
     setLocalNote(value);
-    onUpdateNote?.(value);
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      onUpdateNote?.(value);
+    }, 500);
   };
 
   const handleAddToCart = () => {
