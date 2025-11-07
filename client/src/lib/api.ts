@@ -281,6 +281,22 @@ export async function exportProducts(): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+export async function exportAllData(): Promise<void> {
+  const response = await fetch("/api/admin/data/export-all");
+  if (!response.ok) throw new Error("Failed to export data");
+  
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const timestamp = new Date().toISOString().split('T')[0];
+  a.download = `nashoba-all-data-${timestamp}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
 export async function uploadProducts(file: File): Promise<{ success: number; failed: number; errors?: string[] }> {
   const formData = new FormData();
   formData.append("file", file);
@@ -293,6 +309,23 @@ export async function uploadProducts(file: File): Promise<{ success: number; fai
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: "Failed to upload products" }));
     throw new Error(errorData.message || "Failed to upload products");
+  }
+  
+  return response.json();
+}
+
+export async function importAllData(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  const response = await fetch("/api/admin/data/import-all", {
+    method: "POST",
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Failed to import data" }));
+    throw new Error(errorData.message || "Failed to import data");
   }
   
   return response.json();

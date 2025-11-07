@@ -31,7 +31,9 @@ import {
   deleteTriviaQuestion,
   downloadProductTemplate,
   exportProducts,
+  exportAllData,
   uploadProducts,
+  importAllData,
   getFilterOptions
 } from "@/lib/api";
 import type { Product, TriviaQuestion, FilterOption } from "@shared/schema";
@@ -438,6 +440,66 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     },
   });
 
+  const exportAllDataMutation = useMutation({
+    mutationFn: exportAllData,
+    onSuccess: () => {
+      toast({ 
+        title: "All Data Exported", 
+        description: "All database configuration has been exported to Excel" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to export data",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const importAllDataMutation = useMutation({
+    mutationFn: importAllData,
+    onSuccess: (result) => {
+      setUploadResult(null);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/filter-options'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/slideshow/images'] });
+      
+      const totalSuccess = (result.products?.success || 0) + (result.filterOptions?.success || 0) + 
+        (result.triviaQuestions?.success || 0) + (result.slideshowImages?.success || 0) + 
+        (result.appSettings?.success || 0);
+      const totalFailed = (result.products?.failed || 0) + (result.filterOptions?.failed || 0) + 
+        (result.triviaQuestions?.failed || 0) + (result.slideshowImages?.failed || 0) + 
+        (result.appSettings?.failed || 0);
+      
+      if (totalFailed === 0) {
+        toast({ 
+          title: "Import Successful", 
+          description: `Successfully imported ${totalSuccess} items across all data types` 
+        });
+      } else {
+        toast({ 
+          title: "Import Completed with Some Errors", 
+          description: `${totalSuccess} items imported, ${totalFailed} failed`,
+          variant: "destructive"
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Import Failed", 
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
   // Excel import handlers
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -475,6 +537,16 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
   const handleExportProducts = () => {
     exportProductsMutation.mutate();
+  };
+
+  const handleExportAllData = () => {
+    exportAllDataMutation.mutate();
+  };
+
+  const handleUploadAllData = () => {
+    if (selectedFile) {
+      importAllDataMutation.mutate(selectedFile);
+    }
   };
 
   return (
@@ -559,9 +631,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               <div className="space-y-6">
                 <div className="text-center">
                   <FileSpreadsheet className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                  <h2 className="font-serif text-2xl font-medium mb-2">Product Import/Export</h2>
+                  <h2 className="font-serif text-2xl font-medium mb-2">Database Import/Export</h2>
                   <p className="text-muted-foreground">
-                    Upload an Excel file to bulk import or update products
+                    Export and import products, filters, trivia, slideshow images, and settings
                   </p>
                 </div>
 
@@ -569,13 +641,13 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <div className="bg-muted rounded-lg p-6">
                     <h3 className="font-medium mb-3 flex items-center gap-2">
                       <FileSpreadsheet className="w-4 h-4" />
-                      Excel Format Instructions
+                      Sync Between Environments
                     </h3>
                     <ul className="text-sm text-muted-foreground space-y-2">
-                      <li>• Download the template to see the required column structure</li>
-                      <li>• Required fields: Name, Category, Price</li>
-                      <li>• Optional fields: Description, Wine Color, Sweetness, Stock Status</li>
-                      <li>• Use the exact column names from the template</li>
+                      <li>• <strong>Export All Data</strong> downloads everything (products, filters, trivia, slideshow images, settings)</li>
+                      <li>• <strong>Import All Data</strong> syncs preview → published environments</li>
+                      <li>• <strong>Export Products</strong> only exports product catalog</li>
+                      <li>• Download the template to see the product column structure</li>
                       <li>• Accepted file formats: .xlsx, .xls</li>
                     </ul>
                   </div>
@@ -597,6 +669,15 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       {exportProductsMutation.isPending ? "Exporting..." : "Export Products"}
+                    </Button>
+                    <Button 
+                      onClick={handleExportAllData}
+                      disabled={exportAllDataMutation.isPending}
+                      variant="default"
+                      data-testid="button-export-all-data"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {exportAllDataMutation.isPending ? "Exporting..." : "Export All Data"}
                     </Button>
                   </div>
 
@@ -650,14 +731,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     </div>
                   </div>
 
-                  <div className="flex justify-center">
+                  <div className="flex justify-center gap-3">
                     <Button
                       onClick={handleUpload}
                       disabled={!selectedFile || uploadProductsMutation.isPending}
+                      variant="outline"
                       data-testid="button-upload-products"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {uploadProductsMutation.isPending ? "Uploading..." : "Upload Products"}
+                      {uploadProductsMutation.isPending ? "Uploading..." : "Upload Products Only"}
+                    </Button>
+                    <Button
+                      onClick={handleUploadAllData}
+                      disabled={!selectedFile || importAllDataMutation.isPending}
+                      data-testid="button-import-all-data"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {importAllDataMutation.isPending ? "Importing..." : "Import All Data"}
                     </Button>
                   </div>
 

@@ -508,6 +508,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/data/export-all", async (req, res) => {
+    try {
+      const [products, filterOptions, triviaQuestions, slideshowImages] = await Promise.all([
+        storage.getProducts({}),
+        storage.getFilterOptions(),
+        storage.getTriviaQuestions(false),
+        storage.getSlideshowImages(),
+      ]);
+
+      const appSettingsData: any[] = [];
+      try {
+        const discounts = await storage.getSetting('discountTiers');
+        if (discounts) {
+          appSettingsData.push(discounts);
+        }
+      } catch (e) {
+        // Ignore if settings don't exist
+      }
+
+      const { exportAllDataToExcel } = await import("./excel-import");
+      const buffer = exportAllDataToExcel({
+        products,
+        filterOptions,
+        triviaQuestions,
+        slideshowImages,
+        appSettings: appSettingsData,
+      });
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=nashoba-all-data-${timestamp}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting all data:", error);
+      res.status(500).json({ message: "Failed to export all data" });
+    }
+  });
+
   app.post("/api/admin/products/import", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
@@ -546,6 +584,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing Excel file:", error);
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to import Excel file" });
+    }
+  });
+
+  app.post("/api/admin/data/import-all", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { parseAllDataExcelFile } = await import("./excel-import");
+      const parseResult = parseAllDataExcelFile(req.file.buffer);
+
+      const results = {
+        products: { success: 0, failed: 0 },
+        filterOptions: { success: 0, failed: 0 },
+        triviaQuestions: { success: 0, failed: 0 },
+        slideshowImages: { success: 0, failed: 0 },
+        appSettings: { success: 0, failed: 0 },
+        errors: [...parseResult.errors],
+        warnings: [...parseResult.warnings],
+      };
+
+      // Import products
+      for (const product of parseResult.products) {
+        try {
+          await storage.createProduct(product);
+          results.products.success++;
+        } catch (error) {
+          results.products.failed++;
+          results.errors.push(`Product "${product.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import filter options
+      for (const filter of parseResult.filterOptions) {
+        try {
+          await storage.createFilterOption(filter);
+          results.filterOptions.success++;
+        } catch (error) {
+          results.filterOptions.failed++;
+          results.errors.push(`Filter "${filter.displayLabel}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import trivia questions
+      for (const trivia of parseResult.triviaQuestions) {
+        try {
+          await storage.createTriviaQuestion(trivia);
+          results.triviaQuestions.success++;
+        } catch (error) {
+          results.triviaQuestions.failed++;
+          results.errors.push(`Trivia: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import slideshow images
+      for (const image of parseResult.slideshowImages) {
+        try {
+          await storage.createSlideshowImage(image);
+          results.slideshowImages.success++;
+        } catch (error) {
+          results.slideshowImages.failed++;
+          results.errors.push(`Slideshow Image "${image.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import app settings
+      for (const setting of parseResult.appSettings) {
+        try {
+          await storage.setSetting(setting.key, setting.value);
+          results.appSettings.success++;
+        } catch (error) {
+          results.appSettings.failed++;
+          results.errors.push(`Setting "${setting.key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const totalSuccess = results.products.success + results.filterOptions.success + 
+        results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success;
+      const totalFailed = results.products.failed + results.filterOptions.failed + 
+        results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed;
+
+      const message = totalSuccess > 0
+        ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`
+        : 'No data imported';
+
+      res.json({
+        message,
+        ...results,
+      });
+    } catch (error) {
+      console.error("Error importing all data:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to import data" });
     }
   });
 
