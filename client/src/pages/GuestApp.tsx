@@ -13,6 +13,8 @@ import ShoppingCartPanel from "@/components/ShoppingCartPanel";
 import FavoritesPanel from "@/components/FavoritesPanel";
 import AIRecommendations from "@/components/AIRecommendations";
 import TriviaPopup from "@/components/TriviaPopup";
+import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
+import DiscountInfoPopup from "@/components/DiscountInfoPopup";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +43,8 @@ export default function GuestApp() {
   
   const [showTrivia, setShowTrivia] = useState(false);
   const [showTriviaInfo, setShowTriviaInfo] = useState(false);
+  const [showFavoritesInfo, setShowFavoritesInfo] = useState(false);
+  const [showDiscountInfo, setShowDiscountInfo] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductDetail, setShowProductDetail] = useState(false);
 
@@ -192,6 +196,48 @@ export default function GuestApp() {
 
     return () => clearTimeout(timer);
   }, [sessionId, activeTab]);
+
+  // Show favorites info popup after 10 minutes on first visit
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    // Check if popup has been shown before
+    const hasSeenFavoritesInfo = localStorage.getItem('hasSeenFavoritesInfo');
+    if (hasSeenFavoritesInfo) {
+      return;
+    }
+
+    // Show popup after 10 minutes
+    const timer = setTimeout(() => {
+      setShowFavoritesInfo(true);
+      localStorage.setItem('hasSeenFavoritesInfo', 'true');
+    }, 600000); // 10 minutes = 600000ms
+
+    return () => clearTimeout(timer);
+  }, [sessionId]);
+
+  // Show discount info popup after 25 minutes on first visit
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    // Check if popup has been shown before
+    const hasSeenDiscountInfo = localStorage.getItem('hasSeenDiscountInfo');
+    if (hasSeenDiscountInfo) {
+      return;
+    }
+
+    // Show popup after 25 minutes
+    const timer = setTimeout(() => {
+      setShowDiscountInfo(true);
+      localStorage.setItem('hasSeenDiscountInfo', 'true');
+    }, 1500000); // 25 minutes = 1500000ms
+
+    return () => clearTimeout(timer);
+  }, [sessionId]);
 
   const totalInteractions = favoritesData.length + viewHistoryData.length;
   const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
@@ -811,6 +857,16 @@ export default function GuestApp() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Favorites Info Popup */}
+      {showFavoritesInfo && (
+        <FavoritesInfoPopup onClose={() => setShowFavoritesInfo(false)} />
+      )}
+
+      {/* Discount Info Popup */}
+      {showDiscountInfo && (
+        <DiscountInfoPopup onClose={() => setShowDiscountInfo(false)} />
+      )}
     </div>
   );
 }
