@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -430,4 +430,49 @@ export async function updateDiscountTiers(tiers: DiscountTiers): Promise<void> {
     body: JSON.stringify({ key: 'discount_tiers', value: tiers }),
   });
   if (!response.ok) throw new Error('Failed to update discount tiers');
+}
+
+export async function getMediaLibraryUploadUrl(): Promise<string> {
+  const response = await fetch('/api/media-library/upload-url', {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to get upload URL');
+  const data = await response.json();
+  return data.uploadUrl;
+}
+
+export async function getMediaLibraryFiles(category?: string): Promise<MediaLibrary[]> {
+  const params = new URLSearchParams();
+  if (category && category !== 'all') params.set('category', category);
+  
+  const response = await fetch(`/api/media-library?${params}`);
+  if (!response.ok) throw new Error('Failed to fetch media library files');
+  return response.json();
+}
+
+export async function createMediaLibraryFile(data: Omit<MediaLibrary, 'id' | 'createdAt' | 'updatedAt'>): Promise<MediaLibrary> {
+  const response = await fetch('/api/media-library', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to create media library file');
+  return response.json();
+}
+
+export async function updateMediaLibraryFile(id: string, data: Partial<MediaLibrary>): Promise<MediaLibrary> {
+  const response = await fetch(`/api/media-library/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to update media library file');
+  return response.json();
+}
+
+export async function deleteMediaLibraryFile(id: string): Promise<void> {
+  const response = await fetch(`/api/media-library/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Failed to delete media library file');
 }

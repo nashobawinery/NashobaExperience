@@ -3,6 +3,7 @@ import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import GuestAppQRCode from "@/components/GuestAppQRCode";
 import SlideshowImageManager from "@/components/SlideshowImageManager";
+import { MediaLibrary } from "@/components/MediaLibrary";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -570,7 +571,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-9 max-w-6xl">
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="w-4 h-4 mr-2" />
               Products
@@ -586,6 +587,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <TabsTrigger value="slideshow" data-testid="tab-slideshow">
               <Image className="w-4 h-4 mr-2" />
               Slideshow
+            </TabsTrigger>
+            <TabsTrigger value="media" data-testid="tab-media">
+              <Upload className="w-4 h-4 mr-2" />
+              Media Library
             </TabsTrigger>
             <TabsTrigger value="trivia" data-testid="tab-trivia">
               <HelpCircle className="w-4 h-4 mr-2" />
@@ -873,6 +878,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="slideshow">
             <SlideshowImageManager />
+          </TabsContent>
+
+          <TabsContent value="media">
+            <MediaLibrary />
           </TabsContent>
 
           <TabsContent value="qrcode">

@@ -14,6 +14,7 @@ import {
   productNotes,
   filterOptions,
   slideshowImages,
+  mediaLibrary,
   type InsertProduct,
   type Product,
   type InsertGuestSession,
@@ -38,6 +39,8 @@ import {
   type FilterOption,
   type InsertSlideshowImage,
   type SlideshowImage,
+  type InsertMediaLibrary,
+  type MediaLibrary,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -115,6 +118,13 @@ export interface IStorage {
   updateSlideshowImage(id: string, image: Partial<InsertSlideshowImage>): Promise<SlideshowImage | undefined>;
   deleteSlideshowImage(id: string): Promise<boolean>;
   updateSlideshowImageOrder(updates: { id: string; displayOrder: number }[]): Promise<void>;
+
+  // Media Library
+  getMediaLibraryFiles(category?: string): Promise<MediaLibrary[]>;
+  getMediaLibraryFile(id: string): Promise<MediaLibrary | undefined>;
+  createMediaLibraryFile(file: InsertMediaLibrary): Promise<MediaLibrary>;
+  updateMediaLibraryFile(id: string, file: Partial<InsertMediaLibrary>): Promise<MediaLibrary | undefined>;
+  deleteMediaLibraryFile(id: string): Promise<boolean>;
 }
 
 export interface ProductFilters {
@@ -557,6 +567,40 @@ export class DatabaseStorage implements IStorage {
         .set({ displayOrder: update.displayOrder, updatedAt: new Date() })
         .where(eq(slideshowImages.id, update.id));
     }
+  }
+
+  async getMediaLibraryFiles(category?: string): Promise<MediaLibrary[]> {
+    let query = db.select().from(mediaLibrary).orderBy(desc(mediaLibrary.createdAt));
+    
+    if (category && category !== 'all') {
+      query = query.where(eq(mediaLibrary.category, category)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getMediaLibraryFile(id: string): Promise<MediaLibrary | undefined> {
+    const result = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, id));
+    return result[0];
+  }
+
+  async createMediaLibraryFile(file: InsertMediaLibrary): Promise<MediaLibrary> {
+    const result = await db.insert(mediaLibrary).values(file).returning();
+    return result[0];
+  }
+
+  async updateMediaLibraryFile(id: string, file: Partial<InsertMediaLibrary>): Promise<MediaLibrary | undefined> {
+    const result = await db
+      .update(mediaLibrary)
+      .set({ ...file, updatedAt: new Date() })
+      .where(eq(mediaLibrary.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteMediaLibraryFile(id: string): Promise<boolean> {
+    const result = await db.delete(mediaLibrary).where(eq(mediaLibrary.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

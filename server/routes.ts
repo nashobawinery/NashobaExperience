@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { ObjectStorageService } from "./objectStorage";
 import { z } from "zod";
 import { 
   insertProductSchema,
@@ -14,6 +15,7 @@ import {
   insertProductNoteSchema,
   insertFilterOptionSchema,
   insertSlideshowImageSchema,
+  insertMediaLibrarySchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -786,6 +788,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
     }
+  });
+
+  // Media Library Management
+  app.post("/api/media-library/upload-url", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadUrl });
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to generate upload URL" });
+    }
+  });
+
+  app.get("/api/media-library", async (req, res) => {
+    const category = req.query.category as string | undefined;
+    const files = await storage.getMediaLibraryFiles(category);
+    res.json(files);
+  });
+
+  app.get("/api/media-library/:id", async (req, res) => {
+    const file = await storage.getMediaLibraryFile(req.params.id);
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
+    }
+    res.json(file);
+  });
+
+  app.post("/api/media-library", async (req, res) => {
+    try {
+      const data = insertMediaLibrarySchema.parse(req.body);
+      const file = await storage.createMediaLibraryFile(data);
+      res.json(file);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.patch("/api/media-library/:id", async (req, res) => {
+    try {
+      const file = await storage.updateMediaLibraryFile(req.params.id, req.body);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      res.json(file);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/media-library/:id", async (req, res) => {
+    const success = await storage.deleteMediaLibraryFile(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "File not found" });
+    }
+    res.json({ success: true });
   });
 
   const httpServer = createServer(app);

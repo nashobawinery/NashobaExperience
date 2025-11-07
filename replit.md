@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), and `slideshow_images` (for welcome slideshows).
+- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), `slideshow_images` (for welcome slideshows), and `media_library` (for cloud-stored image/file management).
 - **Business Logic**: Implements automatic tier-based discount calculation (5-24% off), trivia credit rewards ($5 for 10/10), and a multi-algorithm product recommendation engine.
 - **Inventory Management**: Features a per-product `ignoreInventory` flag for fine-grained stock control.
 - **Dynamic Filtering**: A database-driven system supports 5 customizable filter types (category, wine_color, sweetness, body, characteristics) with CRUD operations for options, sort orders, and active/inactive states.
@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 ### Key Features
 
 - **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
-- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, settings, bulk product import/export.
+- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, media library for cloud file storage, settings, bulk product import/export.
 
 ## Email System Status
 
@@ -111,6 +111,55 @@ The "Export All Data" and "Import All Data" buttons provide one-click synchroniz
 - **Export Products**: Download products-only Excel file
 - **Upload Excel**: Import products from an Excel file (supports .xlsx, .xls)
 
+## Media Library (Cloud Storage)
+
+**Status**: OPERATIONAL using Replit App Storage (Google Cloud Storage backend)
+
+**Technical Details**:
+- Storage: Replit App Storage (Google Cloud Storage)
+- Files stored in cloud are accessible from BOTH preview and production environments
+- Database metadata (category, description, alt text, tags) is environment-specific and must be synced separately
+- Environment variables: `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS`, `PRIVATE_OBJECT_DIR`
+
+**Features**:
+- Upload images and files directly to cloud storage with drag-and-drop support
+- Organize files by category (products, slideshow, logos, uncategorized)
+- Add metadata: description, alt text, tags for better organization and SEO
+- Copy public URLs to clipboard for use in products, slideshow, or other content
+- Edit file metadata after upload
+- Delete files from cloud storage
+- Filter files by category for easier browsing
+
+**Admin Access**:
+1. Navigate to admin dashboard
+2. Click "Media Library" tab
+3. Upload files, edit metadata, or copy URLs as needed
+
+**File Storage Architecture**:
+- Files: Stored in Google Cloud Storage (cross-environment)
+- Metadata: Stored in PostgreSQL `media_library` table (needs sync between environments)
+- Public URLs: Generated automatically and remain accessible across environments
+
+**Best Practices**:
+- Use descriptive filenames
+- Add alt text for all images for accessibility
+- Organize files into appropriate categories
+- Use tags to make files easily searchable
+- Copy URLs from media library instead of hardcoding paths
+
+**Database Schema** (`media_library` table):
+- `id`: Unique identifier
+- `filename`: Clean filename (sanitized)
+- `originalFilename`: Original upload filename
+- `mimeType`: File MIME type
+- `fileSize`: Size in bytes
+- `objectPath`: Internal cloud storage path
+- `publicUrl`: Public-facing URL
+- `category`: Organizational category
+- `description`: Optional file description
+- `altText`: Accessibility alt text
+- `tags`: Array of searchable tags
+
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
@@ -119,3 +168,4 @@ The "Export All Data" and "Import All Data" buttons provide one-click synchroniz
 - **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`, `xlsx`.
 - **AI/ML**: `openai`.
 - **Database**: PostgreSQL (via Neon serverless), `connect-pg-simple`.
+- **File Storage**: `@google-cloud/storage`, `@uppy/core`, `@uppy/dashboard`, `@uppy/react`, `@uppy/aws-s3` for cloud file management.
