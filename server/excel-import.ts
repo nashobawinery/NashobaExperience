@@ -222,6 +222,7 @@ export function exportAllDataToExcel(data: {
   triviaQuestions: any[];
   slideshowImages: any[];
   appSettings: any[];
+  mediaLibrary: any[];
 }): Buffer {
   const workbook = XLSX.utils.book_new();
 
@@ -308,6 +309,22 @@ export function exportAllDataToExcel(data: {
   const settingsSheet = XLSX.utils.json_to_sheet(settingsData);
   XLSX.utils.book_append_sheet(workbook, settingsSheet, 'AppSettings');
 
+  // Media Library sheet
+  const mediaData = data.mediaLibrary.map(media => ({
+    filename: media.filename,
+    original_filename: media.originalFilename,
+    mime_type: media.mimeType,
+    file_size: media.fileSize,
+    object_path: media.objectPath,
+    public_url: media.publicUrl,
+    category: media.category || 'uncategorized',
+    description: media.description || '',
+    alt_text: media.altText || '',
+    tags: media.tags ? media.tags.join(', ') : '',
+  }));
+  const mediaSheet = XLSX.utils.json_to_sheet(mediaData);
+  XLSX.utils.book_append_sheet(workbook, mediaSheet, 'MediaLibrary');
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -318,6 +335,7 @@ export interface ParseAllDataResult {
   triviaQuestions: any[];
   slideshowImages: any[];
   appSettings: any[];
+  mediaLibrary: any[];
   errors: string[];
   warnings: string[];
 }
@@ -330,6 +348,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     triviaQuestions: [],
     slideshowImages: [],
     appSettings: [],
+    mediaLibrary: [],
     errors: [],
     warnings: [],
   };
@@ -503,6 +522,34 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       } catch (e) {
         result.errors.push(`AppSettings Row ${rowNum}: Invalid JSON value for key "${row.key}"`);
       }
+    });
+  }
+
+  // Parse Media Library sheet
+  if (workbook.SheetNames.includes('MediaLibrary')) {
+    const mediaSheet = workbook.Sheets['MediaLibrary'];
+    const mediaData: any[] = XLSX.utils.sheet_to_json(mediaSheet);
+    
+    mediaData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      if (!row.filename || !row.object_path || !row.public_url) {
+        result.errors.push(`MediaLibrary Row ${rowNum}: Missing required fields (filename, object_path, public_url)`);
+        return;
+      }
+
+      result.mediaLibrary.push({
+        filename: row.filename.trim(),
+        originalFilename: row.original_filename?.trim() || row.filename.trim(),
+        mimeType: row.mime_type?.trim() || 'application/octet-stream',
+        fileSize: row.file_size ? Number(row.file_size) : 0,
+        objectPath: row.object_path.trim(),
+        publicUrl: row.public_url.trim(),
+        category: row.category?.trim() || 'uncategorized',
+        description: row.description?.trim() || null,
+        altText: row.alt_text?.trim() || null,
+        tags: row.tags ? row.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0) : null,
+      });
     });
   }
 

@@ -512,11 +512,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
         storage.getSlideshowImages(),
+        storage.getMediaLibraryFiles(),
       ]);
 
       const appSettingsData: any[] = [];
@@ -536,6 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         triviaQuestions,
         slideshowImages,
         appSettings: appSettingsData,
+        mediaLibrary,
       });
       
       const timestamp = new Date().toISOString().split('T')[0];
@@ -604,6 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         triviaQuestions: { success: 0, failed: 0 },
         slideshowImages: { success: 0, failed: 0 },
         appSettings: { success: 0, failed: 0 },
+        mediaLibrary: { success: 0, failed: 0 },
         errors: [...parseResult.errors],
         warnings: [...parseResult.warnings],
       };
@@ -663,10 +666,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Import media library
+      for (const media of parseResult.mediaLibrary) {
+        try {
+          await storage.createMediaLibraryFile(media);
+          results.mediaLibrary.success++;
+        } catch (error) {
+          results.mediaLibrary.failed++;
+          results.errors.push(`Media file "${media.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       const totalSuccess = results.products.success + results.filterOptions.success + 
-        results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success;
+        results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success + 
+        results.mediaLibrary.success;
       const totalFailed = results.products.failed + results.filterOptions.failed + 
-        results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed;
+        results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed + 
+        results.mediaLibrary.failed;
 
       const message = totalSuccess > 0
         ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`
