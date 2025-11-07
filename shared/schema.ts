@@ -155,6 +155,22 @@ export const slideshowImages = pgTable("slideshow_images", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const mediaLibrary = pgTable("media_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  filename: text("filename").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  objectPath: text("object_path").notNull(),
+  publicUrl: text("public_url").notNull(),
+  category: text("category").notNull().default('uncategorized'),
+  description: text("description"),
+  altText: text("alt_text"),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const updateProductSchema = insertProductSchema.partial(); // All fields optional for updates
@@ -169,6 +185,7 @@ export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, c
 export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -206,3 +223,6 @@ export type FilterOption = typeof filterOptions.$inferSelect;
 
 export type InsertSlideshowImage = z.infer<typeof insertSlideshowImageSchema>;
 export type SlideshowImage = typeof slideshowImages.$inferSelect;
+
+export type InsertMediaLibrary = z.infer<typeof insertMediaLibrarySchema>;
+export type MediaLibrary = typeof mediaLibrary.$inferSelect;
