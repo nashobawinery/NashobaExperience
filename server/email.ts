@@ -1,4 +1,5 @@
 import type { Product, CartItem, Favorite } from "@shared/schema";
+import { Resend } from "resend";
 
 interface EmailCartData {
   guestName: string;
@@ -150,24 +151,32 @@ Thank you for visiting Nashoba Winery!
   return { subject, html, text };
 }
 
-// Placeholder email sending function
-// In production, this would use SendGrid, Resend, or another email service
+// Initialize Resend client
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Email sending function using Resend
 export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
-  // Log the email for now (in production, integrate with email service)
-  console.log(`
-=== EMAIL ===
-To: ${to}
-Subject: ${subject}
----
-${text}
-=============
-  `);
-  
-  // In a real implementation, you would:
-  // - Use SendGrid, Resend, or similar service
-  // - Handle errors and retries
-  // - Track email delivery status
-  
-  // For now, we'll just simulate success
-  return Promise.resolve();
+  try {
+    // Use Resend's verified domain or onboarding email
+    // NOTE: For production, verify your domain in Resend dashboard and update the 'from' address
+    const from = process.env.RESEND_FROM_EMAIL || "Nashoba Winery <onboarding@resend.dev>";
+    
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Resend API error:", error);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    console.log(`Email sent successfully to ${to}:`, data?.id);
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw error;
+  }
 }
