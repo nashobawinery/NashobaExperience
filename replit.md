@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 ### Key Features
 
 - **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
-- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, settings, and bulk product import.
+- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, settings, bulk product import/export.
 
 ## Email System Status
 
@@ -68,11 +68,36 @@ When using Resend's test domain (`onboarding@resend.dev`), you can ONLY send ema
    - `Nashoba Winery <noreply@nashobawinery.com>`
 4. After this, you can send emails to any address!
 
+## Database Synchronization Between Environments
+
+**IMPORTANT**: Replit's preview and published deployments use **completely separate databases**.
+
+**Environment Overview**:
+- **Preview Environment** (development): Uses development database with all your test data
+- **Published Environment** (production): Starts with an empty database
+
+**Syncing Products Between Environments**:
+1. Navigate to preview admin panel: `[your-preview-url]/admin`
+2. Click on "Import/Export" tab
+3. Click "Export Products" button
+4. Save the downloaded `products-export-[date].xlsx` file
+5. Navigate to published admin panel: `https://[your-published-url]/admin`
+6. Click on "Import/Export" tab
+7. Upload the exported Excel file
+8. Your products now exist in both environments!
+
+**Available Import/Export Options**:
+- **Download Template**: Get an empty template showing all available product fields
+- **Export Products**: Download all current products from the database as Excel
+- **Upload Excel**: Import products from an Excel file (supports .xlsx, .xls)
+
+**Note**: The same process applies to trivia questions, filter options, and slideshow images - they must be recreated or configured in the published environment separately.
+
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
 - **UI**: `@radix-ui/*`, `tailwindcss`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `cmdk`, `embla-carousel-react`, `react-day-picker`, `framer-motion`.
 - **Form Handling**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
-- **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`.
+- **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`, `xlsx`.
 - **AI/ML**: `openai`.
 - **Database**: PostgreSQL (via Neon serverless), `connect-pg-simple`.
