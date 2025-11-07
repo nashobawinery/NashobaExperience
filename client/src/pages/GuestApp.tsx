@@ -50,7 +50,7 @@ export default function GuestApp() {
 
   const hasStarted = !!sessionId;
 
-  const { data: products = [], isLoading: productsLoading } = useQuery({
+  const { data: products = [], isLoading: productsLoading, isError: productsError, error: productsFetchError } = useQuery({
     queryKey: [
       "/api/products", 
       { 
@@ -86,6 +86,7 @@ export default function GuestApp() {
       return api.getProducts(filters);
     },
     enabled: hasStarted,
+    retry: 2,
   });
 
   // Debounce search input - wait 400ms after user stops typing
@@ -663,7 +664,17 @@ export default function GuestApp() {
             />
 
             <div className="space-y-2 max-w-3xl mx-auto">
-              {productsLoading ? (
+              {productsError ? (
+                <div className="text-center py-12 bg-card rounded-lg border border-card-border">
+                  <p className="text-lg text-destructive mb-2">Unable to load products</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {productsFetchError instanceof Error ? productsFetchError.message : 'An error occurred'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    The product catalog may not be available yet. Please contact staff for assistance.
+                  </p>
+                </div>
+              ) : productsLoading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                   <p className="text-muted-foreground">Loading products...</p>
