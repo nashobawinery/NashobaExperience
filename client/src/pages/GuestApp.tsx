@@ -674,19 +674,31 @@ export default function GuestApp() {
             />
 
             <div className="space-y-2 max-w-3xl mx-auto">
-              {products.map(product => (
-                <ProductListItem
-                  key={product.id}
-                  id={product.id}
-                  name={product.name}
-                  category={product.category}
-                  image={product.imageUrl || ''}
-                  characteristics={product.characteristics || ''}
-                  isFavorite={favoriteIds.has(product.id)}
-                  onFavoriteToggle={handleFavoriteToggle}
-                  onClick={handleProductClick}
-                />
-              ))}
+              {productsLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading products...</p>
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-center py-12 bg-card rounded-lg border border-card-border">
+                  <p className="text-lg text-muted-foreground mb-2">No products found</p>
+                  <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+                </div>
+              ) : (
+                products.map(product => (
+                  <ProductListItem
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    category={product.category}
+                    image={product.imageUrl || ''}
+                    characteristics={product.characteristics || ''}
+                    isFavorite={favoriteIds.has(product.id)}
+                    onFavoriteToggle={handleFavoriteToggle}
+                    onClick={handleProductClick}
+                  />
+                ))
+              )}
             </div>
           </div>
         )}
