@@ -146,11 +146,15 @@ export const filterOptions = pgTable("filter_options", {
 
 export const slideshowImages = pgTable("slideshow_images", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  filename: text("filename").notNull(),
+  filename: text("filename"),
+  imageUrl: text("image_url"),
+  title: text("title"),
+  contentHtml: text("content_html"),
   caption: text("caption"),
   description: text("description"),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isRequired: boolean("is_required").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
