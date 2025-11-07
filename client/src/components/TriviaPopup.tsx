@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle2, XCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { X, CheckCircle2, XCircle, Sparkles } from "lucide-react";
 
 interface TriviaQuestion {
   id: string;
@@ -142,15 +143,24 @@ export default function TriviaPopup({
           </div>
         )}
       </Card>
+      
+      {/* Fireworks Effect for First Question */}
+      {showResult && isCorrect && totalAnswered === 0 && (
+        <div className="fixed inset-0 pointer-events-none z-50">
+          {[...Array(12)].map((_, i) => (
+            <Sparkles
+              key={i}
+              className="absolute text-primary animate-ping"
+              style={{
+                top: `${Math.random() * 100}%`,
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 0.5}s`,
+                animationDuration: `${1 + Math.random()}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
-}
-
-function Badge({ children, variant = "default", className = "" }: { children: React.ReactNode; variant?: "default" | "secondary"; className?: string }) {
-  const baseClass = "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium";
-  const variantClass = variant === "secondary" 
-    ? "bg-secondary text-secondary-foreground" 
-    : "bg-primary text-primary-foreground";
-  
-  return <span className={`${baseClass} ${variantClass} ${className}`}>{children}</span>;
 }

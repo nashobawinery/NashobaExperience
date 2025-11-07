@@ -139,12 +139,30 @@ export default function GuestApp() {
     enabled: !!sessionId,
   });
 
-  // Auto-popup trivia every 4 minutes
+  // Auto-popup trivia: First question 1 minute after info popup, then every 4 minutes
   useEffect(() => {
     if (!sessionId || !nextTriviaQuestion || triviaScores.length >= 10) {
       return;
     }
 
+    // Check if info popup has been shown
+    const hasSeenTriviaInfo = localStorage.getItem('hasSeenTriviaInfo');
+    if (!hasSeenTriviaInfo) {
+      return; // Wait for info popup to be shown first
+    }
+
+    // First question: Show 1 minute after info popup
+    if (triviaScores.length === 0) {
+      const firstQuestionTimer = setTimeout(() => {
+        if (nextTriviaQuestion && triviaScores.length === 0) {
+          setShowTrivia(true);
+        }
+      }, 60000); // 1 minute
+
+      return () => clearTimeout(firstQuestionTimer);
+    }
+
+    // Subsequent questions: Every 4 minutes
     const interval = setInterval(() => {
       if (nextTriviaQuestion && triviaScores.length < 10) {
         setShowTrivia(true);

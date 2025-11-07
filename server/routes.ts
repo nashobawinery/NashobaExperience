@@ -307,11 +307,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/sessions/:sessionId/trivia/next", async (req, res) => {
     const askedQuestions = await storage.getAskedQuestions(req.params.sessionId);
     const allQuestions = await storage.getTriviaQuestions(true);
-    const nextQuestion = allQuestions.find(q => !askedQuestions.includes(q.id));
     
-    if (!nextQuestion) {
+    // First question: Always show the "You are currently at?" question
+    if (askedQuestions.length === 0) {
+      const firstQuestion = allQuestions.find(q => 
+        q.question.includes("You are currently at") || 
+        q.question.includes("currently located")
+      );
+      
+      if (firstQuestion) {
+        return res.json(firstQuestion);
+      }
+    }
+    
+    // Subsequent questions: Randomize from remaining questions
+    const remainingQuestions = allQuestions.filter(q => !askedQuestions.includes(q.id));
+    
+    if (remainingQuestions.length === 0) {
       return res.status(404).json({ message: "No more questions available" });
     }
+    
+    // Randomly select from remaining questions
+    const randomIndex = Math.floor(Math.random() * remainingQuestions.length);
+    const nextQuestion = remainingQuestions[randomIndex];
     
     res.json(nextQuestion);
   });
