@@ -602,17 +602,6 @@ export default function GuestApp() {
     return <WelcomeScreen onStart={handleStart} />;
   }
 
-  if (productsLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading products...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-30 bg-card border-b border-card-border">
