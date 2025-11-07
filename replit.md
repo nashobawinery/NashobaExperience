@@ -76,22 +76,40 @@ When using Resend's test domain (`onboarding@resend.dev`), you can ONLY send ema
 - **Preview Environment** (development): Uses development database with all your test data
 - **Published Environment** (production): Starts with an empty database
 
-**Syncing Products Between Environments**:
-1. Navigate to preview admin panel: `[your-preview-url]/admin`
+**Syncing All Data Between Environments**:
+1. Navigate to preview admin panel by clicking the "Admin" button in the top-right corner
 2. Click on "Import/Export" tab
-3. Click "Export Products" button
-4. Save the downloaded `products-export-[date].xlsx` file
-5. Navigate to published admin panel: `https://[your-published-url]/admin`
+3. Click "Export All Data" button
+4. Save the downloaded `nashoba-all-data-[date].xlsx` file (contains all database configuration)
+5. Navigate to published app and click "Admin" button
 6. Click on "Import/Export" tab
-7. Upload the exported Excel file
-8. Your products now exist in both environments!
+7. Click "Import All Data" button and upload the exported Excel file
+8. All database configuration now exists in both environments!
 
-**Available Import/Export Options**:
-- **Download Template**: Get an empty template showing all available product fields
-- **Export Products**: Download all current products from the database as Excel
+**Comprehensive Export/Import System**:
+The "Export All Data" and "Import All Data" buttons provide one-click synchronization of all database configuration:
+
+**Export All Data**:
+- Downloads a single multi-sheet Excel workbook containing:
+  - **Products**: All wine/spirits catalog data (32+ fields)
+  - **FilterOptions**: Dynamic filter configuration (category, wine_color, sweetness, body, characteristics)
+  - **TriviaQuestions**: Quiz questions, answers, and explanations
+  - **SlideshowImages**: Welcome carousel images with titles, descriptions, and order
+  - **AppSettings**: Application configuration (discount tiers, etc.)
+- File naming: `nashoba-all-data-YYYY-MM-DD.xlsx`
+- API endpoint: `GET /api/admin/data/export-all`
+
+**Import All Data**:
+- Accepts the multi-sheet Excel workbook
+- Validates and imports all data types in one operation
+- Provides detailed results showing success/failure counts for each data type
+- Reuses existing CRUD operations to maintain data integrity
+- API endpoint: `POST /api/admin/data/import-all`
+
+**Legacy Single-Type Options** (still available):
+- **Download Template**: Get an empty product template showing all available fields
+- **Export Products**: Download products-only Excel file
 - **Upload Excel**: Import products from an Excel file (supports .xlsx, .xls)
-
-**Note**: The same process applies to trivia questions, filter options, and slideshow images - they must be recreated or configured in the published environment separately.
 
 ## External Dependencies
 
