@@ -61,9 +61,20 @@ export default function ProductDetailModal({
   const [localNote, setLocalNote] = useState(note);
   const [quantity, setQuantity] = useState(1);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedNoteRef = useRef<string>(note);
 
   useEffect(() => {
-    setLocalNote(note);
+    if (product?.id) {
+      setLocalNote(note);
+      lastSavedNoteRef.current = note;
+    }
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (note !== lastSavedNoteRef.current && debounceTimerRef.current === null) {
+      setLocalNote(note);
+      lastSavedNoteRef.current = note;
+    }
   }, [note]);
 
   useEffect(() => {
@@ -82,7 +93,9 @@ export default function ProductDetailModal({
     }
     
     debounceTimerRef.current = setTimeout(() => {
+      lastSavedNoteRef.current = value;
       onUpdateNote?.(value);
+      debounceTimerRef.current = null;
     }, 500);
   };
 
