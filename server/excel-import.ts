@@ -90,7 +90,7 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
 
     products.push({
       name: row.name.trim(),
-      category: row.category?.trim() || 'Wine',
+      category: (row.category?.trim() || 'wine') as any,
       type: row.type?.trim() || null,
       varietal: row.varietal?.trim() || null,
       vintageYear: row.vintage_year?.trim() || null,
@@ -166,6 +166,49 @@ export function generateExcelTemplate(): Buffer {
   ];
 
   const worksheet = XLSX.utils.json_to_sheet(templateData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+}
+
+export function exportProductsToExcel(products: any[]): Buffer {
+  const exportData: ExcelProductRow[] = products.map(product => ({
+    name: product.name,
+    category: product.category || 'wine',
+    type: product.type || '',
+    varietal: product.varietal || '',
+    vintage_year: product.vintageYear || '',
+    region: product.region || '',
+    description: product.description || '',
+    tasting_notes: product.tastingNotes || '',
+    food_pairings: product.foodPairings || '',
+    serving_temp: product.servingTemp || '',
+    alcohol_content: product.alcoholContent || '',
+    bottle_size: product.bottleSize || '',
+    price: product.price ? parseFloat(product.price) : 0,
+    cost: product.cost ? parseFloat(product.cost) : undefined,
+    wholesale_pricing: product.wholesalePricing ? parseFloat(product.wholesalePricing) : undefined,
+    sku: product.sku || '',
+    stock_quantity: product.stockQuantity || 0,
+    low_stock_threshold: product.lowStockThreshold || 10,
+    image_url: product.imageUrl || '',
+    label_image_url: product.labelImageUrl || '',
+    lifestyle_image_url: product.lifestyleImageUrl || '',
+    characteristics: product.characteristics || '',
+    production_method: product.productionMethod || '',
+    aging_process: product.agingProcess || '',
+    awards: product.awards || '',
+    rating: product.rating ? parseFloat(product.rating) : undefined,
+    available: product.available ? 'Yes' : 'No',
+    featured: product.featured ? 'Yes' : 'No',
+    new_arrival: product.newArrival ? 'Yes' : 'No',
+    staff_pick: product.staffPick ? 'Yes' : 'No',
+    wine_of_month: product.wineOfMonth ? 'Yes' : 'No',
+    tags: product.tags ? product.tags.join(', ') : '',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
 

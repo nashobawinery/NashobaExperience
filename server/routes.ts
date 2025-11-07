@@ -492,6 +492,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/products/export", async (req, res) => {
+    try {
+      const products = await storage.getProducts({});
+      const { exportProductsToExcel } = await import("./excel-import");
+      const buffer = exportProductsToExcel(products);
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=products-export-${timestamp}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting products:", error);
+      res.status(500).json({ message: "Failed to export products" });
+    }
+  });
+
   app.post("/api/admin/products/import", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {

@@ -30,6 +30,7 @@ import {
   updateTriviaQuestion,
   deleteTriviaQuestion,
   downloadProductTemplate,
+  exportProducts,
   uploadProducts,
   getFilterOptions
 } from "@/lib/api";
@@ -388,6 +389,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     },
   });
 
+  const exportProductsMutation = useMutation({
+    mutationFn: exportProducts,
+    onSuccess: () => {
+      toast({ 
+        title: "Products Exported", 
+        description: "Your products have been exported to an Excel file" 
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to export products",
+        variant: "destructive"
+      });
+    },
+  });
+
   const uploadProductsMutation = useMutation({
     mutationFn: uploadProducts,
     onSuccess: (result) => {
@@ -453,6 +471,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
   const handleDownloadTemplate = () => {
     downloadTemplateMutation.mutate();
+  };
+
+  const handleExportProducts = () => {
+    exportProductsMutation.mutate();
   };
 
   return (
@@ -558,7 +580,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     </ul>
                   </div>
 
-                  <div className="flex gap-3 justify-center">
+                  <div className="flex gap-3 justify-center flex-wrap">
                     <Button 
                       variant="outline" 
                       onClick={handleDownloadTemplate}
@@ -567,6 +589,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       {downloadTemplateMutation.isPending ? "Downloading..." : "Download Template"}
+                    </Button>
+                    <Button 
+                      onClick={handleExportProducts}
+                      disabled={exportProductsMutation.isPending}
+                      data-testid="button-export-products"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {exportProductsMutation.isPending ? "Exporting..." : "Export Products"}
                     </Button>
                   </div>
 

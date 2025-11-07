@@ -265,6 +265,22 @@ export async function downloadProductTemplate(): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+export async function exportProducts(): Promise<void> {
+  const response = await fetch("/api/admin/products/export");
+  if (!response.ok) throw new Error("Failed to export products");
+  
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const timestamp = new Date().toISOString().split('T')[0];
+  a.download = `products-export-${timestamp}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
 export async function uploadProducts(file: File): Promise<{ success: number; failed: number; errors?: string[] }> {
   const formData = new FormData();
   formData.append("file", file);
