@@ -57,8 +57,16 @@ Preferred communication style: Simple, everyday language.
 - From address: `Nashoba Winery <onboarding@resend.dev>` (Resend's test domain)
 - Status: Fully functional for testing and development
 
-**Production Recommendation**:
-For production use, verify your domain (nashobawinery.com) in the Resend dashboard and update the `RESEND_FROM_EMAIL` environment secret to use your verified domain (e.g., `orders@nashobawinery.com` or `noreply@nashobawinery.com`).
+**IMPORTANT - Test Mode Restriction**:
+When using Resend's test domain (`onboarding@resend.dev`), you can ONLY send emails to the email address you used to sign up for Resend. To send to other addresses, you must verify your domain.
+
+**Production Setup**:
+1. Go to https://resend.com/domains
+2. Add and verify your domain (nashobawinery.com)
+3. Once verified, add a secret `RESEND_FROM_EMAIL` with value like:
+   - `Nashoba Winery <orders@nashobawinery.com>` or
+   - `Nashoba Winery <noreply@nashobawinery.com>`
+4. After this, you can send emails to any address!
 
 ## External Dependencies
 

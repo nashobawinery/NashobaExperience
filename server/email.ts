@@ -171,6 +171,12 @@ export async function sendEmail(to: string, subject: string, html: string, text:
 
     if (error) {
       console.error("Resend API error:", error);
+      
+      // Handle Resend test mode restriction
+      if (error.message?.includes("testing emails")) {
+        throw new Error("Test mode: Please use the email address associated with your Resend account, or verify your domain at resend.com/domains");
+      }
+      
       throw new Error(`Failed to send email: ${error.message}`);
     }
 
