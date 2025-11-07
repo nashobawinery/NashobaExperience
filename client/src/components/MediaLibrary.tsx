@@ -51,15 +51,16 @@ export function MediaLibrary() {
           throw new Error('Failed to upload file');
         }
 
-        const publicUrl = uploadUrl.split('?')[0];
+        const baseUrl = uploadUrl.split('?')[0];
+        const objectPath = new URL(baseUrl).pathname;
 
         return await createMediaLibraryFile({
           filename: file.name.replace(/[^a-zA-Z0-9._-]/g, '_'),
           originalFilename: file.name,
           mimeType: file.type,
           fileSize: file.size,
-          objectPath: uploadUrl.split('?')[0],
-          publicUrl: publicUrl,
+          objectPath: objectPath,
+          publicUrl: baseUrl,
           category: 'uncategorized',
           description: null,
           altText: null,

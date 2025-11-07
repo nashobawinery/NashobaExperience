@@ -818,6 +818,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/media-library", async (req, res) => {
     try {
       const data = insertMediaLibrarySchema.parse(req.body);
+      
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(data.objectPath);
+      
+      await objectStorageService.trySetObjectEntityAclPolicy(data.objectPath, {
+        owner: 'system',
+        visibility: 'public',
+      });
+      
       const file = await storage.createMediaLibraryFile(data);
       res.json(file);
     } catch (error) {
@@ -838,11 +847,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/media-library/:id", async (req, res) => {
-    const success = await storage.deleteMediaLibraryFile(req.params.id);
-    if (!success) {
-      return res.status(404).json({ message: "File not found" });
+    try {
+      const file = await storage.getMediaLibraryFile(req.params.id);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
+        await objectFile.delete();
+      } catch (error) {
+        console.error('Failed to delete file from storage:', error);
+      }
+
+      const success = await storage.deleteMediaLibraryFile(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete file" });
     }
-    res.json({ success: true });
   });
 
   const httpServer = createServer(app);
