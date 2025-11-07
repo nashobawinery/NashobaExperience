@@ -52,14 +52,13 @@ export function MediaLibrary() {
         }
 
         const baseUrl = uploadUrl.split('?')[0];
-        const objectPath = new URL(baseUrl).pathname;
 
         return await createMediaLibraryFile({
           filename: file.name.replace(/[^a-zA-Z0-9._-]/g, '_'),
           originalFilename: file.name,
           mimeType: file.type,
           fileSize: file.size,
-          objectPath: objectPath,
+          objectPath: baseUrl,
           publicUrl: baseUrl,
           category: 'uncategorized',
           description: null,

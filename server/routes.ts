@@ -820,16 +820,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = insertMediaLibrarySchema.parse(req.body);
       
       const objectStorageService = new ObjectStorageService();
-      const objectFile = await objectStorageService.getObjectEntityFile(data.objectPath);
       
-      await objectStorageService.trySetObjectEntityAclPolicy(data.objectPath, {
+      const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(data.objectPath, {
         owner: 'system',
         visibility: 'public',
       });
       
-      const file = await storage.createMediaLibraryFile(data);
+      const fileToCreate = {
+        ...data,
+        objectPath: normalizedPath,
+      };
+      
+      const file = await storage.createMediaLibraryFile(fileToCreate);
       res.json(file);
     } catch (error) {
+      console.error('Error creating media library file:', error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
     }
   });
