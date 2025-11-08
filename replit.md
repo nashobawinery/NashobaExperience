@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions` (with preference fields: `preferredBeverageTypes`, `flavorPreferences`, `occasion`), `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), `slideshow_images` (for welcome slideshows), and `media_library` (for cloud-stored image/file management).
+- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions` (with preference fields: `preferredBeverageTypes`, `flavorPreferences`, `occasion`), `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), `slideshow_images` (for welcome slideshows), `videos` (for educational video content), and `media_library` (for cloud-stored image/file management).
 - **Business Logic**: Implements automatic tier-based discount calculation (5-24% off), trivia credit rewards ($5 for 10/10), and a multi-algorithm product recommendation engine.
 - **Inventory Management**: Features a per-product `ignoreInventory` flag for fine-grained stock control.
 - **Dynamic Filtering**: A database-driven system supports 5 customizable filter types (category, wine_color, sweetness, body, characteristics) with CRUD operations for options, sort orders, and active/inactive states.
@@ -38,9 +38,9 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 
-- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
+- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, educational videos with external link support, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
 - **Pre-Survey Dialog**: Before completing the tasting survey, guests are presented with optional actions: place an order for cart items (sent to staff), email their favorites list to themselves, or skip both. The dialog enforces explicit selection and waits for all requested actions to complete before showing the survey. Provides proper error handling and retry capabilities if actions fail.
-- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, media library for cloud file storage, settings, bulk product import/export.
+- **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), video management, trivia management, a QR code generator for guest app access, media library for cloud file storage, settings, bulk product import/export.
 
 ## Email System Status
 
@@ -158,6 +158,58 @@ The "Export All Data" and "Import All Data" buttons provide one-click synchroniz
 - `description`: Optional file description
 - `altText`: Accessibility alt text
 - `tags`: Array of searchable tags
+
+## Videos Feature
+
+**Status**: OPERATIONAL with full CRUD management and guest display
+
+**Technical Details**:
+- Database: `videos` table with fields for title, description, videoUrl, thumbnailUrl, sortOrder, isActive
+- API Routes: Full CRUD endpoints (GET, POST, PATCH, DELETE) plus reorder support
+- Admin Management: VideoManager component in admin dashboard Videos tab
+- Guest Display: Videos tab in guest app bottom navigation (6 tabs: Browse, Favorites, AI Picks, Videos, Cart, Finish)
+- Video Links: Opens in new browser tab/window for external playback (YouTube, Vimeo, etc.)
+
+**Features**:
+- Add educational videos with title, description, and links to external platforms
+- Upload custom thumbnail images or use auto-generated thumbnails
+- Control video order with sortOrder field (drag-and-drop reordering in admin)
+- Toggle active/inactive status to show/hide videos from guest view
+- Guest app displays active videos in card format with thumbnails and descriptions
+- Click "Watch Video" to open video in new tab
+
+**Admin Access**:
+1. Navigate to admin dashboard
+2. Click "Videos" tab
+3. Click "Add Video" to create new educational content
+4. Edit or delete existing videos
+5. Reorder videos by changing sort order
+6. Toggle active status to control visibility
+
+**Guest Experience**:
+1. Click "Videos" tab in bottom navigation
+2. Browse educational videos with thumbnails and descriptions
+3. Click "Watch Video" to view content (opens in new tab)
+4. Videos appear in order set by admin (sortOrder field)
+
+**Database Schema** (`videos` table):
+- `id`: Unique identifier (serial)
+- `title`: Video title (varchar, required)
+- `description`: Video description (text, optional)
+- `videoUrl`: External video URL (varchar, required) - supports YouTube, Vimeo, etc.
+- `thumbnailUrl`: Custom thumbnail image URL (varchar, optional)
+- `sortOrder`: Display order (integer, default 0) - lower numbers appear first
+- `isActive`: Visibility toggle (boolean, default true)
+- `createdAt`: Creation timestamp
+- `updatedAt`: Last update timestamp
+
+**Best Practices**:
+- Use descriptive titles that explain the educational content
+- Add detailed descriptions to help guests understand what they'll learn
+- Upload custom thumbnails for better visual appeal (use Media Library for cloud storage)
+- Use sortOrder to sequence videos in logical learning order
+- Deactivate outdated videos instead of deleting to preserve data
+- Test video links to ensure they work correctly
 
 ## External Dependencies
 
