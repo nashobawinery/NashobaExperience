@@ -1,4 +1,4 @@
-import { Wine, Heart, ShoppingCart, Sparkles, User } from "lucide-react";
+import { Wine, Heart, ShoppingCart, Sparkles, User, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface BottomNavProps {
@@ -18,6 +18,7 @@ export default function BottomNav({
     { id: 'browse', label: 'Browse', icon: Wine },
     { id: 'favorites', label: 'Favorites', icon: Heart, count: favoritesCount },
     { id: 'recommendations', label: 'AI Picks', icon: Sparkles },
+    { id: 'videos', label: 'Videos', icon: Video },
     { id: 'cart', label: 'Cart', icon: ShoppingCart, count: cartCount },
     { id: 'profile', label: 'Finish', icon: User },
   ];

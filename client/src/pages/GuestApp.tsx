@@ -278,6 +278,16 @@ export default function GuestApp() {
     enabled: shouldFetchRecommendations,
   });
 
+  const { data: videos = [], isLoading: videosLoading } = useQuery({
+    queryKey: ["/api/videos"],
+    queryFn: async () => {
+      const response = await fetch("/api/videos?activeOnly=true");
+      if (!response.ok) throw new Error("Failed to fetch videos");
+      return response.json();
+    },
+    enabled: hasStarted,
+  });
+
   const createSessionMutation = useMutation({
     mutationFn: (name: string) => api.createSession(name),
     onSuccess: (session) => {
@@ -905,6 +915,73 @@ export default function GuestApp() {
               onFavoriteToggle={handleFavoriteToggle}
             />
           )
+        )}
+
+        {activeTab === 'videos' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="font-serif text-3xl font-medium mb-2">Educational Videos</h2>
+              <p className="text-muted-foreground">
+                Learn more about our products and the craft behind them
+              </p>
+            </div>
+
+            {videosLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading videos...</p>
+              </div>
+            ) : videos.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-lg border border-card-border">
+                <p className="text-lg text-muted-foreground mb-2">No videos available yet</p>
+                <p className="text-sm text-muted-foreground">Check back soon for educational content</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {videos.map((video: any) => (
+                  <div 
+                    key={video.id} 
+                    className="bg-card rounded-lg border border-card-border overflow-hidden"
+                    data-testid={`video-card-${video.id}`}
+                  >
+                    <div className="aspect-video bg-muted relative">
+                      {video.thumbnailUrl ? (
+                        <img 
+                          src={video.thumbnailUrl} 
+                          alt={video.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <svg className="w-16 h-16 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6">
+                      <h3 className="font-serif text-xl font-medium mb-2">{video.title}</h3>
+                      {video.description && (
+                        <p className="text-muted-foreground mb-4">{video.description}</p>
+                      )}
+                      <a
+                        href={video.videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-primary hover:underline"
+                        data-testid={`link-watch-video-${video.id}`}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Watch Video
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'cart' && (
