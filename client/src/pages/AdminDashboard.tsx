@@ -1,6 +1,7 @@
 import AdminProductManager from "@/components/AdminProductManager";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
+import TriviaIntervalManager from "@/components/TriviaIntervalManager";
 import GuestAppQRCode from "@/components/GuestAppQRCode";
 import SlideshowImageManager from "@/components/SlideshowImageManager";
 import { MediaLibrary } from "@/components/MediaLibrary";
@@ -1238,6 +1239,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           <TabsContent value="settings">
             <div className="grid gap-6">
               <DiscountTiersManager />
+              
+              <TriviaIntervalManager />
 
               <Card className="p-6">
                 <h2 className="font-serif text-xl font-medium mb-4">Welcome Video</h2>
