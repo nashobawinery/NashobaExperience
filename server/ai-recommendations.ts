@@ -116,14 +116,16 @@ Based on the guest's preferences, recommend 4-6 products from the available list
 1. The product ID
 2. A brief, personalized reason why this product matches their preferences (1-2 sentences, written in friendly sommelier tone)
 
-IMPORTANT: Search through the description and tags fields to find matches. If the guest selected only specific beverage types (e.g., wine), recommend ONLY products from those categories.
+CRITICAL FILTERING RULES:
+1. Search through the description and tags fields to find matches
+2. STRICT CATEGORY: Only recommend products from the guest's selected beverage type(s)
+3. STRICT WINE COLOR: If wine colors are specified (red, white, rosé, sparkling), ONLY recommend wines of those colors - find color info in description/tags
+4. Other preferences (sweetness, body, flavors) are secondary considerations
 
 Consider:
-${statedPreferences ? "- Their stated beverage type and flavor preferences (STRICT - only recommend from selected categories)\n" : ""}- Wine characteristics they've shown interest in (color, sweetness, body)
-- Description and tags content
+${statedPreferences ? "- Beverage type (REQUIRED - only from selected categories)\n" : ""}${statedPreferences?.wineColors && statedPreferences.wineColors.length > 0 ? "- Wine color (REQUIRED - must match selected colors)\n" : ""}- Flavor characteristics (sweetness, body) from description and tags
 - Their notes on favorites
 - Price range they're comfortable with
-- Category preferences
 - Complementary pairings
 
 Respond in JSON format:
@@ -175,7 +177,7 @@ Respond in JSON format:
   } catch (error) {
     console.error("[AI Recommendations] Error generating AI recommendations, using fallback:", error);
     
-    // Fallback: Scoring-based recommendations using OR logic
+    // Fallback: Scoring-based recommendations with STRICT filtering
     // Helper function to score products based on preferences
     const scoreProduct = (product: Product): number => {
       let score = 0;
@@ -192,14 +194,16 @@ Respond in JSON format:
         score += 1; // Base score for matching beverage type
       }
 
-      // Score wine color matches by checking description and tags
+      // STRICT wine color filtering - product MUST match if wine colors specified
       if (statedPreferences?.wineColors && statedPreferences.wineColors.length > 0) {
         const searchableText = `${product.description || ''} ${(product.tags || []).join(' ')}`.toLowerCase();
-        if (statedPreferences.wineColors.some(color => 
+        const matchesWineColor = statedPreferences.wineColors.some(color => 
           searchableText.includes(color.toLowerCase())
-        )) {
-          score += 3; // High weight for wine color match
+        );
+        if (!matchesWineColor) {
+          return 0; // Exclude products that don't match any selected wine color
         }
+        score += 3; // High weight for wine color match
       }
 
       // Score flavor preference matches by searching description and tags
