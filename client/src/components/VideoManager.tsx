@@ -366,7 +366,7 @@ export default function VideoManager() {
                     {createMutation.isPending || updateMutation.isPending
                       ? "Saving..."
                       : editingVideo
-                      ? "Update Video"
+                      ? "Save Changes"
                       : "Add Video"}
                   </Button>
                 </div>
