@@ -718,6 +718,35 @@ export default function GuestApp() {
     return 0;
   }, [triviaAnswered, triviaScore]);
 
+  const getTriviaMessage = (percentage: number): string => {
+    if (percentage === 100) {
+      return "You're on your way to winning a $5.00 discount!";
+    } else if (percentage >= 90) {
+      return "Outstanding! Almost perfect!";
+    } else if (percentage >= 80) {
+      return "Excellent work! Keep it up!";
+    } else if (percentage >= 70) {
+      return "Great job! You're doing well!";
+    } else if (percentage >= 60) {
+      return "Good effort! Not bad at all!";
+    } else if (percentage >= 50) {
+      return "Not bad! Keep trying!";
+    } else if (percentage >= 40) {
+      return "You're learning! Keep going!";
+    } else if (percentage >= 30) {
+      return "Practice makes perfect!";
+    } else if (percentage > 0) {
+      return "Every expert was once a beginner!";
+    } else {
+      return "Give it another shot!";
+    }
+  };
+
+  const triviaPercentage = useMemo(() => {
+    if (triviaAnswered === 0) return 0;
+    return Math.round((triviaScore / triviaAnswered) * 100);
+  }, [triviaScore, triviaAnswered]);
+
   if (!hasStarted) {
     return <WelcomeScreen onStart={handleStart} />;
   }
@@ -735,6 +764,21 @@ export default function GuestApp() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {triviaAnswered > 0 && (
+                <div className="text-right" data-testid="trivia-score-display">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {triviaScore}/{triviaAnswered} Correct ({triviaPercentage}%)
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {getTriviaMessage(triviaPercentage)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="icon"
