@@ -114,7 +114,7 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
         <DialogTitle className="sr-only">Welcome Slideshow</DialogTitle>
         <div className="flex h-[85vh] max-h-[650px]">
           {/* Left Column - Photo with dark background */}
-          <div className="relative w-2/5 overflow-hidden bg-black flex items-center justify-center p-6">
+          <div className="relative w-2/5 bg-black flex items-center justify-center p-6">
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
                 key={currentSlide}
@@ -130,17 +130,13 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                 className="relative w-full h-full flex items-center justify-center"
               >
                 {slide?.imageUrl && (
-                  <img
-                    src={slide.imageUrl}
-                    alt={slide.title || "Slide image"}
-                    className="rounded-lg shadow-2xl"
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'cover',
-                      transform: 'scale(1.25)'
-                    }}
-                  />
+                  <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg shadow-2xl">
+                    <img
+                      src={slide.imageUrl}
+                      alt={slide.title || "Slide image"}
+                      className="absolute inset-0 h-full w-full object-cover max-w-none scale-125 origin-center"
+                    />
+                  </div>
                 )}
               </motion.div>
             </AnimatePresence>
