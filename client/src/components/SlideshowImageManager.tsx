@@ -30,6 +30,7 @@ import { z } from "zod";
 import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image, Upload } from "lucide-react";
 import { useState, useRef } from "react";
 import type { SlideshowImage, MediaLibrary } from "@shared/schema";
+import { getMediaLibraryUploadUrl, createMediaLibraryFile } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -210,22 +211,34 @@ export default function SlideshowImageManager() {
     setIsUploading(true);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'slideshow');
-      formData.append('description', 'Slideshow image');
-      formData.append('altText', file.name);
-
-      const response = await fetch('/api/media-library/upload', {
-        method: 'POST',
-        body: formData,
+      const uploadUrl = await getMediaLibraryUploadUrl();
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error('Upload failed');
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload file to cloud storage');
       }
 
-      const uploadedFile = await response.json();
+      const baseUrl = uploadUrl.split('?')[0];
+
+      const uploadedFile = await createMediaLibraryFile({
+        filename: file.name.replace(/[^a-zA-Z0-9._-]/g, '_'),
+        originalFilename: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        objectPath: baseUrl,
+        publicUrl: baseUrl,
+        category: 'slideshow',
+        description: 'Slideshow image',
+        altText: file.name,
+        tags: null,
+      });
       
       form.setValue('imageUrl', uploadedFile.publicUrl);
       setUploadPreview(uploadedFile.publicUrl);
@@ -237,9 +250,10 @@ export default function SlideshowImageManager() {
         description: "Your image has been uploaded to cloud storage",
       });
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload image. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to upload image. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -345,9 +359,13 @@ export default function SlideshowImageManager() {
                         )}
 
                         {imageMediaFiles.length > 0 && (
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                            disabled={isUploading}
+                          >
                             <FormControl>
-                              <SelectTrigger data-testid="select-image">
+                              <SelectTrigger data-testid="select-image" disabled={isUploading}>
                                 <SelectValue placeholder="Select from media library" />
                               </SelectTrigger>
                             </FormControl>
