@@ -13,6 +13,7 @@ import ShoppingCartPanel from "@/components/ShoppingCartPanel";
 import FavoritesPanel from "@/components/FavoritesPanel";
 import AIRecommendations from "@/components/AIRecommendations";
 import PreferenceQuestionnaire from "@/components/PreferenceQuestionnaire";
+import PreSurveyDialog from "@/components/PreSurveyDialog";
 import TriviaPopup from "@/components/TriviaPopup";
 import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
 import DiscountInfoPopup from "@/components/DiscountInfoPopup";
@@ -30,6 +31,7 @@ export default function GuestApp() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("browse");
   const [showIntroduction, setShowIntroduction] = useState(false);
+  const [showPreSurveyDialog, setShowPreSurveyDialog] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
   
   const [searchInput, setSearchInput] = useState("");
@@ -583,6 +585,52 @@ export default function GuestApp() {
     });
   };
 
+  const handlePreSurveyPlaceOrder = () => {
+    const wineSpiritsCount = cartItemsArray
+      .filter(item => ['Wine', 'Spirits'].includes(item.category))
+      .reduce((sum, item) => sum + item.quantity, 0);
+
+    const calculateDiscount = (count: number): number => {
+      if (count >= 24) return 0.24;
+      if (count >= 12) return 0.15;
+      if (count >= 6) return 0.10;
+      if (count >= 3) return 0.05;
+      return 0;
+    };
+
+    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discountRate = calculateDiscount(wineSpiritsCount);
+    const discountAmount = subtotal * discountRate;
+    const afterDiscount = subtotal - discountAmount;
+    const total = Math.max(0, afterDiscount - triviaCredit);
+
+    emailCartMutation.mutate({
+      subtotal,
+      discount: discountAmount,
+      triviaCredit,
+      total,
+    }, {
+      onSuccess: () => {
+        setShowPreSurveyDialog(false);
+        setShowSurvey(true);
+      }
+    });
+  };
+
+  const handlePreSurveyEmailFavorites = (email: string) => {
+    emailFavoritesMutation.mutate(email, {
+      onSuccess: () => {
+        setShowPreSurveyDialog(false);
+        setShowSurvey(true);
+      }
+    });
+  };
+
+  const handlePreSurveyComplete = () => {
+    setShowPreSurveyDialog(false);
+    setShowSurvey(true);
+  };
+
   const viewHistoryMap = useMemo(() => {
     const map: Record<string, number> = {};
     viewHistoryData.forEach(vh => {
@@ -813,11 +861,11 @@ export default function GuestApp() {
               </p>
               <Button 
                 size="lg" 
-                onClick={() => setShowSurvey(true)}
+                onClick={() => setShowPreSurveyDialog(true)}
                 data-testid="button-complete-tasting"
                 className="mt-4"
               >
-                Take Survey
+                Complete Tasting Experience
               </Button>
             </div>
           </div>
@@ -859,6 +907,17 @@ export default function GuestApp() {
         open={showIntroduction}
         onContinue={() => setShowIntroduction(false)}
         guestName={guestName}
+      />
+
+      <PreSurveyDialog
+        open={showPreSurveyDialog}
+        hasCartItems={cartItemsArray.length > 0}
+        hasFavorites={favoritesData.length > 0}
+        onPlaceOrder={handlePreSurveyPlaceOrder}
+        onEmailFavorites={handlePreSurveyEmailFavorites}
+        onComplete={handlePreSurveyComplete}
+        isPlacingOrder={emailCartMutation.isPending}
+        isEmailingFavorites={emailFavoritesMutation.isPending}
       />
 
       <TastingSurvey
