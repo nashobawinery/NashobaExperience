@@ -24,8 +24,16 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Integration
 - **OpenAI**: Utilizes GPT-4o-mini for a recommendation engine that analyzes guest preferences (favorites, view history, cart, stated preferences) to provide sommelier-style product matching with natural language explanations.
-- **Preference Questionnaire**: Prompts guests with fewer than two interactions to complete a questionnaire on beverage and flavor preferences to drive initial AI recommendations.
-- **Recommendation Strategies**: Includes characteristic-based, favorites-based, stated-preference-based, and AI-powered advanced analysis with intelligent fallback.
+- **Preference Questionnaire**: Prompts guests with fewer than two interactions to complete a questionnaire on beverage type, wine color (conditionally shown for wine), and flavor preferences to drive initial AI recommendations.
+- **Wine Color Selection**: When "wine" is selected as a beverage type, additional wine color options appear (red, white, rosé, sparkling) for more refined matching.
+- **OR-Based Scoring System**: Fallback recommendation logic uses weighted scoring instead of strict AND filtering:
+  - Beverage type match: required base filter
+  - Wine color match: +3 points (parsed from product characteristics)
+  - Sweetness/dryness match: +2 points
+  - Body match (bold/light): +2 points
+  - Flavor keyword matches: +1 point each
+  - This ensures recommendations appear even when products don't match ALL preferences
+- **Recommendation Strategies**: Includes characteristic-based, favorites-based, stated-preference-based, AI-powered advanced analysis, and intelligent OR-based fallback scoring.
 
 ### Email System
 - Server-side HTML email templates for sending cart orders and favorites summaries, including guest notes and discount breakdowns. Features a robust fallback mechanism for domain verification issues.
