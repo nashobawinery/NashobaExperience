@@ -42,31 +42,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Email System Status
 
-**Current State**: Email functionality is **OPERATIONAL** using Resend API.
+**Current State**: Email functionality is **FULLY OPERATIONAL** with verified domain.
 
 **Technical Details**:
 - Email service: Resend (via `resend` npm package)
 - API Key: Stored securely in `RESEND_API_KEY` environment secret
+- From Address: `Nashoba Winery <info@nashobawinery.info>` (stored in `RESEND_FROM_EMAIL`)
+- Domain: nashobawinery.info (verified ✓)
 - Email templates: Fully functional HTML emails for cart orders and favorites
 - Routes: `/api/sessions/:id/email/cart` and `/api/sessions/:id/email/favorites`
 - Email recipients:
   - Cart orders → `onsiteorder@nashobawinery.com`
   - Favorites → User-provided email address
 
-**Current Setup**:
-- From address: `Nashoba Winery <onboarding@resend.dev>` (Resend's test domain)
-- Status: Fully functional for testing and development
-
-**IMPORTANT - Test Mode Restriction**:
-When using Resend's test domain (`onboarding@resend.dev`), you can ONLY send emails to the email address you used to sign up for Resend. To send to other addresses, you must verify your domain.
-
-**Production Setup**:
-1. Go to https://resend.com/domains
-2. Add and verify your domain (nashobawinery.com)
-3. Once verified, add a secret `RESEND_FROM_EMAIL` with value like:
-   - `Nashoba Winery <orders@nashobawinery.com>` or
-   - `Nashoba Winery <noreply@nashobawinery.com>`
-4. After this, you can send emails to any address!
+**Production Status**: ✓ Ready - Can send to any email address
 
 ## Database Synchronization Between Environments
 
