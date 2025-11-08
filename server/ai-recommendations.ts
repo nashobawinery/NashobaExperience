@@ -81,8 +81,7 @@ export async function generateRecommendations(
     category: p.category,
     price: p.price,
     description: p.description,
-    tastingNotes: p.tastingNotes,
-    characteristics: p.characteristics,
+    tags: p.tags,
     sweetness: p.sweetness,
     body: p.body,
   }));
@@ -117,9 +116,11 @@ Based on the guest's preferences, recommend 4-6 products from the available list
 1. The product ID
 2. A brief, personalized reason why this product matches their preferences (1-2 sentences, written in friendly sommelier tone)
 
+IMPORTANT: Search through the description and tags fields to find matches. If the guest selected only specific beverage types (e.g., wine), recommend ONLY products from those categories.
+
 Consider:
-${statedPreferences ? "- Their stated beverage type and flavor preferences\n" : ""}- Wine characteristics they've shown interest in (color, sweetness, body)
-- Tasting note patterns
+${statedPreferences ? "- Their stated beverage type and flavor preferences (STRICT - only recommend from selected categories)\n" : ""}- Wine characteristics they've shown interest in (color, sweetness, body)
+- Description and tags content
 - Their notes on favorites
 - Price range they're comfortable with
 - Category preferences
@@ -179,26 +180,29 @@ Respond in JSON format:
     const scoreProduct = (product: Product): number => {
       let score = 0;
 
-      // First, filter by beverage type (required)
-      const matchesBeverageType = statedPreferences?.beverageTypes.some(type =>
-        product.category.toLowerCase().includes(type.toLowerCase())
-      );
-      if (!matchesBeverageType && statedPreferences?.beverageTypes.length) {
-        return 0; // Must match at least one beverage type if specified
+      // STRICT beverage type filtering - product MUST match selected categories
+      if (statedPreferences?.beverageTypes && statedPreferences.beverageTypes.length > 0) {
+        const matchesBeverageType = statedPreferences.beverageTypes.some(type =>
+          product.category.toLowerCase() === type.toLowerCase() ||
+          product.category.toLowerCase().includes(type.toLowerCase())
+        );
+        if (!matchesBeverageType) {
+          return 0; // Exclude products that don't match any selected beverage type
+        }
+        score += 1; // Base score for matching beverage type
       }
-      score += 1; // Base score for matching beverage type
 
-      // Score wine color matches by checking characteristics
+      // Score wine color matches by checking description and tags
       if (statedPreferences?.wineColors && statedPreferences.wineColors.length > 0) {
-        const characteristics = (product.characteristics || '').toLowerCase();
+        const searchableText = `${product.description || ''} ${(product.tags || []).join(' ')}`.toLowerCase();
         if (statedPreferences.wineColors.some(color => 
-          characteristics.includes(color.toLowerCase())
+          searchableText.includes(color.toLowerCase())
         )) {
           score += 3; // High weight for wine color match
         }
       }
 
-      // Score flavor preference matches
+      // Score flavor preference matches by searching description and tags
       if (statedPreferences?.flavorPreferences && statedPreferences.flavorPreferences.length > 0) {
         for (const flavor of statedPreferences.flavorPreferences) {
           const flavorLower = flavor.toLowerCase();
@@ -219,8 +223,8 @@ Respond in JSON format:
             score += 2;
           }
           
-          // Match fruity/complex/smooth to characteristics or tasting notes
-          const searchText = `${product.characteristics || ''} ${product.tastingNotes || ''}`.toLowerCase();
+          // Match keywords in description and tags
+          const searchText = `${product.description || ''} ${(product.tags || []).join(' ')}`.toLowerCase();
           if (searchText.includes(flavorLower)) {
             score += 1;
           }
