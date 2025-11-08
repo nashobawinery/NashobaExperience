@@ -30,13 +30,15 @@ async function updateTriviaInterval(intervalSeconds: number): Promise<void> {
     }),
   });
   if (!response.ok) {
-    throw new Error("Failed to update trivia interval");
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to update trivia interval");
   }
 }
 
 export default function TriviaIntervalManager() {
   const { toast } = useToast();
   const [editedInterval, setEditedInterval] = useState<number | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const { data: currentInterval, isLoading } = useQuery({
     queryKey: ['/api/settings/trivia_interval_seconds'],
@@ -48,15 +50,17 @@ export default function TriviaIntervalManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/trivia_interval_seconds'] });
       setEditedInterval(null);
+      setValidationError(null);
       toast({
         title: "Success",
         description: "Trivia interval updated successfully",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message = error?.message || "Failed to update trivia interval";
       toast({
         title: "Error",
-        description: "Failed to update trivia interval",
+        description: message,
         variant: "destructive",
       });
     },
@@ -67,21 +71,30 @@ export default function TriviaIntervalManager() {
   const handleChange = (value: string) => {
     const numValue = parseInt(value);
     if (!isNaN(numValue)) {
-      const clampedValue = Math.max(30, Math.min(600, numValue));
-      setEditedInterval(clampedValue);
+      setEditedInterval(numValue);
+      
+      if (numValue < 30) {
+        setValidationError("Minimum interval is 30 seconds");
+      } else if (numValue > 600) {
+        setValidationError("Maximum interval is 600 seconds");
+      } else {
+        setValidationError(null);
+      }
     } else if (value === "") {
       setEditedInterval(null);
+      setValidationError(null);
     }
   };
 
   const handleSave = () => {
-    if (editedInterval !== null) {
+    if (editedInterval !== null && !validationError) {
       updateMutation.mutate(editedInterval);
     }
   };
 
   const handleReset = () => {
     setEditedInterval(null);
+    setValidationError(null);
   };
 
   if (isLoading) {
@@ -113,8 +126,8 @@ export default function TriviaIntervalManager() {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={updateMutation.isPending}
-                data-testid="button-save-interval"
+                disabled={updateMutation.isPending || !!validationError}
+                data-testid="button-save-trivia-interval"
               >
                 {updateMutation.isPending ? (
                   <>
@@ -144,12 +157,19 @@ export default function TriviaIntervalManager() {
               max={600}
               value={displayInterval ?? 240}
               onChange={(e) => handleChange(e.target.value)}
-              className="w-full"
+              className={validationError ? "w-full border-destructive" : "w-full"}
               data-testid="input-trivia-interval"
             />
-            <p className="text-xs text-muted-foreground mt-2">
-              Current: {displayInterval ? `${displayInterval} seconds (${(displayInterval / 60).toFixed(1)} minutes)` : "240 seconds (4 minutes)"}
-            </p>
+            {validationError && (
+              <p className="text-xs text-destructive mt-2" data-testid="text-validation-error">
+                {validationError}
+              </p>
+            )}
+            {!validationError && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Current: {displayInterval ? `${displayInterval} seconds (${(displayInterval / 60).toFixed(1)} minutes)` : "240 seconds (4 minutes)"}
+              </p>
+            )}
           </div>
 
           <div className="pt-4 border-t">

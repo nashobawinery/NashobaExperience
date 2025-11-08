@@ -346,7 +346,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/settings", async (req, res) => {
-    const setting = await storage.setSetting(req.body.key, req.body.value);
+    const { key, value } = req.body;
+    
+    if (key === "trivia_interval_seconds") {
+      const numValue = typeof value === 'number' ? value : parseInt(value);
+      
+      if (isNaN(numValue)) {
+        return res.status(400).json({ 
+          message: "Trivia interval must be a valid number" 
+        });
+      }
+      
+      if (!Number.isInteger(numValue)) {
+        return res.status(400).json({ 
+          message: "Trivia interval must be a whole number (no decimals)" 
+        });
+      }
+      
+      if (numValue < 30 || numValue > 600) {
+        return res.status(400).json({ 
+          message: "Trivia interval must be between 30 and 600 seconds" 
+        });
+      }
+    }
+    
+    const setting = await storage.setSetting(key, value);
     res.json(setting);
   });
 
