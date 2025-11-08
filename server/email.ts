@@ -156,33 +156,51 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Email sending function using Resend
 export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
-  try {
-    // Use Resend's verified domain or onboarding email
-    // NOTE: For production, verify your domain in Resend dashboard and update the 'from' address
-    const from = process.env.RESEND_FROM_EMAIL || "Nashoba Winery <onboarding@resend.dev>";
-    
-    const { data, error } = await resend.emails.send({
-      from,
-      to,
-      subject,
-      html,
-      text,
-    });
+  // Try using configured domain first, fall back to onboarding email if domain not verified
+  const configuredFrom = process.env.RESEND_FROM_EMAIL;
+  const fallbackFrom = "Nashoba Winery <onboarding@resend.dev>";
+  
+  let from = configuredFrom || fallbackFrom;
+  
+  console.log(`Attempting to send email from ${from} to ${to}`);
+  
+  let { data, error } = await resend.emails.send({
+    from,
+    to,
+    subject,
+    html,
+    text,
+  });
 
-    if (error) {
-      console.error("Resend API error:", error);
+  // If domain verification failed and we have a configured domain, retry with onboarding email
+  if (error && configuredFrom && from === configuredFrom) {
+    const errorMessage = (error.message || '').toLowerCase();
+    if (errorMessage.includes("not verified") || errorMessage.includes("domain") || errorMessage.includes("verify")) {
+      console.log(`Domain verification issue detected: ${error.message}`);
+      console.log(`Retrying with Resend onboarding email...`);
       
-      // Handle Resend test mode restriction
-      if (error.message?.includes("testing emails")) {
-        throw new Error("Test mode: Please use the email address associated with your Resend account, or verify your domain at resend.com/domains");
+      from = fallbackFrom;
+      const retry = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        text,
+      });
+      
+      data = retry.data;
+      error = retry.error;
+      
+      if (!error) {
+        console.log(`Retry successful with ${from}`);
       }
-      
-      throw new Error(`Failed to send email: ${error.message}`);
     }
-
-    console.log(`Email sent successfully to ${to}:`, data?.id);
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
   }
+
+  if (error) {
+    console.error("Resend API error:", error);
+    throw new Error(`Failed to send email: ${error.message || 'Unknown error'}`);
+  }
+
+  console.log(`Email sent successfully to ${to} from ${from}:`, data?.id);
 }

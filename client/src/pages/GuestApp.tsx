@@ -1067,6 +1067,8 @@ export default function GuestApp() {
         onComplete={handlePreSurveyComplete}
         isPlacingOrder={emailCartMutation.isPending}
         isEmailingFavorites={emailFavoritesMutation.isPending}
+        orderError={emailCartMutation.isError ? (emailCartMutation.error as Error)?.message || "Failed to place order" : undefined}
+        emailError={emailFavoritesMutation.isError ? (emailFavoritesMutation.error as Error)?.message || "Failed to send email" : undefined}
       />
 
       <TastingSurvey

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShoppingCart, Heart } from "lucide-react";
+import { ShoppingCart, Heart, AlertCircle } from "lucide-react";
 
 interface PreSurveyDialogProps {
   open: boolean;
@@ -15,6 +15,8 @@ interface PreSurveyDialogProps {
   onComplete: () => void;
   isPlacingOrder: boolean;
   isEmailingFavorites: boolean;
+  orderError?: string;
+  emailError?: string;
 }
 
 export default function PreSurveyDialog({
@@ -26,6 +28,8 @@ export default function PreSurveyDialog({
   onComplete,
   isPlacingOrder,
   isEmailingFavorites,
+  orderError,
+  emailError,
 }: PreSurveyDialogProps) {
   const [wantOrder, setWantOrder] = useState(false);
   const [wantEmail, setWantEmail] = useState(false);
@@ -147,6 +151,18 @@ export default function PreSurveyDialog({
             </div>
           </div>
         </div>
+
+        {(orderError || emailError) && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+              <div className="text-sm text-destructive space-y-1">
+                {orderError && <p data-testid="text-order-error">{orderError}</p>}
+                {emailError && <p data-testid="text-email-error">{emailError}</p>}
+              </div>
+            </div>
+          </div>
+        )}
 
         <DialogFooter>
           <Button
