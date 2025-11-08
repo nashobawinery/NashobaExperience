@@ -75,13 +75,11 @@ export default function PreferenceQuestionnaire({
   const handleSubmit = () => {
     if (beverageTypes.length === 0) return;
     
-    const preferences = {
+    onSubmit({
       beverageTypes,
       wineColors: wineColors.length > 0 ? wineColors : undefined,
       flavorPreferences,
-    };
-    console.log('[PreferenceQuestionnaire] Submitting preferences:', preferences);
-    onSubmit(preferences);
+    });
   };
 
   const canSubmit = beverageTypes.length > 0 && !isLoading;

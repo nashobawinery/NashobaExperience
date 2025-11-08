@@ -23,12 +23,10 @@ export async function updateGuestPreferences(
   wineColors?: string[],
   occasion?: string
 ): Promise<GuestSession> {
-  const payload = { beverageTypes, flavorPreferences, wineColors, occasion };
-  console.log('[API] Sending preferences payload:', payload);
   const response = await fetch(`/api/sessions/${sessionId}/preferences`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ beverageTypes, flavorPreferences, wineColors, occasion }),
   });
   if (!response.ok) throw new Error("Failed to update preferences");
   return response.json();

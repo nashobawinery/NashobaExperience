@@ -269,7 +269,7 @@ export default function GuestApp() {
   });
 
   const totalInteractions = favoritesData.length + viewHistoryData.length;
-  const hasStatedPreferences = !!(sessionData?.preferredBeverageTypes?.length || sessionData?.flavorPreferences?.length || sessionData?.occasion);
+  const hasStatedPreferences = !!(sessionData?.preferredBeverageTypes?.length || sessionData?.wineColors?.length || sessionData?.flavorPreferences?.length || sessionData?.occasion);
   const shouldFetchRecommendations = !!sessionId && (totalInteractions >= 2 || hasStatedPreferences);
 
   const { data: recommendationsData = [], isLoading: recommendationsLoading } = useQuery({

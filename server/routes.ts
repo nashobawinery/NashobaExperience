@@ -47,7 +47,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/sessions/:id/preferences", async (req, res) => {
     try {
-      console.log('[Server] Received preferences update:', req.body);
       const session = await storage.updateGuestPreferences(
         req.params.id,
         req.body.beverageTypes,
@@ -55,11 +54,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.body.wineColors,
         req.body.occasion
       );
-      console.log('[Server] Updated session preferences:', {
-        beverageTypes: session.preferredBeverageTypes,
-        wineColors: session.wineColors,
-        flavorPreferences: session.flavorPreferences,
-      });
       res.json(session);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
