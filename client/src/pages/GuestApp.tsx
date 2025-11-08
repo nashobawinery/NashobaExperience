@@ -144,7 +144,22 @@ export default function GuestApp() {
     enabled: !!sessionId,
   });
 
-  // Auto-popup trivia: First question 1 minute after info popup, then every 4 minutes
+  const { data: triviaIntervalSeconds = 240 } = useQuery({
+    queryKey: ['/api/settings/trivia_interval_seconds'],
+    queryFn: async () => {
+      const response = await fetch("/api/settings/trivia_interval_seconds");
+      if (!response.ok) {
+        if (response.status === 404) {
+          return 240;
+        }
+        throw new Error("Failed to fetch trivia interval");
+      }
+      const data = await response.json();
+      return data.value;
+    },
+  });
+
+  // Auto-popup trivia: First question 1 minute after info popup, then at configured interval
   useEffect(() => {
     if (!sessionId || !nextTriviaQuestion || triviaScores.length >= 10 || showIntroduction || showTriviaInfo) {
       return;
@@ -167,15 +182,15 @@ export default function GuestApp() {
       return () => clearTimeout(firstQuestionTimer);
     }
 
-    // Subsequent questions: Every 4 minutes
+    // Subsequent questions: Use configured interval
     const interval = setInterval(() => {
       if (nextTriviaQuestion && triviaScores.length < 10) {
         setShowTrivia(true);
       }
-    }, 240000); // 4 minutes in milliseconds
+    }, triviaIntervalSeconds * 1000); // Convert seconds to milliseconds
 
     return () => clearInterval(interval);
-  }, [sessionId, nextTriviaQuestion, triviaScores.length, showIntroduction, showTriviaInfo]);
+  }, [sessionId, nextTriviaQuestion, triviaScores.length, showIntroduction, showTriviaInfo, triviaIntervalSeconds]);
 
   // Show trivia info popup after 5 seconds on first visit (after intro modal is closed)
   useEffect(() => {

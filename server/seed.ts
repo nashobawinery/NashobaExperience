@@ -355,6 +355,11 @@ export async function seedDatabase() {
     });
     console.log("✓ Set discount tiers");
 
+    // Set default trivia interval (240 seconds = 4 minutes)
+    console.log("Setting default trivia interval...");
+    await storage.setSetting("trivia_interval_seconds", 240);
+    console.log("✓ Set trivia interval to 240 seconds (4 minutes)");
+
     console.log("✅ Database seed completed successfully!");
   } catch (error) {
     console.error("❌ Error seeding database:", error);
