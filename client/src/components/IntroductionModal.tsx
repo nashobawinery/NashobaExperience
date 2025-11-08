@@ -133,8 +133,13 @@ export default function IntroductionModal({ open, onContinue, guestName }: Intro
                   <img
                     src={slide.imageUrl}
                     alt={slide.title || "Slide image"}
-                    className="w-full h-full object-cover rounded-lg shadow-2xl"
-                    style={{ width: '156%', height: '156%', objectFit: 'cover' }}
+                    className="rounded-lg shadow-2xl"
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                      transform: 'scale(1.25)'
+                    }}
                   />
                 )}
               </motion.div>
