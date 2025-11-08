@@ -8,6 +8,7 @@ import { useState } from "react";
 interface PreferenceQuestionnaireProps {
   onSubmit: (preferences: {
     beverageTypes: string[];
+    wineColors?: string[];
     flavorPreferences: string[];
     occasion?: string;
   }) => void;
@@ -20,6 +21,13 @@ const beverageOptions = [
   { value: "spirits", label: "Spirits", icon: Martini },
   { value: "canned_cocktail", label: "Canned Cocktails", icon: Martini },
   { value: "ciders", label: "Ciders", icon: Beer },
+];
+
+const wineColorOptions = [
+  { value: "red", label: "Red" },
+  { value: "white", label: "White" },
+  { value: "rosé", label: "Rosé" },
+  { value: "sparkling", label: "Sparkling" },
 ];
 
 const flavorOptions = [
@@ -37,6 +45,7 @@ export default function PreferenceQuestionnaire({
   isLoading = false,
 }: PreferenceQuestionnaireProps) {
   const [beverageTypes, setBeverageTypes] = useState<string[]>([]);
+  const [wineColors, setWineColors] = useState<string[]>([]);
   const [flavorPreferences, setFlavorPreferences] = useState<string[]>([]);
 
   const toggleBeverageType = (type: string) => {
@@ -44,6 +53,14 @@ export default function PreferenceQuestionnaire({
       prev.includes(type)
         ? prev.filter(t => t !== type)
         : [...prev, type]
+    );
+  };
+
+  const toggleWineColor = (color: string) => {
+    setWineColors(prev =>
+      prev.includes(color)
+        ? prev.filter(c => c !== color)
+        : [...prev, color]
     );
   };
 
@@ -60,6 +77,7 @@ export default function PreferenceQuestionnaire({
     
     onSubmit({
       beverageTypes,
+      wineColors: wineColors.length > 0 ? wineColors : undefined,
       flavorPreferences,
     });
   };
@@ -123,6 +141,41 @@ export default function PreferenceQuestionnaire({
             })}
           </div>
         </div>
+
+        {beverageTypes.includes("wine") && (
+          <div>
+            <h3 className="font-medium mb-3">
+              What wine colors do you prefer?
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Optional - select all that interest you
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {wineColorOptions.map((option) => {
+                const isSelected = wineColors.includes(option.value);
+                
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => toggleWineColor(option.value)}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate active-elevate-2 ${
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-card-border'
+                    }`}
+                    data-testid={`button-wine-color-${option.value}`}
+                  >
+                    <span className={`text-sm font-medium ${
+                      isSelected ? 'text-foreground' : 'text-muted-foreground'
+                    }`}>
+                      {option.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div>
           <h3 className="font-medium mb-3">

@@ -11,6 +11,7 @@ interface GuestPreferenceData {
   cartItems: Array<{ product: Product; quantity: number }>;
   statedPreferences?: {
     beverageTypes: string[];
+    wineColors?: string[];
     flavorPreferences: string[];
     occasion?: string;
   };
@@ -93,6 +94,7 @@ export async function generateRecommendations(
     statedPreferencesText = `
 Guest's Stated Preferences:
 - Preferred Beverage Types: ${statedPreferences.beverageTypes.join(", ")}
+${statedPreferences.wineColors && statedPreferences.wineColors.length > 0 ? `- Wine Color Preferences: ${statedPreferences.wineColors.join(", ")}` : ""}
 ${statedPreferences.flavorPreferences.length > 0 ? `- Flavor Preferences: ${statedPreferences.flavorPreferences.join(", ")}` : ""}
 ${statedPreferences.occasion ? `- Occasion: ${statedPreferences.occasion}` : ""}
 `;
@@ -172,41 +174,85 @@ Respond in JSON format:
   } catch (error) {
     console.error("[AI Recommendations] Error generating AI recommendations, using fallback:", error);
     
-    // Fallback: Simple rule-based recommendations if AI fails
-    // Try to match categories first
-    const favoriteCategories = favorites.map(f => f.product.category);
-    const categoryMatches = availableProducts.filter(p => 
-      favoriteCategories.includes(p.category)
-    );
+    // Fallback: Scoring-based recommendations using OR logic
+    // Helper function to score products based on preferences
+    const scoreProduct = (product: Product): number => {
+      let score = 0;
 
-    // If we have category matches, use them
-    if (categoryMatches.length > 0) {
-      console.log("[AI Recommendations] Fallback: Using", categoryMatches.length, "category matches");
-      return categoryMatches
-        .slice(0, 4)
-        .map(product => ({
-          product,
-          reason: `Similar to products you've enjoyed in the ${product.category} category.`,
-        }));
-    }
-
-    // Otherwise, use stated preferences if available
-    if (statedPreferences && statedPreferences.beverageTypes.length > 0) {
-      const preferenceMatches = availableProducts.filter(p =>
-        statedPreferences.beverageTypes.some(type => 
-          p.category.toLowerCase().includes(type.toLowerCase())
-        )
+      // First, filter by beverage type (required)
+      const matchesBeverageType = statedPreferences?.beverageTypes.some(type =>
+        product.category.toLowerCase().includes(type.toLowerCase())
       );
-      console.log("[AI Recommendations] Fallback: Using", preferenceMatches.length, "preference matches for", statedPreferences.beverageTypes.join(", "));
-      return preferenceMatches
-        .slice(0, 4)
-        .map(product => ({
+      if (!matchesBeverageType && statedPreferences?.beverageTypes.length) {
+        return 0; // Must match at least one beverage type if specified
+      }
+      score += 1; // Base score for matching beverage type
+
+      // Score wine color matches
+      if (statedPreferences?.wineColors && statedPreferences.wineColors.length > 0) {
+        const productWineColor = product.wineColor?.toLowerCase();
+        if (productWineColor && statedPreferences.wineColors.some(color => 
+          productWineColor.includes(color.toLowerCase())
+        )) {
+          score += 3; // High weight for wine color match
+        }
+      }
+
+      // Score flavor preference matches
+      if (statedPreferences?.flavorPreferences && statedPreferences.flavorPreferences.length > 0) {
+        for (const flavor of statedPreferences.flavorPreferences) {
+          const flavorLower = flavor.toLowerCase();
+          
+          // Match dry/sweet to sweetness field
+          if (flavorLower === 'dry' && product.sweetness?.toLowerCase().includes('dry')) {
+            score += 2;
+          }
+          if (flavorLower === 'sweet' && product.sweetness?.toLowerCase().includes('sweet')) {
+            score += 2;
+          }
+          
+          // Match bold/light to body field
+          if (flavorLower === 'bold' && product.body?.toLowerCase().includes('full')) {
+            score += 2;
+          }
+          if (flavorLower === 'light' && product.body?.toLowerCase().includes('light')) {
+            score += 2;
+          }
+          
+          // Match fruity/complex/smooth to characteristics or tasting notes
+          const searchText = `${product.characteristics || ''} ${product.tastingNotes || ''}`.toLowerCase();
+          if (searchText.includes(flavorLower)) {
+            score += 1;
+          }
+        }
+      }
+
+      // Boost favorites categories
+      const favoriteCategories = favorites.map(f => f.product.category);
+      if (favoriteCategories.includes(product.category)) {
+        score += 1;
+      }
+
+      return score;
+    };
+
+    // Score all products and sort by score
+    const scoredProducts = availableProducts
+      .map(product => ({ product, score: scoreProduct(product) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (scoredProducts.length > 0) {
+      console.log("[AI Recommendations] Fallback: Using", scoredProducts.length, "scored matches");
+      return scoredProducts
+        .slice(0, 6)
+        .map(({ product }) => ({
           product,
-          reason: `Based on your interest in ${statedPreferences.beverageTypes.join(" and ")}, this ${product.category} is a great choice.`,
+          reason: `Based on your preferences, this ${product.category} is a great match.`,
         }));
     }
 
-    // Last resort: just recommend any available products
+    // If still no matches, just use any available products
     console.log("[AI Recommendations] Fallback: Using any available products");
     return availableProducts
       .slice(0, 4)
