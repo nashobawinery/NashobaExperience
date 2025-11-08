@@ -310,7 +310,11 @@ export default function VideoManager() {
                         <Input 
                           type="number" 
                           {...field} 
-                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          value={field.value ?? 0}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                            field.onChange(isNaN(value) ? 0 : value);
+                          }}
                           data-testid="input-video-sort-order"
                         />
                       </FormControl>
