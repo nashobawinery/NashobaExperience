@@ -173,7 +173,7 @@ Respond in JSON format:
       .filter((rec: RecommendedProduct | null): rec is RecommendedProduct => rec !== null);
 
     // CRITICAL: Apply strict filtering to AI recommendations (AI doesn't always follow rules)
-    const filteredRecommendations = mappedRecommendations.filter(rec => {
+    const filteredRecommendations = mappedRecommendations.filter((rec: RecommendedProduct) => {
       const product = rec.product;
       
       // STRICT beverage type filtering
