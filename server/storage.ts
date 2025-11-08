@@ -61,6 +61,12 @@ export interface IStorage {
   createGuestSession(session: InsertGuestSession): Promise<GuestSession>;
   getGuestSession(id: string): Promise<GuestSession | undefined>;
   updateSessionActivity(id: string): Promise<void>;
+  updateGuestPreferences(
+    id: string,
+    beverageTypes: string[],
+    flavorPreferences: string[],
+    occasion?: string
+  ): Promise<GuestSession>;
 
   // Favorites
   getFavorites(sessionId: string): Promise<(Favorite & { product: Product })[]>;
@@ -236,6 +242,24 @@ export class DatabaseStorage implements IStorage {
 
   async updateSessionActivity(id: string): Promise<void> {
     await db.update(guestSessions).set({ lastActiveAt: new Date() }).where(eq(guestSessions.id, id));
+  }
+
+  async updateGuestPreferences(
+    id: string,
+    beverageTypes: string[],
+    flavorPreferences: string[],
+    occasion?: string
+  ): Promise<GuestSession> {
+    const result = await db
+      .update(guestSessions)
+      .set({
+        preferredBeverageTypes: beverageTypes,
+        flavorPreferences: flavorPreferences,
+        occasion: occasion || null,
+      })
+      .where(eq(guestSessions.id, id))
+      .returning();
+    return result[0];
   }
 
   async getFavorites(sessionId: string): Promise<(Favorite & { product: Product })[]> {

@@ -44,6 +44,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  app.put("/api/sessions/:id/preferences", async (req, res) => {
+    try {
+      const session = await storage.updateGuestPreferences(
+        req.params.id,
+        req.body.beverageTypes,
+        req.body.flavorPreferences,
+        req.body.occasion
+      );
+      res.json(session);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
   // Products
   app.get("/api/products", async (req, res) => {
     const filters = {
@@ -462,19 +476,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Recommendations endpoint
   app.get("/api/sessions/:sessionId/recommendations", async (req, res) => {
     try {
-      const [favorites, viewHistory, cartItems, allProducts] = await Promise.all([
+      const [session, favorites, viewHistory, cartItems, allProducts] = await Promise.all([
+        storage.getGuestSession(req.params.sessionId),
         storage.getFavorites(req.params.sessionId),
         storage.getViewHistory(req.params.sessionId),
         storage.getCartItems(req.params.sessionId),
         storage.getProducts(),
       ]);
 
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
       const { generateRecommendations } = await import("./ai-recommendations");
       
+      // Build stated preferences if available
+      const statedPreferences = session.preferredBeverageTypes || session.flavorPreferences
+        ? {
+            beverageTypes: session.preferredBeverageTypes || [],
+            flavorPreferences: session.flavorPreferences || [],
+            occasion: session.occasion || undefined,
+          }
+        : undefined;
+
       const recommendations = await generateRecommendations(allProducts, {
         favorites,
         viewHistory,
         cartItems,
+        statedPreferences,
       });
 
       res.json(recommendations);

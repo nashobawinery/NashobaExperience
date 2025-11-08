@@ -12,6 +12,7 @@ import BottomNav from "@/components/BottomNav";
 import ShoppingCartPanel from "@/components/ShoppingCartPanel";
 import FavoritesPanel from "@/components/FavoritesPanel";
 import AIRecommendations from "@/components/AIRecommendations";
+import PreferenceQuestionnaire from "@/components/PreferenceQuestionnaire";
 import TriviaPopup from "@/components/TriviaPopup";
 import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
 import DiscountInfoPopup from "@/components/DiscountInfoPopup";
@@ -255,8 +256,15 @@ export default function GuestApp() {
     return () => clearTimeout(timer);
   }, [sessionId, showIntroduction]);
 
+  const { data: sessionData } = useQuery({
+    queryKey: ["/api/sessions", sessionId],
+    queryFn: () => fetch(`/api/sessions/${sessionId}`).then(r => r.json()),
+    enabled: !!sessionId,
+  });
+
   const totalInteractions = favoritesData.length + viewHistoryData.length;
-  const shouldFetchRecommendations = !!sessionId && totalInteractions >= 2;
+  const hasStatedPreferences = sessionData?.preferredBeverageTypes && sessionData.preferredBeverageTypes.length > 0;
+  const shouldFetchRecommendations = !!sessionId && (totalInteractions >= 2 || hasStatedPreferences);
 
   const { data: recommendationsData = [], isLoading: recommendationsLoading } = useQuery({
     queryKey: ["/api/sessions", sessionId, "recommendations"],
@@ -422,6 +430,26 @@ export default function GuestApp() {
       toast({
         title: "Error",
         description: "Failed to send favorites email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const savePreferencesMutation = useMutation({
+    mutationFn: (preferences: { beverageTypes: string[]; flavorPreferences: string[]; occasion?: string }) =>
+      api.updateGuestPreferences(sessionId!, preferences.beverageTypes, preferences.flavorPreferences, preferences.occasion),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "recommendations"] });
+      toast({
+        title: "Preferences saved!",
+        description: "Generating personalized recommendations for you",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save preferences",
         variant: "destructive",
       });
     },
@@ -734,22 +762,29 @@ export default function GuestApp() {
         )}
 
         {activeTab === 'recommendations' && (
-          <AIRecommendations
-            products={recommendationsData.map(rec => ({
-              id: rec.product.id,
-              name: rec.product.name,
-              category: rec.product.category,
-              price: parseFloat(rec.product.price),
-              image: rec.product.imageUrl || '',
-              description: rec.product.description || '',
-              reason: rec.reason,
-            }))}
-            isLoading={recommendationsLoading}
-            onRefresh={handleRefreshRecommendations}
-            onProductClick={handleProductClick}
-            onAddToCart={handleAddToCart}
-            onFavoriteToggle={handleFavoriteToggle}
-          />
+          !hasStatedPreferences && totalInteractions < 2 ? (
+            <PreferenceQuestionnaire
+              onSubmit={(preferences) => savePreferencesMutation.mutate(preferences)}
+              isLoading={savePreferencesMutation.isPending}
+            />
+          ) : (
+            <AIRecommendations
+              products={recommendationsData.map(rec => ({
+                id: rec.product.id,
+                name: rec.product.name,
+                category: rec.product.category,
+                price: parseFloat(rec.product.price),
+                image: rec.product.imageUrl || '',
+                description: rec.product.description || '',
+                reason: rec.reason,
+              }))}
+              isLoading={recommendationsLoading}
+              onRefresh={handleRefreshRecommendations}
+              onProductClick={handleProductClick}
+              onAddToCart={handleAddToCart}
+              onFavoriteToggle={handleFavoriteToggle}
+            />
+          )
         )}
 
         {activeTab === 'cart' && (

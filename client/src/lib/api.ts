@@ -16,6 +16,21 @@ export async function updateSessionActivity(sessionId: string): Promise<void> {
   });
 }
 
+export async function updateGuestPreferences(
+  sessionId: string,
+  beverageTypes: string[],
+  flavorPreferences: string[],
+  occasion?: string
+): Promise<GuestSession> {
+  const response = await fetch(`/api/sessions/${sessionId}/preferences`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ beverageTypes, flavorPreferences, occasion }),
+  });
+  if (!response.ok) throw new Error("Failed to update preferences");
+  return response.json();
+}
+
 export async function getProducts(filters?: {
   search?: string;
   category?: string;

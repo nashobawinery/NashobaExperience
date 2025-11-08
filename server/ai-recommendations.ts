@@ -9,16 +9,26 @@ interface GuestPreferenceData {
   favorites: Array<{ product: Product; note?: string | null }>;
   viewHistory: Array<{ product: Product; viewCount: number }>;
   cartItems: Array<{ product: Product; quantity: number }>;
+  statedPreferences?: {
+    beverageTypes: string[];
+    flavorPreferences: string[];
+    occasion?: string;
+  };
 }
 
 export async function generateRecommendations(
   allProducts: Product[],
   preferenceData: GuestPreferenceData
 ): Promise<Array<{ product: Product; reason: string }>> {
-  const { favorites, viewHistory, cartItems } = preferenceData;
+  const { favorites, viewHistory, cartItems, statedPreferences } = preferenceData;
 
-  // If no preference data, return empty recommendations
-  if (favorites.length === 0 && viewHistory.length === 0 && cartItems.length === 0) {
+  // If no preference data at all, return empty recommendations
+  if (
+    favorites.length === 0 && 
+    viewHistory.length === 0 && 
+    cartItems.length === 0 &&
+    (!statedPreferences || statedPreferences.beverageTypes.length === 0)
+  ) {
     return [];
   }
 
@@ -69,17 +79,28 @@ export async function generateRecommendations(
     body: p.body,
   }));
 
+  // Build stated preferences section if available
+  let statedPreferencesText = "";
+  if (statedPreferences && statedPreferences.beverageTypes.length > 0) {
+    statedPreferencesText = `
+Guest's Stated Preferences:
+- Preferred Beverage Types: ${statedPreferences.beverageTypes.join(", ")}
+${statedPreferences.flavorPreferences.length > 0 ? `- Flavor Preferences: ${statedPreferences.flavorPreferences.join(", ")}` : ""}
+${statedPreferences.occasion ? `- Occasion: ${statedPreferences.occasion}` : ""}
+`;
+  }
+
   const prompt = `You are an expert sommelier at Nashoba Winery helping a guest discover new products based on their preferences.
-
-Guest's Favorited Products:
+${statedPreferencesText}
+${favoritedProducts.length > 0 ? `Guest's Favorited Products:
 ${JSON.stringify(favoritedProducts, null, 2)}
-
-Products Guest Viewed:
+` : ""}
+${viewedProducts.length > 0 ? `Products Guest Viewed:
 ${JSON.stringify(viewedProducts, null, 2)}
-
-Products in Cart:
+` : ""}
+${cartProducts.length > 0 ? `Products in Cart:
 ${JSON.stringify(cartProducts, null, 2)}
-
+` : ""}
 Available Products to Recommend From:
 ${JSON.stringify(productList, null, 2)}
 
@@ -88,7 +109,7 @@ Based on the guest's preferences, recommend 4-6 products from the available list
 2. A brief, personalized reason why this product matches their preferences (1-2 sentences, written in friendly sommelier tone)
 
 Consider:
-- Wine characteristics they've shown interest in (color, sweetness, body)
+${statedPreferences ? "- Their stated beverage type and flavor preferences\n" : ""}- Wine characteristics they've shown interest in (color, sweetness, body)
 - Tasting note patterns
 - Their notes on favorites
 - Price range they're comfortable with
