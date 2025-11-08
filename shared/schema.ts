@@ -53,6 +53,7 @@ export const guestSessions = pgTable("guest_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   guestName: text("guest_name").notNull(),
   preferredBeverageTypes: text("preferred_beverage_types").array(),
+  wineColors: text("wine_colors").array(),
   flavorPreferences: text("flavor_preferences").array(),
   occasion: text("occasion"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

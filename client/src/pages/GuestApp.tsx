@@ -452,8 +452,8 @@ export default function GuestApp() {
   });
 
   const savePreferencesMutation = useMutation({
-    mutationFn: (preferences: { beverageTypes: string[]; flavorPreferences: string[]; occasion?: string }) =>
-      api.updateGuestPreferences(sessionId!, preferences.beverageTypes, preferences.flavorPreferences, preferences.occasion),
+    mutationFn: (preferences: { beverageTypes: string[]; wineColors?: string[]; flavorPreferences: string[]; occasion?: string }) =>
+      api.updateGuestPreferences(sessionId!, preferences.beverageTypes, preferences.flavorPreferences, preferences.wineColors, preferences.occasion),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "recommendations"] });

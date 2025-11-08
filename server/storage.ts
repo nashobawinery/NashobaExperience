@@ -68,6 +68,7 @@ export interface IStorage {
     id: string,
     beverageTypes: string[],
     flavorPreferences: string[],
+    wineColors?: string[],
     occasion?: string
   ): Promise<GuestSession>;
 
@@ -259,6 +260,7 @@ export class DatabaseStorage implements IStorage {
     id: string,
     beverageTypes: string[],
     flavorPreferences: string[],
+    wineColors?: string[],
     occasion?: string
   ): Promise<GuestSession> {
     const result = await db
@@ -266,6 +268,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         preferredBeverageTypes: beverageTypes,
         flavorPreferences: flavorPreferences,
+        wineColors: wineColors || null,
         occasion: occasion || null,
       })
       .where(eq(guestSessions.id, id))

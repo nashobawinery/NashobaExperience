@@ -86,6 +86,8 @@ export async function generateRecommendations(
     body: p.body,
   }));
 
+  console.log('[AI Recommendations] Sample product tags format:', availableProducts[0]?.tags);
+
   // Build stated preferences section if available
   let statedPreferencesText = "";
   if (statedPreferences && statedPreferences.beverageTypes.length > 0) {
@@ -196,11 +198,32 @@ Respond in JSON format:
 
       // STRICT wine color filtering - product MUST match if wine colors specified
       if (statedPreferences?.wineColors && statedPreferences.wineColors.length > 0) {
-        const searchableText = `${product.description || ''} ${(product.tags || []).join(' ')}`.toLowerCase();
+        // Parse tags if they're JSON strings, otherwise use as-is
+        let tagsText = '';
+        if (product.tags && Array.isArray(product.tags)) {
+          tagsText = product.tags.map(tag => {
+            // If tag is a JSON string, try to extract color value
+            if (typeof tag === 'string' && tag.includes('"color"')) {
+              try {
+                const parsed = JSON.parse(tag + '}'); // Complete the JSON object
+                return parsed.color || '';
+              } catch {
+                return tag;
+              }
+            }
+            return tag;
+          }).join(' ');
+        }
+        
+        const searchableText = `${product.description || ''} ${tagsText}`.toLowerCase();
+        console.log(`[AI Fallback] Checking ${product.name}: searchableText="${searchableText}", wineColors=${JSON.stringify(statedPreferences.wineColors)}`);
+        
         const matchesWineColor = statedPreferences.wineColors.some(color => 
           searchableText.includes(color.toLowerCase())
         );
+        
         if (!matchesWineColor) {
+          console.log(`[AI Fallback] ${product.name} EXCLUDED - no wine color match`);
           return 0; // Exclude products that don't match any selected wine color
         }
         score += 3; // High weight for wine color match
