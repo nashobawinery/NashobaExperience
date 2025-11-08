@@ -50,17 +50,14 @@ export default function PreSurveyDialog({
     }
   };
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (wantNone) {
       onComplete();
       return;
     }
 
-    let completed = true;
-
     if (wantOrder && hasCartItems) {
       onPlaceOrder();
-      completed = false;
     }
 
     if (wantEmail && hasFavorites) {
@@ -68,16 +65,11 @@ export default function PreSurveyDialog({
         return;
       }
       onEmailFavorites(email);
-      completed = false;
-    }
-
-    if (completed || (!wantOrder && !wantEmail)) {
-      onComplete();
     }
   };
 
   const isLoading = isPlacingOrder || isEmailingFavorites;
-  const canContinue = wantNone || wantOrder || (wantEmail && email.trim()) || (!wantOrder && !wantEmail);
+  const canContinue = wantNone || (wantOrder && hasCartItems) || (wantEmail && hasFavorites && email.trim());
 
   return (
     <Dialog open={open}>

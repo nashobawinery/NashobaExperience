@@ -33,6 +33,10 @@ export default function GuestApp() {
   const [showIntroduction, setShowIntroduction] = useState(false);
   const [showPreSurveyDialog, setShowPreSurveyDialog] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
+  const [preSurveyActionsRequested, setPreSurveyActionsRequested] = useState<{
+    order: boolean;
+    email: boolean;
+  }>({ order: false, email: false });
   
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -586,6 +590,8 @@ export default function GuestApp() {
   };
 
   const handlePreSurveyPlaceOrder = () => {
+    setPreSurveyActionsRequested(prev => ({ ...prev, order: true }));
+    
     const wineSpiritsCount = cartItemsArray
       .filter(item => ['Wine', 'Spirits'].includes(item.category))
       .reduce((sum, item) => sum + item.quantity, 0);
@@ -609,27 +615,49 @@ export default function GuestApp() {
       discount: discountAmount,
       triviaCredit,
       total,
-    }, {
-      onSuccess: () => {
-        setShowPreSurveyDialog(false);
-        setShowSurvey(true);
-      }
     });
   };
 
   const handlePreSurveyEmailFavorites = (email: string) => {
-    emailFavoritesMutation.mutate(email, {
-      onSuccess: () => {
-        setShowPreSurveyDialog(false);
-        setShowSurvey(true);
-      }
-    });
+    setPreSurveyActionsRequested(prev => ({ ...prev, email: true }));
+    emailFavoritesMutation.mutate(email);
   };
 
   const handlePreSurveyComplete = () => {
     setShowPreSurveyDialog(false);
     setShowSurvey(true);
+    setPreSurveyActionsRequested({ order: false, email: false });
   };
+
+  useEffect(() => {
+    if (showPreSurveyDialog) {
+      emailCartMutation.reset();
+      emailFavoritesMutation.reset();
+      setPreSurveyActionsRequested({ order: false, email: false });
+    }
+  }, [showPreSurveyDialog]);
+
+  useEffect(() => {
+    const orderRequested = preSurveyActionsRequested.order;
+    const emailRequested = preSurveyActionsRequested.email;
+    
+    if (!orderRequested && !emailRequested) {
+      return;
+    }
+
+    const orderCompleted = !orderRequested || emailCartMutation.isSuccess;
+    const emailCompleted = !emailRequested || emailFavoritesMutation.isSuccess;
+
+    if (orderCompleted && emailCompleted) {
+      setShowPreSurveyDialog(false);
+      setShowSurvey(true);
+      setPreSurveyActionsRequested({ order: false, email: false });
+    }
+  }, [
+    preSurveyActionsRequested,
+    emailCartMutation.isSuccess,
+    emailFavoritesMutation.isSuccess,
+  ]);
 
   const viewHistoryMap = useMemo(() => {
     const map: Record<string, number> = {};
