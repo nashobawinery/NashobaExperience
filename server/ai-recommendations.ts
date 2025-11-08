@@ -22,6 +22,13 @@ export async function generateRecommendations(
 ): Promise<Array<{ product: Product; reason: string }>> {
   const { favorites, viewHistory, cartItems, statedPreferences } = preferenceData;
 
+  console.log("[AI Recommendations] Generating recommendations with:", {
+    favoritesCount: favorites.length,
+    viewHistoryCount: viewHistory.length,
+    cartItemsCount: cartItems.length,
+    statedPreferences,
+  });
+
   // If no preference data at all, return empty recommendations
   if (
     favorites.length === 0 && 
@@ -29,6 +36,7 @@ export async function generateRecommendations(
     cartItems.length === 0 &&
     (!statedPreferences || statedPreferences.beverageTypes.length === 0)
   ) {
+    console.log("[AI Recommendations] Returning empty - no preference data");
     return [];
   }
 
@@ -159,23 +167,52 @@ Respond in JSON format:
       .filter((rec): rec is { product: Product; reason: string } => rec !== null)
       .slice(0, 6);
 
+    console.log("[AI Recommendations] Generated", recommendedProducts.length, "recommendations");
     return recommendedProducts;
   } catch (error) {
-    console.error("Error generating AI recommendations:", error);
+    console.error("[AI Recommendations] Error generating AI recommendations, using fallback:", error);
     
     // Fallback: Simple rule-based recommendations if AI fails
-    const fallbackRecs = availableProducts
-      .filter(p => {
-        // Recommend products in same categories as favorites
-        const favoriteCategories = favorites.map(f => f.product.category);
-        return favoriteCategories.includes(p.category);
-      })
+    // Try to match categories first
+    const favoriteCategories = favorites.map(f => f.product.category);
+    const categoryMatches = availableProducts.filter(p => 
+      favoriteCategories.includes(p.category)
+    );
+
+    // If we have category matches, use them
+    if (categoryMatches.length > 0) {
+      console.log("[AI Recommendations] Fallback: Using", categoryMatches.length, "category matches");
+      return categoryMatches
+        .slice(0, 4)
+        .map(product => ({
+          product,
+          reason: `Similar to products you've enjoyed in the ${product.category} category.`,
+        }));
+    }
+
+    // Otherwise, use stated preferences if available
+    if (statedPreferences && statedPreferences.beverageTypes.length > 0) {
+      const preferenceMatches = availableProducts.filter(p =>
+        statedPreferences.beverageTypes.some(type => 
+          p.category.toLowerCase().includes(type.toLowerCase())
+        )
+      );
+      console.log("[AI Recommendations] Fallback: Using", preferenceMatches.length, "preference matches for", statedPreferences.beverageTypes.join(", "));
+      return preferenceMatches
+        .slice(0, 4)
+        .map(product => ({
+          product,
+          reason: `Based on your interest in ${statedPreferences.beverageTypes.join(" and ")}, this ${product.category} is a great choice.`,
+        }));
+    }
+
+    // Last resort: just recommend any available products
+    console.log("[AI Recommendations] Fallback: Using any available products");
+    return availableProducts
       .slice(0, 4)
       .map(product => ({
         product,
-        reason: `Similar to products you've enjoyed in the ${product.category} category.`,
+        reason: `We think you'll enjoy this ${product.category}.`,
       }));
-
-    return fallbackRecs;
   }
 }

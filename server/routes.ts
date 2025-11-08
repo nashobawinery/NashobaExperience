@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { generateRecommendations } = await import("./ai-recommendations");
       
       // Build stated preferences if available
-      const statedPreferences = session.preferredBeverageTypes || session.flavorPreferences
+      const statedPreferences = (session.preferredBeverageTypes?.length || session.flavorPreferences?.length || session.occasion)
         ? {
             beverageTypes: session.preferredBeverageTypes || [],
             flavorPreferences: session.flavorPreferences || [],

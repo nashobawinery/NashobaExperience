@@ -21,15 +21,16 @@ Preferred communication style: Simple, everyday language.
 
 - **Server**: Express.js with TypeScript, implementing a RESTful API. Handles session tracking without authentication.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (via Neon serverless driver) and schema management.
-- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions`, `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), `slideshow_images` (for welcome slideshows), and `media_library` (for cloud-stored image/file management).
+- **Database Schema**: Includes `products` (with 32+ fields, `ignoreInventory`, dedicated `sweetness` and `body` search criteria fields), `guest_sessions` (with preference fields: `preferredBeverageTypes`, `flavorPreferences`, `occasion`), `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (for dynamic filter management), `slideshow_images` (for welcome slideshows), and `media_library` (for cloud-stored image/file management).
 - **Business Logic**: Implements automatic tier-based discount calculation (5-24% off), trivia credit rewards ($5 for 10/10), and a multi-algorithm product recommendation engine.
 - **Inventory Management**: Features a per-product `ignoreInventory` flag for fine-grained stock control.
 - **Dynamic Filtering**: A database-driven system supports 5 customizable filter types (category, wine_color, sweetness, body, characteristics) with CRUD operations for options, sort orders, and active/inactive states.
 
 ### AI Integration
 
-- **OpenAI**: Utilizes GPT-4o-mini for a recommendation engine that analyzes guest preferences (favorites, view history, cart) to provide sommelier-style product matching with natural language explanations. Requires a minimum of 2 guest interactions.
-- **Recommendation Strategies**: Includes characteristic-based, favorites-based, and AI-powered advanced analysis.
+- **OpenAI**: Utilizes GPT-4o-mini for a recommendation engine that analyzes guest preferences (favorites, view history, cart, stated preferences) to provide sommelier-style product matching with natural language explanations.
+- **Preference Questionnaire**: When guests have fewer than 2 interactions and no stated preferences, they're prompted to complete a questionnaire selecting their preferred beverage types (Wine, Beer, Spirits, Cider, etc.) and flavor preferences (Sweet, Dry, Fruity, Balanced, etc.). These stated preferences are stored in the database and used to generate AI recommendations even without browsing history.
+- **Recommendation Strategies**: Includes characteristic-based, favorites-based, stated-preference-based, and AI-powered advanced analysis with intelligent fallback logic.
 
 ### Email System
 
