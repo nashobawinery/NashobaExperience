@@ -27,8 +27,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image } from "lucide-react";
-import { useState } from "react";
+import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image, Upload } from "lucide-react";
+import { useState, useRef } from "react";
 import type { SlideshowImage, MediaLibrary } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -54,6 +54,9 @@ export default function SlideshowImageManager() {
   const { toast } = useToast();
   const [editingImage, setEditingImage] = useState<SlideshowImage | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: images = [], isLoading } = useQuery<SlideshowImage[]>({
     queryKey: ["/api/slideshow-images"],
@@ -187,7 +190,64 @@ export default function SlideshowImageManager() {
       isActive: true,
       isRequired: false,
     });
+    setUploadPreview(null);
     setIsDialogOpen(true);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'slideshow');
+      formData.append('description', 'Slideshow image');
+      formData.append('altText', file.name);
+
+      const response = await fetch('/api/media-library/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const uploadedFile = await response.json();
+      
+      form.setValue('imageUrl', uploadedFile.publicUrl);
+      setUploadPreview(uploadedFile.publicUrl);
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      
+      toast({
+        title: "Image uploaded successfully",
+        description: "Your image has been uploaded to cloud storage",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   if (isLoading) {
@@ -247,42 +307,77 @@ export default function SlideshowImageManager() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Image</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-image">
-                            <SelectValue placeholder="Select an image from media library" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {imageMediaFiles.length === 0 ? (
-                            <div className="p-4 text-sm text-muted-foreground text-center">
-                              No images in media library. Upload images in the Media Library tab first.
+                      
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            data-testid="input-file-upload"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploading}
+                            className="flex-1"
+                            data-testid="button-upload-image"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            {isUploading ? "Uploading..." : "Upload New Image"}
+                          </Button>
+                        </div>
+
+                        {imageMediaFiles.length > 0 && (
+                          <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <span className="w-full border-t" />
                             </div>
-                          ) : (
-                            imageMediaFiles.map((file) => (
-                              <SelectItem key={file.id} value={file.publicUrl}>
-                                <div className="flex items-center gap-2">
-                                  <Image className="h-4 w-4" />
-                                  {file.filename}
-                                </div>
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                            <div className="relative flex justify-center text-xs uppercase">
+                              <span className="bg-background px-2 text-muted-foreground">
+                                Or select existing
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {imageMediaFiles.length > 0 && (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-image">
+                                <SelectValue placeholder="Select from media library" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {imageMediaFiles.map((file) => (
+                                <SelectItem key={file.id} value={file.publicUrl}>
+                                  <div className="flex items-center gap-2">
+                                    <Image className="h-4 w-4" />
+                                    {file.filename}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      
                       <FormDescription>
-                        Select an image from the media library
+                        Upload a new image or select from your media library
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 
-                {form.watch("imageUrl") && (
+                {(form.watch("imageUrl") || uploadPreview) && (
                   <div className="rounded-lg border p-4 bg-muted/20">
                     <p className="text-sm text-muted-foreground mb-2">Preview:</p>
                     <img
-                      src={form.watch("imageUrl")}
+                      src={uploadPreview || form.watch("imageUrl")}
                       alt="Selected slide"
                       className="max-w-full h-auto max-h-48 rounded object-contain"
                     />
