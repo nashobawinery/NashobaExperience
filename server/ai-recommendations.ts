@@ -47,7 +47,6 @@ export async function generateRecommendations(
     category: f.product.category,
     description: f.product.description,
     tastingNotes: f.product.tastingNotes,
-    wineColor: f.product.wineColor,
     sweetness: f.product.sweetness,
     body: f.product.body,
     guestNote: f.note,
@@ -73,7 +72,7 @@ export async function generateRecommendations(
   const favoritedIds = new Set(favorites.map(f => f.product.id));
   const cartIds = new Set(cartItems.map(c => c.product.id));
   const availableProducts = allProducts.filter(
-    p => !favoritedIds.has(p.id) && !cartIds.has(p.id) && p.stock === 'in-stock'
+    p => !favoritedIds.has(p.id) && !cartIds.has(p.id) && p.available
   );
 
   const productList = availableProducts.map(p => ({
@@ -83,7 +82,7 @@ export async function generateRecommendations(
     price: p.price,
     description: p.description,
     tastingNotes: p.tastingNotes,
-    wineColor: p.wineColor,
+    characteristics: p.characteristics,
     sweetness: p.sweetness,
     body: p.body,
   }));
@@ -157,8 +156,9 @@ Respond in JSON format:
     const recommendations = result.recommendations || [];
 
     // Map recommendations to products
+    type RecommendedProduct = { product: Product; reason: string };
     const recommendedProducts = recommendations
-      .map((rec: { productId: string; reason: string }) => {
+      .map((rec: { productId: string; reason: string }): RecommendedProduct | null => {
         const product = availableProducts.find(p => p.id === rec.productId);
         if (!product) return null;
         return {
@@ -166,7 +166,7 @@ Respond in JSON format:
           reason: rec.reason,
         };
       })
-      .filter((rec): rec is { product: Product; reason: string } => rec !== null)
+      .filter((rec: RecommendedProduct | null): rec is RecommendedProduct => rec !== null)
       .slice(0, 6);
 
     console.log("[AI Recommendations] Generated", recommendedProducts.length, "recommendations");
@@ -188,11 +188,11 @@ Respond in JSON format:
       }
       score += 1; // Base score for matching beverage type
 
-      // Score wine color matches
+      // Score wine color matches by checking characteristics
       if (statedPreferences?.wineColors && statedPreferences.wineColors.length > 0) {
-        const productWineColor = product.wineColor?.toLowerCase();
-        if (productWineColor && statedPreferences.wineColors.some(color => 
-          productWineColor.includes(color.toLowerCase())
+        const characteristics = (product.characteristics || '').toLowerCase();
+        if (statedPreferences.wineColors.some(color => 
+          characteristics.includes(color.toLowerCase())
         )) {
           score += 3; // High weight for wine color match
         }
