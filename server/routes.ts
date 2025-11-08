@@ -16,6 +16,7 @@ import {
   insertFilterOptionSchema,
   insertSlideshowImageSchema,
   insertMediaLibrarySchema,
+  insertVideoSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -943,6 +944,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete file" });
+    }
+  });
+
+  // Videos Management
+  app.get("/api/videos", async (req, res) => {
+    const activeOnly = req.query.activeOnly === 'true';
+    const videos = await storage.getVideos(activeOnly);
+    res.json(videos);
+  });
+
+  app.get("/api/videos/:id", async (req, res) => {
+    const video = await storage.getVideo(req.params.id);
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.json(video);
+  });
+
+  app.post("/api/videos", async (req, res) => {
+    try {
+      const data = insertVideoSchema.parse(req.body);
+      const video = await storage.createVideo(data);
+      res.json(video);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.patch("/api/videos/:id", async (req, res) => {
+    try {
+      const video = await storage.updateVideo(req.params.id, req.body);
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+      res.json(video);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/videos/:id", async (req, res) => {
+    const success = await storage.deleteVideo(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    res.json({ success: true });
+  });
+
+  app.post("/api/videos/reorder", async (req, res) => {
+    try {
+      await storage.updateVideoOrder(req.body.updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
     }
   });
 

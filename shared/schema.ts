@@ -178,6 +178,19 @@ export const mediaLibrary = pgTable("media_library", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const videos = pgTable("videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  videoUrl: text("video_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  duration: text("duration"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const updateProductSchema = insertProductSchema.partial(); // All fields optional for updates
@@ -193,6 +206,7 @@ export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ i
 export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -233,3 +247,6 @@ export type SlideshowImage = typeof slideshowImages.$inferSelect;
 
 export type InsertMediaLibrary = z.infer<typeof insertMediaLibrarySchema>;
 export type MediaLibrary = typeof mediaLibrary.$inferSelect;
+
+export type InsertVideo = z.infer<typeof insertVideoSchema>;
+export type Video = typeof videos.$inferSelect;

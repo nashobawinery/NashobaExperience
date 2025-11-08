@@ -15,6 +15,7 @@ import {
   filterOptions,
   slideshowImages,
   mediaLibrary,
+  videos,
   type InsertProduct,
   type Product,
   type InsertGuestSession,
@@ -41,6 +42,8 @@ import {
   type SlideshowImage,
   type InsertMediaLibrary,
   type MediaLibrary,
+  type InsertVideo,
+  type Video,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -131,6 +134,14 @@ export interface IStorage {
   createMediaLibraryFile(file: InsertMediaLibrary): Promise<MediaLibrary>;
   updateMediaLibraryFile(id: string, file: Partial<InsertMediaLibrary>): Promise<MediaLibrary | undefined>;
   deleteMediaLibraryFile(id: string): Promise<boolean>;
+
+  // Videos
+  getVideos(activeOnly?: boolean): Promise<Video[]>;
+  getVideo(id: string): Promise<Video | undefined>;
+  createVideo(video: InsertVideo): Promise<Video>;
+  updateVideo(id: string, video: Partial<InsertVideo>): Promise<Video | undefined>;
+  deleteVideo(id: string): Promise<boolean>;
+  updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -625,6 +636,50 @@ export class DatabaseStorage implements IStorage {
   async deleteMediaLibraryFile(id: string): Promise<boolean> {
     const result = await db.delete(mediaLibrary).where(eq(mediaLibrary.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Videos
+  async getVideos(activeOnly?: boolean): Promise<Video[]> {
+    let query = db.select().from(videos).orderBy(videos.sortOrder);
+    
+    if (activeOnly) {
+      query = query.where(eq(videos.isActive, true)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getVideo(id: string): Promise<Video | undefined> {
+    const result = await db.select().from(videos).where(eq(videos.id, id));
+    return result[0];
+  }
+
+  async createVideo(video: InsertVideo): Promise<Video> {
+    const result = await db.insert(videos).values(video).returning();
+    return result[0];
+  }
+
+  async updateVideo(id: string, video: Partial<InsertVideo>): Promise<Video | undefined> {
+    const result = await db
+      .update(videos)
+      .set({ ...video, updatedAt: new Date() })
+      .where(eq(videos.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteVideo(id: string): Promise<boolean> {
+    const result = await db.delete(videos).where(eq(videos.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void> {
+    for (const update of updates) {
+      await db
+        .update(videos)
+        .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
+        .where(eq(videos.id, update.id));
+    }
   }
 }
 
