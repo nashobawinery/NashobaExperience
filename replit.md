@@ -38,7 +38,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 
-- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
+- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation. Notes can be added to any product.
+- **Pre-Survey Dialog**: Before completing the tasting survey, guests are presented with optional actions: place an order for cart items (sent to staff), email their favorites list to themselves, or skip both. The dialog enforces explicit selection and waits for all requested actions to complete before showing the survey. Provides proper error handling and retry capabilities if actions fail.
 - **Admin Dashboard**: Comprehensive CRUD operations for products, per-product inventory control, dynamic filter and slideshow image management (upload, edit, delete, reorder, activate/deactivate), trivia management, a QR code generator for guest app access, media library for cloud file storage, settings, bulk product import/export.
 
 ## Email System Status
