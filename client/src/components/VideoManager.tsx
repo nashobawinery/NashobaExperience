@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -216,7 +217,7 @@ export default function VideoManager() {
               Add Video
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>{editingVideo ? "Edit Video" : "Add New Video"}</DialogTitle>
               <DialogDescription>
@@ -224,7 +225,9 @@ export default function VideoManager() {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+                <ScrollArea className="max-h-[50vh] pr-4">
+                  <div className="space-y-4 py-4">
                 <FormField
                   control={form.control}
                   name="title"
@@ -344,8 +347,10 @@ export default function VideoManager() {
                     </FormItem>
                   )}
                 />
+                  </div>
+                </ScrollArea>
 
-                <div className="flex justify-end gap-3 pt-4">
+                <div className="flex justify-end gap-3 border-t pt-4">
                   <Button
                     type="button"
                     variant="outline"
