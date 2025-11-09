@@ -245,6 +245,18 @@ function parseObjectPath(path: string): {
   bucketName: string;
   objectName: string;
 } {
+  if (path.startsWith("https://storage.googleapis.com/")) {
+    const url = new URL(path);
+    const pathnameParts = url.pathname.split("/").filter(p => p);
+    if (pathnameParts.length < 2) {
+      throw new Error("Invalid storage URL: must contain bucket and object name");
+    }
+    return {
+      bucketName: pathnameParts[0],
+      objectName: pathnameParts.slice(1).join("/"),
+    };
+  }
+  
   if (!path.startsWith("/")) {
     path = `/${path}`;
   }
