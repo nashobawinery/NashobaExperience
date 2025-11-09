@@ -202,26 +202,6 @@ export default function GuestApp() {
     return () => clearInterval(interval);
   }, [sessionId, nextTriviaQuestion, triviaScores.length, showIntroduction, showTriviaInfo, triviaIntervalSeconds]);
 
-  // Show trivia info popup immediately on first visit (after intro modal is closed)
-  useEffect(() => {
-    if (!sessionId || showIntroduction) {
-      return;
-    }
-
-    // Check if popup has been shown before
-    const hasSeenTriviaInfo = localStorage.getItem('hasSeenTriviaInfo');
-    if (hasSeenTriviaInfo) {
-      return;
-    }
-
-    // Show popup immediately after intro closes (small delay to avoid visual overlap)
-    const timer = setTimeout(() => {
-      setShowTriviaInfo(true);
-      localStorage.setItem('hasSeenTriviaInfo', 'true');
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [sessionId, showIntroduction]);
 
   // Show favorites info popup after 10 minutes on first visit (after intro modal is closed)
   useEffect(() => {
@@ -1094,7 +1074,17 @@ export default function GuestApp() {
 
       <IntroductionModal
         open={showIntroduction}
-        onContinue={() => setShowIntroduction(false)}
+        onContinue={() => {
+          setShowIntroduction(false);
+          // Show trivia info popup immediately after introduction closes (first time only)
+          const hasSeenTriviaInfo = localStorage.getItem('hasSeenTriviaInfo');
+          if (!hasSeenTriviaInfo) {
+            setTimeout(() => {
+              setShowTriviaInfo(true);
+              localStorage.setItem('hasSeenTriviaInfo', 'true');
+            }, 500);
+          }
+        }}
         guestName={guestName}
       />
 
