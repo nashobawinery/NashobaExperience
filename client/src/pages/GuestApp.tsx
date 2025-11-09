@@ -201,7 +201,7 @@ export default function GuestApp() {
 
   // Show trivia info popup after 5 seconds on first visit (after intro modal is closed)
   useEffect(() => {
-    if (!sessionId || activeTab !== 'browse' || showIntroduction) {
+    if (!sessionId || showIntroduction) {
       return;
     }
 
@@ -218,7 +218,7 @@ export default function GuestApp() {
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [sessionId, activeTab, showIntroduction]);
+  }, [sessionId, showIntroduction]);
 
   // Show favorites info popup after 10 minutes on first visit (after intro modal is closed)
   useEffect(() => {
