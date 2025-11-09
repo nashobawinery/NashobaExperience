@@ -267,7 +267,7 @@ export function MediaLibrary() {
               <CardContent className="space-y-2">
                 {file.mimeType.startsWith('image/') ? (
                   <img
-                    src={file.publicUrl}
+                    src={`/api/media-library/${file.id}/file`}
                     alt={file.altText || file.originalFilename}
                     className="w-full h-40 object-cover rounded"
                   />

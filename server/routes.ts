@@ -892,6 +892,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(file);
   });
 
+  app.get("/api/media-library/:id/file", async (req, res) => {
+    try {
+      const file = await storage.getMediaLibraryFile(req.params.id);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      await objectStorageService.downloadObjectEntity(file.objectPath, res);
+    } catch (error) {
+      console.error('Error serving media file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Error loading file" });
+      }
+    }
+  });
+
   app.post("/api/media-library", async (req, res) => {
     try {
       const data = insertMediaLibrarySchema.parse(req.body);
