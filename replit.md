@@ -40,7 +40,7 @@ Preferred communication style: Simple, everyday language.
 - Server-side HTML email templates for sending cart orders and favorites summaries, including guest notes and discount breakdowns. Features a robust fallback mechanism for domain verification issues.
 
 ### Key Features
-- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, educational videos, progressive educational popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation.
+- **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, educational videos, progressive educational popups, auto-popup trivia with rewards dialog (displays achievement and reward after completing all 10 questions), shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation.
 - **Pre-Survey Dialog**: Presents guests with optional actions (order cart, email favorites) before the tasting survey, with error handling and retry capabilities.
 - **Admin Dashboard**: Comprehensive CRUD for products, inventory control, dynamic filter and slideshow image management, video management, trivia management, QR code generator, media library for cloud file storage, settings, and bulk product import/export.
 

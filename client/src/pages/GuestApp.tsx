@@ -15,6 +15,7 @@ import AIRecommendations from "@/components/AIRecommendations";
 import PreferenceQuestionnaire from "@/components/PreferenceQuestionnaire";
 import PreSurveyDialog from "@/components/PreSurveyDialog";
 import TriviaPopup from "@/components/TriviaPopup";
+import TriviaRewardsDialog from "@/components/TriviaRewardsDialog";
 import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
 import DiscountInfoPopup from "@/components/DiscountInfoPopup";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ export default function GuestApp() {
   
   const [showTrivia, setShowTrivia] = useState(false);
   const [showTriviaInfo, setShowTriviaInfo] = useState(false);
+  const [showTriviaRewards, setShowTriviaRewards] = useState(false);
+  const [triviaFinalScore, setTriviaFinalScore] = useState({ score: 0, total: 0 });
   const [showFavoritesInfo, setShowFavoritesInfo] = useState(false);
   const [showDiscountInfo, setShowDiscountInfo] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -548,11 +551,10 @@ export default function GuestApp() {
             const newScore = triviaScores.filter(s => s.isCorrect).length + (correct ? 1 : 0);
             const newTotal = triviaScores.length + 1;
             
-            if (newTotal === 10 && newScore === 10) {
-              toast({
-                title: "🎉 Perfect Score!",
-                description: "$5 credit added to your cart!",
-              });
+            // Show rewards dialog when all 10 questions are answered
+            if (newTotal === 10) {
+              setTriviaFinalScore({ score: newScore, total: newTotal });
+              setShowTriviaRewards(true);
             }
           },
         }
@@ -1040,6 +1042,13 @@ export default function GuestApp() {
           onClose={() => setShowTrivia(false)}
         />
       )}
+
+      <TriviaRewardsDialog
+        open={showTriviaRewards}
+        onClose={() => setShowTriviaRewards(false)}
+        score={triviaFinalScore.score}
+        total={triviaFinalScore.total}
+      />
 
       <ProductDetailModal
         product={selectedProduct}
