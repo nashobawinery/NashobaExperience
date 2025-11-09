@@ -18,6 +18,12 @@ const CATEGORIES = [
   { value: 'products', label: 'Product Images' },
   { value: 'slideshow', label: 'Slideshow Images' },
   { value: 'logos', label: 'Logos' },
+  { value: 'backgrounds', label: 'Backgrounds' },
+  { value: 'icons', label: 'Icons' },
+  { value: 'events', label: 'Event Photos' },
+  { value: 'marketing', label: 'Marketing Materials' },
+  { value: 'vineyard', label: 'Vineyard Photos' },
+  { value: 'staff', label: 'Staff Photos' },
   { value: 'uncategorized', label: 'Uncategorized' },
 ];
 
