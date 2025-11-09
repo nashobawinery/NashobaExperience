@@ -202,7 +202,7 @@ export default function GuestApp() {
     return () => clearInterval(interval);
   }, [sessionId, nextTriviaQuestion, triviaScores.length, showIntroduction, showTriviaInfo, triviaIntervalSeconds]);
 
-  // Show trivia info popup after 5 seconds on first visit (after intro modal is closed)
+  // Show trivia info popup immediately on first visit (after intro modal is closed)
   useEffect(() => {
     if (!sessionId || showIntroduction) {
       return;
@@ -214,11 +214,11 @@ export default function GuestApp() {
       return;
     }
 
-    // Show popup after 5 seconds
+    // Show popup immediately after intro closes (small delay to avoid visual overlap)
     const timer = setTimeout(() => {
       setShowTriviaInfo(true);
       localStorage.setItem('hasSeenTriviaInfo', 'true');
-    }, 5000);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [sessionId, showIntroduction]);
