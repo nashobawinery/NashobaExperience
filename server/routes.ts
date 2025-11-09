@@ -395,8 +395,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertSurveySchema.parse({
         sessionId: req.params.sessionId,
-        rating: req.body.rating,
-        feedback: req.body.feedback,
+        easeOfUse: req.body.easeOfUse,
+        helpfulness: req.body.helpfulness,
+        staffReplacement: req.body.staffReplacement,
+        recommendation: req.body.recommendation,
+        favoriteFeature: req.body.favoriteFeature,
+        improvements: req.body.improvements,
+        additionalComments: req.body.additionalComments,
       });
       const survey = await storage.createSurvey(data);
       res.json(survey);
