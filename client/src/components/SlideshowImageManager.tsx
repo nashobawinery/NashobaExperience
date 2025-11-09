@@ -371,7 +371,7 @@ export default function SlideshowImageManager() {
                             </FormControl>
                             <SelectContent>
                               {imageMediaFiles.map((file) => (
-                                <SelectItem key={file.id} value={file.publicUrl}>
+                                <SelectItem key={file.id} value={`/api/media-library/${file.id}/file`}>
                                   <div className="flex items-center gap-2">
                                     <Image className="h-4 w-4" />
                                     {file.filename}
