@@ -170,6 +170,17 @@ export class ObjectStorageService {
     const url = new URL(rawPath);
     const rawObjectPath = url.pathname;
 
+    const publicPaths = this.getPublicObjectSearchPaths();
+    for (const publicPath of publicPaths) {
+      let publicDir = publicPath;
+      if (!publicDir.endsWith("/")) {
+        publicDir = `${publicDir}/`;
+      }
+      if (rawObjectPath.startsWith(publicDir)) {
+        return rawPath;
+      }
+    }
+
     let objectEntityDir = this.getPrivateObjectDir();
     if (!objectEntityDir.endsWith("/")) {
       objectEntityDir = `${objectEntityDir}/`;
@@ -188,6 +199,11 @@ export class ObjectStorageService {
     aclPolicy: ObjectAclPolicy
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
+    
+    if (normalizedPath.startsWith("https://storage.googleapis.com/")) {
+      return normalizedPath;
+    }
+    
     if (!normalizedPath.startsWith("/")) {
       return normalizedPath;
     }
