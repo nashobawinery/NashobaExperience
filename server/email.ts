@@ -162,7 +162,8 @@ export async function sendEmail(to: string, subject: string, html: string, text:
   
   let from = configuredFrom || fallbackFrom;
   
-  console.log(`Attempting to send email from ${from} to ${to}`);
+  // Log email attempt (don't log 'from' as it might expose secrets if misconfigured)
+  console.log(`Attempting to send email to ${to}`);
   
   let { data, error } = await resend.emails.send({
     from,
@@ -202,5 +203,5 @@ export async function sendEmail(to: string, subject: string, html: string, text:
     throw new Error(`Failed to send email: ${error.message || 'Unknown error'}`);
   }
 
-  console.log(`Email sent successfully to ${to} from ${from}:`, data?.id);
+  console.log(`Email sent successfully to ${to}:`, data?.id);
 }
