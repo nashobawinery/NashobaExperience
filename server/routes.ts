@@ -900,7 +900,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const objectStorageService = new ObjectStorageService();
-      await objectStorageService.downloadObjectEntity(file.objectPath, res);
+      const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
+      await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       console.error('Error serving media file:', error);
       if (!res.headersSent) {
