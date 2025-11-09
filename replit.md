@@ -51,7 +51,7 @@ Preferred communication style: Simple, everyday language.
 - **Functionality**: Upload, organize by category, add metadata (description, alt text, tags), copy public URLs, edit, and delete files. Files are cross-environment, but metadata requires syncing.
 
 ### Videos Feature
-- **Functionality**: Full CRUD management for educational videos. Guests can browse active videos in a dedicated tab, with links opening in a new browser tab for external playback. Supports custom thumbnails and customizable display order.
+- **Functionality**: Full CRUD management for educational videos. Guests can browse and watch videos directly within the app using embedded players (supports YouTube, Vimeo, and direct video files). Falls back to external links for non-embeddable formats. Supports custom thumbnails and customizable display order.
 
 ### Database Synchronization
 - **Process**: Comprehensive export/import system using multi-sheet Excel workbooks to synchronize all database configuration (products, filter options, trivia, slideshow images, app settings, media library metadata) between separate preview and published environments.

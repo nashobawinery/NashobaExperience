@@ -940,47 +940,78 @@ export default function GuestApp() {
               </div>
             ) : (
               <div className="space-y-6">
-                {videos.map((video: any) => (
-                  <div 
-                    key={video.id} 
-                    className="bg-card rounded-lg border border-card-border overflow-hidden"
-                    data-testid={`video-card-${video.id}`}
-                  >
-                    <div className="aspect-video bg-muted relative">
-                      {video.thumbnailUrl ? (
-                        <img 
-                          src={video.thumbnailUrl} 
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <svg className="w-16 h-16 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z"/>
+                {videos.map((video: any) => {
+                  const getEmbedUrl = (url: string): string => {
+                    if (!url) return '';
+                    
+                    // YouTube
+                    const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+                    if (youtubeMatch) {
+                      return `https://www.youtube.com/embed/${youtubeMatch[1]}?rel=0&modestbranding=1`;
+                    }
+                    
+                    // Vimeo
+                    const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+                    if (vimeoMatch) {
+                      return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+                    }
+                    
+                    // Already an embed URL or direct video
+                    return url;
+                  };
+
+                  const embedUrl = getEmbedUrl(video.videoUrl);
+                  const isEmbeddable = embedUrl && (embedUrl.includes('youtube.com/embed') || embedUrl.includes('player.vimeo.com') || embedUrl.endsWith('.mp4') || embedUrl.endsWith('.webm'));
+
+                  return (
+                    <div 
+                      key={video.id} 
+                      className="bg-card rounded-lg border border-card-border overflow-hidden"
+                      data-testid={`video-card-${video.id}`}
+                    >
+                      <div className="aspect-video bg-black relative">
+                        {isEmbeddable ? (
+                          <iframe
+                            src={embedUrl}
+                            title={video.title}
+                            className="w-full h-full"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            data-testid={`video-player-${video.id}`}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8">
+                            <svg className="w-16 h-16 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            <p className="text-sm text-muted-foreground text-center">
+                              Video cannot be embedded. Click the link below to watch.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-6">
+                        <h3 className="font-serif text-xl font-medium mb-2">{video.title}</h3>
+                        {video.description && (
+                          <p className="text-muted-foreground mb-4">{video.description}</p>
+                        )}
+                        <a
+                          href={video.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                          data-testid={`link-source-video-${video.id}`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
-                        </div>
-                      )}
+                          Open in new tab
+                        </a>
+                      </div>
                     </div>
-                    <div className="p-6">
-                      <h3 className="font-serif text-xl font-medium mb-2">{video.title}</h3>
-                      {video.description && (
-                        <p className="text-muted-foreground mb-4">{video.description}</p>
-                      )}
-                      <a
-                        href={video.videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-primary hover:underline"
-                        data-testid={`link-watch-video-${video.id}`}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z"/>
-                        </svg>
-                        Watch Video
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
