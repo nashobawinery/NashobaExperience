@@ -12,23 +12,31 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+// Check if we're in development (has sidecar) or production (has ADC via metadata server)
+const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.REPL_DEPLOYMENT_ID;
+
+export const objectStorageClient = new Storage(
+  isDevelopment
+    ? {
+        // Development: use Replit sidecar for authentication
+        credentials: {
+          audience: "replit",
+          subject_token_type: "access_token",
+          token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+          type: "external_account",
+          credential_source: {
+            url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+            format: {
+              type: "json",
+              subject_token_field_name: "access_token",
+            },
+          },
+          universe_domain: "googleapis.com",
+        },
+        projectId: "",
+      }
+    : undefined // Production: use Application Default Credentials (metadata server)
+);
 
 export class ObjectNotFoundError extends Error {
   constructor() {

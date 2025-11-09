@@ -45,7 +45,9 @@ Preferred communication style: Simple, everyday language.
 - **Admin Dashboard**: Comprehensive CRUD for products, inventory control, dynamic filter and slideshow image management, video management, trivia management, QR code generator, media library for cloud file storage, settings, and bulk product import/export.
 
 ### Media Library (Cloud Storage)
-- **Storage**: Replit App Storage (Google Cloud Storage backend).
+- **Storage**: Replit App Storage (Google Cloud Storage backend) with environment-aware authentication.
+- **Authentication**: Conditional setup - uses Replit sidecar (127.0.0.1:1106) in development, Application Default Credentials (metadata server) in production.
+- **Image Serving**: Files served through Express proxy endpoints (`/api/media-library/{id}/file`) rather than direct GCS URLs. Direct URLs return 403 due to GCS bucket public access prevention policy.
 - **Functionality**: Upload, organize by category, add metadata (description, alt text, tags), copy public URLs, edit, and delete files. Files are cross-environment, but metadata requires syncing.
 
 ### Videos Feature
