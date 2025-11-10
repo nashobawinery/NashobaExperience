@@ -1,5 +1,5 @@
 import type { Product, CartItem, Favorite } from "@shared/schema";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 interface EmailCartData {
   guestName: string;
@@ -151,57 +151,35 @@ Thank you for visiting Nashoba Winery!
   return { subject, html, text };
 }
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize nodemailer transporter with SMTP
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
+  },
+});
 
-// Email sending function using Resend
+// Email sending function using SMTP
 export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
-  // Try using configured domain first, fall back to onboarding email if domain not verified
-  const configuredFrom = process.env.RESEND_FROM_EMAIL;
-  const fallbackFrom = "Nashoba Winery <onboarding@resend.dev>";
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
   
-  let from = configuredFrom || fallbackFrom;
-  
-  // Log email attempt (don't log 'from' as it might expose secrets if misconfigured)
   console.log(`Attempting to send email to ${to}`);
   
-  let { data, error } = await resend.emails.send({
-    from,
-    to,
-    subject,
-    html,
-    text,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+      text,
+    });
 
-  // If domain verification failed and we have a configured domain, retry with onboarding email
-  if (error && configuredFrom && from === configuredFrom) {
-    const errorMessage = (error.message || '').toLowerCase();
-    if (errorMessage.includes("not verified") || errorMessage.includes("domain") || errorMessage.includes("verify")) {
-      console.log(`Domain verification issue detected: ${error.message}`);
-      console.log(`Retrying with Resend onboarding email...`);
-      
-      from = fallbackFrom;
-      const retry = await resend.emails.send({
-        from,
-        to,
-        subject,
-        html,
-        text,
-      });
-      
-      data = retry.data;
-      error = retry.error;
-      
-      if (!error) {
-        console.log(`Retry successful with ${from}`);
-      }
-    }
+    console.log(`Email sent successfully to ${to}:`, info.messageId);
+  } catch (error) {
+    console.error("SMTP error:", error);
+    throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-
-  if (error) {
-    console.error("Resend API error:", error);
-    throw new Error(`Failed to send email: ${error.message || 'Unknown error'}`);
-  }
-
-  console.log(`Email sent successfully to ${to}:`, data?.id);
 }
