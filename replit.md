@@ -37,7 +37,10 @@ Preferred communication style: Simple, everyday language.
 - **Recommendation Strategies**: Includes characteristic-based, favorites-based, stated-preference-based, AI-powered advanced analysis, and intelligent fallback scoring with strict beverage type and wine color filtering.
 
 ### Email System
-- Server-side HTML email templates for sending cart orders and favorites summaries, including guest notes and discount breakdowns. Features a robust fallback mechanism for domain verification issues.
+- **Email Service**: Microsoft 365 SMTP (via nodemailer) using business email account
+- **Authentication**: SMTP credentials stored in environment secrets (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM)
+- **Templates**: Server-side HTML email templates for sending cart orders and favorites summaries, including guest notes and discount breakdowns
+- **From Address**: Uses business email `email@nashobawinery.com` for professional sender identity
 
 ### Key Features
 - **Guest Experience**: Interactive slideshow introduction, product browsing with advanced filtering, product detail modal with favorites and notes, educational videos, progressive educational popups, auto-popup trivia with rewards dialog (displays achievement and reward after completing all 10 questions), shopping cart with tier-based discounts, AI-powered recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, email functionalities, and mobile-first navigation.
