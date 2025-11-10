@@ -1076,14 +1076,8 @@ export default function GuestApp() {
         open={showIntroduction}
         onContinue={() => {
           setShowIntroduction(false);
-          // Show trivia info popup immediately after introduction closes (first time only)
-          const hasSeenTriviaInfo = localStorage.getItem('hasSeenTriviaInfo');
-          if (!hasSeenTriviaInfo) {
-            setTimeout(() => {
-              setShowTriviaInfo(true);
-              localStorage.setItem('hasSeenTriviaInfo', 'true');
-            }, 500);
-          }
+          // Show trivia info popup immediately after introduction closes
+          setShowTriviaInfo(true);
         }}
         guestName={guestName}
       />
