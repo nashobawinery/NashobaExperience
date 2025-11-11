@@ -111,6 +111,13 @@ export default function ProductDetailModal({
     }
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      flushPendingNoteSave();
+      onClose();
+    }
+  };
+
   const handleSaveAndClose = () => {
     flushPendingNoteSave();
     onClose();
@@ -125,7 +132,7 @@ export default function ProductDetailModal({
   if (!product) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] p-0" data-testid="product-detail-modal">
         <VisuallyHidden>
           <DialogTitle>{product.name}</DialogTitle>

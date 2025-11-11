@@ -556,7 +556,7 @@ export default function GuestApp() {
 
   const handleCheckout = () => {
     const wineSpiritsCount = cartItemsArray
-      .filter(item => ['Wine', 'Spirits'].includes(item.category))
+      .filter(item => ['wine', 'spirits'].includes(item.category))
       .reduce((sum, item) => sum + item.quantity, 0);
 
     const calculateDiscount = (count: number): number => {
@@ -585,7 +585,7 @@ export default function GuestApp() {
     setPreSurveyActionsRequested(prev => ({ ...prev, order: true }));
     
     const wineSpiritsCount = cartItemsArray
-      .filter(item => ['Wine', 'Spirits'].includes(item.category))
+      .filter(item => ['wine', 'spirits'].includes(item.category))
       .reduce((sum, item) => sum + item.quantity, 0);
 
     const calculateDiscount = (count: number): number => {

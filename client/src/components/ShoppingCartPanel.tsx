@@ -37,7 +37,7 @@ export default function ShoppingCartPanel({
   });
 
   const wineSpiritsCount = items
-    .filter(item => ['Wine', 'Spirits'].includes(item.category))
+    .filter(item => ['wine', 'spirits'].includes(item.category))
     .reduce((sum, item) => sum + item.quantity, 0);
 
   const calculateDiscount = (count: number): number => {
