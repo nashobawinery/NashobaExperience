@@ -103,3 +103,16 @@ Preferred communication style: Simple, everyday language.
      - Backend fetches recipients from `app_settings` table and sends emails to all configured addresses
    - **Files**: `client/src/components/OrderRecipientEmailsManager.tsx`, `client/src/pages/AdminDashboard.tsx`, `server/routes.ts`
    - **Default**: Falls back to `onsiteorder@nashobawinery.com` if not configured
+
+2. **Unified Notes System**
+   - **Issue Fixed**: Notes added in Product Detail Modal weren't showing in Favorites Panel (dual storage problem)
+   - **Root Cause**: Product Detail saved to `product_notes` table, Favorites read from `favorites.note` column
+   - **Solution**: Unified both panels to use `product_notes` table as single source of truth
+   - **Implementation**:
+     - Read path: `note: productNotesMap[fav.productId] || fav.note || undefined` (primary + fallback)
+     - Write path: Both panels save via `saveProductNoteMutation` to `product_notes` table
+     - Migration endpoint: POST `/api/migrate/favorites-notes` for one-time legacy data migration
+     - Migration logic: `migrateFavoritesNotesToProductNotes()` - idempotent, only migrates if product_notes is empty
+   - **Data Safety**: Fallback protects existing `favorites.note` data from disappearing
+   - **Files**: `client/src/pages/GuestApp.tsx`, `server/routes.ts`, `server/storage.ts`
+   - **Deployment Plan**: Code deployed with fallback → Manual migration via API → Monitor → Future cleanup of `favorites.note` column
