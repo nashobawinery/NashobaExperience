@@ -1,5 +1,5 @@
 import type { Product, CartItem, Favorite } from "@shared/schema";
-import nodemailer from "nodemailer";
+import sgMail from "@sendgrid/mail";
 
 interface EmailCartData {
   guestName: string;
@@ -151,35 +151,37 @@ Thank you for visiting Nashoba Winery!
   return { subject, html, text };
 }
 
-// Initialize nodemailer transporter with SMTP
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+// Initialize SendGrid
+const apiKey = process.env.SENDGRID_API_KEY;
+if (!apiKey) {
+  console.error("SENDGRID_API_KEY environment variable is not set");
+} else {
+  sgMail.setApiKey(apiKey);
+}
 
-// Email sending function using SMTP
+// Email sending function using SendGrid
 export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = process.env.SENDGRID_FROM_EMAIL || 'email@nashobawinery.com';
   
-  console.log(`Attempting to send email to ${to}`);
+  console.log(`Attempting to send email to ${to} via SendGrid`);
   
   try {
-    const info = await transporter.sendMail({
-      from,
+    const msg = {
       to,
+      from,
       subject,
-      html,
       text,
-    });
+      html,
+    };
 
-    console.log(`Email sent successfully to ${to}:`, info.messageId);
+    await sgMail.send(msg);
+    console.log(`Email sent successfully to ${to} via SendGrid`);
   } catch (error) {
-    console.error("SMTP error:", error);
+    console.error("SendGrid error:", error);
+    if (error && typeof error === 'object' && 'response' in error) {
+      const sgError = error as any;
+      console.error("SendGrid error details:", sgError.response?.body);
+    }
     throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
