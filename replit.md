@@ -92,3 +92,14 @@ Preferred communication style: Simple, everyday language.
    - **Fix**: Updated category filters to lowercase in 3 locations
    - **Files**: `client/src/components/ShoppingCartPanel.tsx`, `client/src/pages/GuestApp.tsx`
    - **Impact**: Tier-based discounts now calculate and display correctly (3+ bottles: 5%, 6+: 10%, 12+: 15%, 24+: 24%)
+
+### New Features
+1. **Configurable Order Recipient Emails**
+   - **Feature**: Admin can now configure multiple email addresses to receive guest cart orders through the Settings tab
+   - **Implementation**: 
+     - New `OrderRecipientEmailsManager` component in Admin Dashboard Settings
+     - Supports up to 10 comma-separated email addresses
+     - Validates email format, trims whitespace, and removes duplicates
+     - Backend fetches recipients from `app_settings` table and sends emails to all configured addresses
+   - **Files**: `client/src/components/OrderRecipientEmailsManager.tsx`, `client/src/pages/AdminDashboard.tsx`, `server/routes.ts`
+   - **Default**: Falls back to `onsiteorder@nashobawinery.com` if not configured
