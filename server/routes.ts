@@ -1082,10 +1082,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id/role", isAdmin, async (req, res) => {
     try {
       const { role } = req.body;
-      if (!role || !['guest', 'admin', 'wholesale'].includes(role)) {
-        return res.status(400).json({ message: "Invalid role. Must be guest, admin, or wholesale" });
+      if (!role || !['viewer', 'admin'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be viewer or admin" });
       }
-      const user = await storage.updateUserRole(req.params.id, role as 'guest' | 'admin' | 'wholesale');
+      const user = await storage.updateUserRole(req.params.id, role as 'viewer' | 'admin');
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }

@@ -39,7 +39,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication & Security
 - **Authentication**: Replit Auth (OpenID Connect) for secure user authentication.
-- **User Roles**: Guest, Admin, Wholesale (future expansion), with `email@nashobawinery.com` automatically assigned Admin role on first login.
+- **User Roles**: Viewer, Admin, with `email@nashobawinery.com` automatically assigned Admin role on first login.
 - **Session Management**: PostgreSQL-backed sessions using `express-session` with TLS-only cookies in production.
 - **Protected Endpoints**: All admin operations require authentication and admin role verification via `isAdmin` middleware.
 - **User Management UI**: Admins can manage user roles through the Settings tab in the Admin Dashboard.

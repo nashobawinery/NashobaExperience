@@ -8,7 +8,7 @@ export const categoryEnum = pgEnum("category", ["wine", "spirits", "beer", "cann
 export const wineColorEnum = pgEnum("wine_color", ["red", "white", "rosé", "sparkling", "dessert"]);
 export const sweetnessEnum = pgEnum("sweetness", ["dry", "off-dry", "semi-sweet", "sweet"]);
 export const bodyEnum = pgEnum("body", ["light", "medium", "full"]);
-export const userRoleEnum = pgEnum("user_role", ["guest", "admin", "wholesale"]);
+export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 
 // Session storage table for authentication
 export const sessions = pgTable(
@@ -28,7 +28,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: userRoleEnum("role").notNull().default("guest"),
+  role: userRoleEnum("role").notNull().default("viewer"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

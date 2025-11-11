@@ -12,7 +12,7 @@ interface User {
   email: string;
   firstName: string | null;
   lastName: string | null;
-  role: 'guest' | 'admin' | 'wholesale';
+  role: 'viewer' | 'admin';
 }
 
 export default function UserRoleManager() {
@@ -23,7 +23,7 @@ export default function UserRoleManager() {
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: 'guest' | 'admin' | 'wholesale' }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: 'viewer' | 'admin' }) => {
       return apiRequest('PATCH', `/api/users/${userId}/role`, { role });
     },
     onSuccess: () => {
@@ -45,17 +45,16 @@ export default function UserRoleManager() {
   const getRoleBadge = (role: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
       admin: { variant: "default", label: "Admin" },
-      wholesale: { variant: "secondary", label: "Wholesale" },
-      guest: { variant: "outline", label: "Guest" },
+      viewer: { variant: "outline", label: "Viewer" },
     };
-    const config = variants[role] || variants.guest;
+    const config = variants[role] || variants.viewer;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   const handleRoleChange = (userId: string, newRole: string) => {
     updateRoleMutation.mutate({ 
       userId, 
-      role: newRole as 'guest' | 'admin' | 'wholesale' 
+      role: newRole as 'viewer' | 'admin' 
     });
   };
 
@@ -65,9 +64,18 @@ export default function UserRoleManager() {
         <Shield className="w-5 h-5 text-primary" />
         <h2 className="font-serif text-xl font-medium">User Role Management</h2>
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        Manage user roles and permissions. Admins can access the admin dashboard, while guests have standard app access.
-      </p>
+      <div className="space-y-2 mb-6">
+        <p className="text-sm text-muted-foreground">
+          Manage user roles and permissions. Users are automatically added when they log in with Replit Auth.
+        </p>
+        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+          <p className="font-medium mb-1">Role Descriptions:</p>
+          <ul className="space-y-1 ml-4">
+            <li><span className="font-medium">Admin:</span> Full access to admin dashboard and app content management</li>
+            <li><span className="font-medium">Viewer:</span> Standard app access for browsing products and tasting features</li>
+          </ul>
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">
@@ -119,9 +127,8 @@ export default function UserRoleManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="guest">Guest</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="wholesale">Wholesale</SelectItem>
                 </SelectContent>
               </Select>
             </div>

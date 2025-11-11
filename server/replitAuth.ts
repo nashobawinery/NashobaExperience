@@ -56,7 +56,7 @@ async function upsertUser(
   const email = claims["email"];
   
   // Auto-grant admin role to specific email
-  const role = email === "email@nashobawinery.com" ? "admin" : "guest";
+  const role = email === "email@nashobawinery.com" ? "admin" : "viewer";
   
   await storage.upsertUser({
     id: claims["sub"],
