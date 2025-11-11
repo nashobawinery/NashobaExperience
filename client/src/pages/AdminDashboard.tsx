@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -563,12 +563,22 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               <h1 className="font-serif text-3xl font-medium mb-2">Admin Dashboard</h1>
               <p className="text-muted-foreground">Manage your tasting experience</p>
             </div>
-            {onBackToGuest && (
-              <Button variant="outline" onClick={onBackToGuest} data-testid="button-back-to-guest">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Guest View
+            <div className="flex items-center gap-2">
+              {onBackToGuest && (
+                <Button variant="outline" onClick={onBackToGuest} data-testid="button-back-to-guest">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Guest View
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '/api/logout'} 
+                data-testid="button-sign-out"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
               </Button>
-            )}
+            </div>
           </div>
         </div>
       </header>
