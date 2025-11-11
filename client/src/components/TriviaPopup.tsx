@@ -35,8 +35,12 @@ export default function TriviaPopup({
     if (showResult) return;
     setSelectedAnswer(index);
     setShowResult(true);
-    const isCorrect = index === question.correctIndex;
-    setTimeout(() => onAnswer(isCorrect), 2500);
+  };
+
+  const handleContinue = () => {
+    if (selectedAnswer === null) return;
+    const isCorrect = selectedAnswer === question.correctIndex;
+    onAnswer(isCorrect);
   };
 
   const isCorrect = selectedAnswer === question.correctIndex;
@@ -123,24 +127,34 @@ export default function TriviaPopup({
         </div>
 
         {showResult && (
-          <div className={`rounded-lg p-4 ${isCorrect ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800' : 'bg-destructive/10 border border-destructive/20'}`}>
-            <p className="font-medium mb-2 flex items-center gap-2">
-              {isCorrect ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  <span className="text-green-900 dark:text-green-100">Correct!</span>
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-5 h-5 text-destructive" />
-                  <span className="text-destructive">Not quite</span>
-                </>
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {question.explanation}
-            </p>
-          </div>
+          <>
+            <div className={`rounded-lg p-4 mb-4 ${isCorrect ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800' : 'bg-destructive/10 border border-destructive/20'}`}>
+              <p className="font-medium mb-2 flex items-center gap-2">
+                {isCorrect ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <span className="text-green-900 dark:text-green-100">Correct!</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-5 h-5 text-destructive" />
+                    <span className="text-destructive">Not quite</span>
+                  </>
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {question.explanation}
+              </p>
+            </div>
+            <Button 
+              onClick={handleContinue}
+              className="w-full"
+              size="lg"
+              data-testid="button-continue-trivia"
+            >
+              Continue
+            </Button>
+          </>
         )}
       </Card>
       
