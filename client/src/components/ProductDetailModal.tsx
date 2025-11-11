@@ -99,6 +99,23 @@ export default function ProductDetailModal({
     }, 500);
   };
 
+  const flushPendingNoteSave = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    
+    if (localNote !== lastSavedNoteRef.current) {
+      lastSavedNoteRef.current = localNote;
+      onUpdateNote?.(localNote);
+    }
+  };
+
+  const handleSaveAndClose = () => {
+    flushPendingNoteSave();
+    onClose();
+  };
+
   const handleAddToCart = () => {
     for (let i = 0; i < quantity; i++) {
       onAddToCart?.();
@@ -359,18 +376,18 @@ export default function ProductDetailModal({
                   data-testid="textarea-product-notes"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Your notes are saved automatically
+                  Notes are saved when you click Save
                 </p>
               </div>
 
-              {/* Close Button */}
+              {/* Save Button */}
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={onClose}
-                data-testid="button-close-detail"
+                onClick={handleSaveAndClose}
+                data-testid="button-save-detail"
               >
-                Close
+                Save
               </Button>
             </div>
           </div>
