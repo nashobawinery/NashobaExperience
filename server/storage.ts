@@ -112,6 +112,7 @@ export interface IStorage {
   getProductNote(sessionId: string, productId: string): Promise<ProductNote | undefined>;
   saveProductNote(note: InsertProductNote): Promise<ProductNote>;
   deleteProductNote(sessionId: string, productId: string): Promise<boolean>;
+  migrateFavoritesNotesToProductNotes(): Promise<number>;
 
   // Filter Options
   getFilterOptions(fieldType?: string): Promise<FilterOption[]>;
@@ -518,6 +519,33 @@ export class DatabaseStorage implements IStorage {
       .delete(productNotes)
       .where(and(eq(productNotes.sessionId, sessionId), eq(productNotes.productId, productId)));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async migrateFavoritesNotesToProductNotes(): Promise<number> {
+    // Get all favorites with non-empty notes
+    const favoritesWithNotes = await db
+      .select()
+      .from(favorites)
+      .where(and(sql`${favorites.note} IS NOT NULL`, sql`${favorites.note} != ''`));
+    
+    let migratedCount = 0;
+    
+    for (const fav of favoritesWithNotes) {
+      // Check if product_notes already exists for this sessionId/productId
+      const existingNote = await this.getProductNote(fav.sessionId, fav.productId);
+      
+      // Only migrate if product_notes doesn't exist or is empty
+      if (!existingNote || !existingNote.note) {
+        await this.saveProductNote({
+          sessionId: fav.sessionId,
+          productId: fav.productId,
+          note: fav.note!,
+        });
+        migratedCount++;
+      }
+    }
+    
+    return migratedCount;
   }
 
   async getFilterOptions(fieldType?: string): Promise<FilterOption[]> {

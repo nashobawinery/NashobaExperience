@@ -476,10 +476,8 @@ export default function GuestApp() {
   };
 
   const handleUpdateNote = (productId: string, note: string) => {
-    const favorite = favoritesData.find(f => f.productId === productId);
-    if (favorite) {
-      updateNoteMutation.mutate({ favoriteId: favorite.id, note });
-    }
+    // Save to product_notes table (unified note system)
+    saveProductNoteMutation.mutate({ productId, note });
   };
 
   const handleAddToCart = (productId: string) => {
@@ -686,9 +684,10 @@ export default function GuestApp() {
       category: fav.product.category,
       price: parseFloat(fav.product.price),
       image: fav.product.imageUrl || '',
-      note: fav.note || undefined,
+      // Fallback: read from product_notes first, then favorites.note for legacy data
+      note: productNotesMap[fav.productId] || fav.note || undefined,
     }));
-  }, [favoritesData]);
+  }, [favoritesData, productNotesMap]);
 
   const cartItemsArray = useMemo(() => {
     return cartData.map(item => ({

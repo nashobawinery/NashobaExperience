@@ -162,6 +162,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // Migrate favorites notes to product_notes (one-time migration)
+  app.post("/api/migrate/favorites-notes", async (req, res) => {
+    try {
+      const migratedCount = await storage.migrateFavoritesNotesToProductNotes();
+      res.json({ success: true, migratedCount });
+    } catch (error) {
+      console.error("Migration error:", error);
+      res.status(500).json({ message: "Failed to migrate notes" });
+    }
+  });
+
   // Product Notes
   app.get("/api/sessions/:sessionId/notes", async (req, res) => {
     const notes = await storage.getProductNotes(req.params.sessionId);
