@@ -67,6 +67,28 @@ Preferred communication style: Simple, everyday language.
 - **Form Handling**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
 - **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`, `xlsx`.
 - **AI/ML**: `openai`.
-- **Email Service**: `resend`.
+- **Email Service**: `@sendgrid/mail`.
 - **Database**: PostgreSQL (via Neon serverless), `connect-pg-simple`.
 - **File Storage**: `@google-cloud/storage`, `@uppy/core`, `@uppy/dashboard`, `@uppy/react`, `@uppy/aws-s3`.
+
+## Recent Updates (November 2025)
+
+### Email System Migration
+- **Migrated from**: Microsoft 365 SMTP (authentication failures) → SendGrid API
+- **Implementation**: Manual SendGrid setup outside Replit's integration system per user preference
+- **Active Secrets**: `SENDGRID_API_KEY` (keep), removed deprecated SMTP_* and RESEND_* secrets
+- **Verified Sender**: `email@nashobawinery.com` configured in SendGrid dashboard
+- **Status**: Emails successfully sending in both development and production environments
+
+### Bug Fixes
+1. **Favorites Notes Not Saving**
+   - **Issue**: 500ms debounce timer cancelled when closing product detail modal too quickly
+   - **Fix**: Added `handleDialogOpenChange` to flush pending notes on all close events (Save button, overlay click, Escape key)
+   - **Files**: `client/src/components/ProductDetailModal.tsx`
+   - **UX**: Changed "Close" button to "Save" with updated helper text
+
+2. **Cart Discounts Not Displaying**
+   - **Issue**: Case-sensitive category filter using `['Wine', 'Spirits']` didn't match lowercase database values `['wine', 'spirits']`
+   - **Fix**: Updated category filters to lowercase in 3 locations
+   - **Files**: `client/src/components/ShoppingCartPanel.tsx`, `client/src/pages/GuestApp.tsx`
+   - **Impact**: Tier-based discounts now calculate and display correctly (3+ bottles: 5%, 6+: 10%, 12+: 15%, 24+: 24%)
