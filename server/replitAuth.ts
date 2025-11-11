@@ -35,6 +35,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Only require HTTPS in production
+      sameSite: "lax", // Prevent cross-site cookie sharing
       maxAge: sessionTtl,
     },
   });
