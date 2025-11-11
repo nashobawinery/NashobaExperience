@@ -21,8 +21,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Edit, Trash2, Eye, Package } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Product } from "@shared/schema";
+
+type SortField = 'name' | 'category' | 'price' | 'stockQuantity';
+type SortDirection = 'asc' | 'desc' | null;
 
 interface AdminProductManagerProps {
   products: Product[];
@@ -44,10 +47,54 @@ export default function AdminProductManager({
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 ml-1 inline-block text-muted-foreground" />;
+    }
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="w-4 h-4 ml-1 inline-block text-primary" />;
+    }
+    return <ArrowDown className="w-4 h-4 ml-1 inline-block text-primary" />;
+  };
+
+  const filteredProducts = products
+    .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (!sortField || !sortDirection) return 0;
+
+      let comparison = 0;
+      
+      if (sortField === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortField === 'category') {
+        comparison = a.category.localeCompare(b.category);
+      } else if (sortField === 'price') {
+        comparison = Number(a.price) - Number(b.price);
+      } else if (sortField === 'stockQuantity') {
+        comparison = (a.stockQuantity ?? 0) - (b.stockQuantity ?? 0);
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
 
   const stats = {
     total: products.length,
@@ -128,10 +175,34 @@ export default function AdminProductManager({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Stock</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover-elevate select-none"
+                  onClick={() => handleSort('name')}
+                  data-testid="header-sort-name"
+                >
+                  Product{getSortIcon('name')}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover-elevate select-none"
+                  onClick={() => handleSort('category')}
+                  data-testid="header-sort-category"
+                >
+                  Category{getSortIcon('category')}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover-elevate select-none"
+                  onClick={() => handleSort('price')}
+                  data-testid="header-sort-price"
+                >
+                  Price{getSortIcon('price')}
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover-elevate select-none"
+                  onClick={() => handleSort('stockQuantity')}
+                  data-testid="header-sort-stock"
+                >
+                  Stock{getSortIcon('stockQuantity')}
+                </TableHead>
                 <TableHead>Inventory</TableHead>
                 <TableHead>Badges</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
