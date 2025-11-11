@@ -18,7 +18,7 @@ Preferred communication style: Simple, everyday language.
 ### Backend
 - **Server**: Express.js with TypeScript, implementing a RESTful API.
 - **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (Neon serverless driver).
-- **Database Schema**: Comprehensive schema including `products` (32+ fields, `ignoreInventory`, `sweetness`, `body` search fields), `guest_sessions` (preferences), `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (dynamic filter management), `slideshow_images`, `videos`, and `media_library`.
+- **Database Schema**: Comprehensive schema including `users` (authentication), `sessions` (auth sessions), `products` (32+ fields, `ignoreInventory`, `sweetness`, `body` search fields), `guest_sessions` (preferences), `favorites`, `view_history`, `cart_items`, `product_notes`, `trivia_questions`, `trivia_scores`, `app_settings`, `surveys`, `filter_options` (dynamic filter management), `slideshow_images`, `videos`, and `media_library`.
 - **Business Logic**: Automatic tier-based discount calculation, trivia credit rewards, and a multi-algorithm product recommendation engine.
 - **Dynamic Filtering**: Database-driven system supporting 5 customizable filter types with CRUD operations.
 
@@ -60,6 +60,52 @@ Preferred communication style: Simple, everyday language.
 ### Database Synchronization
 - **Process**: Comprehensive export/import system using multi-sheet Excel workbooks to synchronize all database configuration (products, filter options, trivia, slideshow images, app settings, media library metadata) between separate preview and published environments.
 
+## Authentication & Security
+
+### Overview
+The application uses **Replit Auth** (OpenID Connect) for secure user authentication. Users log in through Replit's authentication system (supporting Google, GitHub, Apple, X, and email/password), and the app receives verified user information without handling passwords directly.
+
+### User Roles
+Three role levels control access:
+- **Guest**: Standard app access (browse products, get recommendations, use trivia, manage cart/favorites)
+- **Admin**: Full access including admin dashboard for content management
+- **Wholesale**: Reserved for future tier-based pricing portal expansion
+
+### Auto-Admin Assignment
+The email address `email@nashobawinery.com` is automatically granted admin role on first login. This is configured in `server/replitAuth.ts` in the `upsertUser()` function.
+
+### Session Management
+- **Storage**: PostgreSQL-backed sessions using `express-session` with `connect-pg-simple`
+- **Security**: TLS-only cookies in production, secure session handling
+- **Token Refresh**: Automatic token refresh for expired sessions
+- **Database Tables**: `users` (id, email, firstName, lastName, profileImageUrl, role) and `sessions` (sid, sess, expire)
+
+### Protected Endpoints
+All admin operations require authentication and admin role verification via `isAdmin` middleware:
+- Product management (create, update, delete)
+- Trivia management (create, update, delete)
+- Filter options (create, update, delete, reorder)
+- Slideshow images (create, update, delete, reorder)
+- Media library (upload, update, delete)
+- Settings management (discount tiers, trivia interval, recipient emails)
+- User role management (list users, update roles)
+
+### Login Flow
+1. Unauthenticated users see Landing page with app features and login button
+2. Click "Sign In to Get Started" → Redirects to `/api/login` → Replit Auth login page
+3. After successful authentication → Callback to `/api/callback` → Session created
+4. User role determined: Guest sees app, Admin sees app + Admin button
+5. Admins can toggle to Admin Dashboard to manage content and user roles
+
+### User Management UI
+Admins can manage user roles through the **Settings tab** in the Admin Dashboard:
+- View all users who have logged in
+- See current role assignments (displayed as badges)
+- Change roles via dropdown (Guest/Admin/Wholesale)
+- Changes apply immediately with optimistic UI updates
+
+**Files**: `server/replitAuth.ts`, `server/routes.ts` (auth routes + isAdmin middleware), `shared/schema.ts` (users/sessions tables), `client/src/hooks/useAuth.ts`, `client/src/pages/Landing.tsx`, `client/src/components/UserRoleManager.tsx`
+
 ## External Dependencies
 
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
@@ -68,10 +114,20 @@ Preferred communication style: Simple, everyday language.
 - **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`, `xlsx`.
 - **AI/ML**: `openai`.
 - **Email Service**: `@sendgrid/mail`.
-- **Database**: PostgreSQL (via Neon serverless), `connect-pg-simple`.
+- **Authentication**: `openid-client` (Replit Auth), `express-session`, `connect-pg-simple` (session store).
+- **Database**: PostgreSQL (via Neon serverless).
 - **File Storage**: `@google-cloud/storage`, `@uppy/core`, `@uppy/dashboard`, `@uppy/react`, `@uppy/aws-s3`.
 
 ## Recent Updates (November 2025)
+
+### Role-Based Authentication (NEW)
+Implemented comprehensive authentication system using Replit Auth (OpenID Connect):
+- **User Roles**: Guest, Admin, Wholesale (future expansion)
+- **Auto-Admin**: `email@nashobawinery.com` automatically receives admin role on first login
+- **Protected Admin Portal**: All admin endpoints secured with role-based middleware
+- **User Management UI**: Admins can grant/revoke roles through Settings tab
+- **Session Storage**: PostgreSQL-backed secure sessions with automatic token refresh
+- See "Authentication & Security" section above for complete details
 
 ### Email System (SendGrid)
 The application uses SendGrid API for sending transactional emails (cart orders and favorites summaries).
