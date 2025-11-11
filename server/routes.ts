@@ -103,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(product);
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", isAdmin, async (req, res) => {
     try {
       const data = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(data);
@@ -113,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/products/:id", async (req, res) => {
+  app.patch("/api/products/:id", isAdmin, async (req, res) => {
     try {
       // Validate the update data
       const validatedData = updateProductSchema.parse(req.body);
@@ -133,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/products/:id", async (req, res) => {
+  app.delete("/api/products/:id", isAdmin, async (req, res) => {
     const success = await storage.deleteProduct(req.params.id);
     if (!success) {
       return res.status(404).json({ message: "Product not found" });
@@ -292,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(question);
   });
 
-  app.post("/api/trivia/questions", async (req, res) => {
+  app.post("/api/trivia/questions", isAdmin, async (req, res) => {
     try {
       const data = insertTriviaQuestionSchema.parse(req.body);
       const question = await storage.createTriviaQuestion(data);
@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/trivia/questions/:id", async (req, res) => {
+  app.patch("/api/trivia/questions/:id", isAdmin, async (req, res) => {
     try {
       const question = await storage.updateTriviaQuestion(req.params.id, req.body);
       if (!question) {
@@ -314,7 +314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/trivia/questions/:id", async (req, res) => {
+  app.delete("/api/trivia/questions/:id", isAdmin, async (req, res) => {
     const success = await storage.deleteTriviaQuestion(req.params.id);
     if (!success) {
       return res.status(404).json({ message: "Question not found" });
@@ -387,7 +387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(setting);
   });
 
-  app.post("/api/settings", async (req, res) => {
+  app.post("/api/settings", isAdmin, async (req, res) => {
     const { key, value } = req.body;
     
     if (key === "trivia_interval_seconds") {
@@ -817,7 +817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(option);
   });
 
-  app.post("/api/filter-options", async (req, res) => {
+  app.post("/api/filter-options", isAdmin, async (req, res) => {
     try {
       const data = insertFilterOptionSchema.parse(req.body);
       const option = await storage.createFilterOption(data);
@@ -827,7 +827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/filter-options/:id", async (req, res) => {
+  app.patch("/api/filter-options/:id", isAdmin, async (req, res) => {
     try {
       const option = await storage.updateFilterOption(req.params.id, req.body);
       if (!option) {
@@ -839,7 +839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/filter-options/:id", async (req, res) => {
+  app.delete("/api/filter-options/:id", isAdmin, async (req, res) => {
     const success = await storage.deleteFilterOption(req.params.id);
     if (!success) {
       return res.status(404).json({ message: "Filter option not found" });
@@ -847,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
-  app.post("/api/filter-options/reorder", async (req, res) => {
+  app.post("/api/filter-options/reorder", isAdmin, async (req, res) => {
     try {
       await storage.updateFilterOptionOrder(req.body.updates);
       res.json({ success: true });
@@ -871,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(image);
   });
 
-  app.post("/api/slideshow-images", async (req, res) => {
+  app.post("/api/slideshow-images", isAdmin, async (req, res) => {
     try {
       const data = insertSlideshowImageSchema.parse(req.body);
       const image = await storage.createSlideshowImage(data);
@@ -881,7 +881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/slideshow-images/:id", async (req, res) => {
+  app.patch("/api/slideshow-images/:id", isAdmin, async (req, res) => {
     try {
       const image = await storage.updateSlideshowImage(req.params.id, req.body);
       if (!image) {
@@ -893,7 +893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/slideshow-images/:id", async (req, res) => {
+  app.delete("/api/slideshow-images/:id", isAdmin, async (req, res) => {
     const success = await storage.deleteSlideshowImage(req.params.id);
     if (!success) {
       return res.status(404).json({ message: "Slideshow image not found" });
@@ -901,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
-  app.post("/api/slideshow-images/reorder", async (req, res) => {
+  app.post("/api/slideshow-images/reorder", isAdmin, async (req, res) => {
     try {
       await storage.updateSlideshowImageOrder(req.body.updates);
       res.json({ success: true });
@@ -911,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Media Library Management
-  app.post("/api/media-library/upload-url", async (req, res) => {
+  app.post("/api/media-library/upload-url", isAdmin, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
       const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
@@ -953,7 +953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/media-library", async (req, res) => {
+  app.post("/api/media-library", isAdmin, async (req, res) => {
     try {
       const data = insertMediaLibrarySchema.parse(req.body);
       
@@ -977,7 +977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/media-library/:id", async (req, res) => {
+  app.patch("/api/media-library/:id", isAdmin, async (req, res) => {
     try {
       const file = await storage.updateMediaLibraryFile(req.params.id, req.body);
       if (!file) {
@@ -989,7 +989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/media-library/:id", async (req, res) => {
+  app.delete("/api/media-library/:id", isAdmin, async (req, res) => {
     try {
       const file = await storage.getMediaLibraryFile(req.params.id);
       if (!file) {
@@ -1066,6 +1066,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  // User Management (Admin only)
+  app.get("/api/users", isAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/users/:id/role", isAdmin, async (req, res) => {
+    try {
+      const { role } = req.body;
+      if (!role || !['guest', 'admin', 'wholesale'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be guest, admin, or wholesale" });
+      }
+      const user = await storage.updateUserRole(req.params.id, role as 'guest' | 'admin' | 'wholesale');
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update user role" });
     }
   });
 

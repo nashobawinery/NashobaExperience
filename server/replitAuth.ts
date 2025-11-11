@@ -53,12 +53,18 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
+  const email = claims["email"];
+  
+  // Auto-grant admin role to specific email
+  const role = email === "email@nashobawinery.com" ? "admin" : "guest";
+  
   await storage.upsertUser({
     id: claims["sub"],
-    email: claims["email"],
+    email: email,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    role: role,
   });
 }
 
