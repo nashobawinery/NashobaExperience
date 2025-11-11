@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Heart, ShoppingCart, Mail, Trash2 } from "lucide-react";
+import { Heart, ShoppingCart, Mail, Trash2, ArrowLeft } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface Favorite {
@@ -21,6 +21,7 @@ interface FavoritesPanelProps {
   onRemoveFavorite?: (id: string) => void;
   onAddToCart?: (id: string) => void;
   onEmailFavorites?: () => void;
+  onReturnToProducts?: () => void;
 }
 
 export default function FavoritesPanel({
@@ -29,6 +30,7 @@ export default function FavoritesPanel({
   onRemoveFavorite,
   onAddToCart,
   onEmailFavorites,
+  onReturnToProducts,
 }: FavoritesPanelProps) {
   // Local state for notes with debouncing
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
@@ -77,6 +79,25 @@ export default function FavoritesPanel({
       Object.values(debounceTimersRef.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
+
+  // Flush all pending notes immediately
+  const flushPendingNotes = () => {
+    Object.entries(debounceTimersRef.current).forEach(([favoriteId, timer]) => {
+      clearTimeout(timer);
+      const value = localNotes[favoriteId];
+      if (value !== lastSavedNotesRef.current[favoriteId]) {
+        lastSavedNotesRef.current[favoriteId] = value;
+        onUpdateNote?.(favoriteId, value);
+      }
+    });
+    debounceTimersRef.current = {};
+  };
+
+  const handleReturnToProducts = () => {
+    flushPendingNotes();
+    onReturnToProducts?.();
+  };
+
   return (
     <Card className="h-full flex flex-col">
       <div className="p-6 border-b">
@@ -165,7 +186,17 @@ export default function FavoritesPanel({
       </div>
 
       {favorites.length > 0 && (
-        <div className="border-t p-6">
+        <div className="border-t p-6 space-y-3">
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            size="lg"
+            onClick={handleReturnToProducts}
+            data-testid="button-return-to-products"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Save and Return to Products
+          </Button>
           <Button
             className="w-full gap-2"
             size="lg"

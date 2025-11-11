@@ -876,6 +876,7 @@ export default function GuestApp() {
               onRemoveFavorite={handleFavoriteToggle}
               onAddToCart={handleAddToCart}
               onEmailFavorites={handleEmailFavorites}
+              onReturnToProducts={() => setActiveTab('browse')}
             />
           </div>
         )}

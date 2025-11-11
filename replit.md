@@ -116,3 +116,13 @@ Preferred communication style: Simple, everyday language.
    - **Data Safety**: Fallback protects existing `favorites.note` data from disappearing
    - **Files**: `client/src/pages/GuestApp.tsx`, `server/routes.ts`, `server/storage.ts`
    - **Deployment Plan**: Code deployed with fallback → Manual migration via API → Monitor → Future cleanup of `favorites.note` column
+
+3. **Save and Return to Products Button**
+   - **Feature**: Added "Save and Return to Products" button in Favorites panel for improved navigation
+   - **Functionality**: 
+     - Flushes any pending debounced notes immediately (no 500ms wait)
+     - Navigates back to Browse/Products tab
+     - Ensures all notes are saved before returning to browsing
+   - **UX**: Outline button with left arrow icon, positioned above "Email My Favorites & Notes" button
+   - **Files**: `client/src/components/FavoritesPanel.tsx`, `client/src/pages/GuestApp.tsx`
+   - **Testing**: Verified notes save correctly and navigation works as expected
