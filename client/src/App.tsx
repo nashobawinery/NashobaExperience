@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -14,6 +14,13 @@ import { useAuth } from "@/hooks/useAuth";
 function Router() {
   const [showAdmin, setShowAdmin] = useState(false);
   const { user, isLoading, isAdmin } = useAuth();
+
+  // Force exit admin mode when user is not authenticated or not admin
+  useEffect(() => {
+    if (!user || user.role !== "admin") {
+      setShowAdmin(false);
+    }
+  }, [user]);
 
   // Show loading state while checking authentication
   if (isLoading) {
