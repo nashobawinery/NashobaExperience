@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +30,53 @@ export default function FavoritesPanel({
   onAddToCart,
   onEmailFavorites,
 }: FavoritesPanelProps) {
+  // Local state for notes with debouncing
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  const debounceTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const lastSavedNotesRef = useRef<Record<string, string>>({});
+
+  // Initialize local notes from favorites
+  useEffect(() => {
+    const initialNotes: Record<string, string> = {};
+    favorites.forEach(fav => {
+      initialNotes[fav.id] = fav.note || '';
+      lastSavedNotesRef.current[fav.id] = fav.note || '';
+    });
+    setLocalNotes(initialNotes);
+  }, [favorites.map(f => f.id).join(',')]);
+
+  // Update local notes when favorites notes change externally
+  useEffect(() => {
+    favorites.forEach(fav => {
+      if (fav.note !== lastSavedNotesRef.current[fav.id] && !debounceTimersRef.current[fav.id]) {
+        setLocalNotes(prev => ({ ...prev, [fav.id]: fav.note || '' }));
+        lastSavedNotesRef.current[fav.id] = fav.note || '';
+      }
+    });
+  }, [favorites]);
+
+  const handleNoteChange = (favoriteId: string, value: string) => {
+    setLocalNotes(prev => ({ ...prev, [favoriteId]: value }));
+    
+    // Clear existing timer
+    if (debounceTimersRef.current[favoriteId]) {
+      clearTimeout(debounceTimersRef.current[favoriteId]);
+    }
+    
+    // Set new timer
+    debounceTimersRef.current[favoriteId] = setTimeout(() => {
+      lastSavedNotesRef.current[favoriteId] = value;
+      onUpdateNote?.(favoriteId, value);
+      delete debounceTimersRef.current[favoriteId];
+    }, 500);
+  };
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimersRef.current).forEach(timer => clearTimeout(timer));
+    };
+  }, []);
   return (
     <Card className="h-full flex flex-col">
       <div className="p-6 border-b">
@@ -94,8 +142,8 @@ export default function FavoritesPanel({
 
                   <Textarea
                     placeholder="Add your tasting notes..."
-                    value={favorite.note || ''}
-                    onChange={(e) => onUpdateNote?.(favorite.id, e.target.value)}
+                    value={localNotes[favorite.id] || ''}
+                    onChange={(e) => handleNoteChange(favorite.id, e.target.value)}
                     className="mb-3 text-sm min-h-[60px]"
                     data-testid={`textarea-note-${favorite.id}`}
                   />

@@ -347,6 +347,14 @@ export default function GuestApp() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "notes"] });
     },
+    onError: (error) => {
+      console.error("Failed to save product note:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save note",
+        variant: "destructive",
+      });
+    },
   });
 
   const addToCartMutation = useMutation({
