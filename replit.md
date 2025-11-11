@@ -73,12 +73,48 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Updates (November 2025)
 
-### Email System Migration
-- **Migrated from**: Microsoft 365 SMTP (authentication failures) → SendGrid API
-- **Implementation**: Manual SendGrid setup outside Replit's integration system per user preference
-- **Active Secrets**: `SENDGRID_API_KEY` (keep), removed deprecated SMTP_* and RESEND_* secrets
-- **Verified Sender**: `email@nashobawinery.com` configured in SendGrid dashboard
-- **Status**: Emails successfully sending in both development and production environments
+### Email System (SendGrid)
+The application uses SendGrid API for sending transactional emails (cart orders and favorites summaries).
+
+#### Setup Instructions
+1. **Create SendGrid Account**
+   - Sign up at [sendgrid.com](https://sendgrid.com)
+   - Free tier: 100 emails/day (sufficient for most wineries)
+
+2. **Verify Sender Email**
+   - Navigate to **Settings > Sender Authentication** in SendGrid dashboard
+   - Click **Verify a Single Sender**
+   - Enter sender email: `email@nashobawinery.com` (or your preferred email)
+   - Complete verification process via email confirmation
+   - **Important**: Emails will NOT send until sender is verified
+
+3. **Generate API Key**
+   - Go to **Settings > API Keys** in SendGrid dashboard
+   - Click **Create API Key**
+   - Name: `Nashoba Tasting App` (or similar)
+   - Permission: **Full Access** (or at minimum: Mail Send)
+   - Copy the generated API key (you won't see it again!)
+
+4. **Add to Replit Secrets**
+   - In Replit, go to **Tools > Secrets**
+   - Add secret: `SENDGRID_API_KEY` = `[paste your API key]`
+   - The app automatically loads this from environment variables
+
+5. **Configure Sender Email in Code**
+   - Update `server/email.ts` if using a different sender email
+   - Default: `email@nashobawinery.com`
+
+#### Migration History
+- **Previous System**: Microsoft 365 SMTP (had authentication failures)
+- **Current System**: SendGrid API (stable and reliable)
+- **Active Secrets**: `SENDGRID_API_KEY`, `RESEND_FROM_EMAIL` (legacy, can be removed)
+- **Deprecated Secrets**: SMTP_* secrets (removed)
+
+#### Email Features
+- **Cart Orders**: Sends order details to configurable recipient emails (Settings tab)
+- **Favorites Summary**: Sends guest favorites list with tasting notes
+- **Template Format**: HTML + Plain text for maximum compatibility
+- **Styling**: Branded with winery colors (gold accents, serif fonts)
 
 ### Bug Fixes
 1. **Favorites Notes Not Saving**
@@ -133,3 +169,14 @@ Preferred communication style: Simple, everyday language.
    - **UX**: Outline button with left arrow icon, positioned above "Email My Favorites & Notes" button
    - **Files**: `client/src/components/FavoritesPanel.tsx`, `client/src/pages/GuestApp.tsx`
    - **Testing**: Verified notes save correctly and navigation works as expected
+
+4. **Trivia Results User Control**
+   - **Feature**: Trivia results now stay on screen until user clicks "Continue" button
+   - **Previous Behavior**: Results auto-dismissed after 2.5 seconds (too fast to read explanations)
+   - **New Behavior**: 
+     - Result displays with correct/incorrect indicator and explanation
+     - Full-width "Continue" button appears below explanation
+     - User reads at their own pace
+     - Click "Continue" when ready for next question
+   - **UX Improvement**: Gives users time to understand why an answer was correct/incorrect
+   - **Files**: `client/src/components/TriviaPopup.tsx`
