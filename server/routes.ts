@@ -432,12 +432,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         total,
       });
 
-      await sendEmail(
-        "onsiteorder@nashobawinery.com",
-        emailData.subject,
-        emailData.html,
-        emailData.text
-      );
+      // Get order recipient emails from settings
+      const recipientSetting = await storage.getSetting('order_recipient_emails');
+      const recipientEmails = (recipientSetting?.value as string) || 'onsiteorder@nashobawinery.com';
+      
+      // Parse comma-separated emails
+      const recipients = recipientEmails
+        .split(',')
+        .map((email: string) => email.trim())
+        .filter((email: string) => email.length > 0);
+      
+      if (recipients.length === 0) {
+        return res.status(500).json({ message: "No recipient email addresses configured" });
+      }
+
+      // Send email to all recipients
+      for (const recipient of recipients) {
+        await sendEmail(
+          recipient,
+          emailData.subject,
+          emailData.html,
+          emailData.text
+        );
+      }
 
       res.json({ success: true, message: "Order sent to staff" });
     } catch (error) {
