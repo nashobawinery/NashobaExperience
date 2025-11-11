@@ -3,6 +3,7 @@ import { eq, and, desc, ilike, or, sql, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
+  users,
   guestSessions,
   favorites,
   viewHistory,
@@ -18,6 +19,9 @@ import {
   videos,
   type InsertProduct,
   type Product,
+  type InsertUser,
+  type UpsertUser,
+  type User,
   type InsertGuestSession,
   type GuestSession,
   type InsertFavorite,
@@ -52,6 +56,13 @@ function lower(column: AnyColumn): SQL {
 }
 
 export interface IStorage {
+  // Users (for authentication)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  updateUserRole(id: string, role: "guest" | "admin" | "wholesale"): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
+
   // Products
   getProducts(filters?: ProductFilters): Promise<Product[]>;
   getProduct(id: string): Promise<Product | undefined>;
@@ -159,6 +170,45 @@ export interface ProductFilters {
 }
 
 export class DatabaseStorage implements IStorage {
+  // User operations (for authentication)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async updateUserRole(id: string, role: "guest" | "admin" | "wholesale"): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
   async getProducts(filters?: ProductFilters): Promise<Product[]> {
     let query = db.select().from(products);
     
