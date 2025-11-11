@@ -93,6 +93,13 @@ Preferred communication style: Simple, everyday language.
    - **Files**: `client/src/components/ShoppingCartPanel.tsx`, `client/src/pages/GuestApp.tsx`
    - **Impact**: Tier-based discounts now calculate and display correctly (3+ bottles: 5%, 6+: 10%, 12+: 15%, 24+: 24%)
 
+3. **Notes Not Appearing in Emailed Favorites**
+   - **Issue**: When emailing favorites, the email didn't include tasting notes
+   - **Root Cause**: `getFavorites()` function only read from old `favorites.note` column, but notes are now stored in `product_notes` table
+   - **Fix**: Updated `getFavorites()` to left join with `product_notes` table and use `COALESCE(product_notes.note, favorites.note)` to prioritize new storage while maintaining legacy data access
+   - **Files**: `server/storage.ts`
+   - **Impact**: Emailed favorites now include all tasting notes with styled formatting
+
 ### New Features
 1. **Configurable Order Recipient Emails**
    - **Feature**: Admin can now configure multiple email addresses to receive guest cart orders through the Settings tab

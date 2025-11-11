@@ -283,12 +283,16 @@ export class DatabaseStorage implements IStorage {
         id: favorites.id,
         sessionId: favorites.sessionId,
         productId: favorites.productId,
-        note: favorites.note,
+        note: sql<string | null>`COALESCE(${productNotes.note}, ${favorites.note})`.as('note'),
         createdAt: favorites.createdAt,
         product: products,
       })
       .from(favorites)
       .innerJoin(products, eq(favorites.productId, products.id))
+      .leftJoin(productNotes, and(
+        eq(productNotes.sessionId, favorites.sessionId),
+        eq(productNotes.productId, favorites.productId)
+      ))
       .where(eq(favorites.sessionId, sessionId))
       .orderBy(desc(favorites.createdAt));
     
