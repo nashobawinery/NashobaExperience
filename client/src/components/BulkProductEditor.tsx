@@ -18,9 +18,12 @@ interface ProductChanges {
 type SortField = 'name' | 'sku' | 'price' | 'stockQuantity' | 'category' | 'type' | 'description';
 type SortDirection = 'asc' | 'desc' | null;
 
+type CategoryFilter = 'all' | 'wine' | 'beer' | 'spirits' | 'canned_cocktail' | 'canned_wine';
+
 export default function BulkProductEditor() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [changes, setChanges] = useState<ProductChanges>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
@@ -44,6 +47,49 @@ export default function BulkProductEditor() {
 
   const sweetnessOptions = getFilterOptionsByType('sweetness');
   const bodyOptions = getFilterOptionsByType('body');
+  const beerStyleOptions = getFilterOptionsByType('beer_style');
+  const beerColorOptions = getFilterOptionsByType('beer_color');
+  const beerBitternessOptions = getFilterOptionsByType('beer_bitterness');
+  const spiritTypeOptions = getFilterOptionsByType('spirit_type');
+  const spiritAgingOptions = getFilterOptionsByType('spirit_aging');
+  const spiritFlavorOptions = getFilterOptionsByType('spirit_flavor');
+
+  // Category configuration for conditional column rendering
+  // Columns: Name, SKU, Price, Stock, Category, Type, [category-specific], Description, Tasting Notes, Staff Pick, Featured, New
+  const categoryConfig = {
+    all: {
+      // 6 core + 0 category + 5 end = 11 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[1670px]',
+    },
+    wine: {
+      // 6 core + 6 wine + 5 end = 17 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2660px]',
+    },
+    beer: {
+      // 6 core + 3 beer + 5 end = 14 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2220px]',
+    },
+    spirits: {
+      // 6 core + 3 spirits + 5 end = 14 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2220px]',
+    },
+    canned_cocktail: {
+      // 6 core + 6 wine + 5 end = 17 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2660px]',
+    },
+    canned_wine: {
+      // 6 core + 6 wine + 5 end = 17 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2660px]',
+    },
+  };
+
+  const config = categoryConfig[categoryFilter];
 
   const saveChangesMutation = useMutation({
     mutationFn: async (updates: ProductChanges) => {
@@ -116,10 +162,12 @@ export default function BulkProductEditor() {
   };
 
   const filteredProducts = products
-    .filter(product =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter(product => {
+      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    })
     .sort((a, b) => {
       if (!sortField || !sortDirection) return 0;
 
@@ -203,7 +251,28 @@ export default function BulkProductEditor() {
           </div>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">Category:</span>
+            {(['all', 'wine', 'beer', 'spirits', 'canned_cocktail', 'canned_wine'] as const).map((category) => (
+              <Button
+                key={category}
+                variant={categoryFilter === category ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setCategoryFilter(category);
+                  setCurrentPage(1);
+                }}
+                data-testid={`button-category-${category}`}
+              >
+                {category === 'all' ? 'All' : 
+                 category === 'canned_cocktail' ? 'Canned Cocktail' :
+                 category === 'canned_wine' ? 'Canned Wine' :
+                 category.charAt(0).toUpperCase() + category.slice(1)}
+              </Button>
+            ))}
+          </div>
+          
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -218,8 +287,9 @@ export default function BulkProductEditor() {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[2720px]">
-            <div className="grid grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
+          {/* Grid layout changes based on category filter */}
+          <div className={config.minWidth}>
+            <div className={`gap-2 font-medium text-sm pb-2 border-b grid ${config.gridTemplate}`}>
               <div 
                 className="cursor-pointer hover-elevate rounded px-2 py-1"
                 onClick={() => handleSort('name')}
@@ -262,12 +332,35 @@ export default function BulkProductEditor() {
               >
                 Type{getSortIcon('type')}
               </div>
-              <div className="px-2 py-1">Wine Color</div>
-              <div className="px-2 py-1">Varietal</div>
-              <div className="px-2 py-1">Vintage</div>
-              <div className="px-2 py-1">Region</div>
-              <div className="px-2 py-1">Sweetness</div>
-              <div className="px-2 py-1">Body</div>
+              
+              {/* Category-specific headers */}
+              {(categoryFilter === 'wine' || categoryFilter === 'canned_wine' || categoryFilter === 'canned_cocktail') && (
+                <>
+                  <div className="px-2 py-1">Wine Color</div>
+                  <div className="px-2 py-1">Varietal</div>
+                  <div className="px-2 py-1">Vintage</div>
+                  <div className="px-2 py-1">Region</div>
+                  <div className="px-2 py-1">Sweetness</div>
+                  <div className="px-2 py-1">Body</div>
+                </>
+              )}
+              
+              {categoryFilter === 'beer' && (
+                <>
+                  <div className="px-2 py-1">Beer Style</div>
+                  <div className="px-2 py-1">Beer Color</div>
+                  <div className="px-2 py-1">Bitterness</div>
+                </>
+              )}
+              
+              {categoryFilter === 'spirits' && (
+                <>
+                  <div className="px-2 py-1">Spirit Type</div>
+                  <div className="px-2 py-1">Aging</div>
+                  <div className="px-2 py-1">Flavor</div>
+                </>
+              )}
+              
               <div 
                 className="cursor-pointer hover-elevate rounded px-2 py-1"
                 onClick={() => handleSort('description')}
@@ -285,7 +378,7 @@ export default function BulkProductEditor() {
               {paginatedProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`grid grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px] gap-2 items-start py-2 ${
+                  className={`grid ${config.gridTemplate} gap-2 items-start py-2 ${
                     hasChanges(product.id) ? 'bg-accent/10 rounded-lg px-2' : ''
                   }`}
                   data-testid={`row-bulk-edit-${product.id}`}
@@ -346,77 +439,186 @@ export default function BulkProductEditor() {
                     data-testid={`input-type-${product.id}`}
                   />
                   
-                  <Select
-                    value={(getFieldValue(product, 'wineColor') as string) || ''}
-                    onValueChange={(value) => updateField(product.id, 'wineColor', value || null)}
-                  >
-                    <SelectTrigger className="h-9" data-testid={`select-wine-color-${product.id}`}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="red">Red</SelectItem>
-                      <SelectItem value="white">White</SelectItem>
-                      <SelectItem value="rosé">Rosé</SelectItem>
-                      <SelectItem value="sparkling">Sparkling</SelectItem>
-                      <SelectItem value="dessert">Dessert</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Category-specific row cells */}
+                  {(categoryFilter === 'wine' || categoryFilter === 'canned_wine' || categoryFilter === 'canned_cocktail') && (
+                    <>
+                      <Select
+                        value={(getFieldValue(product, 'wineColor') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'wineColor', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-wine-color-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="red">Red</SelectItem>
+                          <SelectItem value="white">White</SelectItem>
+                          <SelectItem value="rosé">Rosé</SelectItem>
+                          <SelectItem value="sparkling">Sparkling</SelectItem>
+                          <SelectItem value="dessert">Dessert</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      
+                      <Input
+                        value={getFieldValue(product, 'varietal') as string || ''}
+                        onChange={(e) => updateField(product.id, 'varietal', e.target.value)}
+                        placeholder="e.g., Merlot"
+                        className="h-9"
+                        data-testid={`input-varietal-${product.id}`}
+                      />
+                      
+                      <Input
+                        value={getFieldValue(product, 'vintageYear') as string || ''}
+                        onChange={(e) => updateField(product.id, 'vintageYear', e.target.value)}
+                        placeholder="e.g., 2020"
+                        className="h-9"
+                        data-testid={`input-vintage-${product.id}`}
+                      />
+                      
+                      <Input
+                        value={getFieldValue(product, 'region') as string || ''}
+                        onChange={(e) => updateField(product.id, 'region', e.target.value)}
+                        placeholder="e.g., Napa"
+                        className="h-9"
+                        data-testid={`input-region-${product.id}`}
+                      />
+                      
+                      <Select
+                        value={(getFieldValue(product, 'sweetness') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'sweetness', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-sweetness-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sweetnessOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Select
+                        value={(getFieldValue(product, 'body') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'body', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-body-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bodyOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                   
-                  <Input
-                    value={getFieldValue(product, 'varietal') as string || ''}
-                    onChange={(e) => updateField(product.id, 'varietal', e.target.value)}
-                    placeholder="e.g., Merlot"
-                    className="h-9"
-                    data-testid={`input-varietal-${product.id}`}
-                  />
+                  {categoryFilter === 'beer' && (
+                    <>
+                      <Select
+                        value={(getFieldValue(product, 'beerStyle') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'beerStyle', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-beer-style-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {beerStyleOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Select
+                        value={(getFieldValue(product, 'beerColor') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'beerColor', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-beer-color-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {beerColorOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Select
+                        value={(getFieldValue(product, 'beerBitterness') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'beerBitterness', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-beer-bitterness-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {beerBitternessOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                   
-                  <Input
-                    value={getFieldValue(product, 'vintageYear') as string || ''}
-                    onChange={(e) => updateField(product.id, 'vintageYear', e.target.value)}
-                    placeholder="e.g., 2020"
-                    className="h-9"
-                    data-testid={`input-vintage-${product.id}`}
-                  />
-                  
-                  <Input
-                    value={getFieldValue(product, 'region') as string || ''}
-                    onChange={(e) => updateField(product.id, 'region', e.target.value)}
-                    placeholder="e.g., Napa"
-                    className="h-9"
-                    data-testid={`input-region-${product.id}`}
-                  />
-                  
-                  <Select
-                    value={(getFieldValue(product, 'sweetness') as string) || ''}
-                    onValueChange={(value) => updateField(product.id, 'sweetness', value || null)}
-                  >
-                    <SelectTrigger className="h-9" data-testid={`select-sweetness-${product.id}`}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sweetnessOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.optionValue}>
-                          {option.displayLabel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select
-                    value={(getFieldValue(product, 'body') as string) || ''}
-                    onValueChange={(value) => updateField(product.id, 'body', value || null)}
-                  >
-                    <SelectTrigger className="h-9" data-testid={`select-body-${product.id}`}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bodyOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.optionValue}>
-                          {option.displayLabel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {categoryFilter === 'spirits' && (
+                    <>
+                      <Select
+                        value={(getFieldValue(product, 'spiritType') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'spiritType', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-spirit-type-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {spiritTypeOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Select
+                        value={(getFieldValue(product, 'spiritAging') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'spiritAging', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-spirit-aging-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {spiritAgingOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <Select
+                        value={(getFieldValue(product, 'spiritFlavor') as string) || ''}
+                        onValueChange={(value) => updateField(product.id, 'spiritFlavor', value || null)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-spirit-flavor-${product.id}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {spiritFlavorOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.optionValue}>
+                              {option.displayLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                   
                   <Textarea
                     value={getFieldValue(product, 'description') as string}
