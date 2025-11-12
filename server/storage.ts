@@ -75,8 +75,10 @@ export interface IStorage {
   // Products
   getProducts(filters?: ProductFilters): Promise<Product[]>;
   getProduct(id: string): Promise<Product | undefined>;
+  getProductBySku(sku: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
+  upsertProductBySku(product: InsertProduct): Promise<{ product: Product; action: 'created' | 'updated' }>;
   deleteProduct(id: string): Promise<boolean>;
   incrementProductViews(productId: string): Promise<void>;
 
@@ -319,6 +321,32 @@ export class DatabaseStorage implements IStorage {
       SET view_count = COALESCE(view_count, 0) + 1 
       WHERE id = ${productId}
     `);
+  }
+
+  async getProductBySku(sku: string): Promise<Product | undefined> {
+    if (!sku) return undefined;
+    const normalizedSku = sku.trim().toUpperCase();
+    const result = await db.select().from(products).where(sql`UPPER(TRIM(${products.sku})) = ${normalizedSku}`);
+    return result[0];
+  }
+
+  async upsertProductBySku(product: InsertProduct): Promise<{ product: Product; action: 'created' | 'updated' }> {
+    if (!product.sku) {
+      throw new Error("SKU is required for upsert operation");
+    }
+
+    const existingProduct = await this.getProductBySku(product.sku);
+    
+    if (existingProduct) {
+      const updated = await this.updateProduct(existingProduct.id, product);
+      if (!updated) {
+        throw new Error("Failed to update product");
+      }
+      return { product: updated, action: 'updated' };
+    } else {
+      const created = await this.createProduct(product);
+      return { product: created, action: 'created' };
+    }
   }
 
   async createGuestSession(session: InsertGuestSession): Promise<GuestSession> {

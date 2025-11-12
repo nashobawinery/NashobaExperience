@@ -802,6 +802,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Shopify CSV Import
+  const csvUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB max
+    },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only CSV files are allowed'));
+      }
+    },
+  });
+
+  app.post("/api/admin/shopify/preview", isAdmin, csvUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { parseShopifyCsv } = await import("./shopify-import");
+      const parseResult = parseShopifyCsv(req.file.buffer);
+
+      const preview = {
+        products: [] as any[],
+        summary: {
+          total: parseResult.products.length,
+          toCreate: 0,
+          toUpdate: 0,
+          toSkip: 0,
+        },
+        errors: parseResult.errors,
+      };
+
+      // Check each product to see if it exists
+      for (const parsedProduct of parseResult.products) {
+        const existing = await storage.getProductBySku(parsedProduct.sku);
+        
+        if (existing) {
+          preview.products.push({
+            product: parsedProduct,
+            action: 'update',
+            existingProduct: {
+              id: existing.id,
+              name: existing.name,
+              price: existing.price,
+              sku: existing.sku,
+            },
+          });
+          preview.summary.toUpdate++;
+        } else {
+          preview.products.push({
+            product: parsedProduct,
+            action: 'create',
+          });
+          preview.summary.toCreate++;
+        }
+      }
+
+      res.json(preview);
+    } catch (error) {
+      console.error("Error previewing Shopify import:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to preview import" });
+    }
+  });
+
+  app.post("/api/admin/shopify/import", isAdmin, csvUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { parseShopifyCsv } = await import("./shopify-import");
+      const parseResult = parseShopifyCsv(req.file.buffer);
+
+      const results = {
+        created: 0,
+        updated: 0,
+        failed: 0,
+        errors: [...parseResult.errors],
+      };
+
+      // Import each product
+      for (const parsedProduct of parseResult.products) {
+        try {
+          const productData = {
+            name: parsedProduct.name,
+            description: parsedProduct.description,
+            price: parsedProduct.price.toString(),
+            sku: parsedProduct.sku,
+            category: parsedProduct.category,
+            type: parsedProduct.type,
+            imageUrl: parsedProduct.imageUrl,
+            characteristics: parsedProduct.characteristics,
+          };
+
+          const { action } = await storage.upsertProductBySku(productData);
+          
+          if (action === 'created') {
+            results.created++;
+          } else {
+            results.updated++;
+          }
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Failed to import SKU ${parsedProduct.sku}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const message = `Import completed: ${results.created} products created, ${results.updated} updated${results.failed > 0 ? `, ${results.failed} failed` : ''}`;
+
+      res.json({
+        message,
+        ...results,
+      });
+    } catch (error) {
+      console.error("Error importing Shopify CSV:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to import products" });
+    }
+  });
+
   // Filter Options Management
   app.get("/api/filter-options", async (req, res) => {
     const fieldType = req.query.fieldType as string | undefined;
