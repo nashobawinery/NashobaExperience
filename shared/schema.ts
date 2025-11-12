@@ -58,7 +58,7 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   cost: decimal("cost", { precision: 10, scale: 2 }),
   wholesalePricing: decimal("wholesale_pricing", { precision: 10, scale: 2 }),
-  sku: text("sku"),
+  sku: text("sku").unique(),
   stockQuantity: integer("stock_quantity").default(0),
   lowStockThreshold: integer("low_stock_threshold").default(10),
   ignoreInventory: boolean("ignore_inventory").notNull().default(true),
