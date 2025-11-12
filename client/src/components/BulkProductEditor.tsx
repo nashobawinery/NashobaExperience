@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Undo2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Product } from "@shared/schema";
+import type { Product, FilterOption } from "@shared/schema";
 
 interface ProductChanges {
   [productId: string]: Partial<Product>;
@@ -30,6 +30,20 @@ export default function BulkProductEditor() {
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
+
+  const { data: filterOptions = [] } = useQuery<FilterOption[]>({
+    queryKey: ["/api/filter-options"],
+  });
+
+  // Helper to get filter options by field type
+  const getFilterOptionsByType = (fieldType: string) => {
+    return filterOptions
+      .filter(opt => opt.fieldType === fieldType && opt.isActive)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  };
+
+  const sweetnessOptions = getFilterOptionsByType('sweetness');
+  const bodyOptions = getFilterOptionsByType('body');
 
   const saveChangesMutation = useMutation({
     mutationFn: async (updates: ProductChanges) => {
@@ -204,8 +218,8 @@ export default function BulkProductEditor() {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[1900px]">
-            <div className="grid grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
+          <div className="min-w-[2720px]">
+            <div className="grid grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
               <div 
                 className="cursor-pointer hover-elevate rounded px-2 py-1"
                 onClick={() => handleSort('name')}
@@ -248,6 +262,12 @@ export default function BulkProductEditor() {
               >
                 Type{getSortIcon('type')}
               </div>
+              <div className="px-2 py-1">Wine Color</div>
+              <div className="px-2 py-1">Varietal</div>
+              <div className="px-2 py-1">Vintage</div>
+              <div className="px-2 py-1">Region</div>
+              <div className="px-2 py-1">Sweetness</div>
+              <div className="px-2 py-1">Body</div>
               <div 
                 className="cursor-pointer hover-elevate rounded px-2 py-1"
                 onClick={() => handleSort('description')}
@@ -265,7 +285,7 @@ export default function BulkProductEditor() {
               {paginatedProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`grid grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px] gap-2 items-start py-2 ${
+                  className={`grid grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px] gap-2 items-start py-2 ${
                     hasChanges(product.id) ? 'bg-accent/10 rounded-lg px-2' : ''
                   }`}
                   data-testid={`row-bulk-edit-${product.id}`}
@@ -325,6 +345,78 @@ export default function BulkProductEditor() {
                     className="h-9"
                     data-testid={`input-type-${product.id}`}
                   />
+                  
+                  <Select
+                    value={(getFieldValue(product, 'wineColor') as string) || ''}
+                    onValueChange={(value) => updateField(product.id, 'wineColor', value || null)}
+                  >
+                    <SelectTrigger className="h-9" data-testid={`select-wine-color-${product.id}`}>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="red">Red</SelectItem>
+                      <SelectItem value="white">White</SelectItem>
+                      <SelectItem value="rosé">Rosé</SelectItem>
+                      <SelectItem value="sparkling">Sparkling</SelectItem>
+                      <SelectItem value="dessert">Dessert</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Input
+                    value={getFieldValue(product, 'varietal') as string || ''}
+                    onChange={(e) => updateField(product.id, 'varietal', e.target.value)}
+                    placeholder="e.g., Merlot"
+                    className="h-9"
+                    data-testid={`input-varietal-${product.id}`}
+                  />
+                  
+                  <Input
+                    value={getFieldValue(product, 'vintageYear') as string || ''}
+                    onChange={(e) => updateField(product.id, 'vintageYear', e.target.value)}
+                    placeholder="e.g., 2020"
+                    className="h-9"
+                    data-testid={`input-vintage-${product.id}`}
+                  />
+                  
+                  <Input
+                    value={getFieldValue(product, 'region') as string || ''}
+                    onChange={(e) => updateField(product.id, 'region', e.target.value)}
+                    placeholder="e.g., Napa"
+                    className="h-9"
+                    data-testid={`input-region-${product.id}`}
+                  />
+                  
+                  <Select
+                    value={(getFieldValue(product, 'sweetness') as string) || ''}
+                    onValueChange={(value) => updateField(product.id, 'sweetness', value || null)}
+                  >
+                    <SelectTrigger className="h-9" data-testid={`select-sweetness-${product.id}`}>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sweetnessOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select
+                    value={(getFieldValue(product, 'body') as string) || ''}
+                    onValueChange={(value) => updateField(product.id, 'body', value || null)}
+                  >
+                    <SelectTrigger className="h-9" data-testid={`select-body-${product.id}`}>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bodyOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.optionValue}>
+                          {option.displayLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   
                   <Textarea
                     value={getFieldValue(product, 'description') as string}
