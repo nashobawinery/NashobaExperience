@@ -759,7 +759,7 @@ export default function GuestApp() {
               <h1 className="font-serif text-2xl font-medium">Welcome, {guestName}</h1>
               <p className="text-sm text-muted-foreground">Tasting Session</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Let's find the wines you are going to love. Use the search features below to select a category such as "Wine" and additional search options will appear such as sweetness levels.
+                Let's find the adult beverages you are going to love. Use the search features below to select a category such as "Wine" and additional search options will appear such as sweetness levels.
               </p>
             </div>
             <div className="flex items-center gap-3">
