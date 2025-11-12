@@ -21,7 +21,7 @@ export interface ParsedShopifyProduct {
   description: string;
   price: number;
   imageUrl?: string;
-  category: 'Wine' | 'Distilled Spirits' | 'Beer' | 'Hard Cider' | 'Non-Alcoholic' | 'Merchandise';
+  category: 'wine' | 'spirits' | 'beer' | 'canned_cocktail' | 'canned_wine';
   type?: string;
   characteristics?: string;
   rawRow: ShopifyRow;
@@ -63,24 +63,32 @@ function stripHtml(html: string): string {
   return text;
 }
 
-function mapShopifyCategory(shopifyType: string, shopifyCategory: string): 'Wine' | 'Distilled Spirits' | 'Beer' | 'Hard Cider' | 'Non-Alcoholic' | 'Merchandise' {
+function mapShopifyCategory(shopifyType: string, shopifyCategory: string): 'wine' | 'spirits' | 'beer' | 'canned_cocktail' | 'canned_wine' {
   const lowerType = shopifyType?.toLowerCase() || '';
   const lowerCategory = shopifyCategory?.toLowerCase() || '';
   
-  // Check category field first
-  if (lowerCategory.includes('wine')) return 'Wine';
-  if (lowerCategory.includes('liquor') || lowerCategory.includes('spirits')) return 'Distilled Spirits';
-  if (lowerCategory.includes('beer')) return 'Beer';
+  // Check for canned products first (more specific)
+  if (lowerType.includes('canned') || lowerCategory.includes('canned')) {
+    if (lowerType.includes('wine') || lowerCategory.includes('wine')) return 'canned_wine';
+    if (lowerType.includes('cocktail') || lowerCategory.includes('cocktail')) return 'canned_cocktail';
+  }
   
-  // Then check type field
-  if (lowerType.includes('wine')) return 'Wine';
-  if (lowerType.includes('spirit') || lowerType.includes('distilled')) return 'Distilled Spirits';
-  if (lowerType.includes('beer')) return 'Beer';
-  if (lowerType.includes('cider')) return 'Hard Cider';
-  if (lowerType.includes('seasonal')) return 'Wine'; // Default seasonal to Wine
+  // Check category field
+  if (lowerCategory.includes('wine')) return 'wine';
+  if (lowerCategory.includes('liquor') || lowerCategory.includes('spirits') || lowerCategory.includes('distilled')) return 'spirits';
+  if (lowerCategory.includes('beer')) return 'beer';
+  if (lowerCategory.includes('cocktail')) return 'canned_cocktail';
   
-  // Default
-  return 'Wine';
+  // Check type field
+  if (lowerType.includes('wine')) return 'wine';
+  if (lowerType.includes('spirit') || lowerType.includes('liquor') || lowerType.includes('distilled')) return 'spirits';
+  if (lowerType.includes('beer')) return 'beer';
+  if (lowerType.includes('cider')) return 'canned_cocktail'; // Map cider to canned_cocktail
+  if (lowerType.includes('cocktail')) return 'canned_cocktail';
+  if (lowerType.includes('seasonal')) return 'wine'; // Default seasonal to wine
+  
+  // Default fallback to wine
+  return 'wine';
 }
 
 export function parseShopifyCsv(buffer: Buffer): { products: ParsedShopifyProduct[]; errors: string[] } {
