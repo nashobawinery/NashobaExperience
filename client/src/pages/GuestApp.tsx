@@ -44,10 +44,19 @@ export default function GuestApp() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [priceRange, setPriceRange] = useState("all");
+  // Wine-specific filters
   const [wineColor, setWineColor] = useState("all");
   const [sweetness, setSweetness] = useState("all");
   const [body, setBody] = useState("all");
   const [characteristics, setCharacteristics] = useState("all");
+  // Beer-specific filters
+  const [beerStyle, setBeerStyle] = useState("all");
+  const [beerColor, setBeerColor] = useState("all");
+  const [beerBitterness, setBeerBitterness] = useState("all");
+  // Spirits-specific filters
+  const [spiritType, setSpiritType] = useState("all");
+  const [spiritAging, setSpiritAging] = useState("all");
+  const [spiritFlavor, setSpiritFlavor] = useState("all");
   
   const [showTrivia, setShowTrivia] = useState(false);
   const [showTriviaInfo, setShowTriviaInfo] = useState(false);
@@ -66,11 +75,19 @@ export default function GuestApp() {
       { 
         search: searchQuery, 
         category: selectedCategory, 
-        // Only include wine filters in cache key when wine category is selected
+        // Wine filters - only when wine category selected
         wineColor: selectedCategory === 'wine' ? wineColor : 'all',
         sweetness: selectedCategory === 'wine' ? sweetness : 'all',
         body: selectedCategory === 'wine' ? body : 'all',
         characteristics: selectedCategory === 'wine' ? characteristics : 'all',
+        // Beer filters - only when beer category selected
+        beerStyle: selectedCategory === 'beer' ? beerStyle : 'all',
+        beerColor: selectedCategory === 'beer' ? beerColor : 'all',
+        beerBitterness: selectedCategory === 'beer' ? beerBitterness : 'all',
+        // Spirits filters - only when spirits category selected
+        spiritType: selectedCategory === 'spirits' ? spiritType : 'all',
+        spiritAging: selectedCategory === 'spirits' ? spiritAging : 'all',
+        spiritFlavor: selectedCategory === 'spirits' ? spiritFlavor : 'all',
         priceRange 
       }
     ],
@@ -79,12 +96,26 @@ export default function GuestApp() {
       if (searchQuery) filters.search = searchQuery;
       if (selectedCategory !== 'all') filters.category = selectedCategory;
       
-      // Only include wine-specific filters when wine category is selected
+      // Wine-specific filters
       if (selectedCategory === 'wine') {
         if (wineColor !== 'all') filters.wineColor = wineColor;
         if (sweetness !== 'all') filters.sweetness = sweetness;
         if (body !== 'all') filters.body = body;
         if (characteristics !== 'all') filters.characteristics = characteristics;
+      }
+      
+      // Beer-specific filters
+      if (selectedCategory === 'beer') {
+        if (beerStyle !== 'all') filters.beerStyle = beerStyle;
+        if (beerColor !== 'all') filters.beerColor = beerColor;
+        if (beerBitterness !== 'all') filters.beerBitterness = beerBitterness;
+      }
+      
+      // Spirits-specific filters
+      if (selectedCategory === 'spirits') {
+        if (spiritType !== 'all') filters.spiritType = spiritType;
+        if (spiritAging !== 'all') filters.spiritAging = spiritAging;
+        if (spiritFlavor !== 'all') filters.spiritFlavor = spiritFlavor;
       }
       
       if (priceRange !== 'all') {
@@ -108,13 +139,26 @@ export default function GuestApp() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset wine-specific filters when switching away from wine category
+  // Reset category-specific filters when switching categories
   useEffect(() => {
-    if (selectedCategory !== 'wine' && selectedCategory !== 'all') {
+    // Reset wine filters when not in wine category
+    if (selectedCategory !== 'wine') {
       setWineColor('all');
       setSweetness('all');
       setBody('all');
       setCharacteristics('all');
+    }
+    // Reset beer filters when not in beer category
+    if (selectedCategory !== 'beer') {
+      setBeerStyle('all');
+      setBeerColor('all');
+      setBeerBitterness('all');
+    }
+    // Reset spirits filters when not in spirits category
+    if (selectedCategory !== 'spirits') {
+      setSpiritType('all');
+      setSpiritAging('all');
+      setSpiritFlavor('all');
     }
   }, [selectedCategory]);
 
@@ -809,6 +853,12 @@ export default function GuestApp() {
               sweetness={sweetness}
               body={body}
               characteristics={characteristics}
+              beerStyle={beerStyle}
+              beerColor={beerColor}
+              beerBitterness={beerBitterness}
+              spiritType={spiritType}
+              spiritAging={spiritAging}
+              spiritFlavor={spiritFlavor}
               onSearchChange={setSearchInput}
               onCategoryChange={setSelectedCategory}
               onSortChange={setSortBy}
@@ -817,6 +867,12 @@ export default function GuestApp() {
               onSweetnessChange={setSweetness}
               onBodyChange={setBody}
               onCharacteristicsChange={setCharacteristics}
+              onBeerStyleChange={setBeerStyle}
+              onBeerColorChange={setBeerColor}
+              onBeerBitternessChange={setBeerBitterness}
+              onSpiritTypeChange={setSpiritType}
+              onSpiritAgingChange={setSpiritAging}
+              onSpiritFlavorChange={setSpiritFlavor}
               onClearFilters={() => {
                 setSearchInput('');
                 setSelectedCategory('all');
@@ -825,6 +881,12 @@ export default function GuestApp() {
                 setSweetness('all');
                 setBody('all');
                 setCharacteristics('all');
+                setBeerStyle('all');
+                setBeerColor('all');
+                setBeerBitterness('all');
+                setSpiritType('all');
+                setSpiritAging('all');
+                setSpiritFlavor('all');
               }}
             />
 

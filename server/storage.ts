@@ -171,10 +171,19 @@ export interface IStorage {
 export interface ProductFilters {
   search?: string;
   category?: string;
+  // Wine filters
   wineColor?: string;
   sweetness?: string;
   body?: string;
   characteristics?: string;
+  // Beer filters
+  beerStyle?: string;
+  beerColor?: string;
+  beerBitterness?: string;
+  // Spirits filters
+  spiritType?: string;
+  spiritAging?: string;
+  spiritFlavor?: string;
   minPrice?: number;
   maxPrice?: number;
   stock?: string;
@@ -277,6 +286,26 @@ export class DatabaseStorage implements IStorage {
     if (filters?.characteristics) {
       // Filter by characteristics field for specific traits like "Crisp", "Rich", etc.
       conditions.push(ilike(products.characteristics, `%${filters.characteristics}%`));
+    }
+    // Beer filters
+    if (filters?.beerStyle && filters.beerStyle !== 'all') {
+      conditions.push(sql`${products.beerStyle}::text = ${filters.beerStyle}`);
+    }
+    if (filters?.beerColor && filters.beerColor !== 'all') {
+      conditions.push(sql`${products.beerColor}::text = ${filters.beerColor}`);
+    }
+    if (filters?.beerBitterness && filters.beerBitterness !== 'all') {
+      conditions.push(sql`${products.beerBitterness}::text = ${filters.beerBitterness}`);
+    }
+    // Spirits filters
+    if (filters?.spiritType && filters.spiritType !== 'all') {
+      conditions.push(sql`${products.spiritType}::text = ${filters.spiritType}`);
+    }
+    if (filters?.spiritAging && filters.spiritAging !== 'all') {
+      conditions.push(sql`${products.spiritAging}::text = ${filters.spiritAging}`);
+    }
+    if (filters?.spiritFlavor && filters.spiritFlavor !== 'all') {
+      conditions.push(sql`${products.spiritFlavor}::text = ${filters.spiritFlavor}`);
     }
     if (filters?.stock) {
       // When filtering for in-stock items, include products with ignoreInventory=true OR stock > 0

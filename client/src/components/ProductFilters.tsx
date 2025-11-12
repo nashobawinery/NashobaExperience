@@ -20,18 +20,36 @@ interface ProductFiltersProps {
   selectedCategory: string;
   sortBy: string;
   priceRange: string;
+  // Wine filters
   wineColor?: string;
   sweetness?: string;
   body?: string;
   characteristics?: string;
+  // Beer filters
+  beerStyle?: string;
+  beerColor?: string;
+  beerBitterness?: string;
+  // Spirits filters
+  spiritType?: string;
+  spiritAging?: string;
+  spiritFlavor?: string;
   onSearchChange: (query: string) => void;
   onCategoryChange: (category: string) => void;
   onSortChange: (sort: string) => void;
   onPriceRangeChange: (range: string) => void;
+  // Wine filter handlers
   onWineColorChange?: (color: string) => void;
   onSweetnessChange?: (sweetness: string) => void;
   onBodyChange?: (body: string) => void;
   onCharacteristicsChange?: (characteristics: string) => void;
+  // Beer filter handlers
+  onBeerStyleChange?: (style: string) => void;
+  onBeerColorChange?: (color: string) => void;
+  onBeerBitternessChange?: (bitterness: string) => void;
+  // Spirits filter handlers
+  onSpiritTypeChange?: (type: string) => void;
+  onSpiritAgingChange?: (aging: string) => void;
+  onSpiritFlavorChange?: (flavor: string) => void;
   onClearFilters: () => void;
 }
 
@@ -44,6 +62,12 @@ export default function ProductFilters({
   sweetness = 'all',
   body = 'all',
   characteristics = 'all',
+  beerStyle = 'all',
+  beerColor = 'all',
+  beerBitterness = 'all',
+  spiritType = 'all',
+  spiritAging = 'all',
+  spiritFlavor = 'all',
   onSearchChange,
   onCategoryChange,
   onSortChange,
@@ -52,6 +76,12 @@ export default function ProductFilters({
   onSweetnessChange,
   onBodyChange,
   onCharacteristicsChange,
+  onBeerStyleChange,
+  onBeerColorChange,
+  onBeerBitternessChange,
+  onSpiritTypeChange,
+  onSpiritAgingChange,
+  onSpiritFlavorChange,
   onClearFilters,
 }: ProductFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -80,7 +110,9 @@ export default function ProductFilters({
   }, [filterOptions]);
   
   const hasActiveFilters = selectedCategory !== 'all' || priceRange !== 'all' || 
-    wineColor !== 'all' || sweetness !== 'all' || body !== 'all' || characteristics !== 'all';
+    wineColor !== 'all' || sweetness !== 'all' || body !== 'all' || characteristics !== 'all' ||
+    beerStyle !== 'all' || beerColor !== 'all' || beerBitterness !== 'all' ||
+    spiritType !== 'all' || spiritAging !== 'all' || spiritFlavor !== 'all';
 
   return (
     <div className="space-y-4">
@@ -124,6 +156,7 @@ export default function ProductFilters({
           </SelectContent>
         </Select>
 
+        {/* Wine Filters */}
         {selectedCategory === 'wine' && (
           <>
             <Select value={wineColor} onValueChange={onWineColorChange}>
@@ -168,6 +201,100 @@ export default function ProductFilters({
           </>
         )}
 
+        {/* Beer Filters - only render if handlers are provided */}
+        {selectedCategory === 'beer' && onBeerStyleChange && onBeerColorChange && onBeerBitternessChange && (
+          <>
+            <Select value={beerStyle} onValueChange={onBeerStyleChange}>
+              <SelectTrigger className="w-[150px]" data-testid="select-beer-style">
+                <SelectValue placeholder="Beer Style" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Styles</SelectItem>
+                {groupedOptions.beer_style?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={beerColor} onValueChange={onBeerColorChange}>
+              <SelectTrigger className="w-[150px]" data-testid="select-beer-color">
+                <SelectValue placeholder="Beer Color" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Colors</SelectItem>
+                {groupedOptions.beer_color?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={beerBitterness} onValueChange={onBeerBitternessChange}>
+              <SelectTrigger className="w-[160px]" data-testid="select-beer-bitterness">
+                <SelectValue placeholder="Bitterness" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Bitterness</SelectItem>
+                {groupedOptions.beer_bitterness?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+
+        {/* Spirits Filters - only render if handlers are provided */}
+        {selectedCategory === 'spirits' && onSpiritTypeChange && onSpiritAgingChange && onSpiritFlavorChange && (
+          <>
+            <Select value={spiritType} onValueChange={onSpiritTypeChange}>
+              <SelectTrigger className="w-[150px]" data-testid="select-spirit-type">
+                <SelectValue placeholder="Spirit Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {groupedOptions.spirit_type?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={spiritAging} onValueChange={onSpiritAgingChange}>
+              <SelectTrigger className="w-[180px]" data-testid="select-spirit-aging">
+                <SelectValue placeholder="Aging" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Aging</SelectItem>
+                {groupedOptions.spirit_aging?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={spiritFlavor} onValueChange={onSpiritFlavorChange}>
+              <SelectTrigger className="w-[160px]" data-testid="select-spirit-flavor">
+                <SelectValue placeholder="Flavor Profile" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Flavors</SelectItem>
+                {groupedOptions.spirit_flavor?.map((option) => (
+                  <SelectItem key={option.id} value={option.optionValue}>
+                    {option.displayLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+
         <Select value={priceRange} onValueChange={onPriceRangeChange}>
           <SelectTrigger className="w-[150px]" data-testid="select-price">
             <SelectValue placeholder="Price Range" />
@@ -196,7 +323,7 @@ export default function ProductFilters({
       </div>
 
       {/* Advanced Filters for Wine */}
-      {selectedCategory === 'Wine' && showAdvanced && (
+      {selectedCategory === 'wine' && showAdvanced && (
         <div className="flex flex-wrap gap-3 p-4 bg-muted/30 rounded-lg border">
           <Select value={body} onValueChange={onBodyChange}>
             <SelectTrigger className="w-[160px]" data-testid="select-body">
@@ -278,6 +405,54 @@ export default function ProductFilters({
             <Badge variant="secondary" className="gap-1">
               {characteristics}
               <button onClick={() => onCharacteristicsChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {beerStyle !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {beerStyle}
+              <button onClick={() => onBeerStyleChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {beerColor !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {beerColor}
+              <button onClick={() => onBeerColorChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {beerBitterness !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {beerBitterness}
+              <button onClick={() => onBeerBitternessChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {spiritType !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {spiritType}
+              <button onClick={() => onSpiritTypeChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {spiritAging !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {spiritAging}
+              <button onClick={() => onSpiritAgingChange?.('all')}>
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {spiritFlavor !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {spiritFlavor}
+              <button onClick={() => onSpiritFlavorChange?.('all')}>
                 <X className="w-3 h-3" />
               </button>
             </Badge>
