@@ -1,9 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import type { InsertProduct } from "@shared/schema";
 
-// CommonJS import for 'he' package (doesn't support ESM named exports properly)
-const he: { decode: (text: string) => string } = require('he');
-
 export interface ShopifyRow {
   Handle: string;
   Title: string;
@@ -50,14 +47,56 @@ export interface ShopifyImportPreview {
   errors: string[];
 }
 
+function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+    '&nbsp;': ' ',
+    '&copy;': '©',
+    '&reg;': '®',
+    '&trade;': '™',
+    '&euro;': '€',
+    '&pound;': '£',
+    '&yen;': '¥',
+    '&cent;': '¢',
+    '&mdash;': '—',
+    '&ndash;': '–',
+    '&hellip;': '…',
+    '&bull;': '•',
+    '&lsquo;': ''',
+    '&rsquo;': ''',
+    '&ldquo;': '"',
+    '&rdquo;': '"',
+  };
+  
+  let decoded = text;
+  
+  // Replace named entities
+  for (const [entity, char] of Object.entries(entities)) {
+    decoded = decoded.replace(new RegExp(entity, 'g'), char);
+  }
+  
+  // Replace numeric entities (&#123; or &#xAB;)
+  decoded = decoded.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
+  decoded = decoded.replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  return decoded;
+}
+
 function stripHtml(html: string): string {
   if (!html) return '';
   
-  // Decode HTML entities first
-  let text = he.decode(html);
+  // Remove HTML tags first
+  let text = html.replace(/<[^>]*>/g, '');
   
-  // Remove HTML tags
-  text = text.replace(/<[^>]*>/g, '');
+  // Decode HTML entities
+  text = decodeHtmlEntities(text);
   
   // Clean up multiple spaces and newlines
   text = text.replace(/\s+/g, ' ').trim();
