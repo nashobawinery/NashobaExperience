@@ -204,7 +204,7 @@ export default function AdminProductManager({
                   Stock{getSortIcon('stockQuantity')}
                 </TableHead>
                 <TableHead>Inventory</TableHead>
-                <TableHead>Badges</TableHead>
+                <TableHead>SKU</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -243,15 +243,12 @@ export default function AdminProductManager({
                         {product.ignoreInventory ? 'Ignored' : 'Tracked'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {product.staffPick && (
-                          <Badge variant="secondary" className="text-xs">Staff Pick</Badge>
-                        )}
-                        {product.featured && (
-                          <Badge className="text-xs">Featured</Badge>
-                        )}
-                      </div>
+                    <TableCell data-testid={`cell-sku-${product.id}`}>
+                      {product.sku ? (
+                        <span className="font-mono text-sm">{product.sku}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm italic">No SKU</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
