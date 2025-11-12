@@ -53,20 +53,29 @@ function updateUserSession(
 
 async function upsertUser(
   claims: any,
-) {
+): Promise<boolean> {
   const email = claims["email"];
   
-  // Auto-grant admin role to specific email
-  const role = email === "email@nashobawinery.com" ? "admin" : "viewer";
+  // Check if email is whitelisted
+  const whitelisted = await storage.getWhitelistedEmail(email);
   
+  if (!whitelisted) {
+    // User is not whitelisted - reject access
+    console.log(`Login attempt from non-whitelisted email: ${email}`);
+    return false;
+  }
+  
+  // User is whitelisted - use the role from whitelist
   await storage.upsertUser({
     id: claims["sub"],
     email: email,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
-    role: role,
+    role: whitelisted.role,
   });
+  
+  return true;
 }
 
 export async function setupAuth(app: Express) {
@@ -81,9 +90,15 @@ export async function setupAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
+    const isWhitelisted = await upsertUser(tokens.claims());
+    
+    if (!isWhitelisted) {
+      // User is not whitelisted - reject authentication
+      return verified(new Error("Access denied. Your email is not authorized to access this application."), false);
+    }
+    
     const user = {};
     updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
     verified(null, user);
   };
 

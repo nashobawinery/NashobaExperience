@@ -1095,6 +1095,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Whitelist Management (Admin only)
+  app.get("/api/whitelist", isAdmin, async (req, res) => {
+    try {
+      const whitelistedEmails = await storage.getAllWhitelistedEmails();
+      res.json(whitelistedEmails);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch whitelist" });
+    }
+  });
+
+  app.post("/api/whitelist", isAdmin, async (req, res) => {
+    try {
+      const { email, role } = req.body;
+      
+      if (!email || typeof email !== 'string') {
+        return res.status(400).json({ message: "Valid email is required" });
+      }
+      
+      if (!role || !['viewer', 'admin'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be viewer or admin" });
+      }
+      
+      const whitelisted = await storage.addWhitelistedEmail({ email, role });
+      res.json(whitelisted);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('unique')) {
+        return res.status(409).json({ message: "Email is already whitelisted" });
+      }
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to add email to whitelist" });
+    }
+  });
+
+  app.delete("/api/whitelist/:id", isAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteWhitelistedEmail(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Email not found in whitelist" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to remove email from whitelist" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
