@@ -135,14 +135,15 @@ export default function BulkProductEditor() {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[1400px]">
-            <div className="grid grid-cols-[300px_120px_100px_80px_120px_200px_300px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
+          <div className="min-w-[1900px]">
+            <div className="grid grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
               <div>Product Name</div>
               <div>SKU</div>
               <div>Price</div>
               <div>Stock</div>
               <div>Category</div>
               <div>Type</div>
+              <div>Description</div>
               <div>Tasting Notes</div>
               <div>Staff Pick</div>
               <div>Featured</div>
@@ -153,7 +154,7 @@ export default function BulkProductEditor() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`grid grid-cols-[300px_120px_100px_80px_120px_200px_300px_100px_100px_100px] gap-2 items-start py-2 ${
+                  className={`grid grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px] gap-2 items-start py-2 ${
                     hasChanges(product.id) ? 'bg-accent/10 rounded-lg px-2' : ''
                   }`}
                   data-testid={`row-bulk-edit-${product.id}`}
@@ -212,6 +213,14 @@ export default function BulkProductEditor() {
                     placeholder="e.g., Red Wine"
                     className="h-9"
                     data-testid={`input-type-${product.id}`}
+                  />
+                  
+                  <Textarea
+                    value={getFieldValue(product, 'description') as string}
+                    onChange={(e) => updateField(product.id, 'description', e.target.value)}
+                    placeholder="Product description..."
+                    className="min-h-[36px] h-9 resize-none"
+                    data-testid={`input-description-${product.id}`}
                   />
                   
                   <Textarea
