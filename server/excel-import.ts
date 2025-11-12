@@ -400,7 +400,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
         price: String(Number(row.price).toFixed(2)),
         cost: row.cost ? String(Number(row.cost).toFixed(2)) : null,
         wholesalePricing: row.wholesale_pricing ? String(Number(row.wholesale_pricing).toFixed(2)) : null,
-        sku: row.sku?.trim() || null,
+        sku: row.sku ? String(row.sku).trim() : null,
         stockQuantity: row.stock_quantity ? Number(row.stock_quantity) : 0,
         lowStockThreshold: row.low_stock_threshold ? Number(row.low_stock_threshold) : 10,
         imageUrl: row.image_url?.trim() || null,
