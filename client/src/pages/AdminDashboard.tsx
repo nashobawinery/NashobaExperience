@@ -1,4 +1,5 @@
 import AdminProductManager from "@/components/AdminProductManager";
+import BulkProductEditor from "@/components/BulkProductEditor";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import TriviaIntervalManager from "@/components/TriviaIntervalManager";
@@ -71,6 +72,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   // Trivia edit dialog state
   const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
   const [editTriviaData, setEditTriviaData] = useState<Partial<TriviaQuestion>>({});
+  
+  // Product view toggle
+  const [productViewMode, setProductViewMode] = useState<'list' | 'bulk'>('list');
 
   // Fetch products from backend
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -631,24 +635,46 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="products">
-            {productsLoading ? (
-              <Card className="p-6">
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
+            <div className="space-y-4">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {productViewMode === 'list' 
+                      ? 'Viewing product list - Click cards to edit individual products'
+                      : 'Bulk editing mode - Edit multiple products and save all changes at once'}
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setProductViewMode(productViewMode === 'list' ? 'bulk' : 'list')}
+                    data-testid="button-toggle-view-mode"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    {productViewMode === 'list' ? 'Switch to Bulk Edit' : 'Switch to List View'}
+                  </Button>
                 </div>
               </Card>
-            ) : (
-              <AdminProductManager
-                products={products}
-                onAddProduct={handleAddProduct}
-                onEditProduct={handleEditProduct}
-                onDeleteProduct={handleDeleteProduct}
-                onToggleStock={handleToggleStock}
-                onToggleIgnoreInventory={handleToggleIgnoreInventory}
-              />
-            )}
+              
+              {productsLoading ? (
+                <Card className="p-6">
+                  <div className="space-y-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                </Card>
+              ) : productViewMode === 'list' ? (
+                <AdminProductManager
+                  products={products}
+                  onAddProduct={handleAddProduct}
+                  onEditProduct={handleEditProduct}
+                  onDeleteProduct={handleDeleteProduct}
+                  onToggleStock={handleToggleStock}
+                  onToggleIgnoreInventory={handleToggleIgnoreInventory}
+                />
+              ) : (
+                <BulkProductEditor />
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="import">

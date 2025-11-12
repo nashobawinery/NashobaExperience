@@ -133,6 +133,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/products/bulk-update", isAdmin, async (req, res) => {
+    try {
+      const { products } = req.body;
+      
+      if (!Array.isArray(products)) {
+        return res.status(400).json({ message: "Products must be an array" });
+      }
+
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[],
+      };
+
+      for (const productData of products) {
+        try {
+          const { id, ...updateData } = productData;
+          if (!id) {
+            results.failed++;
+            results.errors.push("Missing product ID");
+            continue;
+          }
+
+          const validatedData = updateProductSchema.parse(updateData);
+          const updated = await storage.updateProduct(id, validatedData);
+          
+          if (!updated) {
+            results.failed++;
+            results.errors.push(`Product not found: ${id}`);
+          } else {
+            results.success++;
+          }
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Failed to update product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      res.json({
+        message: `Updated ${results.success} products${results.failed > 0 ? `, ${results.failed} failed` : ''}`,
+        ...results,
+      });
+    } catch (error) {
+      console.error("Error in bulk update:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to bulk update products" });
+    }
+  });
+
   app.delete("/api/products/:id", isAdmin, async (req, res) => {
     const success = await storage.deleteProduct(req.params.id);
     if (!success) {
