@@ -9,6 +9,7 @@ import GuestAppQRCode from "@/components/GuestAppQRCode";
 import SlideshowImageManager from "@/components/SlideshowImageManager";
 import { MediaLibrary } from "@/components/MediaLibrary";
 import VideoManager from "@/components/VideoManager";
+import ShopifyImportComponent from "@/components/ShopifyImport";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -813,6 +814,36 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-8 mt-6">
+              <div className="max-w-3xl mx-auto">
+                <div className="text-center mb-8">
+                  <FileSpreadsheet className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h2 className="font-serif text-2xl font-medium mb-2">Shopify CSV Import</h2>
+                  <p className="text-muted-foreground">
+                    Import products from Shopify export CSV. SKU-based matching prevents duplicates.
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-muted rounded-lg p-4">
+                    <h3 className="font-medium mb-3 flex items-center gap-2">
+                      <Info className="w-4 h-4" />
+                      How Shopify Import Works
+                    </h3>
+                    <ul className="text-sm text-muted-foreground space-y-2">
+                      <li>• Products matched by SKU (case-insensitive)</li>
+                      <li>• Existing products: Price, name, description, image updated from Shopify</li>
+                      <li>• New products: Created if SKU doesn't exist</li>
+                      <li>• Rows without SKU: Skipped with error report</li>
+                      <li>• Local-only fields preserved: tasting notes, featured, staff pick</li>
+                    </ul>
+                  </div>
+
+                  <ShopifyImportComponent />
                 </div>
               </div>
             </Card>
