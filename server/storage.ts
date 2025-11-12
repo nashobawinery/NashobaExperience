@@ -17,6 +17,7 @@ import {
   slideshowImages,
   mediaLibrary,
   videos,
+  whitelistedEmails,
   type InsertProduct,
   type Product,
   type InsertUser,
@@ -48,6 +49,8 @@ import {
   type MediaLibrary,
   type InsertVideo,
   type Video,
+  type InsertWhitelistedEmail,
+  type WhitelistedEmail,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -62,6 +65,12 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   updateUserRole(id: string, role: "viewer" | "admin"): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  
+  // Whitelisted Emails
+  getAllWhitelistedEmails(): Promise<WhitelistedEmail[]>;
+  getWhitelistedEmail(email: string): Promise<WhitelistedEmail | undefined>;
+  addWhitelistedEmail(data: InsertWhitelistedEmail): Promise<WhitelistedEmail>;
+  deleteWhitelistedEmail(id: string): Promise<boolean>;
 
   // Products
   getProducts(filters?: ProductFilters): Promise<Product[]>;
@@ -207,6 +216,25 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getAllWhitelistedEmails(): Promise<WhitelistedEmail[]> {
+    return await db.select().from(whitelistedEmails).orderBy(desc(whitelistedEmails.createdAt));
+  }
+
+  async getWhitelistedEmail(email: string): Promise<WhitelistedEmail | undefined> {
+    const [whitelisted] = await db.select().from(whitelistedEmails).where(eq(whitelistedEmails.email, email));
+    return whitelisted;
+  }
+
+  async addWhitelistedEmail(data: InsertWhitelistedEmail): Promise<WhitelistedEmail> {
+    const [whitelisted] = await db.insert(whitelistedEmails).values(data).returning();
+    return whitelisted;
+  }
+
+  async deleteWhitelistedEmail(id: string): Promise<boolean> {
+    const result = await db.delete(whitelistedEmails).where(eq(whitelistedEmails.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   async getProducts(filters?: ProductFilters): Promise<Product[]> {

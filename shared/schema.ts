@@ -33,6 +33,14 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Whitelist table for pre-approved users
+export const whitelistedEmails = pgTable("whitelisted_emails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull().unique(),
+  role: userRoleEnum("role").notNull().default("viewer"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -218,6 +226,7 @@ export const videos = pgTable("videos", {
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
 export const updateProductSchema = insertProductSchema.partial(); // All fields optional for updates
 export const insertGuestSessionSchema = createInsertSchema(guestSessions).omit({ id: true, createdAt: true, lastActiveAt: true });
@@ -280,3 +289,6 @@ export type Video = typeof videos.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+export type InsertWhitelistedEmail = z.infer<typeof insertWhitelistedEmailSchema>;
+export type WhitelistedEmail = typeof whitelistedEmails.$inferSelect;
