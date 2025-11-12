@@ -23,7 +23,7 @@ export default function BulkProductEditor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [changes, setChanges] = useState<ProductChanges>({});
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(6);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
@@ -390,6 +390,7 @@ export default function BulkProductEditor() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="6">6</SelectItem>
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
