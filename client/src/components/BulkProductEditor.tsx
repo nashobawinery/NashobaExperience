@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Undo2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Undo2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
 
@@ -15,12 +15,17 @@ interface ProductChanges {
   [productId: string]: Partial<Product>;
 }
 
+type SortField = 'name' | 'sku' | 'price' | 'stockQuantity' | 'category' | 'type' | 'description';
+type SortDirection = 'asc' | 'desc' | null;
+
 export default function BulkProductEditor() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [changes, setChanges] = useState<ProductChanges>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -72,10 +77,57 @@ export default function BulkProductEditor() {
     return !!changes[productId] && Object.keys(changes[productId]).length > 0;
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 ml-1 inline opacity-50" />;
+    }
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="w-3 h-3 ml-1 inline" />;
+    }
+    return <ArrowDown className="w-3 h-3 ml-1 inline" />;
+  };
+
+  const filteredProducts = products
+    .filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortField || !sortDirection) return 0;
+
+      let comparison = 0;
+      if (sortField === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortField === 'sku') {
+        comparison = (a.sku || '').localeCompare(b.sku || '');
+      } else if (sortField === 'price') {
+        comparison = Number(a.price) - Number(b.price);
+      } else if (sortField === 'stockQuantity') {
+        comparison = (a.stockQuantity || 0) - (b.stockQuantity || 0);
+      } else if (sortField === 'category') {
+        comparison = a.category.localeCompare(b.category);
+      } else if (sortField === 'type') {
+        comparison = (a.type || '').localeCompare(b.type || '');
+      } else if (sortField === 'description') {
+        comparison = a.description.localeCompare(b.description);
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
 
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
@@ -154,17 +206,59 @@ export default function BulkProductEditor() {
         <div className="overflow-x-auto">
           <div className="min-w-[1900px]">
             <div className="grid grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px] gap-2 font-medium text-sm pb-2 border-b">
-              <div>Product Name</div>
-              <div>SKU</div>
-              <div>Price</div>
-              <div>Stock</div>
-              <div>Category</div>
-              <div>Type</div>
-              <div>Description</div>
-              <div>Tasting Notes</div>
-              <div>Staff Pick</div>
-              <div>Featured</div>
-              <div>New</div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('name')}
+                data-testid="header-sort-name"
+              >
+                Product Name{getSortIcon('name')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('sku')}
+                data-testid="header-sort-sku"
+              >
+                SKU{getSortIcon('sku')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('price')}
+                data-testid="header-sort-price"
+              >
+                Price{getSortIcon('price')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('stockQuantity')}
+                data-testid="header-sort-stock"
+              >
+                Stock{getSortIcon('stockQuantity')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('category')}
+                data-testid="header-sort-category"
+              >
+                Category{getSortIcon('category')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('type')}
+                data-testid="header-sort-type"
+              >
+                Type{getSortIcon('type')}
+              </div>
+              <div 
+                className="cursor-pointer hover-elevate rounded px-2 py-1"
+                onClick={() => handleSort('description')}
+                data-testid="header-sort-description"
+              >
+                Description{getSortIcon('description')}
+              </div>
+              <div className="px-2 py-1">Tasting Notes</div>
+              <div className="text-center px-2 py-1">Staff Pick</div>
+              <div className="text-center px-2 py-1">Featured</div>
+              <div className="text-center px-2 py-1">New</div>
             </div>
 
             <div className="space-y-2 mt-2">
