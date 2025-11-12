@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { getDiscountTiers } from "@/lib/api";
@@ -37,7 +37,7 @@ export default function ShoppingCartPanel({
   });
 
   const wineSpiritsCount = items
-    .filter(item => ['wine', 'spirits'].includes(item.category))
+    .filter(item => ['wine', 'spirits'].includes(item.category.toLowerCase()))
     .reduce((sum, item) => sum + item.quantity, 0);
 
   const calculateDiscount = (count: number): number => {
@@ -163,6 +163,32 @@ export default function ShoppingCartPanel({
 
       {items.length > 0 && (
         <div className="border-t p-6 space-y-4">
+          {/* Debug info - always shows when cart has items */}
+          <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 border border-blue-200 dark:border-blue-800 text-xs">
+            <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Discount Debug Info:</p>
+            <p className="text-blue-700 dark:text-blue-300">
+              Wine/Spirits bottles: {wineSpiritsCount} | 
+              Discount rate: {(discountRate * 100).toFixed(0)}% | 
+              Tiers loaded: {discountTiers ? 'Yes' : 'No'}
+            </p>
+            {!discountTiers && (
+              <p className="text-destructive mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Discount tiers not loaded from server
+              </p>
+            )}
+            {discountRate === 0 && wineSpiritsCount === 0 && (
+              <p className="text-blue-700 dark:text-blue-300 mt-1">
+                No wine/spirits in cart - only wine & spirits qualify for discounts
+              </p>
+            )}
+            {discountRate === 0 && wineSpiritsCount > 0 && wineSpiritsCount < 3 && (
+              <p className="text-blue-700 dark:text-blue-300 mt-1">
+                Need 3+ bottles for discount (currently: {wineSpiritsCount})
+              </p>
+            )}
+          </div>
+
           {discountRate > 0 && (
             <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-2">
