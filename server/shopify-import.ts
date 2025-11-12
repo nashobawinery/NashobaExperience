@@ -1,6 +1,8 @@
 import { parse } from 'csv-parse/sync';
-import { decode as decodeHtml } from 'he';
 import type { InsertProduct } from "@shared/schema";
+
+// CommonJS import for 'he' package (doesn't support ESM named exports properly)
+const he: { decode: (text: string) => string } = require('he');
 
 export interface ShopifyRow {
   Handle: string;
@@ -52,7 +54,7 @@ function stripHtml(html: string): string {
   if (!html) return '';
   
   // Decode HTML entities first
-  let text = decodeHtml(html);
+  let text = he.decode(html);
   
   // Remove HTML tags
   text = text.replace(/<[^>]*>/g, '');
