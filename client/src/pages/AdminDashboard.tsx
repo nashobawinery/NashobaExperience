@@ -4,6 +4,7 @@ import DiscountTiersManager from "@/components/DiscountTiersManager";
 import TriviaIntervalManager from "@/components/TriviaIntervalManager";
 import OrderRecipientEmailsManager from "@/components/OrderRecipientEmailsManager";
 import UserRoleManager from "@/components/UserRoleManager";
+import WhitelistManager from "@/components/WhitelistManager";
 import GuestAppQRCode from "@/components/GuestAppQRCode";
 import SlideshowImageManager from "@/components/SlideshowImageManager";
 import { MediaLibrary } from "@/components/MediaLibrary";
@@ -1259,6 +1260,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="settings">
             <div className="grid gap-6">
+              <WhitelistManager />
+              
               <UserRoleManager />
               
               <DiscountTiersManager />
