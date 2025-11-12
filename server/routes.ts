@@ -588,8 +588,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { generateRecommendations } = await import("./ai-recommendations");
       
-      // Build stated preferences if available
-      const statedPreferences = (session.preferredBeverageTypes?.length || session.wineColors?.length || session.flavorPreferences?.length || session.occasion)
+      // Build stated preferences if available from questionnaire
+      let statedPreferences = (session.preferredBeverageTypes?.length || session.wineColors?.length || session.flavorPreferences?.length || session.occasion)
         ? {
             beverageTypes: session.preferredBeverageTypes || [],
             wineColors: session.wineColors || undefined,
@@ -597,6 +597,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
             occasion: session.occasion || undefined,
           }
         : undefined;
+
+      // INFER preferences from cart and favorites if no questionnaire data
+      if (!statedPreferences || statedPreferences.beverageTypes.length === 0) {
+        const inferredBeverageTypes = new Set<string>();
+        const inferredWineColors = new Set<string>();
+
+        // Infer from cart items
+        for (const item of cartItems) {
+          const category = item.product.category.toLowerCase();
+          inferredBeverageTypes.add(category);
+          
+          // Extract wine color from type field (e.g., "Red Wine" -> "red")
+          if (category === 'wine' && item.product.type) {
+            const colorMatch = item.product.type.toLowerCase().match(/^(red|white|ros[eé]|sparkling|dessert)/);
+            if (colorMatch) {
+              inferredWineColors.add(colorMatch[1]);
+            }
+          }
+        }
+
+        // Also infer from favorites
+        for (const fav of favorites) {
+          const category = fav.product.category.toLowerCase();
+          inferredBeverageTypes.add(category);
+          
+          if (category === 'wine' && fav.product.type) {
+            const colorMatch = fav.product.type.toLowerCase().match(/^(red|white|ros[eé]|sparkling|dessert)/);
+            if (colorMatch) {
+              inferredWineColors.add(colorMatch[1]);
+            }
+          }
+        }
+
+        // Build inferred preferences if we found any
+        if (inferredBeverageTypes.size > 0 || inferredWineColors.size > 0) {
+          statedPreferences = {
+            beverageTypes: Array.from(inferredBeverageTypes),
+            wineColors: inferredWineColors.size > 0 ? Array.from(inferredWineColors) : undefined,
+            flavorPreferences: [],
+            occasion: undefined,
+          };
+          console.log("[AI Recommendations] Inferred preferences from cart/favorites:", statedPreferences);
+        }
+      }
 
       const recommendations = await generateRecommendations(allProducts, {
         favorites,

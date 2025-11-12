@@ -248,6 +248,7 @@ export class DatabaseStorage implements IStorage {
     
     const conditions = [];
     if (filters?.search) {
+      // Keep original substring search for text fields to support phrases like "ice wine"
       conditions.push(
         or(
           ilike(products.name, `%${filters.search}%`),
@@ -265,12 +266,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(products.type, `%${filters.wineColor}%`));
     }
     if (filters?.sweetness) {
-      // Filter by dedicated sweetness field
-      conditions.push(ilike(products.sweetness, `%${filters.sweetness}%`));
+      // EXACT match on sweetness field to prevent "dry" matching "off-dry"
+      // Use case-insensitive exact comparison
+      conditions.push(sql`lower(${products.sweetness}) = ${filters.sweetness.toLowerCase()}`);
     }
     if (filters?.body) {
-      // Filter by dedicated body field
-      conditions.push(ilike(products.body, `%${filters.body}%`));
+      // EXACT match on body field for consistency
+      conditions.push(sql`lower(${products.body}) = ${filters.body.toLowerCase()}`);
     }
     if (filters?.characteristics) {
       // Filter by characteristics field for specific traits like "Crisp", "Rich", etc.
