@@ -897,6 +897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: parsedProduct.type,
             imageUrl: parsedProduct.imageUrl,
             characteristics: parsedProduct.characteristics,
+            stockQuantity: parsedProduct.stockQuantity,
           };
 
           const { action } = await storage.upsertProductBySku(productData);

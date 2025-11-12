@@ -7,6 +7,7 @@ export interface ShopifyRow {
   'Body (HTML)': string;
   'Variant SKU': string;
   'Variant Price': string;
+  'Variant Inventory Qty': string;
   'Image Src': string;
   Type: string;
   Tags: string;
@@ -19,6 +20,7 @@ export interface ParsedShopifyProduct {
   name: string;
   description: string;
   price: number;
+  stockQuantity?: number;
   imageUrl?: string;
   category: 'wine' | 'spirits' | 'beer' | 'canned_cocktail' | 'canned_wine';
   type?: string;
@@ -182,11 +184,29 @@ export function parseShopifyCsv(buffer: Buffer): { products: ParsedShopifyProduc
       
       const category = mapShopifyCategory(row.Type, row['Product Category']);
       
+      // Parse stock quantity
+      let stockQuantity: number | undefined = undefined;
+      const stockStr = row['Variant Inventory Qty']?.trim();
+      if (stockStr && stockStr !== '') {
+        const stock = parseInt(stockStr, 10);
+        if (!isNaN(stock) && stock >= 0) {
+          stockQuantity = stock;
+        }
+      }
+      
+      // Normalize SKU: strip leading apostrophe, trim, and uppercase
+      let normalizedSku = row['Variant SKU'].trim();
+      if (normalizedSku.startsWith("'")) {
+        normalizedSku = normalizedSku.substring(1);
+      }
+      normalizedSku = normalizedSku.toUpperCase();
+      
       const product: ParsedShopifyProduct = {
-        sku: row['Variant SKU'].trim().toUpperCase(),
+        sku: normalizedSku,
         name,
         description,
         price,
+        stockQuantity,
         category,
         type: row.Type?.trim() || undefined,
         imageUrl: row['Image Src']?.trim() || undefined,
