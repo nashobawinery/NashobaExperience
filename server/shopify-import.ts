@@ -65,14 +65,14 @@ function decodeHtmlEntities(text: string): string {
     '&pound;': '£',
     '&yen;': '¥',
     '&cent;': '¢',
-    '&mdash;': '—',
-    '&ndash;': '–',
-    '&hellip;': '…',
-    '&bull;': '•',
-    '&lsquo;': ''',
-    '&rsquo;': ''',
-    '&ldquo;': '"',
-    '&rdquo;': '"',
+    '&mdash;': '\u2014',
+    '&ndash;': '\u2013',
+    '&hellip;': '\u2026',
+    '&bull;': '\u2022',
+    '&lsquo;': '\u2018',
+    '&rsquo;': '\u2019',
+    '&ldquo;': '\u201C',
+    '&rdquo;': '\u201D',
   };
   
   let decoded = text;
