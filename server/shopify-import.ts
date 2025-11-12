@@ -1,5 +1,5 @@
 import { parse } from 'csv-parse/sync';
-import * as he from 'he';
+import { decode as decodeHtml } from 'he';
 import type { InsertProduct } from "@shared/schema";
 
 export interface ShopifyRow {
@@ -52,7 +52,7 @@ function stripHtml(html: string): string {
   if (!html) return '';
   
   // Decode HTML entities first
-  let text = he.decode(html);
+  let text = decodeHtml(html);
   
   // Remove HTML tags
   text = text.replace(/<[^>]*>/g, '');
