@@ -10,6 +10,16 @@ export const sweetnessEnum = pgEnum("sweetness", ["dry", "off-dry", "semi-sweet"
 export const bodyEnum = pgEnum("body", ["light", "medium", "full"]);
 export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 
+// Beer-specific enums
+export const beerStyleEnum = pgEnum("beer_style", ["ipa", "lager", "stout", "porter", "ale", "wheat_beer", "pilsner", "sour", "amber", "pale_ale", "saison", "belgian"]);
+export const beerColorEnum = pgEnum("beer_color", ["pale", "amber", "dark"]);
+export const beerBitternessEnum = pgEnum("beer_bitterness", ["mild", "moderate", "hoppy", "very_hoppy"]);
+
+// Spirits-specific enums
+export const spiritTypeEnum = pgEnum("spirit_type", ["whiskey", "vodka", "gin", "rum", "tequila", "brandy", "cognac", "liqueur", "mezcal", "bourbon", "scotch", "rye"]);
+export const spiritAgingEnum = pgEnum("spirit_aging", ["unaged", "young", "aged", "extra_aged"]);
+export const spiritFlavorEnum = pgEnum("spirit_flavor", ["smooth", "bold", "sweet", "spicy", "fruity", "smoky", "herbal", "citrus"]);
+
 // Session storage table for authentication
 export const sessions = pgTable(
   "sessions",
@@ -69,6 +79,14 @@ export const products = pgTable("products", {
   wineColor: wineColorEnum("wine_color"),
   sweetness: text("sweetness"), // Dry, Off-Dry, Semi-Sweet, Sweet, Dessert Wine, N/A
   body: text("body"), // Light-Bodied, Medium-Bodied, Full-Bodied, Light, Medium, Full, N/A
+  // Beer-specific fields
+  beerStyle: beerStyleEnum("beer_style"),
+  beerColor: beerColorEnum("beer_color"),
+  beerBitterness: beerBitternessEnum("beer_bitterness"),
+  // Spirits-specific fields
+  spiritType: spiritTypeEnum("spirit_type"),
+  spiritAging: spiritAgingEnum("spirit_aging"),
+  spiritFlavor: spiritFlavorEnum("spirit_flavor"),
   productionMethod: text("production_method"),
   agingProcess: text("aging_process"),
   awards: text("awards"),
