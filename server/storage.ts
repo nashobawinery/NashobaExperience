@@ -10,6 +10,10 @@ import {
   cartItems,
   triviaQuestions,
   triviaScores,
+  triviaAchievements,
+  triviaAttempts,
+  cartDiscounts,
+  achievementRedemptions,
   appSettings,
   surveys,
   productNotes,
@@ -39,6 +43,14 @@ import {
   type TriviaQuestion,
   type InsertTriviaScore,
   type TriviaScore,
+  type InsertTriviaAchievement,
+  type TriviaAchievement,
+  type InsertTriviaAttempt,
+  type TriviaAttempt,
+  type InsertCartDiscount,
+  type CartDiscount,
+  type InsertAchievementRedemption,
+  type AchievementRedemption,
   type InsertAppSetting,
   type AppSetting,
   type InsertSurvey,
@@ -132,6 +144,25 @@ export interface IStorage {
   getTriviaScores(sessionId: string): Promise<TriviaScore[]>;
   recordTriviaAnswer(score: InsertTriviaScore): Promise<TriviaScore>;
   getAskedQuestions(sessionId: string): Promise<string[]>;
+
+  // Trivia Achievements
+  getTriviaAchievements(): Promise<TriviaAchievement[]>;
+  createTriviaAchievement(data: InsertTriviaAchievement): Promise<TriviaAchievement>;
+  updateTriviaAchievement(id: string, data: Partial<InsertTriviaAchievement>): Promise<TriviaAchievement | undefined>;
+  deleteTriviaAchievement(id: string): Promise<boolean>;
+
+  // Trivia Attempts
+  getTriviaAttempt(sessionId: string): Promise<TriviaAttempt | undefined>;
+  createTriviaAttempt(data: InsertTriviaAttempt): Promise<TriviaAttempt>;
+  updateTriviaAttempt(id: string, data: Partial<InsertTriviaAttempt>): Promise<TriviaAttempt | undefined>;
+
+  // Cart Discounts
+  getCartDiscounts(sessionId: string): Promise<CartDiscount[]>;
+  createCartDiscount(data: InsertCartDiscount): Promise<CartDiscount>;
+
+  // Achievement Redemptions
+  createAchievementRedemption(data: InsertAchievementRedemption): Promise<AchievementRedemption>;
+  updateAchievementRedemption(id: string, data: Partial<InsertAchievementRedemption>): Promise<AchievementRedemption | undefined>;
 
   // Settings
   getSetting(key: string): Promise<AppSetting | undefined>;
@@ -707,6 +738,83 @@ export class DatabaseStorage implements IStorage {
   async getAskedQuestions(sessionId: string): Promise<string[]> {
     const scores = await this.getTriviaScores(sessionId);
     return scores.map(s => s.questionId);
+  }
+
+  async getTriviaAchievements(): Promise<TriviaAchievement[]> {
+    return await db
+      .select()
+      .from(triviaAchievements)
+      .orderBy(triviaAchievements.scoreThreshold);
+  }
+
+  async createTriviaAchievement(data: InsertTriviaAchievement): Promise<TriviaAchievement> {
+    const result = await db.insert(triviaAchievements).values(data).returning();
+    return result[0];
+  }
+
+  async updateTriviaAchievement(id: string, data: Partial<InsertTriviaAchievement>): Promise<TriviaAchievement | undefined> {
+    const result = await db
+      .update(triviaAchievements)
+      .set(data)
+      .where(eq(triviaAchievements.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTriviaAchievement(id: string): Promise<boolean> {
+    const result = await db.delete(triviaAchievements).where(eq(triviaAchievements.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getTriviaAttempt(sessionId: string): Promise<TriviaAttempt | undefined> {
+    const result = await db
+      .select()
+      .from(triviaAttempts)
+      .where(eq(triviaAttempts.sessionId, sessionId))
+      .orderBy(desc(triviaAttempts.startedAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async createTriviaAttempt(data: InsertTriviaAttempt): Promise<TriviaAttempt> {
+    const result = await db.insert(triviaAttempts).values(data).returning();
+    return result[0];
+  }
+
+  async updateTriviaAttempt(id: string, data: Partial<InsertTriviaAttempt>): Promise<TriviaAttempt | undefined> {
+    const result = await db
+      .update(triviaAttempts)
+      .set(data)
+      .where(eq(triviaAttempts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getCartDiscounts(sessionId: string): Promise<CartDiscount[]> {
+    return await db
+      .select()
+      .from(cartDiscounts)
+      .where(eq(cartDiscounts.sessionId, sessionId))
+      .orderBy(desc(cartDiscounts.appliedAt));
+  }
+
+  async createCartDiscount(data: InsertCartDiscount): Promise<CartDiscount> {
+    const result = await db.insert(cartDiscounts).values(data).returning();
+    return result[0];
+  }
+
+  async createAchievementRedemption(data: InsertAchievementRedemption): Promise<AchievementRedemption> {
+    const result = await db.insert(achievementRedemptions).values(data).returning();
+    return result[0];
+  }
+
+  async updateAchievementRedemption(id: string, data: Partial<InsertAchievementRedemption>): Promise<AchievementRedemption | undefined> {
+    const result = await db
+      .update(achievementRedemptions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(achievementRedemptions.id, id))
+      .returning();
+    return result[0];
   }
 
   async getSetting(key: string): Promise<AppSetting | undefined> {

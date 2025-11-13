@@ -3,6 +3,7 @@ import BulkProductEditor from "@/components/BulkProductEditor";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import TriviaIntervalManager from "@/components/TriviaIntervalManager";
+import TriviaAchievementsManager from "@/components/TriviaAchievementsManager";
 import OrderRecipientEmailsManager from "@/components/OrderRecipientEmailsManager";
 import UserRoleManager from "@/components/UserRoleManager";
 import WhitelistManager from "@/components/WhitelistManager";
@@ -883,6 +884,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           <TabsContent value="trivia">
             <div className="space-y-6">
               <TriviaIntervalManager />
+              <TriviaAchievementsManager />
               
               <Card className="p-8">
                 <div className="mb-6 flex items-center justify-between">

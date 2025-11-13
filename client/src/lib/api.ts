@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary, TriviaAchievement } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -507,4 +507,43 @@ export async function deleteMediaLibraryFile(id: string): Promise<void> {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error('Failed to delete media library file');
+}
+
+export async function getTriviaAchievements(): Promise<TriviaAchievement[]> {
+  const response = await fetch('/api/admin/trivia-achievements');
+  if (!response.ok) throw new Error('Failed to fetch trivia achievements');
+  return response.json();
+}
+
+export async function createTriviaAchievement(achievement: any): Promise<TriviaAchievement> {
+  const response = await fetch('/api/admin/trivia-achievements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(achievement),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'Failed to create trivia achievement' }));
+    throw new Error(errorData.message || 'Failed to create trivia achievement');
+  }
+  return response.json();
+}
+
+export async function updateTriviaAchievement(id: string, achievement: any): Promise<TriviaAchievement> {
+  const response = await fetch(`/api/admin/trivia-achievements/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(achievement),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'Failed to update trivia achievement' }));
+    throw new Error(errorData.message || 'Failed to update trivia achievement');
+  }
+  return response.json();
+}
+
+export async function deleteTriviaAchievement(id: string): Promise<void> {
+  const response = await fetch(`/api/admin/trivia-achievements/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('Failed to delete trivia achievement');
 }

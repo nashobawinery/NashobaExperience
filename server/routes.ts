@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { ObjectStorageService } from "./objectStorage";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { triviaAttempts, achievementRedemptions } from "@shared/schema";
 import { 
   insertProductSchema,
   updateProductSchema,
@@ -12,6 +15,10 @@ import {
   insertCartItemSchema,
   insertTriviaQuestionSchema,
   insertTriviaScoreSchema,
+  insertTriviaAchievementSchema,
+  insertTriviaAttemptSchema,
+  insertCartDiscountSchema,
+  insertAchievementRedemptionSchema,
   insertSurveySchema,
   insertProductNoteSchema,
   insertFilterOptionSchema,
@@ -395,6 +402,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/sessions/:sessionId/trivia/asked", async (req, res) => {
     const askedQuestions = await storage.getAskedQuestions(req.params.sessionId);
     res.json(askedQuestions);
+  });
+
+  // Trivia Achievements (Admin)
+  app.get("/api/admin/trivia-achievements", isAdmin, async (req, res) => {
+    const achievements = await storage.getTriviaAchievements();
+    res.json(achievements);
+  });
+
+  app.post("/api/admin/trivia-achievements", isAdmin, async (req, res) => {
+    try {
+      const data = insertTriviaAchievementSchema.parse(req.body);
+      const achievement = await storage.createTriviaAchievement(data);
+      res.json(achievement);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.put("/api/admin/trivia-achievements/:id", isAdmin, async (req, res) => {
+    try {
+      const data = insertTriviaAchievementSchema.partial().parse(req.body);
+      const achievement = await storage.updateTriviaAchievement(req.params.id, data);
+      if (!achievement) {
+        return res.status(404).json({ message: "Achievement not found" });
+      }
+      res.json(achievement);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/admin/trivia-achievements/:id", isAdmin, async (req, res) => {
+    const success = await storage.deleteTriviaAchievement(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Achievement not found" });
+    }
+    res.json({ success: true });
+  });
+
+  // Trivia Attempts
+  app.get("/api/trivia-attempt/:sessionId", async (req, res) => {
+    const attempt = await storage.getTriviaAttempt(req.params.sessionId);
+    if (!attempt) {
+      return res.status(404).json({ message: "No attempt found for this session" });
+    }
+    res.json(attempt);
+  });
+
+  app.post("/api/trivia-attempt/start", async (req, res) => {
+    try {
+      const { sessionId, totalQuestions } = req.body;
+      
+      // Check for existing attempt that is completed or locked
+      const existingAttempt = await storage.getTriviaAttempt(sessionId);
+      if (existingAttempt && (existingAttempt.completedAt || existingAttempt.locked)) {
+        return res.status(400).json({ 
+          message: "This session already has a completed or locked trivia attempt" 
+        });
+      }
+
+      const data = insertTriviaAttemptSchema.parse({
+        sessionId,
+        totalQuestions,
+      });
+      
+      const attempt = await storage.createTriviaAttempt(data);
+      res.json(attempt);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.post("/api/trivia-attempt/complete", async (req, res) => {
+    try {
+      const { attemptId, correctAnswers } = req.body;
+      
+      if (!attemptId || typeof correctAnswers !== 'number') {
+        return res.status(400).json({ message: "attemptId and correctAnswers are required" });
+      }
+
+      // Get the attempt
+      const attempts = await db.select().from(triviaAttempts).where(eq(triviaAttempts.id, attemptId));
+      const attempt = attempts[0];
+      
+      if (!attempt) {
+        return res.status(404).json({ message: "Attempt not found" });
+      }
+
+      if (attempt.completedAt) {
+        return res.status(400).json({ message: "Attempt already completed" });
+      }
+
+      // Get all enabled achievements ordered by threshold
+      const achievements = await storage.getTriviaAchievements();
+      const enabledAchievements = achievements.filter(a => a.enabled);
+      
+      // Find the highest achievement the user qualifies for
+      let earnedAchievement = null;
+      for (let i = enabledAchievements.length - 1; i >= 0; i--) {
+        if (correctAnswers >= enabledAchievements[i].scoreThreshold) {
+          earnedAchievement = enabledAchievements[i];
+          break;
+        }
+      }
+
+      // Update the attempt
+      const updateData: any = {
+        correctAnswers,
+        completedAt: new Date(),
+        achievementId: earnedAchievement?.id || null,
+        locked: true,
+      };
+
+      await storage.updateTriviaAttempt(attemptId, updateData);
+
+      // Apply reward if achievement was earned
+      if (earnedAchievement) {
+        if (earnedAchievement.rewardType === 'discount') {
+          // Create cart discount automatically
+          await storage.createCartDiscount({
+            sessionId: attempt.sessionId,
+            source: `trivia_achievement_${earnedAchievement.id}`,
+            amount: earnedAchievement.rewardValue.toString(),
+            label: `Trivia Achievement: ${earnedAchievement.achievementMessage}`,
+          });
+
+          await storage.updateTriviaAttempt(attemptId, {
+            discountAppliedAt: new Date(),
+          });
+        } else if (earnedAchievement.rewardType === 'token') {
+          // Create redemption record with pending status
+          await storage.createAchievementRedemption({
+            attemptId,
+            rewardType: 'token',
+            status: 'pending',
+            appliedAmount: earnedAchievement.rewardValue.toString(),
+          });
+        }
+      }
+
+      const updatedAttempt = await storage.getTriviaAttempt(attempt.sessionId);
+      res.json({ 
+        attempt: updatedAttempt, 
+        achievement: earnedAchievement 
+      });
+    } catch (error) {
+      console.error("Error completing trivia attempt:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to complete attempt" });
+    }
+  });
+
+  app.post("/api/trivia-attempt/verify-token", isAdmin, async (req: any, res) => {
+    try {
+      const { attemptId, staffVerifier, notes } = req.body;
+      
+      if (!attemptId) {
+        return res.status(400).json({ message: "attemptId is required" });
+      }
+
+      // Get the attempt
+      const attempts = await db.select().from(triviaAttempts).where(eq(triviaAttempts.id, attemptId));
+      const attempt = attempts[0];
+      
+      if (!attempt) {
+        return res.status(404).json({ message: "Attempt not found" });
+      }
+
+      if (attempt.tokenVerifiedAt) {
+        return res.status(400).json({ message: "Token already verified" });
+      }
+
+      // Get redemption record
+      const redemptions = await db.select().from(achievementRedemptions).where(eq(achievementRedemptions.attemptId, attemptId));
+      const redemption = redemptions[0];
+
+      if (!redemption) {
+        return res.status(404).json({ message: "Redemption record not found" });
+      }
+
+      // Update attempt with verification
+      await storage.updateTriviaAttempt(attemptId, {
+        tokenVerifiedAt: new Date(),
+        staffVerifier: staffVerifier || req.user?.email || 'Unknown',
+        notes: notes || null,
+      });
+
+      // Update redemption status to applied
+      await storage.updateAchievementRedemption(redemption.id, {
+        status: 'applied',
+      });
+
+      const updatedAttempt = await storage.getTriviaAttempt(attempt.sessionId);
+      res.json(updatedAttempt);
+    } catch (error) {
+      console.error("Error verifying token:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to verify token" });
+    }
+  });
+
+  // Cart Discounts
+  app.get("/api/cart-discounts/:sessionId", async (req, res) => {
+    const discounts = await storage.getCartDiscounts(req.params.sessionId);
+    res.json(discounts);
   });
 
   // Get next trivia question (not yet asked)
