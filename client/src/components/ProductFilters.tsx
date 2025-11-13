@@ -378,83 +378,153 @@ export default function ProductFilters({
             </Badge>
           )}
           {wineColor !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {wineColor}
-              <button onClick={() => onWineColorChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{wineColor}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onWineColorChange?.('all')}
+                data-testid="button-clear-wine-color"
+                aria-label="Clear wine color filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {sweetness !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {sweetness}
-              <button onClick={() => onSweetnessChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{sweetness}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onSweetnessChange?.('all')}
+                data-testid="button-clear-sweetness"
+                aria-label="Clear sweetness filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {body !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {body}
-              <button onClick={() => onBodyChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{body}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onBodyChange?.('all')}
+                data-testid="button-clear-body"
+                aria-label="Clear body filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {characteristics !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {characteristics}
-              <button onClick={() => onCharacteristicsChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{characteristics}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onCharacteristicsChange?.('all')}
+                data-testid="button-clear-characteristics"
+                aria-label="Clear characteristics filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {beerStyle !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {beerStyle}
-              <button onClick={() => onBeerStyleChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{beerStyle}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onBeerStyleChange?.('all')} 
+                data-testid="button-clear-beer-style"
+                aria-label="Clear beer style filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {beerColor !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {beerColor}
-              <button onClick={() => onBeerColorChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{beerColor}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onBeerColorChange?.('all')} 
+                data-testid="button-clear-beer-color"
+                aria-label="Clear beer color filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {beerBitterness !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {beerBitterness}
-              <button onClick={() => onBeerBitternessChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{beerBitterness}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onBeerBitternessChange?.('all')} 
+                data-testid="button-clear-beer-bitterness"
+                aria-label="Clear beer bitterness filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {spiritType !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {spiritType}
-              <button onClick={() => onSpiritTypeChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{spiritType}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onSpiritTypeChange?.('all')} 
+                data-testid="button-clear-spirit-type"
+                aria-label="Clear spirit type filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {spiritAging !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {spiritAging}
-              <button onClick={() => onSpiritAgingChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{spiritAging}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onSpiritAgingChange?.('all')} 
+                data-testid="button-clear-spirit-aging"
+                aria-label="Clear spirit aging filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
           {spiritFlavor !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {spiritFlavor}
-              <button onClick={() => onSpiritFlavorChange?.('all')}>
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="pointer-events-none">{spiritFlavor}</span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 shrink-0 pointer-events-auto" 
+                onClick={() => onSpiritFlavorChange?.('all')} 
+                data-testid="button-clear-spirit-flavor"
+                aria-label="Clear spirit flavor filter"
+              >
                 <X className="w-3 h-3" />
-              </button>
+              </Button>
             </Badge>
           )}
         </div>
