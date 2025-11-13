@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -168,39 +168,6 @@ export default function BulkProductEditor() {
     return characteristicsState[productId] || [];
   };
 
-  useEffect(() => {
-    async function loadCharacteristics() {
-      if (paginatedProducts.length === 0) return;
-      
-      // Only load characteristics for products we haven't loaded yet
-      const productsToLoad = paginatedProducts.filter(
-        p => !characteristicsState[p.id] && !characteristicsChanges[p.id]
-      );
-      
-      if (productsToLoad.length === 0) return;
-      
-      const characteristicsMap: Record<string, string[]> = { ...characteristicsState };
-      
-      for (const product of productsToLoad) {
-        try {
-          const characteristics = await apiRequest<Characteristic[]>(
-            "GET",
-            `/api/products/${product.id}/characteristics`
-          );
-          characteristicsMap[product.id] = characteristics.map(c => c.name);
-        } catch (error) {
-          console.error(`Failed to load characteristics for product ${product.id}:`, error);
-          characteristicsMap[product.id] = [];
-        }
-      }
-      
-      setCharacteristicsState(characteristicsMap);
-    }
-    
-    loadCharacteristics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paginatedProducts.map(p => p.id).join(',')]);
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       if (sortDirection === 'asc') {
@@ -258,7 +225,43 @@ export default function BulkProductEditor() {
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+  const paginatedProducts = useMemo(
+    () => filteredProducts.slice(startIndex, endIndex),
+    [filteredProducts, startIndex, endIndex]
+  );
+
+  // Load characteristics for paginated products
+  useEffect(() => {
+    async function loadCharacteristics() {
+      if (paginatedProducts.length === 0) return;
+      
+      // Only load characteristics for products we haven't loaded yet
+      const productsToLoad = paginatedProducts.filter(
+        p => !characteristicsState[p.id] && !characteristicsChanges[p.id]
+      );
+      
+      if (productsToLoad.length === 0) return;
+      
+      const characteristicsMap: Record<string, string[]> = { ...characteristicsState };
+      
+      for (const product of productsToLoad) {
+        try {
+          const characteristics = await apiRequest<Characteristic[]>(
+            "GET",
+            `/api/products/${product.id}/characteristics`
+          );
+          characteristicsMap[product.id] = characteristics.map(c => c.name);
+        } catch (error) {
+          console.error(`Failed to load characteristics for product ${product.id}:`, error);
+          characteristicsMap[product.id] = [];
+        }
+      }
+      
+      setCharacteristicsState(characteristicsMap);
+    }
+    
+    loadCharacteristics();
+  }, [paginatedProducts]);
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
@@ -270,7 +273,10 @@ export default function BulkProductEditor() {
     setCurrentPage(1);
   };
 
-  const changedProductsCount = Object.keys(changes).length;
+  const changedProductsCount = new Set([
+    ...Object.keys(changes),
+    ...Object.keys(characteristicsChanges)
+  ]).size;
 
   if (isLoading) {
     return (
