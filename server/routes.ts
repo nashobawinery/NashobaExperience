@@ -18,6 +18,7 @@ import {
   insertSlideshowImageSchema,
   insertMediaLibrarySchema,
   insertVideoSchema,
+  insertCommercialSchema,
   categoryEnum,
 } from "@shared/schema";
 
@@ -1283,6 +1284,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/videos/reorder", async (req, res) => {
     try {
       await storage.updateVideoOrder(req.body.updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  // Commercials Management
+  app.get("/api/commercials", async (req, res) => {
+    const activeOnly = req.query.activeOnly === 'true';
+    const commercials = await storage.getCommercials(activeOnly);
+    res.json(commercials);
+  });
+
+  app.get("/api/commercials/:id", async (req, res) => {
+    const commercial = await storage.getCommercial(req.params.id);
+    if (!commercial) {
+      return res.status(404).json({ message: "Commercial not found" });
+    }
+    res.json(commercial);
+  });
+
+  app.post("/api/commercials", isAdmin, async (req, res) => {
+    try {
+      const data = insertCommercialSchema.parse(req.body);
+      const commercial = await storage.createCommercial(data);
+      res.json(commercial);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.patch("/api/commercials/:id", isAdmin, async (req, res) => {
+    try {
+      const commercial = await storage.updateCommercial(req.params.id, req.body);
+      if (!commercial) {
+        return res.status(404).json({ message: "Commercial not found" });
+      }
+      res.json(commercial);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete("/api/commercials/:id", isAdmin, async (req, res) => {
+    const success = await storage.deleteCommercial(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Commercial not found" });
+    }
+    res.json({ success: true });
+  });
+
+  app.post("/api/commercials/reorder", isAdmin, async (req, res) => {
+    try {
+      await storage.updateCommercialOrder(req.body.updates);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
