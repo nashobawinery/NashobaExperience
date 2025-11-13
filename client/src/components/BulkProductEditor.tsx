@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Undo2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Product, FilterOption } from "@shared/schema";
+import type { Product, FilterOption, Characteristic } from "@shared/schema";
+import { CharacteristicsTagInput } from "@/components/CharacteristicsTagInput";
 
 interface ProductChanges {
   [productId: string]: Partial<Product>;
+}
+
+interface CharacteristicsChanges {
+  [productId: string]: string[];
 }
 
 type SortField = 'name' | 'sku' | 'price' | 'stockQuantity' | 'category' | 'type' | 'description';
@@ -25,6 +30,8 @@ export default function BulkProductEditor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [changes, setChanges] = useState<ProductChanges>({});
+  const [characteristicsState, setCharacteristicsState] = useState<Record<string, string[]>>({});
+  const [characteristicsChanges, setCharacteristicsChanges] = useState<CharacteristicsChanges>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -55,37 +62,37 @@ export default function BulkProductEditor() {
   const spiritFlavorOptions = getFilterOptionsByType('spirit_flavor');
 
   // Category configuration for conditional column rendering
-  // Columns: Name, SKU, Price, Stock, Category, Type, [category-specific], Description, Tasting Notes, Staff Pick, Featured, New
+  // Columns: Name, SKU, Price, Stock, Category, Type, [category-specific], Description, Tasting Notes, Characteristics, Staff Pick, Featured, New
   const categoryConfig = {
     all: {
-      // 6 core + 0 category + 5 end = 11 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[1670px]',
+      // 6 core + 0 category + 6 end = 12 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[1920px]',
     },
     wine: {
-      // 6 core + 6 wine + 5 end = 17 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[2660px]',
+      // 6 core + 6 wine + 6 end = 18 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2910px]',
     },
     beer: {
-      // 6 core + 3 beer + 5 end = 14 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[2220px]',
+      // 6 core + 3 beer + 6 end = 15 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2470px]',
     },
     spirits: {
-      // 6 core + 3 spirits + 5 end = 14 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[2220px]',
+      // 6 core + 3 spirits + 6 end = 15 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_150px_150px_150px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2470px]',
     },
     canned_cocktail: {
-      // 6 core + 6 wine + 5 end = 17 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[2660px]',
+      // 6 core + 6 wine + 6 end = 18 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2910px]',
     },
     canned_wine: {
-      // 6 core + 6 wine + 5 end = 17 columns
-      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_100px_100px_100px]',
-      minWidth: 'min-w-[2660px]',
+      // 6 core + 6 wine + 6 end = 18 columns
+      gridTemplate: 'grid-cols-[250px_120px_100px_80px_120px_180px_180px_140px_100px_140px_130px_130px_350px_250px_250px_100px_100px_100px]',
+      minWidth: 'min-w-[2910px]',
     },
   };
 
@@ -93,18 +100,27 @@ export default function BulkProductEditor() {
 
   const saveChangesMutation = useMutation({
     mutationFn: async (updates: ProductChanges) => {
-      const bulkUpdate = Object.entries(updates).map(([id, data]) => ({
-        id,
-        ...data,
-      }));
-      return apiRequest("POST", "/api/admin/products/bulk-update", { products: bulkUpdate });
+      // Save product field changes
+      if (Object.keys(updates).length > 0) {
+        const bulkUpdate = Object.entries(updates).map(([id, data]) => ({
+          id,
+          ...data,
+        }));
+        await apiRequest("POST", "/api/admin/products/bulk-update", { products: bulkUpdate });
+      }
+      
+      // Save characteristics changes
+      for (const [productId, characteristics] of Object.entries(characteristicsChanges)) {
+        await apiRequest("POST", `/api/products/${productId}/characteristics`, { characteristics });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setChanges({});
+      setCharacteristicsChanges({});
       toast({
         title: "Changes saved",
-        description: `Updated ${Object.keys(changes).length} products successfully`,
+        description: `Updated ${Object.keys(changes).length + Object.keys(characteristicsChanges).length} products successfully`,
       });
     },
     onError: (error: Error) => {
@@ -134,8 +150,55 @@ export default function BulkProductEditor() {
   };
 
   const hasChanges = (productId: string) => {
-    return !!changes[productId] && Object.keys(changes[productId]).length > 0;
+    return (!!changes[productId] && Object.keys(changes[productId]).length > 0) ||
+           (!!characteristicsChanges[productId]);
   };
+
+  const updateCharacteristics = (productId: string, tags: string[]) => {
+    setCharacteristicsChanges(prev => ({
+      ...prev,
+      [productId]: tags,
+    }));
+  };
+
+  const getCharacteristics = (productId: string): string[] => {
+    if (characteristicsChanges[productId]) {
+      return characteristicsChanges[productId];
+    }
+    return characteristicsState[productId] || [];
+  };
+
+  useEffect(() => {
+    async function loadCharacteristics() {
+      if (paginatedProducts.length === 0) return;
+      
+      const characteristicsMap: Record<string, string[]> = { ...characteristicsState };
+      
+      // Only load characteristics for products we haven't loaded yet
+      const productsToLoad = paginatedProducts.filter(
+        p => !characteristicsState[p.id] && !characteristicsChanges[p.id]
+      );
+      
+      for (const product of productsToLoad) {
+        try {
+          const characteristics = await apiRequest<Characteristic[]>(
+            "GET",
+            `/api/products/${product.id}/characteristics`
+          );
+          characteristicsMap[product.id] = characteristics.map(c => c.name);
+        } catch (error) {
+          console.error(`Failed to load characteristics for product ${product.id}:`, error);
+          characteristicsMap[product.id] = [];
+        }
+      }
+      
+      if (productsToLoad.length > 0) {
+        setCharacteristicsState(characteristicsMap);
+      }
+    }
+    
+    loadCharacteristics();
+  }, [paginatedProducts]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -369,6 +432,7 @@ export default function BulkProductEditor() {
                 Description{getSortIcon('description')}
               </div>
               <div className="px-2 py-1">Tasting Notes</div>
+              <div className="px-2 py-1">Characteristics</div>
               <div className="text-center px-2 py-1">Staff Pick</div>
               <div className="text-center px-2 py-1">Featured</div>
               <div className="text-center px-2 py-1">New</div>
@@ -634,6 +698,12 @@ export default function BulkProductEditor() {
                     placeholder="Add tasting notes..."
                     className="min-h-[36px] h-9 resize-none"
                     data-testid={`input-tasting-notes-${product.id}`}
+                  />
+                  
+                  <CharacteristicsTagInput
+                    value={getCharacteristics(product.id)}
+                    onChange={(tags) => updateCharacteristics(product.id, tags)}
+                    placeholder="Add characteristics..."
                   />
                   
                   <div className="flex items-center justify-center h-9">
