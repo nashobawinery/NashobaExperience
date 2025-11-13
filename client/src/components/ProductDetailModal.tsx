@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -7,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Heart, ShoppingCart, Wine } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Characteristic } from "@shared/schema";
 
 interface ProductDetailModalProps {
   product: {
@@ -62,6 +64,11 @@ export default function ProductDetailModal({
   const [quantity, setQuantity] = useState(1);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedNoteRef = useRef<string>(note);
+
+  const { data: characteristicsTags = [], isLoading: loadingCharacteristics } = useQuery<Characteristic[]>({
+    queryKey: ['/api/products', product?.id, 'characteristics'],
+    enabled: isOpen && !!product?.id,
+  });
 
   useEffect(() => {
     if (product?.id) {
@@ -347,10 +354,32 @@ export default function ProductDetailModal({
                       <p className="font-medium">{product.awards}</p>
                     </div>
                   )}
-                  {product.characteristics && (
+                  {(characteristicsTags.length > 0 || product.characteristics) && (
                     <div className="col-span-2">
-                      <span className="text-muted-foreground">Characteristics</span>
-                      <p className="font-medium">{product.characteristics}</p>
+                      <span className="text-muted-foreground block mb-2">Characteristics</span>
+                      {loadingCharacteristics ? (
+                        <div className="flex gap-2">
+                          <div className="h-6 w-20 bg-muted animate-pulse rounded-full" />
+                          <div className="h-6 w-24 bg-muted animate-pulse rounded-full" />
+                          <div className="h-6 w-16 bg-muted animate-pulse rounded-full" />
+                        </div>
+                      ) : characteristicsTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-2" data-testid="characteristics-tags">
+                          {characteristicsTags.map((characteristic, i) => (
+                            <Badge 
+                              key={characteristic.id} 
+                              variant="secondary"
+                              data-testid={`badge-characteristic-${i}`}
+                            >
+                              {characteristic.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : product.characteristics ? (
+                        <p className="font-medium text-sm text-muted-foreground italic">
+                          {product.characteristics}
+                        </p>
+                      ) : null}
                     </div>
                   )}
                   {product.rating && (
