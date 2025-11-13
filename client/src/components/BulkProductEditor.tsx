@@ -246,10 +246,11 @@ export default function BulkProductEditor() {
       
       for (const product of productsToLoad) {
         try {
-          const characteristics = await apiRequest<Characteristic[]>(
+          const res = await apiRequest(
             "GET",
             `/api/products/${product.id}/characteristics`
           );
+          const characteristics = (await res.json()) as Characteristic[];
           characteristicsMap[product.id] = characteristics.map(c => c.name);
         } catch (error) {
           console.error(`Failed to load characteristics for product ${product.id}:`, error);
@@ -710,6 +711,7 @@ export default function BulkProductEditor() {
                   <CharacteristicsTagInput
                     value={getCharacteristics(product.id)}
                     onChange={(tags) => updateCharacteristics(product.id, tags)}
+                    category={product.category}
                     placeholder="Add characteristics..."
                   />
                   

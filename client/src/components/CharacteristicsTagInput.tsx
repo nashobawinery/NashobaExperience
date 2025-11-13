@@ -10,6 +10,7 @@ import type { Characteristic } from "@shared/schema";
 interface CharacteristicsTagInputProps {
   value: string[];
   onChange: (tags: string[]) => void;
+  category: string;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -17,6 +18,7 @@ interface CharacteristicsTagInputProps {
 export function CharacteristicsTagInput({ 
   value, 
   onChange, 
+  category,
   placeholder = "Add characteristics...",
   disabled = false
 }: CharacteristicsTagInputProps) {
@@ -25,7 +27,7 @@ export function CharacteristicsTagInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: suggestions = [] } = useQuery<Characteristic[]>({
-    queryKey: [`/api/characteristics?q=${encodeURIComponent(inputValue)}`],
+    queryKey: [`/api/characteristics?q=${encodeURIComponent(inputValue)}&category=${encodeURIComponent(category)}`],
     enabled: inputValue.length > 0,
   });
 

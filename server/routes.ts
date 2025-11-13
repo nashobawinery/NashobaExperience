@@ -18,6 +18,7 @@ import {
   insertSlideshowImageSchema,
   insertMediaLibrarySchema,
   insertVideoSchema,
+  categoryEnum,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1288,7 +1289,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/characteristics", async (req, res) => {
     try {
       const query = req.query.q as string | undefined;
-      const characteristics = await storage.searchCharacteristics(query);
+      const categoryParam = req.query.category as string | undefined;
+      
+      // Validate category parameter using shared enum
+      const validCategories = categoryEnum.enumValues;
+      if (categoryParam && !validCategories.includes(categoryParam as any)) {
+        return res.status(400).json({ 
+          message: `Invalid category. Must be one of: ${validCategories.join(', ')}` 
+        });
+      }
+      
+      const category = categoryParam || undefined;
+      const characteristics = await storage.searchCharacteristics(query, category);
       res.json(characteristics);
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch characteristics" });
@@ -1310,7 +1322,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(characteristics)) {
         return res.status(400).json({ message: "characteristics must be an array of strings" });
       }
-      await storage.setProductCharacteristics(req.params.productId, characteristics);
+      const product = await storage.getProduct(req.params.productId);
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      await storage.setProductCharacteristics(req.params.productId, characteristics, product.category);
       const updated = await storage.getProductCharacteristics(req.params.productId);
       res.json(updated);
     } catch (error) {

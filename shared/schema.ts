@@ -246,10 +246,13 @@ export const videos = pgTable("videos", {
 export const characteristics = pgTable("characteristics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
+  productTypes: categoryEnum("product_types").array().notNull(),
   usageCount: integer("usage_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_characteristics_product_types").using("gin", table.productTypes),
+]);
 
 export const productCharacteristics = pgTable("product_characteristics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

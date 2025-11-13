@@ -174,12 +174,12 @@ export interface IStorage {
   updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 
   // Characteristics
-  searchCharacteristics(query?: string): Promise<Characteristic[]>;
+  searchCharacteristics(query?: string, category?: string): Promise<Characteristic[]>;
   getCharacteristic(id: string): Promise<Characteristic | undefined>;
   getCharacteristicByName(name: string): Promise<Characteristic | undefined>;
-  createCharacteristic(name: string): Promise<Characteristic>;
+  createCharacteristic(name: string, productTypes?: string[]): Promise<Characteristic>;
   getProductCharacteristics(productId: string): Promise<Characteristic[]>;
-  setProductCharacteristics(productId: string, characteristicNames: string[]): Promise<void>;
+  setProductCharacteristics(productId: string, characteristicNames: string[], category?: string): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -583,12 +583,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTriviaQuestion(question: InsertTriviaQuestion): Promise<TriviaQuestion> {
-    const result = await db.insert(triviaQuestions).values(question).returning();
+    const values = { ...question, answers: question.answers as string[] };
+    const result = await db.insert(triviaQuestions).values(values).returning();
     return result[0];
   }
 
   async updateTriviaQuestion(id: string, question: Partial<InsertTriviaQuestion>): Promise<TriviaQuestion | undefined> {
-    const result = await db.update(triviaQuestions).set(question).where(eq(triviaQuestions.id, id)).returning();
+    const updates: any = question.answers 
+      ? { ...question, answers: question.answers as string[] }
+      : question;
+    const result = await db.update(triviaQuestions).set(updates).where(eq(triviaQuestions.id, id)).returning();
     return result[0];
   }
 
@@ -873,11 +877,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Characteristics
-  async searchCharacteristics(query?: string): Promise<Characteristic[]> {
+  async searchCharacteristics(query?: string, category?: string): Promise<Characteristic[]> {
     let dbQuery = db.select().from(characteristics).orderBy(desc(characteristics.usageCount), characteristics.name);
     
+    const conditions = [];
+    
+    // Filter by search query
     if (query) {
-      dbQuery = dbQuery.where(ilike(characteristics.name, `%${query}%`)) as any;
+      conditions.push(ilike(characteristics.name, `%${query}%`));
+    }
+    
+    // Filter by product category using array containment
+    if (category) {
+      conditions.push(sql`${characteristics.productTypes} @> ARRAY[${category}]::"category"[]`);
+    }
+    
+    if (conditions.length > 0) {
+      dbQuery = dbQuery.where(and(...conditions)) as any;
     }
     
     return await dbQuery;
@@ -893,8 +909,12 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async createCharacteristic(name: string): Promise<Characteristic> {
-    const result = await db.insert(characteristics).values({ name }).returning();
+  async createCharacteristic(name: string, productTypes?: string[]): Promise<Characteristic> {
+    const values: any = { name };
+    if (productTypes && productTypes.length > 0) {
+      values.productTypes = productTypes;
+    }
+    const result = await db.insert(characteristics).values(values).returning();
     return result[0];
   }
 
@@ -903,6 +923,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: characteristics.id,
         name: characteristics.name,
+        productTypes: characteristics.productTypes,
         usageCount: characteristics.usageCount,
         createdAt: characteristics.createdAt,
         updatedAt: characteristics.updatedAt,
@@ -915,7 +936,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async setProductCharacteristics(productId: string, characteristicNames: string[]): Promise<void> {
+  async setProductCharacteristics(productId: string, characteristicNames: string[], category?: string): Promise<void> {
     // Deduplicate names (case-insensitive)
     const uniqueNames = Array.from(
       new Map(characteristicNames.map(name => [name.toLowerCase().trim(), name.trim()])).values()
@@ -958,7 +979,24 @@ export class DatabaseStorage implements IStorage {
       let characteristic = await this.getCharacteristicByName(name);
       
       if (!characteristic) {
-        characteristic = await this.createCharacteristic(name);
+        // Create with category if provided, otherwise defaults to all types
+        const productTypes = category ? [category] : undefined;
+        characteristic = await this.createCharacteristic(name, productTypes);
+      } else if (category && characteristic.productTypes) {
+        // For existing characteristics, ensure current category is in productTypes
+        if (!characteristic.productTypes.includes(category)) {
+          const updatedProductTypes = [...characteristic.productTypes, category];
+          await db
+            .update(characteristics)
+            .set({ 
+              productTypes: updatedProductTypes,
+              updatedAt: new Date()
+            })
+            .where(eq(characteristics.id, characteristic.id));
+          
+          // Update local object to reflect the change
+          characteristic.productTypes = updatedProductTypes;
+        }
       }
       
       // Link to product
