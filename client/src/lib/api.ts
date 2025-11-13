@@ -248,7 +248,7 @@ export async function getRecommendations(sessionId: string): Promise<Array<{ pro
   return response.json();
 }
 
-export async function emailCart(sessionId: string, cartData: { subtotal: number; discount: number; triviaCredit: number; total: number }): Promise<void> {
+export async function emailCart(sessionId: string, cartData: { subtotal: number; discount?: number; bottleDiscount?: number; cannedDiscount?: number; triviaCredit: number; total: number }): Promise<void> {
   const response = await fetch(`/api/sessions/${sessionId}/email/cart`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

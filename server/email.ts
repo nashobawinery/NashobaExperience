@@ -5,7 +5,9 @@ interface EmailCartData {
   guestName: string;
   items: Array<CartItem & { product: Product }>;
   subtotal: number;
-  discount: number;
+  discount?: number;
+  bottleDiscount?: number;
+  cannedDiscount?: number;
   triviaCredit: number;
   total: number;
 }
@@ -16,7 +18,7 @@ interface EmailFavoritesData {
 }
 
 export function generateCartEmail(data: EmailCartData): { subject: string; html: string; text: string } {
-  const { guestName, items, subtotal, discount, triviaCredit, total } = data;
+  const { guestName, items, subtotal, discount, bottleDiscount, cannedDiscount, triviaCredit, total } = data;
 
   const subject = `Tasting Order from ${guestName} - Nashoba Winery`;
   
@@ -27,7 +29,9 @@ Items:
 ${items.map(item => `- ${item.product.name} (${item.product.category}) x${item.quantity} - $${(parseFloat(item.product.price) * item.quantity).toFixed(2)}${item.note ? `\n  Note: ${item.note}` : ''}`).join('\n')}
 
 Subtotal: $${subtotal.toFixed(2)}
-${discount > 0 ? `Discount: -$${discount.toFixed(2)}` : ''}
+${bottleDiscount && bottleDiscount > 0 ? `Bottle Discount: -$${bottleDiscount.toFixed(2)}` : ''}
+${cannedDiscount && cannedDiscount > 0 ? `Canned Discount: -$${cannedDiscount.toFixed(2)}` : ''}
+${discount && discount > 0 && !bottleDiscount && !cannedDiscount ? `Discount: -$${discount.toFixed(2)}` : ''}
 ${triviaCredit > 0 ? `Trivia Reward: -$${triviaCredit.toFixed(2)}` : ''}
 Total: $${total.toFixed(2)}
 
@@ -69,7 +73,19 @@ Please prepare this order for the guest.
         <span>Subtotal:</span>
         <span>$${subtotal.toFixed(2)}</span>
       </div>
-      ${discount > 0 ? `
+      ${bottleDiscount && bottleDiscount > 0 ? `
+        <div class="total-row">
+          <span>Bottle Discount:</span>
+          <span style="color: green;">-$${bottleDiscount.toFixed(2)}</span>
+        </div>
+      ` : ''}
+      ${cannedDiscount && cannedDiscount > 0 ? `
+        <div class="total-row">
+          <span>Canned Discount:</span>
+          <span style="color: green;">-$${cannedDiscount.toFixed(2)}</span>
+        </div>
+      ` : ''}
+      ${discount && discount > 0 && !bottleDiscount && !cannedDiscount ? `
         <div class="total-row">
           <span>Discount:</span>
           <span style="color: green;">-$${discount.toFixed(2)}</span>

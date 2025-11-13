@@ -485,7 +485,7 @@ export default function GuestApp() {
   });
 
   const emailCartMutation = useMutation({
-    mutationFn: (cartData: { subtotal: number; discount: number; triviaCredit: number; total: number }) =>
+    mutationFn: (cartData: { subtotal: number; bottleDiscount?: number; cannedDiscount?: number; triviaCredit: number; total: number }) =>
       api.emailCart(sessionId!, cartData),
     onSuccess: () => {
       toast({
@@ -658,6 +658,10 @@ export default function GuestApp() {
       .filter(item => ['wine', 'spirits'].includes(item.category))
       .reduce((sum, item) => sum + item.quantity, 0);
 
+    const cannedCount = cartItemsArray
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
+      .reduce((sum, item) => sum + item.quantity, 0);
+
     const calculateDiscount = (count: number): number => {
       if (count >= 24) return 0.24;
       if (count >= 12) return 0.15;
@@ -666,15 +670,27 @@ export default function GuestApp() {
       return 0;
     };
 
-    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountRate = calculateDiscount(wineSpiritsCount);
-    const discountAmount = subtotal * discountRate;
-    const afterDiscount = subtotal - discountAmount;
+    const bottleSubtotal = cartItemsArray
+      .filter(item => ['wine', 'spirits'].includes(item.category))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const cannedSubtotal = cartItemsArray
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const subtotal = bottleSubtotal + cannedSubtotal;
+    const bottleDiscountRate = calculateDiscount(wineSpiritsCount);
+    const cannedDiscountRate = calculateDiscount(cannedCount);
+    const bottleDiscountAmount = bottleSubtotal * bottleDiscountRate;
+    const cannedDiscountAmount = cannedSubtotal * cannedDiscountRate;
+    const totalDiscountAmount = bottleDiscountAmount + cannedDiscountAmount;
+    const afterDiscount = subtotal - totalDiscountAmount;
     const total = Math.max(0, afterDiscount - triviaCredit);
 
     emailCartMutation.mutate({
       subtotal,
-      discount: discountAmount,
+      bottleDiscount: bottleDiscountAmount,
+      cannedDiscount: cannedDiscountAmount,
       triviaCredit,
       total,
     });
@@ -687,6 +703,10 @@ export default function GuestApp() {
       .filter(item => ['wine', 'spirits'].includes(item.category))
       .reduce((sum, item) => sum + item.quantity, 0);
 
+    const cannedCount = cartItemsArray
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
+      .reduce((sum, item) => sum + item.quantity, 0);
+
     const calculateDiscount = (count: number): number => {
       if (count >= 24) return 0.24;
       if (count >= 12) return 0.15;
@@ -695,15 +715,27 @@ export default function GuestApp() {
       return 0;
     };
 
-    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountRate = calculateDiscount(wineSpiritsCount);
-    const discountAmount = subtotal * discountRate;
-    const afterDiscount = subtotal - discountAmount;
+    const bottleSubtotal = cartItemsArray
+      .filter(item => ['wine', 'spirits'].includes(item.category))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const cannedSubtotal = cartItemsArray
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const subtotal = bottleSubtotal + cannedSubtotal;
+    const bottleDiscountRate = calculateDiscount(wineSpiritsCount);
+    const cannedDiscountRate = calculateDiscount(cannedCount);
+    const bottleDiscountAmount = bottleSubtotal * bottleDiscountRate;
+    const cannedDiscountAmount = cannedSubtotal * cannedDiscountRate;
+    const totalDiscountAmount = bottleDiscountAmount + cannedDiscountAmount;
+    const afterDiscount = subtotal - totalDiscountAmount;
     const total = Math.max(0, afterDiscount - triviaCredit);
 
     emailCartMutation.mutate({
       subtotal,
-      discount: discountAmount,
+      bottleDiscount: bottleDiscountAmount,
+      cannedDiscount: cannedDiscountAmount,
       triviaCredit,
       total,
     });
