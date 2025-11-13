@@ -448,6 +448,22 @@ export async function updateDiscountTiers(tiers: DiscountTiers): Promise<void> {
   if (!response.ok) throw new Error('Failed to update discount tiers');
 }
 
+export async function getCannedDiscountTiers(): Promise<DiscountTiers> {
+  const response = await fetch('/api/settings/canned_discount_tiers');
+  if (!response.ok) throw new Error('Failed to fetch canned discount tiers');
+  const setting = await response.json();
+  return setting.value;
+}
+
+export async function updateCannedDiscountTiers(tiers: DiscountTiers): Promise<void> {
+  const response = await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'canned_discount_tiers', value: tiers }),
+  });
+  if (!response.ok) throw new Error('Failed to update canned discount tiers');
+}
+
 export async function getMediaLibraryUploadUrl(): Promise<string> {
   const response = await fetch('/api/media-library/upload-url', {
     method: 'POST',

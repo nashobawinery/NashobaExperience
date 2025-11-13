@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
-import { getDiscountTiers } from "@/lib/api";
+import { getDiscountTiers, getCannedDiscountTiers } from "@/lib/api";
 import { useMemo } from "react";
 
 interface CartItem {
@@ -37,6 +37,11 @@ export default function ShoppingCartPanel({
     queryFn: getDiscountTiers,
   });
 
+  const { data: cannedDiscountTiers } = useQuery({
+    queryKey: ['/api/settings/canned_discount_tiers'],
+    queryFn: getCannedDiscountTiers,
+  });
+
   const wineSpiritsCount = useMemo(() => 
     items
       .filter(item => ['wine', 'spirits'].includes(item.category.toLowerCase()))
@@ -44,38 +49,74 @@ export default function ShoppingCartPanel({
     [items]
   );
 
-  const calculateDiscount = useMemo(() => (count: number): number => {
-    if (!discountTiers) {
+  const cannedCount = useMemo(() => 
+    items
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category.toLowerCase()))
+      .reduce((sum, item) => sum + item.quantity, 0),
+    [items]
+  );
+
+  const calculateDiscount = useMemo(() => (count: number, tiers: typeof discountTiers): number => {
+    if (!tiers) {
       return 0;
     }
 
-    const tiers = [discountTiers.tier4, discountTiers.tier3, discountTiers.tier2, discountTiers.tier1];
-    for (const tier of tiers) {
+    const tierList = [tiers.tier4, tiers.tier3, tiers.tier2, tiers.tier1];
+    for (const tier of tierList) {
       if (count >= tier.min && count <= tier.max) {
         return tier.discount;
       }
     }
     return 0;
-  }, [discountTiers]);
+  }, []);
 
-  const subtotal = useMemo(() => 
-    items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+  const bottleSubtotal = useMemo(() => 
+    items
+      .filter(item => ['wine', 'spirits'].includes(item.category.toLowerCase()))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0),
     [items]
   );
 
-  const discountRate = useMemo(() => 
-    calculateDiscount(wineSpiritsCount),
-    [calculateDiscount, wineSpiritsCount]
+  const cannedSubtotal = useMemo(() => 
+    items
+      .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category.toLowerCase()))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0),
+    [items]
   );
 
-  const discountAmount = useMemo(() => 
-    subtotal * discountRate,
-    [subtotal, discountRate]
+  const subtotal = useMemo(() => 
+    bottleSubtotal + cannedSubtotal,
+    [bottleSubtotal, cannedSubtotal]
+  );
+
+  const bottleDiscountRate = useMemo(() => 
+    calculateDiscount(wineSpiritsCount, discountTiers),
+    [calculateDiscount, wineSpiritsCount, discountTiers]
+  );
+
+  const cannedDiscountRate = useMemo(() => 
+    calculateDiscount(cannedCount, cannedDiscountTiers),
+    [calculateDiscount, cannedCount, cannedDiscountTiers]
+  );
+
+  const bottleDiscountAmount = useMemo(() => 
+    bottleSubtotal * bottleDiscountRate,
+    [bottleSubtotal, bottleDiscountRate]
+  );
+
+  const cannedDiscountAmount = useMemo(() => 
+    cannedSubtotal * cannedDiscountRate,
+    [cannedSubtotal, cannedDiscountRate]
+  );
+
+  const totalDiscountAmount = useMemo(() => 
+    bottleDiscountAmount + cannedDiscountAmount,
+    [bottleDiscountAmount, cannedDiscountAmount]
   );
 
   const afterDiscount = useMemo(() => 
-    subtotal - discountAmount,
-    [subtotal, discountAmount]
+    subtotal - totalDiscountAmount,
+    [subtotal, totalDiscountAmount]
   );
 
   const total = useMemo(() => 
@@ -83,8 +124,8 @@ export default function ShoppingCartPanel({
     [afterDiscount, triviaCredit]
   );
 
-  // Calculate next tier guidance message
-  const getNextTierMessage = (): string | null => {
+  // Calculate next tier guidance messages
+  const getNextBottleTierMessage = (): string | null => {
     if (!discountTiers) return null;
     
     const tiers = [
@@ -98,7 +139,27 @@ export default function ShoppingCartPanel({
       if (wineSpiritsCount < tier.min) {
         const bottlesNeeded = tier.min - wineSpiritsCount;
         const discountPercent = (tier.discount * 100).toFixed(0);
-        return `Add ${bottlesNeeded} more for ${discountPercent}% off`;
+        return `Add ${bottlesNeeded} more bottles for ${discountPercent}% off`;
+      }
+    }
+    return null;
+  };
+
+  const getNextCannedTierMessage = (): string | null => {
+    if (!cannedDiscountTiers) return null;
+    
+    const tiers = [
+      { ...cannedDiscountTiers.tier1, name: 'tier1' },
+      { ...cannedDiscountTiers.tier2, name: 'tier2' },
+      { ...cannedDiscountTiers.tier3, name: 'tier3' },
+      { ...cannedDiscountTiers.tier4, name: 'tier4' }
+    ].sort((a, b) => a.min - b.min);
+
+    for (const tier of tiers) {
+      if (cannedCount < tier.min) {
+        const cannedsNeeded = tier.min - cannedCount;
+        const discountPercent = (tier.discount * 100).toFixed(0);
+        return `Add ${cannedsNeeded} more cans for ${discountPercent}% off`;
       }
     }
     return null;
@@ -191,39 +252,45 @@ export default function ShoppingCartPanel({
           <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 border border-blue-200 dark:border-blue-800 text-xs">
             <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Discount Debug Info:</p>
             <p className="text-blue-700 dark:text-blue-300">
-              Wine/Spirits bottles: {wineSpiritsCount} | 
-              Discount rate: {(discountRate * 100).toFixed(0)}% | 
-              Tiers loaded: {discountTiers ? 'Yes' : 'No'}
+              Bottles: {wineSpiritsCount} ({(bottleDiscountRate * 100).toFixed(0)}%) | 
+              Cans: {cannedCount} ({(cannedDiscountRate * 100).toFixed(0)}%) | 
+              Tiers: {discountTiers && cannedDiscountTiers ? 'Yes' : 'No'}
             </p>
-            {!discountTiers && (
+            {(!discountTiers || !cannedDiscountTiers) && (
               <p className="text-destructive mt-1 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
                 Discount tiers not loaded from server
               </p>
             )}
-            {discountRate === 0 && wineSpiritsCount === 0 && (
-              <p className="text-blue-700 dark:text-blue-300 mt-1">
-                No wine/spirits in cart - only wine & spirits qualify for discounts
-              </p>
-            )}
-            {discountRate === 0 && wineSpiritsCount > 0 && wineSpiritsCount < 3 && (
-              <p className="text-blue-700 dark:text-blue-300 mt-1">
-                Need 3+ bottles for discount (currently: {wineSpiritsCount})
-              </p>
-            )}
           </div>
 
-          {discountRate > 0 && (
+          {bottleDiscountRate > 0 && (
             <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-2">
                 <Tag className="w-4 h-4 text-green-600" />
                 <p className="font-medium text-sm text-green-900 dark:text-green-100">
-                  {wineSpiritsCount} bottles: {(discountRate * 100).toFixed(0)}% discount applied!
+                  {wineSpiritsCount} bottles: {(bottleDiscountRate * 100).toFixed(0)}% discount applied!
                 </p>
               </div>
-              {getNextTierMessage() && (
+              {getNextBottleTierMessage() && (
                 <p className="text-xs text-green-700 dark:text-green-300">
-                  {getNextTierMessage()}
+                  {getNextBottleTierMessage()}
+                </p>
+              )}
+            </div>
+          )}
+
+          {cannedDiscountRate > 0 && (
+            <div className="bg-green-50 dark:bg-green-950 rounded-lg p-4 border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Tag className="w-4 h-4 text-green-600" />
+                <p className="font-medium text-sm text-green-900 dark:text-green-100">
+                  {cannedCount} cans: {(cannedDiscountRate * 100).toFixed(0)}% discount applied!
+                </p>
+              </div>
+              {getNextCannedTierMessage() && (
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  {getNextCannedTierMessage()}
                 </p>
               )}
             </div>
@@ -245,10 +312,16 @@ export default function ShoppingCartPanel({
               <span className="text-muted-foreground">Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
-            {discountRate > 0 && (
+            {bottleDiscountRate > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Discount ({(discountRate * 100).toFixed(0)}%)</span>
-                <span className="text-green-600">-${discountAmount.toFixed(2)}</span>
+                <span className="text-muted-foreground">Bottle Discount ({(bottleDiscountRate * 100).toFixed(0)}%)</span>
+                <span className="text-green-600">-${bottleDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {cannedDiscountRate > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Canned Discount ({(cannedDiscountRate * 100).toFixed(0)}%)</span>
+                <span className="text-green-600">-${cannedDiscountAmount.toFixed(2)}</span>
               </div>
             )}
             {triviaCredit > 0 && (
