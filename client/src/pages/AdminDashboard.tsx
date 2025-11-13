@@ -10,6 +10,7 @@ import GuestAppQRCode from "@/components/GuestAppQRCode";
 import SlideshowImageManager from "@/components/SlideshowImageManager";
 import { MediaLibrary } from "@/components/MediaLibrary";
 import VideoManager from "@/components/VideoManager";
+import CommercialManager from "@/components/CommercialManager";
 import ShopifyImportComponent from "@/components/ShopifyImport";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -591,7 +592,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-10 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-11 max-w-6xl">
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="w-4 h-4 mr-2" />
               Products
@@ -607,6 +608,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <TabsTrigger value="slideshow" data-testid="tab-slideshow">
               <Image className="w-4 h-4 mr-2" />
               Slideshow
+            </TabsTrigger>
+            <TabsTrigger value="commercials" data-testid="tab-commercials">
+              <Video className="w-4 h-4 mr-2" />
+              Commercials
             </TabsTrigger>
             <TabsTrigger value="media" data-testid="tab-media">
               <Upload className="w-4 h-4 mr-2" />
@@ -958,6 +963,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="slideshow">
             <SlideshowImageManager />
+          </TabsContent>
+
+          <TabsContent value="commercials">
+            <CommercialManager />
           </TabsContent>
 
           <TabsContent value="media">

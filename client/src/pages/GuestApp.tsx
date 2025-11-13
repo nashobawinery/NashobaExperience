@@ -18,12 +18,13 @@ import TriviaPopup from "@/components/TriviaPopup";
 import TriviaRewardsDialog from "@/components/TriviaRewardsDialog";
 import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
 import DiscountInfoPopup from "@/components/DiscountInfoPopup";
+import CommercialDialog from "@/components/CommercialDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Heart, Trophy, Gift } from "lucide-react";
 import * as api from "@/lib/api";
-import type { Product, TriviaQuestion } from "@shared/schema";
+import type { Product, TriviaQuestion, Commercial } from "@shared/schema";
 import type { SurveyData } from "@/components/TastingSurvey";
 
 export default function GuestApp() {
@@ -62,6 +63,8 @@ export default function GuestApp() {
   const [showTriviaInfo, setShowTriviaInfo] = useState(false);
   const [showTriviaRewards, setShowTriviaRewards] = useState(false);
   const [triviaFinalScore, setTriviaFinalScore] = useState({ score: 0, total: 0 });
+  const [showCommercial, setShowCommercial] = useState(false);
+  const [currentCommercialIndex, setCurrentCommercialIndex] = useState(0);
   const [showFavoritesInfo, setShowFavoritesInfo] = useState(false);
   const [showDiscountInfo, setShowDiscountInfo] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -196,6 +199,10 @@ export default function GuestApp() {
     queryKey: ["/api/sessions", sessionId, "trivia", "next"],
     queryFn: () => api.getNextTriviaQuestion(sessionId!),
     enabled: !!sessionId,
+  });
+
+  const { data: commercials = [] } = useQuery<Commercial[]>({
+    queryKey: ["/api/commercials?activeOnly=true"],
   });
 
   const { data: triviaIntervalSeconds = 240 } = useQuery({
@@ -602,6 +609,11 @@ export default function GuestApp() {
     }
   };
 
+  const handleCloseCommercial = () => {
+    setShowCommercial(false);
+    setCurrentCommercialIndex(prev => prev + 1);
+  };
+
   const handleTriviaAnswer = (correct: boolean) => {
     if (nextTriviaQuestion) {
       recordTriviaAnswerMutation.mutate(
@@ -615,6 +627,13 @@ export default function GuestApp() {
             if (newTotal === 10) {
               setTriviaFinalScore({ score: newScore, total: newTotal });
               setShowTriviaRewards(true);
+            }
+            // Show commercial after every 3 questions (3, 6, 9)
+            else if (newTotal % 3 === 0 && commercials.length > 0) {
+              const commercialToShow = commercials[currentCommercialIndex % commercials.length];
+              if (commercialToShow) {
+                setShowCommercial(true);
+              }
             }
           },
         }
@@ -1151,6 +1170,13 @@ export default function GuestApp() {
           totalAnswered={triviaAnswered}
           onAnswer={handleTriviaAnswer}
           onClose={() => setShowTrivia(false)}
+        />
+      )}
+
+      {showCommercial && commercials.length > 0 && (
+        <CommercialDialog
+          commercial={commercials[currentCommercialIndex % commercials.length]}
+          onClose={handleCloseCommercial}
         />
       )}
 
