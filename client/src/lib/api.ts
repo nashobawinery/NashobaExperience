@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary, TriviaAchievement, TriviaAttempt } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary, TriviaAchievement, TriviaAttempt, CartDiscount } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -154,6 +154,12 @@ export async function removeFromCart(cartItemId: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) throw new Error("Failed to remove from cart");
+}
+
+export async function getCartDiscounts(sessionId: string): Promise<CartDiscount[]> {
+  const response = await fetch(`/api/cart-discounts/${sessionId}`);
+  if (!response.ok) throw new Error("Failed to fetch cart discounts");
+  return response.json();
 }
 
 export async function getTriviaQuestions(activeOnly = true): Promise<TriviaQuestion[]> {

@@ -2,10 +2,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle, Award } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
-import { getDiscountTiers, getCannedDiscountTiers } from "@/lib/api";
+import { getDiscountTiers, getCannedDiscountTiers, getCartDiscounts } from "@/lib/api";
 import { useMemo } from "react";
 
 interface CartItem {
@@ -20,6 +20,7 @@ interface CartItem {
 interface ShoppingCartPanelProps {
   items: CartItem[];
   triviaCredit: number;
+  sessionId?: string;
   onUpdateQuantity?: (id: string, quantity: number) => void;
   onRemoveItem?: (id: string) => void;
   onCheckout?: () => void;
@@ -28,6 +29,7 @@ interface ShoppingCartPanelProps {
 export default function ShoppingCartPanel({
   items,
   triviaCredit = 0,
+  sessionId,
   onUpdateQuantity,
   onRemoveItem,
   onCheckout,
@@ -40,6 +42,12 @@ export default function ShoppingCartPanel({
   const { data: cannedDiscountTiers } = useQuery({
     queryKey: ['/api/settings/canned_discount_tiers'],
     queryFn: getCannedDiscountTiers,
+  });
+
+  const { data: cartDiscounts = [] } = useQuery({
+    queryKey: ['/api/cart-discounts', sessionId],
+    queryFn: () => getCartDiscounts(sessionId!),
+    enabled: !!sessionId,
   });
 
   const wineSpiritsCount = useMemo(() => 
@@ -114,14 +122,24 @@ export default function ShoppingCartPanel({
     [bottleDiscountAmount, cannedDiscountAmount]
   );
 
-  const afterDiscount = useMemo(() => 
+  const achievementDiscountAmount = useMemo(() => 
+    cartDiscounts.reduce((sum, discount) => sum + parseFloat(discount.amount), 0),
+    [cartDiscounts]
+  );
+
+  const afterTierDiscount = useMemo(() => 
     subtotal - totalDiscountAmount,
     [subtotal, totalDiscountAmount]
   );
 
+  const afterAchievementDiscount = useMemo(() => 
+    afterTierDiscount - achievementDiscountAmount,
+    [afterTierDiscount, achievementDiscountAmount]
+  );
+
   const total = useMemo(() => 
-    Math.max(0, afterDiscount - triviaCredit),
-    [afterDiscount, triviaCredit]
+    Math.max(0, afterAchievementDiscount - triviaCredit),
+    [afterAchievementDiscount, triviaCredit]
   );
 
   // Calculate next tier guidance messages
@@ -296,6 +314,33 @@ export default function ShoppingCartPanel({
             </div>
           )}
 
+          {cartDiscounts.length > 0 && (
+            <div className="bg-primary/5 dark:bg-primary/10 rounded-lg p-4 border border-primary/20" data-testid="section-achievement-discounts">
+              <div className="flex items-center gap-2 mb-3">
+                <Award className="w-5 h-5 text-primary" />
+                <p className="font-medium text-sm">Trivia Achievement Rewards</p>
+              </div>
+              <div className="space-y-2">
+                {cartDiscounts.map((discount, index) => (
+                  <div 
+                    key={discount.id} 
+                    className="flex items-center justify-between"
+                    data-testid={`achievement-discount-${index}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-discount-label-${index}`}>
+                        {discount.label}
+                      </Badge>
+                    </div>
+                    <p className="font-semibold text-primary" data-testid={`text-discount-amount-${index}`}>
+                      -${parseFloat(discount.amount).toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {triviaCredit > 0 && (
             <div className="bg-chart-2/10 rounded-lg p-4 border border-chart-2/20">
               <div className="flex items-center justify-between">
@@ -310,24 +355,30 @@ export default function ShoppingCartPanel({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span data-testid="text-subtotal">${subtotal.toFixed(2)}</span>
             </div>
             {bottleDiscountRate > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Bottle Discount ({(bottleDiscountRate * 100).toFixed(0)}%)</span>
-                <span className="text-green-600">-${bottleDiscountAmount.toFixed(2)}</span>
+                <span className="text-green-600" data-testid="text-bottle-discount">-${bottleDiscountAmount.toFixed(2)}</span>
               </div>
             )}
             {cannedDiscountRate > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Canned Discount ({(cannedDiscountRate * 100).toFixed(0)}%)</span>
-                <span className="text-green-600">-${cannedDiscountAmount.toFixed(2)}</span>
+                <span className="text-green-600" data-testid="text-canned-discount">-${cannedDiscountAmount.toFixed(2)}</span>
               </div>
             )}
+            {cartDiscounts.map((discount, index) => (
+              <div key={discount.id} className="flex justify-between text-sm" data-testid={`breakdown-achievement-discount-${index}`}>
+                <span className="text-muted-foreground">{discount.label}</span>
+                <span className="text-primary font-medium" data-testid={`breakdown-discount-amount-${index}`}>-${parseFloat(discount.amount).toFixed(2)}</span>
+              </div>
+            ))}
             {triviaCredit > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Trivia Reward</span>
-                <span className="text-green-600">-${triviaCredit.toFixed(2)}</span>
+                <span className="text-green-600" data-testid="text-trivia-credit">-${triviaCredit.toFixed(2)}</span>
               </div>
             )}
             <Separator />

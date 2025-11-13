@@ -1227,6 +1227,7 @@ export default function GuestApp() {
             <ShoppingCartPanel
               items={cartItemsArray}
               triviaCredit={triviaCredit}
+              sessionId={sessionId || undefined}
               onUpdateQuantity={handleUpdateQuantity}
               onRemoveItem={(cartItemId) => handleUpdateQuantity(cartItemId, 0)}
               onCheckout={handleCheckout}
