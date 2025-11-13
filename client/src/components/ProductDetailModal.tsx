@@ -349,7 +349,7 @@ export default function ProductDetailModal({
                   )}
                   {product.characteristics && (
                     <div className="col-span-2">
-                      <span className="text-muted-foreground">Composition</span>
+                      <span className="text-muted-foreground">Characteristics</span>
                       <p className="font-medium">{product.characteristics}</p>
                     </div>
                   )}
