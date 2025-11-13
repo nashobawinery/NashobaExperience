@@ -251,6 +251,12 @@ export default function ShoppingCartPanel({
                 <span className="text-green-600">-${discountAmount.toFixed(2)}</span>
               </div>
             )}
+            {triviaCredit > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Trivia Reward</span>
+                <span className="text-green-600">-${triviaCredit.toFixed(2)}</span>
+              </div>
+            )}
             <Separator />
             <div className="flex justify-between font-semibold text-lg">
               <span>Total</span>
