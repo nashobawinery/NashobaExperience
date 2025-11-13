@@ -17,6 +17,7 @@ import {
   slideshowImages,
   mediaLibrary,
   videos,
+  commercials,
   whitelistedEmails,
   characteristics,
   productCharacteristics,
@@ -52,6 +53,8 @@ import {
   type MediaLibrary,
   type InsertVideo,
   type Video,
+  type InsertCommercial,
+  type Commercial,
   type InsertWhitelistedEmail,
   type WhitelistedEmail,
   type InsertCharacteristic,
@@ -174,6 +177,14 @@ export interface IStorage {
   updateVideo(id: string, video: Partial<InsertVideo>): Promise<Video | undefined>;
   deleteVideo(id: string): Promise<boolean>;
   updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
+
+  // Commercials
+  getCommercials(activeOnly?: boolean): Promise<Commercial[]>;
+  getCommercial(id: string): Promise<Commercial | undefined>;
+  createCommercial(commercial: InsertCommercial): Promise<Commercial>;
+  updateCommercial(id: string, commercial: Partial<InsertCommercial>): Promise<Commercial | undefined>;
+  deleteCommercial(id: string): Promise<boolean>;
+  updateCommercialOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 
   // Characteristics
   searchCharacteristics(query?: string, category?: string): Promise<Characteristic[]>;
@@ -909,6 +920,50 @@ export class DatabaseStorage implements IStorage {
         .update(videos)
         .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
         .where(eq(videos.id, update.id));
+    }
+  }
+
+  // Commercials
+  async getCommercials(activeOnly?: boolean): Promise<Commercial[]> {
+    let query = db.select().from(commercials).orderBy(commercials.sortOrder);
+    
+    if (activeOnly) {
+      query = query.where(eq(commercials.isActive, true)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getCommercial(id: string): Promise<Commercial | undefined> {
+    const result = await db.select().from(commercials).where(eq(commercials.id, id));
+    return result[0];
+  }
+
+  async createCommercial(commercial: InsertCommercial): Promise<Commercial> {
+    const result = await db.insert(commercials).values(commercial).returning();
+    return result[0];
+  }
+
+  async updateCommercial(id: string, commercial: Partial<InsertCommercial>): Promise<Commercial | undefined> {
+    const result = await db
+      .update(commercials)
+      .set({ ...commercial, updatedAt: new Date() })
+      .where(eq(commercials.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteCommercial(id: string): Promise<boolean> {
+    const result = await db.delete(commercials).where(eq(commercials.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async updateCommercialOrder(updates: { id: string; sortOrder: number }[]): Promise<void> {
+    for (const update of updates) {
+      await db
+        .update(commercials)
+        .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
+        .where(eq(commercials.id, update.id));
     }
   }
 
