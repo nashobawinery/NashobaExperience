@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { Product } from "@shared/schema";
+import type { Product, ProductWithCharacteristics } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -18,9 +18,9 @@ interface GuestPreferenceData {
 }
 
 export async function generateRecommendations(
-  allProducts: Product[],
+  allProducts: ProductWithCharacteristics[],
   preferenceData: GuestPreferenceData
-): Promise<Array<{ product: Product; reason: string }>> {
+): Promise<Array<{ product: ProductWithCharacteristics; reason: string }>> {
   const { favorites, viewHistory, cartItems, statedPreferences } = preferenceData;
 
   console.log("[AI Recommendations] Generating recommendations with:", {
@@ -81,6 +81,7 @@ export async function generateRecommendations(
     category: p.category,
     price: p.price,
     description: p.description,
+    characteristics: p.characteristics.map(c => c.name),
     tags: p.tags,
     sweetness: p.sweetness,
     body: p.body,
@@ -118,13 +119,13 @@ Based on the guest's preferences, recommend 4-6 products from the available list
 2. A brief, personalized reason why this product matches their preferences (1-2 sentences, written in friendly sommelier tone)
 
 CRITICAL FILTERING RULES:
-1. Search through the description and tags fields to find matches
+1. Search through the description, characteristics, and tags fields to find matches
 2. STRICT CATEGORY: Only recommend products from the guest's selected beverage type(s)
 3. STRICT WINE COLOR: If wine colors are specified (red, white, rosé, sparkling), ONLY recommend wines of those colors - find color info in description/tags
 4. Other preferences (sweetness, body, flavors) are secondary considerations
 
 Consider:
-${statedPreferences ? "- Beverage type (REQUIRED - only from selected categories)\n" : ""}${statedPreferences?.wineColors && statedPreferences.wineColors.length > 0 ? "- Wine color (REQUIRED - must match selected colors)\n" : ""}- Flavor characteristics (sweetness, body) from description and tags
+${statedPreferences ? "- Beverage type (REQUIRED - only from selected categories)\n" : ""}${statedPreferences?.wineColors && statedPreferences.wineColors.length > 0 ? "- Wine color (REQUIRED - must match selected colors)\n" : ""}- Flavor characteristics (sweetness, body) from description, characteristics array, and tags
 - Their notes on favorites
 - Price range they're comfortable with
 - Complementary pairings
@@ -228,7 +229,7 @@ Respond in JSON format:
     
     // Fallback: Scoring-based recommendations with STRICT filtering
     // Helper function to score products based on preferences
-    const scoreProduct = (product: Product): number => {
+    const scoreProduct = (product: ProductWithCharacteristics): number => {
       let score = 0;
 
       // STRICT beverage type filtering - product MUST match selected categories
@@ -274,7 +275,7 @@ Respond in JSON format:
         score += 3; // High weight for wine color match
       }
 
-      // Score flavor preference matches by searching description and tags
+      // Score flavor preference matches by searching characteristics, description, and tags
       if (statedPreferences?.flavorPreferences && statedPreferences.flavorPreferences.length > 0) {
         for (const flavor of statedPreferences.flavorPreferences) {
           const flavorLower = flavor.toLowerCase();
@@ -295,7 +296,16 @@ Respond in JSON format:
             score += 2;
           }
           
-          // Match keywords in description and tags
+          // PRIORITY: Match keywords in characteristics (category-filtered, higher quality)
+          if (product.characteristics && product.characteristics.length > 0) {
+            const characteristicNames = product.characteristics.map(c => c.name.toLowerCase());
+            if (characteristicNames.some(name => name.includes(flavorLower))) {
+              score += 3; // Higher score for characteristic match (more precise than tags)
+              continue; // Skip tag search if characteristic matched
+            }
+          }
+          
+          // FALLBACK: Match keywords in description and tags
           const searchText = `${product.description || ''} ${(product.tags || []).join(' ')}`.toLowerCase();
           if (searchText.includes(flavorLower)) {
             score += 1;

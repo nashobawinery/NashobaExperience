@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X, Plus } from "lucide-react";
@@ -24,10 +26,15 @@ export function CharacteristicsTagInput({
 }: CharacteristicsTagInputProps) {
   const [inputValue, setInputValue] = useState("");
   const [open, setOpen] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Build stable query key with consistent parameter order
+  const categoryParam = showAllCategories ? '' : `&category=${encodeURIComponent(category)}`;
+  const queryKey = `/api/characteristics?q=${encodeURIComponent(inputValue)}${categoryParam}`;
+
   const { data: suggestions = [] } = useQuery<Characteristic[]>({
-    queryKey: [`/api/characteristics?q=${encodeURIComponent(inputValue)}&category=${encodeURIComponent(category)}`],
+    queryKey: [queryKey],
     enabled: inputValue.length > 0,
   });
 
@@ -94,6 +101,23 @@ export function CharacteristicsTagInput({
           </Badge>
         ))}
       </div>
+
+      {!disabled && (
+        <div className="flex items-center gap-2">
+          <Switch 
+            id="show-all-categories"
+            checked={showAllCategories}
+            onCheckedChange={setShowAllCategories}
+            data-testid="switch-show-all-categories"
+          />
+          <Label 
+            htmlFor="show-all-categories" 
+            className="text-sm text-muted-foreground cursor-pointer"
+          >
+            Show all categories
+          </Label>
+        </div>
+      )}
       
       {!disabled && (
         <Popover open={open} onOpenChange={setOpen}>
@@ -138,13 +162,30 @@ export function CharacteristicsTagInput({
                         value={suggestion.name}
                         onSelect={() => addTag(suggestion.name)}
                         data-testid={`item-characteristic-${suggestion.name}`}
+                        className="flex items-center gap-2"
                       >
-                        <span>{suggestion.name}</span>
-                        {suggestion.usageCount > 0 && (
-                          <span className="ml-auto text-muted-foreground text-xs">
-                            {suggestion.usageCount}
-                          </span>
-                        )}
+                        <span className="flex-1">{suggestion.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          {suggestion.productTypes && suggestion.productTypes.length > 0 && (
+                            <div className="flex gap-1">
+                              {suggestion.productTypes.map((type) => (
+                                <Badge 
+                                  key={`${suggestion.id}-${type}`}
+                                  variant="outline" 
+                                  className="text-xs px-1.5 py-0 h-5"
+                                  data-testid={`badge-type-${type}`}
+                                >
+                                  {type}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {suggestion.usageCount > 0 && (
+                            <span className="text-muted-foreground text-xs">
+                              {suggestion.usageCount}
+                            </span>
+                          )}
+                        </div>
                       </CommandItem>
                     ))}
                     {inputValue.trim() && 

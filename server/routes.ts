@@ -575,12 +575,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Recommendations endpoint
   app.get("/api/sessions/:sessionId/recommendations", async (req, res) => {
     try {
-      const [session, favorites, viewHistory, cartItems, allProducts] = await Promise.all([
+      const [session, favorites, viewHistory, cartItems] = await Promise.all([
         storage.getGuestSession(req.params.sessionId),
         storage.getFavorites(req.params.sessionId),
         storage.getViewHistory(req.params.sessionId),
         storage.getCartItems(req.params.sessionId),
-        storage.getProducts(),
       ]);
 
       if (!session) {
@@ -642,6 +641,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log("[AI Recommendations] Inferred preferences from cart/favorites:", statedPreferences);
         }
       }
+
+      // Fetch products with characteristics, filtered by beverage types if available
+      const allProducts = await storage.getProductsWithCharacteristics(
+        statedPreferences?.beverageTypes
+      );
 
       const recommendations = await generateRecommendations(allProducts, {
         favorites,

@@ -22,6 +22,7 @@ import {
   productCharacteristics,
   type InsertProduct,
   type Product,
+  type ProductWithCharacteristics,
   type InsertUser,
   type UpsertUser,
   type User,
@@ -80,6 +81,7 @@ export interface IStorage {
 
   // Products
   getProducts(filters?: ProductFilters): Promise<Product[]>;
+  getProductsWithCharacteristics(beverageTypes?: string[]): Promise<ProductWithCharacteristics[]>;
   getProduct(id: string): Promise<Product | undefined>;
   getProductBySku(sku: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
@@ -342,6 +344,40 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await query;
+  }
+
+  async getProductsWithCharacteristics(beverageTypes?: string[]): Promise<ProductWithCharacteristics[]> {
+    // Build SQL query with LEFT JOIN and array_agg to aggregate characteristics per product
+    const filterClause = beverageTypes && beverageTypes.length > 0
+      ? sql`AND c.product_types && ARRAY[${sql.join(beverageTypes.map(t => sql`${t}`), sql`, `)}]::category[]`
+      : sql``;
+
+    const result = await db.execute<Product & { characteristics: string | null }>(sql`
+      SELECT 
+        p.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', c.id,
+              'name', c.name,
+              'productTypes', c.product_types
+            )
+          ) FILTER (WHERE c.id IS NOT NULL),
+          '[]'
+        )::text as characteristics
+      FROM products p
+      LEFT JOIN product_characteristics pc ON p.id = pc.product_id
+      LEFT JOIN characteristics c ON pc.characteristic_id = c.id ${filterClause}
+      WHERE p.available = true
+      GROUP BY p.id
+      ORDER BY p.name
+    `);
+
+    // Parse the JSON characteristics string and transform rows
+    return result.rows.map(row => ({
+      ...row,
+      characteristics: row.characteristics ? JSON.parse(row.characteristics) : [],
+    })) as ProductWithCharacteristics[];
   }
 
   async getProduct(id: string): Promise<Product | undefined> {

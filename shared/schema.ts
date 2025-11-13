@@ -339,3 +339,11 @@ export type Characteristic = typeof characteristics.$inferSelect;
 
 export type InsertProductCharacteristic = z.infer<typeof insertProductCharacteristicSchema>;
 export type ProductCharacteristic = typeof productCharacteristics.$inferSelect;
+
+export type ProductWithCharacteristics = Product & {
+  characteristics: Array<{
+    id: string;
+    name: string;
+    productTypes: string[];
+  }>;
+};
