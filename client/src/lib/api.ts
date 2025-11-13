@@ -220,6 +220,32 @@ export async function completeTriviaAttempt(attemptId: string, correctAnswers: n
   return response.json();
 }
 
+export async function getTokenRedemption(sessionId: string): Promise<(TriviaAttempt & { achievement?: TriviaAchievement }) | null> {
+  const response = await fetch(`/api/trivia-attempt/${sessionId}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Failed to fetch token redemption");
+  const attempt = await response.json();
+  
+  if (!attempt.achievementId || attempt.tokenVerifiedAt) {
+    return null;
+  }
+  
+  return attempt;
+}
+
+export async function verifyTokenRedemption(attemptId: string, staffVerifier?: string, notes?: string): Promise<TriviaAttempt> {
+  const response = await fetch("/api/trivia-attempt/verify-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attemptId, staffVerifier, notes }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to verify token");
+  }
+  return response.json();
+}
+
 export async function createTriviaQuestion(question: any): Promise<TriviaQuestion> {
   const response = await fetch("/api/trivia/questions", {
     method: "POST",

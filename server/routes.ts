@@ -448,7 +448,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!attempt) {
       return res.status(404).json({ message: "No attempt found for this session" });
     }
-    res.json(attempt);
+    
+    let achievement = null;
+    if (attempt.achievementId) {
+      const achievements = await storage.getTriviaAchievements();
+      achievement = achievements.find(a => a.id === attempt.achievementId);
+    }
+    
+    res.json({ ...attempt, achievement });
   });
 
   app.post("/api/trivia-attempt/start", async (req, res) => {

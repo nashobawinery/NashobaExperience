@@ -19,6 +19,7 @@ import TriviaRewardsDialog from "@/components/TriviaRewardsDialog";
 import FavoritesInfoPopup from "@/components/FavoritesInfoPopup";
 import DiscountInfoPopup from "@/components/DiscountInfoPopup";
 import CommercialDialog from "@/components/CommercialDialog";
+import TokenRedemptionBanner from "@/components/TokenRedemptionBanner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -997,6 +998,8 @@ export default function GuestApp() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        <TokenRedemptionBanner sessionId={sessionId} />
+        
         {activeTab === 'browse' && (
           <div className="space-y-6">
             <ProductFilters
