@@ -423,7 +423,33 @@ export default function GuestApp() {
   const updateCartQuantityMutation = useMutation({
     mutationFn: ({ cartItemId, quantity }: { cartItemId: string; quantity: number }) =>
       api.updateCartQuantity(cartItemId, quantity),
-    onSuccess: () => {
+    onMutate: async ({ cartItemId, quantity }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/sessions", sessionId, "cart"] });
+      
+      const previousCart = queryClient.getQueryData(["/api/sessions", sessionId, "cart"]);
+      
+      queryClient.setQueryData(["/api/sessions", sessionId, "cart"], (old: any) => {
+        if (!old) return old;
+        return old.map((item: any) => 
+          item.id === cartItemId 
+            ? { ...item, quantity } 
+            : item
+        );
+      });
+      
+      return { previousCart };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousCart) {
+        queryClient.setQueryData(["/api/sessions", sessionId, "cart"], context.previousCart);
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update quantity",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "cart"] });
     },
   });
@@ -529,6 +555,10 @@ export default function GuestApp() {
   };
 
   const handleUpdateQuantity = (cartItemId: string, quantity: number) => {
+    if (updateCartQuantityMutation.isPending || removeFromCartMutation.isPending) {
+      return;
+    }
+    
     if (quantity === 0) {
       removeFromCartMutation.mutate(cartItemId);
     } else {
