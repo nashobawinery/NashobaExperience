@@ -4,64 +4,117 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { getDiscountTiers, updateDiscountTiers, type DiscountTiers } from "@/lib/api";
+import { getDiscountTiers, updateDiscountTiers, getCannedDiscountTiers, updateCannedDiscountTiers, type DiscountTiers } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Wine, Beer } from "lucide-react";
 
 export default function DiscountTiersManager() {
   const { toast } = useToast();
-  const [editedTiers, setEditedTiers] = useState<DiscountTiers | null>(null);
+  const [editedBottleTiers, setEditedBottleTiers] = useState<DiscountTiers | null>(null);
+  const [editedCannedTiers, setEditedCannedTiers] = useState<DiscountTiers | null>(null);
 
-  const { data: tiers, isLoading } = useQuery({
+  const { data: bottleTiers, isLoading: bottleLoading } = useQuery({
     queryKey: ['/api/settings/discount_tiers'],
     queryFn: getDiscountTiers,
   });
 
-  const updateMutation = useMutation({
+  const { data: cannedTiers, isLoading: cannedLoading } = useQuery({
+    queryKey: ['/api/settings/canned_discount_tiers'],
+    queryFn: getCannedDiscountTiers,
+  });
+
+  const updateBottleMutation = useMutation({
     mutationFn: updateDiscountTiers,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/settings/discount_tiers'] });
-      setEditedTiers(null);
+      setEditedBottleTiers(null);
       toast({
         title: "Success",
-        description: "Retail discount tiers updated successfully",
+        description: "Wine & spirits discount tiers updated successfully",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update discount tiers",
+        description: "Failed to update wine & spirits discount tiers",
         variant: "destructive",
       });
     },
   });
 
-  const currentTiers = editedTiers || tiers;
+  const updateCannedMutation = useMutation({
+    mutationFn: updateCannedDiscountTiers,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/canned_discount_tiers'] });
+      setEditedCannedTiers(null);
+      toast({
+        title: "Success",
+        description: "Canned products discount tiers updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update canned products discount tiers",
+        variant: "destructive",
+      });
+    },
+  });
 
-  const handleTierChange = (tierKey: keyof DiscountTiers, field: 'min' | 'max' | 'discount', value: string) => {
-    if (!currentTiers) return;
+  const currentBottleTiers = editedBottleTiers || bottleTiers;
+  const currentCannedTiers = editedCannedTiers || cannedTiers;
+
+  const handleBottleTierChange = (tierKey: keyof DiscountTiers, field: 'min' | 'max' | 'discount', value: string) => {
+    if (!currentBottleTiers) return;
     
     const numValue = field === 'discount' ? parseFloat(value) / 100 : parseInt(value);
     
-    setEditedTiers({
-      ...currentTiers,
+    setEditedBottleTiers({
+      ...currentBottleTiers,
       [tierKey]: {
-        ...currentTiers[tierKey],
+        ...currentBottleTiers[tierKey],
         [field]: isNaN(numValue) ? 0 : numValue,
       },
     });
   };
 
-  const handleSave = () => {
-    if (editedTiers) {
-      updateMutation.mutate(editedTiers);
+  const handleCannedTierChange = (tierKey: keyof DiscountTiers, field: 'min' | 'max' | 'discount', value: string) => {
+    if (!currentCannedTiers) return;
+    
+    const numValue = field === 'discount' ? parseFloat(value) / 100 : parseInt(value);
+    
+    setEditedCannedTiers({
+      ...currentCannedTiers,
+      [tierKey]: {
+        ...currentCannedTiers[tierKey],
+        [field]: isNaN(numValue) ? 0 : numValue,
+      },
+    });
+  };
+
+  const handleBottleSave = () => {
+    if (editedBottleTiers) {
+      updateBottleMutation.mutate(editedBottleTiers);
     }
   };
 
-  const handleReset = () => {
-    setEditedTiers(null);
+  const handleCannedSave = () => {
+    if (editedCannedTiers) {
+      updateCannedMutation.mutate(editedCannedTiers);
+    }
   };
+
+  const handleBottleReset = () => {
+    setEditedBottleTiers(null);
+  };
+
+  const handleCannedReset = () => {
+    setEditedCannedTiers(null);
+  };
+
+  const isLoading = bottleLoading || cannedLoading;
 
   if (isLoading) {
     return (
@@ -73,7 +126,7 @@ export default function DiscountTiersManager() {
     );
   }
 
-  if (!currentTiers) {
+  if (!currentBottleTiers || !currentCannedTiers) {
     return (
       <Card className="p-6">
         <p className="text-center text-muted-foreground">No discount tiers configured</p>
@@ -81,26 +134,39 @@ export default function DiscountTiersManager() {
     );
   }
 
-  return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="font-serif text-xl font-medium">Retail Discount Tiers</h2>
-        {editedTiers && (
+  const renderTierSection = (
+    title: string,
+    icon: React.ReactNode,
+    tiers: DiscountTiers,
+    onTierChange: (tierKey: keyof DiscountTiers, field: 'min' | 'max' | 'discount', value: string) => void,
+    hasEdits: boolean,
+    onSave: () => void,
+    onReset: () => void,
+    isSaving: boolean,
+    testIdPrefix: string
+  ) => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="font-medium text-lg">{title}</h3>
+        </div>
+        {hasEdits && (
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={handleReset}
-              disabled={updateMutation.isPending}
-              data-testid="button-reset-tiers"
+              onClick={onReset}
+              disabled={isSaving}
+              data-testid={`button-reset-${testIdPrefix}`}
             >
               Cancel
             </Button>
             <Button
-              onClick={handleSave}
-              disabled={updateMutation.isPending}
-              data-testid="button-save-tiers"
+              onClick={onSave}
+              disabled={isSaving}
+              data-testid={`button-save-${testIdPrefix}`}
             >
-              {updateMutation.isPending ? (
+              {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Saving...
@@ -116,57 +182,94 @@ export default function DiscountTiersManager() {
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {(['tier1', 'tier2', 'tier3', 'tier4'] as const).map((tierKey, index) => (
           <div key={tierKey} className="p-4 bg-muted rounded-lg">
             <div className="mb-3">
-              <h3 className="font-medium">Tier {index + 1}</h3>
+              <h4 className="font-medium text-sm">Tier {index + 1}</h4>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor={`${tierKey}-min`}>Min Bottles</Label>
+                <Label htmlFor={`${testIdPrefix}-${tierKey}-min`}>Min Items</Label>
                 <Input
-                  id={`${tierKey}-min`}
+                  id={`${testIdPrefix}-${tierKey}-min`}
                   type="number"
                   min="0"
-                  value={currentTiers[tierKey].min}
-                  onChange={(e) => handleTierChange(tierKey, 'min', e.target.value)}
-                  data-testid={`input-${tierKey}-min`}
+                  value={tiers[tierKey].min}
+                  onChange={(e) => onTierChange(tierKey, 'min', e.target.value)}
+                  data-testid={`input-${testIdPrefix}-${tierKey}-min`}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`${tierKey}-max`}>Max Bottles</Label>
+                <Label htmlFor={`${testIdPrefix}-${tierKey}-max`}>Max Items</Label>
                 <Input
-                  id={`${tierKey}-max`}
+                  id={`${testIdPrefix}-${tierKey}-max`}
                   type="number"
                   min="0"
-                  value={currentTiers[tierKey].max}
-                  onChange={(e) => handleTierChange(tierKey, 'max', e.target.value)}
-                  data-testid={`input-${tierKey}-max`}
+                  value={tiers[tierKey].max}
+                  onChange={(e) => onTierChange(tierKey, 'max', e.target.value)}
+                  data-testid={`input-${testIdPrefix}-${tierKey}-max`}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`${tierKey}-discount`}>Discount %</Label>
+                <Label htmlFor={`${testIdPrefix}-${tierKey}-discount`}>Discount %</Label>
                 <Input
-                  id={`${tierKey}-discount`}
+                  id={`${testIdPrefix}-${tierKey}-discount`}
                   type="number"
                   min="0"
                   max="100"
                   step="0.01"
-                  value={(currentTiers[tierKey].discount * 100).toFixed(2)}
-                  onChange={(e) => handleTierChange(tierKey, 'discount', e.target.value)}
-                  data-testid={`input-${tierKey}-discount`}
+                  value={(tiers[tierKey].discount * 100).toFixed(2)}
+                  onChange={(e) => onTierChange(tierKey, 'discount', e.target.value)}
+                  data-testid={`input-${testIdPrefix}-${tierKey}-discount`}
                 />
               </div>
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
 
-      <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+  return (
+    <Card className="p-6">
+      <div className="mb-6">
+        <h2 className="font-serif text-xl font-medium">Retail Discount Tiers</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure volume-based discounts for bottles and canned products separately
+        </p>
+      </div>
+
+      {renderTierSection(
+        "Wine & Spirits (Bottles)",
+        <Wine className="w-5 h-5 text-primary" />,
+        currentBottleTiers,
+        handleBottleTierChange,
+        editedBottleTiers !== null,
+        handleBottleSave,
+        handleBottleReset,
+        updateBottleMutation.isPending,
+        "bottle"
+      )}
+
+      <Separator className="my-6" />
+
+      {renderTierSection(
+        "Beer & Canned Products",
+        <Beer className="w-5 h-5 text-primary" />,
+        currentCannedTiers,
+        handleCannedTierChange,
+        editedCannedTiers !== null,
+        handleCannedSave,
+        handleCannedReset,
+        updateCannedMutation.isPending,
+        "canned"
+      )}
+
+      <div className="mt-6 p-4 bg-muted/50 rounded-lg">
         <p className="text-sm text-muted-foreground">
-          <strong>Note:</strong> Discount tiers apply to Wine and Spirits categories only. 
-          The system automatically selects the highest applicable discount based on total bottle count.
+          <strong>Note:</strong> Discounts apply separately to each category. 
+          The system automatically selects the highest applicable discount based on the item count in each category.
         </p>
       </div>
     </Card>
