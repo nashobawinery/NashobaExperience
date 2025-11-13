@@ -9,6 +9,8 @@ export const wineColorEnum = pgEnum("wine_color", ["red", "white", "rosé", "spa
 export const sweetnessEnum = pgEnum("sweetness", ["dry", "off-dry", "semi-sweet", "sweet"]);
 export const bodyEnum = pgEnum("body", ["light", "medium", "full"]);
 export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
+export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
+export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
 
 // Beer-specific enums
 export const beerStyleEnum = pgEnum("beer_style", ["ipa", "lager", "stout", "porter", "ale", "wheat_beer", "pilsner", "sour", "amber", "pale_ale", "saison", "belgian"]);
@@ -147,12 +149,59 @@ export const triviaQuestions = pgTable("trivia_questions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const triviaAchievements = pgTable("trivia_achievements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scoreThreshold: integer("score_threshold").notNull().unique(),
+  rewardType: rewardTypeEnum("reward_type").notNull(),
+  rewardValue: decimal("reward_value", { precision: 10, scale: 2 }).notNull(),
+  achievementMessage: text("achievement_message").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const triviaAttempts = pgTable("trivia_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => guestSessions.id, { onDelete: 'cascade' }),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  totalQuestions: integer("total_questions").notNull(),
+  correctAnswers: integer("correct_answers").notNull().default(0),
+  achievementId: varchar("achievement_id").references(() => triviaAchievements.id),
+  discountAppliedAt: timestamp("discount_applied_at"),
+  tokenVerifiedAt: timestamp("token_verified_at"),
+  staffVerifier: text("staff_verifier"),
+  notes: text("notes"),
+  locked: boolean("locked").notNull().default(false),
+});
+
 export const triviaScores = pgTable("trivia_scores", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sessionId: varchar("session_id").notNull().references(() => guestSessions.id, { onDelete: 'cascade' }),
+  attemptId: varchar("attempt_id").references(() => triviaAttempts.id, { onDelete: 'cascade' }),
   questionId: varchar("question_id").notNull().references(() => triviaQuestions.id, { onDelete: 'cascade' }),
   isCorrect: boolean("is_correct").notNull(),
   answeredAt: timestamp("answered_at").notNull().defaultNow(),
+});
+
+export const achievementRedemptions = pgTable("achievement_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  attemptId: varchar("attempt_id").notNull().references(() => triviaAttempts.id, { onDelete: 'cascade' }),
+  rewardType: rewardTypeEnum("reward_type").notNull(),
+  status: redemptionStatusEnum("status").notNull().default("pending"),
+  appliedAmount: decimal("applied_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const cartDiscounts = pgTable("cart_discounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => guestSessions.id, { onDelete: 'cascade' }),
+  source: text("source").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  label: text("label").notNull(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
 });
 
 export const appSettings = pgTable("app_settings", {
@@ -284,7 +333,11 @@ export const insertFavoriteSchema = createInsertSchema(favorites).omit({ id: tru
 export const insertViewHistorySchema = createInsertSchema(viewHistory).omit({ id: true, lastViewedAt: true });
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true });
 export const insertTriviaQuestionSchema = createInsertSchema(triviaQuestions).omit({ id: true, createdAt: true });
+export const insertTriviaAchievementSchema = createInsertSchema(triviaAchievements).omit({ id: true, createdAt: true });
+export const insertTriviaAttemptSchema = createInsertSchema(triviaAttempts).omit({ id: true, startedAt: true });
 export const insertTriviaScoreSchema = createInsertSchema(triviaScores).omit({ id: true, answeredAt: true });
+export const insertAchievementRedemptionSchema = createInsertSchema(achievementRedemptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCartDiscountSchema = createInsertSchema(cartDiscounts).omit({ id: true, appliedAt: true });
 export const insertAppSettingSchema = createInsertSchema(appSettings).omit({ id: true, updatedAt: true });
 export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, createdAt: true });
 export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ id: true, createdAt: true, updatedAt: true });
@@ -315,8 +368,20 @@ export type CartItem = typeof cartItems.$inferSelect;
 export type InsertTriviaQuestion = z.infer<typeof insertTriviaQuestionSchema>;
 export type TriviaQuestion = typeof triviaQuestions.$inferSelect;
 
+export type InsertTriviaAchievement = z.infer<typeof insertTriviaAchievementSchema>;
+export type TriviaAchievement = typeof triviaAchievements.$inferSelect;
+
+export type InsertTriviaAttempt = z.infer<typeof insertTriviaAttemptSchema>;
+export type TriviaAttempt = typeof triviaAttempts.$inferSelect;
+
 export type InsertTriviaScore = z.infer<typeof insertTriviaScoreSchema>;
 export type TriviaScore = typeof triviaScores.$inferSelect;
+
+export type InsertAchievementRedemption = z.infer<typeof insertAchievementRedemptionSchema>;
+export type AchievementRedemption = typeof achievementRedemptions.$inferSelect;
+
+export type InsertCartDiscount = z.infer<typeof insertCartDiscountSchema>;
+export type CartDiscount = typeof cartDiscounts.$inferSelect;
 
 export type InsertAppSetting = z.infer<typeof insertAppSettingSchema>;
 export type AppSetting = typeof appSettings.$inferSelect;
