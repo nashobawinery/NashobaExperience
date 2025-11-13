@@ -1,12 +1,14 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Trophy, Gift, Star, Sparkles } from "lucide-react";
+import { Trophy, Gift, Star, Sparkles, DollarSign } from "lucide-react";
+import type { TriviaAchievement } from "@shared/schema";
 
 interface TriviaRewardsDialogProps {
   open: boolean;
   onClose: () => void;
   score: number;
   total: number;
+  achievement?: TriviaAchievement | null;
 }
 
 export default function TriviaRewardsDialog({
@@ -14,11 +16,10 @@ export default function TriviaRewardsDialog({
   onClose,
   score,
   total,
+  achievement,
 }: TriviaRewardsDialogProps) {
   const percentage = (score / total) * 100;
-  const isPerfect = score === 10;
-  const isAlmostPerfect = score >= 8 && score <= 9;
-  const hasReward = isPerfect || isAlmostPerfect;
+  const hasReward = !!achievement;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -57,7 +58,7 @@ export default function TriviaRewardsDialog({
             </p>
           </div>
 
-          {isPerfect && (
+          {achievement && achievement.rewardType === 'discount' && (
             <div className="relative">
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 {[...Array(8)].map((_, i) => (
@@ -75,34 +76,34 @@ export default function TriviaRewardsDialog({
               </div>
               
               <div className="relative bg-primary/10 border-2 border-primary rounded-lg p-6 text-center space-y-3">
-                <Trophy className="w-12 h-12 text-primary mx-auto" />
+                <DollarSign className="w-12 h-12 text-primary mx-auto" />
                 <div>
                   <p className="text-xl font-bold text-primary mb-1">
-                    Perfect Score!
+                    {achievement.achievementMessage}
                   </p>
                   <p className="text-2xl font-bold text-foreground mb-2">
-                    $5.00 Credit
+                    ${parseFloat(achievement.rewardValue).toFixed(2)} Discount
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Applied to your cart for products purchased on this platform
+                    Congratulations! ${parseFloat(achievement.rewardValue).toFixed(2)} discount added to your cart
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {isAlmostPerfect && (
+          {achievement && achievement.rewardType === 'token' && (
             <div className="bg-chart-2/10 border-2 border-chart-2 rounded-lg p-6 text-center space-y-3">
               <Gift className="w-12 h-12 text-chart-2 mx-auto" />
               <div>
                 <p className="text-xl font-bold text-chart-2 mb-1">
-                  Almost Perfect!
+                  {achievement.achievementMessage}
                 </p>
                 <p className="text-lg font-semibold text-foreground mb-2">
-                  Tasting Chip Earned
+                  {parseFloat(achievement.rewardValue)} Tasting Token{parseFloat(achievement.rewardValue) !== 1 ? 's' : ''} Earned
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Enjoy a complimentary tasting on us! Ask staff for your reward.
+                  Congratulations! You earned {parseFloat(achievement.rewardValue)} tasting token{parseFloat(achievement.rewardValue) !== 1 ? 's' : ''}! Show this to staff to redeem
                 </p>
               </div>
             </div>

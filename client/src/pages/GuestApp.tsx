@@ -63,6 +63,8 @@ export default function GuestApp() {
   const [showTriviaInfo, setShowTriviaInfo] = useState(false);
   const [showTriviaRewards, setShowTriviaRewards] = useState(false);
   const [triviaFinalScore, setTriviaFinalScore] = useState({ score: 0, total: 0 });
+  const [triviaAttemptId, setTriviaAttemptId] = useState<string | null>(null);
+  const [triviaAchievement, setTriviaAchievement] = useState<any>(null);
   const [showCommercial, setShowCommercial] = useState(false);
   const [currentCommercialIndex, setCurrentCommercialIndex] = useState(0);
   const [showFavoritesInfo, setShowFavoritesInfo] = useState(false);
@@ -476,11 +478,49 @@ export default function GuestApp() {
   });
 
   const recordTriviaAnswerMutation = useMutation({
-    mutationFn: ({ questionId, isCorrect }: { questionId: string; isCorrect: boolean }) =>
-      api.recordTriviaAnswer(sessionId!, questionId, isCorrect),
+    mutationFn: ({ questionId, isCorrect, attemptId }: { questionId: string; isCorrect: boolean; attemptId?: string }) =>
+      api.recordTriviaAnswer(sessionId!, questionId, isCorrect, attemptId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "trivia", "scores"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "trivia", "next"] });
+    },
+  });
+
+  const startTriviaAttemptMutation = useMutation({
+    mutationFn: (totalQuestions: number) => api.startTriviaAttempt(sessionId!, totalQuestions),
+    onSuccess: (attempt) => {
+      setTriviaAttemptId(attempt.id);
+    },
+    onError: (error: any) => {
+      if (error.message.includes("already has a completed")) {
+        toast({
+          title: "Trivia already completed",
+          description: "You've already completed the trivia for this session",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to start trivia attempt",
+          variant: "destructive",
+        });
+      }
+      setShowTrivia(false);
+    },
+  });
+
+  const completeTriviaAttemptMutation = useMutation({
+    mutationFn: ({ attemptId, correctAnswers }: { attemptId: string; correctAnswers: number }) =>
+      api.completeTriviaAttempt(attemptId, correctAnswers),
+    onSuccess: (result) => {
+      setTriviaAchievement(result.achievement || null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to complete trivia attempt",
+        variant: "destructive",
+      });
     },
   });
 
@@ -616,30 +656,64 @@ export default function GuestApp() {
 
   const handleTriviaAnswer = (correct: boolean) => {
     if (nextTriviaQuestion) {
-      recordTriviaAnswerMutation.mutate(
-        { questionId: nextTriviaQuestion.id, isCorrect: correct },
-        {
-          onSuccess: () => {
-            const newScore = triviaScores.filter(s => s.isCorrect).length + (correct ? 1 : 0);
-            const newTotal = triviaScores.length + 1;
-            
-            // Show rewards dialog when all 10 questions are answered
-            if (newTotal === 10) {
-              setTriviaFinalScore({ score: newScore, total: newTotal });
-              setShowTriviaRewards(true);
-            }
-            // Show commercial after every 3 questions (3, 6, 9)
-            else if (newTotal % 3 === 0 && commercials.length > 0) {
-              const commercialToShow = commercials[currentCommercialIndex % commercials.length];
-              if (commercialToShow) {
-                setShowCommercial(true);
+      const currentTotal = triviaScores.length;
+      
+      // Start trivia attempt on first question
+      if (currentTotal === 0 && !triviaAttemptId) {
+        startTriviaAttemptMutation.mutate(10, {
+          onSuccess: (attempt) => {
+            recordTriviaAnswerMutation.mutate(
+              { questionId: nextTriviaQuestion.id, isCorrect: correct, attemptId: attempt.id },
+              {
+                onSuccess: () => {
+                  handleAfterAnswer(correct, currentTotal);
+                },
               }
-            }
+            );
           },
-        }
-      );
+        });
+      } else {
+        recordTriviaAnswerMutation.mutate(
+          { questionId: nextTriviaQuestion.id, isCorrect: correct, attemptId: triviaAttemptId || undefined },
+          {
+            onSuccess: () => {
+              handleAfterAnswer(correct, currentTotal);
+            },
+          }
+        );
+      }
     }
     setShowTrivia(false);
+  };
+
+  const handleAfterAnswer = (correct: boolean, currentTotal: number) => {
+    const newScore = triviaScores.filter(s => s.isCorrect).length + (correct ? 1 : 0);
+    const newTotal = currentTotal + 1;
+    
+    // Complete attempt and show rewards dialog when all 10 questions are answered
+    if (newTotal === 10) {
+      if (triviaAttemptId) {
+        completeTriviaAttemptMutation.mutate(
+          { attemptId: triviaAttemptId, correctAnswers: newScore },
+          {
+            onSuccess: () => {
+              setTriviaFinalScore({ score: newScore, total: newTotal });
+              setShowTriviaRewards(true);
+            },
+          }
+        );
+      } else {
+        setTriviaFinalScore({ score: newScore, total: newTotal });
+        setShowTriviaRewards(true);
+      }
+    }
+    // Show commercial after every 3 questions (3, 6, 9)
+    else if (newTotal % 3 === 0 && commercials.length > 0) {
+      const commercialToShow = commercials[currentCommercialIndex % commercials.length];
+      if (commercialToShow) {
+        setShowCommercial(true);
+      }
+    }
   };
 
   const handleRefreshRecommendations = () => {
@@ -1217,6 +1291,7 @@ export default function GuestApp() {
         onClose={() => setShowTriviaRewards(false)}
         score={triviaFinalScore.score}
         total={triviaFinalScore.total}
+        achievement={triviaAchievement}
       />
 
       <ProductDetailModal

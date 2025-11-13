@@ -1,4 +1,4 @@
-import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary, TriviaAchievement } from "@shared/schema";
+import type { Product, GuestSession, Favorite, CartItem, ViewHistory, TriviaQuestion, TriviaScore, ProductNote, FilterOption, MediaLibrary, TriviaAchievement, TriviaAttempt } from "@shared/schema";
 
 export async function createSession(guestName: string): Promise<GuestSession> {
   const response = await fetch("/api/sessions", {
@@ -172,11 +172,11 @@ export async function getNextTriviaQuestion(sessionId: string): Promise<TriviaQu
   return response.json();
 }
 
-export async function recordTriviaAnswer(sessionId: string, questionId: string, isCorrect: boolean): Promise<TriviaScore> {
+export async function recordTriviaAnswer(sessionId: string, questionId: string, isCorrect: boolean, attemptId?: string): Promise<TriviaScore> {
   const response = await fetch(`/api/sessions/${sessionId}/trivia/scores`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId, isCorrect }),
+    body: JSON.stringify({ questionId, isCorrect, attemptId }),
   });
   if (!response.ok) throw new Error("Failed to record answer");
   return response.json();
@@ -185,6 +185,32 @@ export async function recordTriviaAnswer(sessionId: string, questionId: string, 
 export async function getTriviaScores(sessionId: string): Promise<TriviaScore[]> {
   const response = await fetch(`/api/sessions/${sessionId}/trivia/scores`);
   if (!response.ok) throw new Error("Failed to fetch scores");
+  return response.json();
+}
+
+export async function startTriviaAttempt(sessionId: string, totalQuestions: number): Promise<TriviaAttempt> {
+  const response = await fetch("/api/trivia-attempt/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, totalQuestions }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to start trivia attempt");
+  }
+  return response.json();
+}
+
+export async function completeTriviaAttempt(attemptId: string, correctAnswers: number): Promise<TriviaAttempt & { achievement?: TriviaAchievement }> {
+  const response = await fetch("/api/trivia-attempt/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attemptId, correctAnswers }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to complete trivia attempt");
+  }
   return response.json();
 }
 

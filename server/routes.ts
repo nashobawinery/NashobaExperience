@@ -391,6 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sessionId: req.params.sessionId,
         questionId: req.body.questionId,
         isCorrect: req.body.isCorrect,
+        attemptId: req.body.attemptId || null,
       });
       const score = await storage.recordTriviaAnswer(data);
       res.json(score);
