@@ -6,6 +6,7 @@ import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle } from "luc
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { getDiscountTiers } from "@/lib/api";
+import { useMemo } from "react";
 
 interface CartItem {
   id: string;
@@ -36,16 +37,18 @@ export default function ShoppingCartPanel({
     queryFn: getDiscountTiers,
   });
 
-  const wineSpiritsCount = items
-    .filter(item => ['wine', 'spirits'].includes(item.category.toLowerCase()))
-    .reduce((sum, item) => sum + item.quantity, 0);
+  const wineSpiritsCount = useMemo(() => 
+    items
+      .filter(item => ['wine', 'spirits'].includes(item.category.toLowerCase()))
+      .reduce((sum, item) => sum + item.quantity, 0),
+    [items]
+  );
 
-  const calculateDiscount = (count: number): number => {
+  const calculateDiscount = useMemo(() => (count: number): number => {
     if (!discountTiers) {
-      return 0; // No discount until tiers are loaded
+      return 0;
     }
 
-    // Check tiers in reverse order (highest to lowest) to get best discount
     const tiers = [discountTiers.tier4, discountTiers.tier3, discountTiers.tier2, discountTiers.tier1];
     for (const tier of tiers) {
       if (count >= tier.min && count <= tier.max) {
@@ -53,13 +56,32 @@ export default function ShoppingCartPanel({
       }
     }
     return 0;
-  };
+  }, [discountTiers]);
 
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discountRate = calculateDiscount(wineSpiritsCount);
-  const discountAmount = subtotal * discountRate;
-  const afterDiscount = subtotal - discountAmount;
-  const total = Math.max(0, afterDiscount - triviaCredit);
+  const subtotal = useMemo(() => 
+    items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+    [items]
+  );
+
+  const discountRate = useMemo(() => 
+    calculateDiscount(wineSpiritsCount),
+    [calculateDiscount, wineSpiritsCount]
+  );
+
+  const discountAmount = useMemo(() => 
+    subtotal * discountRate,
+    [subtotal, discountRate]
+  );
+
+  const afterDiscount = useMemo(() => 
+    subtotal - discountAmount,
+    [subtotal, discountAmount]
+  );
+
+  const total = useMemo(() => 
+    Math.max(0, afterDiscount - triviaCredit),
+    [afterDiscount, triviaCredit]
+  );
 
   // Calculate next tier guidance message
   const getNextTierMessage = (): string | null => {
@@ -127,27 +149,29 @@ export default function ShoppingCartPanel({
                   </div>
 
                   <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-12 w-12"
                         onClick={() => onUpdateQuantity?.(item.id, Math.max(1, item.quantity - 1))}
                         data-testid={`button-decrease-${item.id}`}
+                        aria-label="Decrease quantity"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-5 h-5" />
                       </Button>
-                      <span className="w-8 text-center font-medium" data-testid={`text-quantity-${item.id}`}>
+                      <span className="w-10 text-center font-medium text-lg" data-testid={`text-quantity-${item.id}`}>
                         {item.quantity}
                       </span>
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-12 w-12"
                         onClick={() => onUpdateQuantity?.(item.id, item.quantity + 1)}
                         data-testid={`button-increase-${item.id}`}
+                        aria-label="Increase quantity"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-5 h-5" />
                       </Button>
                     </div>
                     <p className="font-semibold">
