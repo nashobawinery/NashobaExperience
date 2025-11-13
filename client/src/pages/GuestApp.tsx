@@ -678,7 +678,7 @@ export default function GuestApp() {
       .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
       .reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    const subtotal = bottleSubtotal + cannedSubtotal;
+    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const bottleDiscountRate = calculateDiscount(wineSpiritsCount);
     const cannedDiscountRate = calculateDiscount(cannedCount);
     const bottleDiscountAmount = bottleSubtotal * bottleDiscountRate;
@@ -723,7 +723,7 @@ export default function GuestApp() {
       .filter(item => ['beer', 'canned_cocktail', 'canned_wine'].includes(item.category))
       .reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    const subtotal = bottleSubtotal + cannedSubtotal;
+    const subtotal = cartItemsArray.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const bottleDiscountRate = calculateDiscount(wineSpiritsCount);
     const cannedDiscountRate = calculateDiscount(cannedCount);
     const bottleDiscountAmount = bottleSubtotal * bottleDiscountRate;
