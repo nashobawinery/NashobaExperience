@@ -1284,6 +1284,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Characteristics
+  app.get("/api/characteristics", async (req, res) => {
+    try {
+      const query = req.query.q as string | undefined;
+      const characteristics = await storage.searchCharacteristics(query);
+      res.json(characteristics);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch characteristics" });
+    }
+  });
+
+  app.get("/api/products/:productId/characteristics", async (req, res) => {
+    try {
+      const characteristics = await storage.getProductCharacteristics(req.params.productId);
+      res.json(characteristics);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch product characteristics" });
+    }
+  });
+
+  app.post("/api/products/:productId/characteristics", isAdmin, async (req, res) => {
+    try {
+      const { characteristics } = req.body;
+      if (!Array.isArray(characteristics)) {
+        return res.status(400).json({ message: "characteristics must be an array of strings" });
+      }
+      await storage.setProductCharacteristics(req.params.productId, characteristics);
+      const updated = await storage.getProductCharacteristics(req.params.productId);
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to update characteristics" });
+    }
+  });
+
   // User Management (Admin only)
   app.get("/api/users", isAdmin, async (req, res) => {
     try {

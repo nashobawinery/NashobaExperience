@@ -243,6 +243,23 @@ export const videos = pgTable("videos", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const characteristics = pgTable("characteristics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  usageCount: integer("usage_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const productCharacteristics = pgTable("product_characteristics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
+  characteristicId: varchar("characteristic_id").notNull().references(() => characteristics.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueProductCharacteristic: unique().on(table.productId, table.characteristicId),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -261,6 +278,8 @@ export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCharacteristicSchema = createInsertSchema(characteristics).omit({ id: true, createdAt: true, updatedAt: true, usageCount: true });
+export const insertProductCharacteristicSchema = createInsertSchema(productCharacteristics).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -311,3 +330,9 @@ export type User = typeof users.$inferSelect;
 
 export type InsertWhitelistedEmail = z.infer<typeof insertWhitelistedEmailSchema>;
 export type WhitelistedEmail = typeof whitelistedEmails.$inferSelect;
+
+export type InsertCharacteristic = z.infer<typeof insertCharacteristicSchema>;
+export type Characteristic = typeof characteristics.$inferSelect;
+
+export type InsertProductCharacteristic = z.infer<typeof insertProductCharacteristicSchema>;
+export type ProductCharacteristic = typeof productCharacteristics.$inferSelect;

@@ -18,6 +18,8 @@ import {
   mediaLibrary,
   videos,
   whitelistedEmails,
+  characteristics,
+  productCharacteristics,
   type InsertProduct,
   type Product,
   type InsertUser,
@@ -51,6 +53,10 @@ import {
   type Video,
   type InsertWhitelistedEmail,
   type WhitelistedEmail,
+  type InsertCharacteristic,
+  type Characteristic,
+  type InsertProductCharacteristic,
+  type ProductCharacteristic,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -166,6 +172,14 @@ export interface IStorage {
   updateVideo(id: string, video: Partial<InsertVideo>): Promise<Video | undefined>;
   deleteVideo(id: string): Promise<boolean>;
   updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
+
+  // Characteristics
+  searchCharacteristics(query?: string): Promise<Characteristic[]>;
+  getCharacteristic(id: string): Promise<Characteristic | undefined>;
+  getCharacteristicByName(name: string): Promise<Characteristic | undefined>;
+  createCharacteristic(name: string): Promise<Characteristic>;
+  getProductCharacteristics(productId: string): Promise<Characteristic[]>;
+  setProductCharacteristics(productId: string, characteristicNames: string[]): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -856,6 +870,115 @@ export class DatabaseStorage implements IStorage {
         .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
         .where(eq(videos.id, update.id));
     }
+  }
+
+  // Characteristics
+  async searchCharacteristics(query?: string): Promise<Characteristic[]> {
+    let dbQuery = db.select().from(characteristics).orderBy(desc(characteristics.usageCount), characteristics.name);
+    
+    if (query) {
+      dbQuery = dbQuery.where(ilike(characteristics.name, `%${query}%`)) as any;
+    }
+    
+    return await dbQuery;
+  }
+
+  async getCharacteristic(id: string): Promise<Characteristic | undefined> {
+    const result = await db.select().from(characteristics).where(eq(characteristics.id, id));
+    return result[0];
+  }
+
+  async getCharacteristicByName(name: string): Promise<Characteristic | undefined> {
+    const result = await db.select().from(characteristics).where(eq(lower(characteristics.name), name.toLowerCase()));
+    return result[0];
+  }
+
+  async createCharacteristic(name: string): Promise<Characteristic> {
+    const result = await db.insert(characteristics).values({ name }).returning();
+    return result[0];
+  }
+
+  async getProductCharacteristics(productId: string): Promise<Characteristic[]> {
+    const result = await db
+      .select({
+        id: characteristics.id,
+        name: characteristics.name,
+        usageCount: characteristics.usageCount,
+        createdAt: characteristics.createdAt,
+        updatedAt: characteristics.updatedAt,
+      })
+      .from(productCharacteristics)
+      .innerJoin(characteristics, eq(productCharacteristics.characteristicId, characteristics.id))
+      .where(eq(productCharacteristics.productId, productId))
+      .orderBy(characteristics.name);
+    
+    return result;
+  }
+
+  async setProductCharacteristics(productId: string, characteristicNames: string[]): Promise<void> {
+    // Deduplicate names (case-insensitive)
+    const uniqueNames = Array.from(
+      new Map(characteristicNames.map(name => [name.toLowerCase().trim(), name.trim()])).values()
+    ).filter(name => name.length > 0);
+    
+    // Get current characteristics for this product
+    const currentCharacteristics = await this.getProductCharacteristics(productId);
+    const currentNames = new Set(currentCharacteristics.map(c => c.name.toLowerCase()));
+    
+    // Calculate what to add and remove
+    const newNames = new Set(uniqueNames.map(n => n.toLowerCase()));
+    const toAdd = uniqueNames.filter(name => !currentNames.has(name.toLowerCase()));
+    const toRemove = currentCharacteristics.filter(c => !newNames.has(c.name.toLowerCase()));
+    
+    // Remove characteristics that are no longer needed
+    for (const characteristic of toRemove) {
+      // Delete the link
+      await db
+        .delete(productCharacteristics)
+        .where(
+          and(
+            eq(productCharacteristics.productId, productId),
+            eq(productCharacteristics.characteristicId, characteristic.id)
+          )
+        );
+      
+      // Decrement usage count
+      await db
+        .update(characteristics)
+        .set({ 
+          usageCount: sql`GREATEST(0, ${characteristics.usageCount} - 1)`,
+          updatedAt: new Date()
+        })
+        .where(eq(characteristics.id, characteristic.id));
+    }
+    
+    // Add new characteristics
+    for (const name of toAdd) {
+      // Find or create characteristic
+      let characteristic = await this.getCharacteristicByName(name);
+      
+      if (!characteristic) {
+        characteristic = await this.createCharacteristic(name);
+      }
+      
+      // Link to product
+      await db.insert(productCharacteristics).values({
+        productId,
+        characteristicId: characteristic.id,
+      });
+      
+      // Increment usage count
+      await db
+        .update(characteristics)
+        .set({ 
+          usageCount: sql`${characteristics.usageCount} + 1`,
+          updatedAt: new Date()
+        })
+        .where(eq(characteristics.id, characteristic.id));
+    }
+    
+    // Clean up unused characteristics (usage count = 0)
+    await db.delete(characteristics).where(eq(characteristics.usageCount, 0));
   }
 }
 
