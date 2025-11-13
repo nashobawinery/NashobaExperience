@@ -172,12 +172,14 @@ export default function BulkProductEditor() {
     async function loadCharacteristics() {
       if (paginatedProducts.length === 0) return;
       
-      const characteristicsMap: Record<string, string[]> = { ...characteristicsState };
-      
       // Only load characteristics for products we haven't loaded yet
       const productsToLoad = paginatedProducts.filter(
         p => !characteristicsState[p.id] && !characteristicsChanges[p.id]
       );
+      
+      if (productsToLoad.length === 0) return;
+      
+      const characteristicsMap: Record<string, string[]> = { ...characteristicsState };
       
       for (const product of productsToLoad) {
         try {
@@ -192,13 +194,12 @@ export default function BulkProductEditor() {
         }
       }
       
-      if (productsToLoad.length > 0) {
-        setCharacteristicsState(characteristicsMap);
-      }
+      setCharacteristicsState(characteristicsMap);
     }
     
     loadCharacteristics();
-  }, [paginatedProducts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedProducts.map(p => p.id).join(',')]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

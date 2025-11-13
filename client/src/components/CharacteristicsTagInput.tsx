@@ -25,7 +25,7 @@ export function CharacteristicsTagInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: suggestions = [] } = useQuery<Characteristic[]>({
-    queryKey: ['/api/characteristics', inputValue],
+    queryKey: [`/api/characteristics?q=${encodeURIComponent(inputValue)}`],
     enabled: inputValue.length > 0,
   });
 

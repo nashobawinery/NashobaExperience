@@ -66,7 +66,7 @@ export default function ProductDetailModal({
   const lastSavedNoteRef = useRef<string>(note);
 
   const { data: characteristicsTags = [], isLoading: loadingCharacteristics } = useQuery<Characteristic[]>({
-    queryKey: ['/api/products', product?.id, 'characteristics'],
+    queryKey: [`/api/products/${product?.id}/characteristics`],
     enabled: isOpen && !!product?.id,
   });
 
