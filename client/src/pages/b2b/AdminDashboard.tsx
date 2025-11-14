@@ -270,7 +270,7 @@ export default function AdminDashboard() {
             {customer.tier && (
               <div>
                 <p className="text-muted-foreground">Tier:</p>
-                <p className="font-medium">{customer.tier}</p>
+                <p className="font-medium">{customer.tier.tierName} ({customer.tier.discountPercentage}% off)</p>
               </div>
             )}
             {customer.approvedAt && (
