@@ -60,9 +60,22 @@ export default function AdminDashboard() {
   });
 
   const handleApprove = async () => {
-    if (!approveDialog.customer || !selectedTier) return;
+    if (!approveDialog.customer || !selectedTier) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a pricing tier",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('Approving customer:', {
+        customerId: approveDialog.customer.id,
+        tierId: selectedTier,
+        customerName: approveDialog.customer.accountName
+      });
+
       await approveCustomer({
         customerId: approveDialog.customer.id,
         tierId: selectedTier,
@@ -76,9 +89,10 @@ export default function AdminDashboard() {
       setApproveDialog({ isOpen: false, customer: null });
       setSelectedTier("");
     } catch (error: any) {
+      console.error('Approval error:', error);
       toast({
         title: "Approval Failed",
-        description: error.message,
+        description: error.message || "An error occurred while approving the customer",
         variant: "destructive",
       });
     }
