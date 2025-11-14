@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep } from "@/hooks/useB2bAdmin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone } from "lucide-react";
+import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -22,14 +25,38 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const { data: pendingCustomers, isLoading: loadingPending } = useB2bAdminCustomers("pending_approval");
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
+  const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
+  const { data: salesReps, isLoading: loadingSalesReps } = useB2bAdminSalesReps();
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
+  const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
+  const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
+  const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
 
   const [approveDialog, setApproveDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
     customer: null,
   });
   const [selectedTier, setSelectedTier] = useState("");
+  
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Sales rep dialog state
+  const [salesRepDialog, setSalesRepDialog] = useState<{ isOpen: boolean; salesRep: any | null }>({
+    isOpen: false,
+    salesRep: null,
+  });
+  const [salesRepForm, setSalesRepForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    territory: "",
+    password: "",
+  });
 
   const handleApprove = async () => {
     if (!approveDialog.customer || !selectedTier) return;
@@ -74,6 +101,123 @@ export default function AdminDashboard() {
         variant: "destructive",
       });
     }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "New password and confirmation must match",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await changePassword({ currentPassword, newPassword });
+      
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully",
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast({
+        title: "Password Change Failed",
+        description: error.message || "Please check your current password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSalesRepSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      if (salesRepDialog.salesRep) {
+        // Update existing sales rep
+        await updateSalesRep({
+          id: salesRepDialog.salesRep.id,
+          ...salesRepForm,
+          password: salesRepForm.password || undefined,
+        });
+        
+        toast({
+          title: "Sales Rep Updated",
+          description: "Sales representative has been updated successfully",
+        });
+      } else {
+        // Create new sales rep
+        if (!salesRepForm.password) {
+          toast({
+            title: "Password Required",
+            description: "Password is required for new sales representatives",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        await createSalesRep(salesRepForm);
+        
+        toast({
+          title: "Sales Rep Created",
+          description: "New sales representative has been created successfully",
+        });
+      }
+
+      setSalesRepDialog({ isOpen: false, salesRep: null });
+      setSalesRepForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        territory: "",
+        password: "",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Operation Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openSalesRepDialog = (salesRep?: any) => {
+    if (salesRep) {
+      setSalesRepForm({
+        firstName: salesRep.firstName,
+        lastName: salesRep.lastName,
+        email: salesRep.email,
+        phoneNumber: salesRep.phoneNumber || "",
+        territory: salesRep.territory || "",
+        password: "",
+      });
+    } else {
+      setSalesRepForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        territory: "",
+        password: "",
+      });
+    }
+    setSalesRepDialog({ isOpen: true, salesRep: salesRep || null });
   };
 
   const renderCustomerCard = (customer: any, isPending: boolean) => (
@@ -161,75 +305,283 @@ export default function AdminDashboard() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-serif font-semibold mb-2">B2B Admin Dashboard</h1>
-        <p className="text-muted-foreground">Manage wholesale customer accounts</p>
+        <p className="text-muted-foreground">Manage wholesale operations</p>
       </div>
 
-      <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="pending" data-testid="tab-pending">
+      <Tabs defaultValue="customers" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsTrigger value="customers" data-testid="tab-customers">
             <Users className="h-4 w-4 mr-2" />
-            Pending Approval ({pendingCustomers?.length || 0})
+            Customers
           </TabsTrigger>
-          <TabsTrigger value="active" data-testid="tab-active">
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Active Customers ({activeCustomers?.length || 0})
+          <TabsTrigger value="orders" data-testid="tab-orders">
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Orders
+          </TabsTrigger>
+          <TabsTrigger value="sales-reps" data-testid="tab-sales-reps">
+            <UserCog className="h-4 w-4 mr-2" />
+            Sales Reps
+          </TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">
+            <SettingsIcon className="h-4 w-4 mr-2" />
+            Settings
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="space-y-4">
-          {loadingPending ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(2)].map((_, i) => (
-                <Card key={i}>
-                  <CardContent className="p-6">
-                    <Skeleton className="h-32 w-full" />
+        {/* CUSTOMERS TAB */}
+        <TabsContent value="customers" className="space-y-6">
+          <Tabs defaultValue="pending" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 max-w-md">
+              <TabsTrigger value="pending" data-testid="tab-pending">
+                Pending ({pendingCustomers?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="active" data-testid="tab-active">
+                Active ({activeCustomers?.length || 0})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pending" className="space-y-4">
+              {loadingPending ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[...Array(2)].map((_, i) => (
+                    <Card key={i}>
+                      <CardContent className="p-6">
+                        <Skeleton className="h-32 w-full" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : !pendingCustomers || pendingCustomers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No Pending Applications</h3>
+                    <p className="text-muted-foreground">
+                      New customer registrations will appear here for approval
+                    </p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          ) : !pendingCustomers || pendingCustomers.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">No Pending Applications</h3>
-                <p className="text-muted-foreground">
-                  New customer registrations will appear here for approval
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pendingCustomers.map((customer) => renderCustomerCard(customer, true))}
-            </div>
-          )}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pendingCustomers.map((customer) => renderCustomerCard(customer, true))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="active" className="space-y-4">
+              {loadingActive ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[...Array(4)].map((_, i) => (
+                    <Card key={i}>
+                      <CardContent className="p-6">
+                        <Skeleton className="h-32 w-full" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : !activeCustomers || activeCustomers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No Active Customers</h3>
+                    <p className="text-muted-foreground">
+                      Approved customers will appear here
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeCustomers.map((customer) => renderCustomerCard(customer, false))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="active" className="space-y-4">
-          {loadingActive ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <Card key={i}>
-                  <CardContent className="p-6">
-                    <Skeleton className="h-32 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : !activeCustomers || activeCustomers.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">No Active Customers</h3>
-                <p className="text-muted-foreground">
-                  Approved customers will appear here
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activeCustomers.map((customer) => renderCustomerCard(customer, false))}
-            </div>
-          )}
+        {/* ORDERS TAB */}
+        <TabsContent value="orders" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif">All Orders</CardTitle>
+              <CardDescription>View all wholesale orders placed by customers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingOrders ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : !orders || orders.length === 0 ? (
+                <div className="py-12 text-center">
+                  <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">No Orders Yet</h3>
+                  <p className="text-muted-foreground">
+                    Customer orders will appear here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between p-4 rounded-lg border"
+                      data-testid={`order-${order.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <p className="font-semibold">{order.orderNumber}</p>
+                          <Badge variant={order.status === 'completed' ? 'default' : 'secondary'}>
+                            {order.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{order.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-lg">${order.total}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(order.orderDate), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* SALES REPS TAB */}
+        <TabsContent value="sales-reps" className="space-y-4">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => openSalesRepDialog()} data-testid="button-add-sales-rep">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Sales Rep
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif">Sales Representatives</CardTitle>
+              <CardDescription>Manage your sales team</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingSalesReps ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : !salesReps || salesReps.length === 0 ? (
+                <div className="py-12 text-center">
+                  <UserCog className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">No Sales Representatives</h3>
+                  <p className="text-muted-foreground">
+                    Add sales representatives to manage customer accounts
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {salesReps.map((rep) => (
+                    <div
+                      key={rep.id}
+                      className="flex items-center justify-between p-4 rounded-lg border"
+                      data-testid={`sales-rep-${rep.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <p className="font-semibold">
+                            {rep.firstName} {rep.lastName}
+                          </p>
+                          <Badge variant={rep.active ? 'default' : 'secondary'}>
+                            {rep.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{rep.email}</p>
+                        {rep.territory && (
+                          <p className="text-xs text-muted-foreground">Territory: {rep.territory}</p>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openSalesRepDialog(rep)}
+                        data-testid={`button-edit-rep-${rep.id}`}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* SETTINGS TAB */}
+        <TabsContent value="settings" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Change Password
+              </CardTitle>
+              <CardDescription>
+                Update your admin account password
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="current-password">Current Password</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    data-testid="input-current-password"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    data-testid="input-new-password"
+                    minLength={6}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum 6 characters
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm New Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    data-testid="input-confirm-password"
+                    minLength={6}
+                    required
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  data-testid="button-change-password"
+                >
+                  {isChangingPassword ? "Changing Password..." : "Change Password"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -281,6 +633,113 @@ export default function AdminDashboard() {
               {isApproving ? "Approving..." : "Approve & Send Email"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sales Rep Dialog */}
+      <Dialog open={salesRepDialog.isOpen} onOpenChange={(open) => setSalesRepDialog({ isOpen: open, salesRep: salesRepDialog.salesRep })}>
+        <DialogContent data-testid="dialog-sales-rep">
+          <DialogHeader>
+            <DialogTitle className="font-serif">
+              {salesRepDialog.salesRep ? "Edit" : "Add"} Sales Representative
+            </DialogTitle>
+            <DialogDescription>
+              {salesRepDialog.salesRep ? "Update sales representative details" : "Create a new sales representative account"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSalesRepSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  value={salesRepForm.firstName}
+                  onChange={(e) => setSalesRepForm({ ...salesRepForm, firstName: e.target.value })}
+                  data-testid="input-first-name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  value={salesRepForm.lastName}
+                  onChange={(e) => setSalesRepForm({ ...salesRepForm, lastName: e.target.value })}
+                  data-testid="input-last-name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={salesRepForm.email}
+                onChange={(e) => setSalesRepForm({ ...salesRepForm, email: e.target.value })}
+                data-testid="input-email"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Phone Number</Label>
+              <Input
+                id="phoneNumber"
+                type="tel"
+                value={salesRepForm.phoneNumber}
+                onChange={(e) => setSalesRepForm({ ...salesRepForm, phoneNumber: e.target.value })}
+                data-testid="input-phone"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="territory">Territory</Label>
+              <Input
+                id="territory"
+                value={salesRepForm.territory}
+                onChange={(e) => setSalesRepForm({ ...salesRepForm, territory: e.target.value })}
+                data-testid="input-territory"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Password {salesRepDialog.salesRep ? "(leave blank to keep current)" : "*"}
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={salesRepForm.password}
+                onChange={(e) => setSalesRepForm({ ...salesRepForm, password: e.target.value })}
+                data-testid="input-password"
+                required={!salesRepDialog.salesRep}
+                minLength={6}
+              />
+              {!salesRepDialog.salesRep && (
+                <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSalesRepDialog({ isOpen: false, salesRep: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingSalesRep || isUpdatingSalesRep}
+                data-testid="button-save-sales-rep"
+              >
+                {(isCreatingSalesRep || isUpdatingSalesRep) ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
