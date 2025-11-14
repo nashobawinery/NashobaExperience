@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import type { Commercial } from "@shared/schema";
@@ -15,6 +15,13 @@ export default function CommercialDialog({ commercial, onClose }: CommercialDial
         className="max-w-2xl max-h-[85vh] p-0 flex flex-col relative"
         data-testid="dialog-commercial"
       >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{commercial.title}</DialogTitle>
+          <DialogDescription>
+            {commercial.description || "Commercial message"}
+          </DialogDescription>
+        </DialogHeader>
+
         <Button
           variant="ghost"
           size="icon"
