@@ -938,7 +938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getTriviaQuestions(false),
         storage.getSlideshowImages(),
         storage.getMediaLibraryFiles(),
-        storage.getWhitelistedEmails(),
+        storage.getAllWhitelistedEmails(),
         storage.getCommercials(),
         storage.getVideos(),
         storage.getTriviaAchievements(),
