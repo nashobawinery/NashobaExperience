@@ -38,3 +38,26 @@ export function useB2bPreviousProducts() {
     },
   });
 }
+
+export interface TierPricing {
+  id: string;
+  tierName: string;
+  discountPercentage: string;
+  active: boolean;
+  minOrderQuantity?: number;
+}
+
+// Fetch active tiers only (public - for pricing page and approval dialog)
+export function useB2bPublicTiers() {
+  return useQuery<TierPricing[]>({
+    queryKey: ["b2b", "public", "tiers"],
+    queryFn: async () => {
+      const response = await fetch("/api/b2b/pricing");
+      if (!response.ok) {
+        throw new Error("Failed to fetch public pricing");
+      }
+      const data = await response.json();
+      return data.tiers; // Extract tiers from { products, tiers } response
+    },
+  });
+}

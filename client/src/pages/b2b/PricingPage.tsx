@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Lock, Wine, TrendingDown, Package, Clock, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useB2bAdminTiers } from "@/hooks/useB2bAdmin";
+import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function B2BPricingPage() {
@@ -14,10 +14,7 @@ export default function B2BPricingPage() {
   const [accessCode, setAccessCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
-  const { data: allTiers, isLoading: loadingTiers } = useB2bAdminTiers();
-  
-  // Filter for active tiers only
-  const activeTiers = allTiers?.filter(tier => tier.active) || [];
+  const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +130,7 @@ export default function B2BPricingPage() {
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : activeTiers.length === 0 ? (
+              ) : !activeTiers || activeTiers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   No active pricing tiers available at this time
                 </p>

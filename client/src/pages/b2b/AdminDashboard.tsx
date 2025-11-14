@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useToggleTierActive } from "@/hooks/useB2bAdmin";
+import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,8 @@ export default function AdminDashboard() {
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
   const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
   const { data: salesReps, isLoading: loadingSalesReps } = useB2bAdminSalesReps();
-  const { data: tiers, isLoading: loadingTiers } = useB2bAdminTiers();
+  const { data: adminTiers, isLoading: loadingAdminTiers } = useB2bAdminTiers(); // All tiers for Settings tab
+  const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
@@ -628,21 +630,21 @@ export default function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingTiers ? (
+              {loadingAdminTiers ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => (
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : !tiers || tiers.length === 0 ? (
+              ) : !adminTiers || adminTiers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   No pricing tiers configured
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {tiers.map((tier) => (
+                  {adminTiers.map((tier) => (
                     <div
-                      key={tier.id}
+                      key={`${tier.id}-${tier.active}`}
                       className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
                       data-testid={`tier-${tier.id}`}
                     >
@@ -665,7 +667,6 @@ export default function AdminDashboard() {
                           id={`tier-${tier.id}-switch`}
                           checked={tier.active}
                           onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
-                          disabled={isTogglingTier}
                           data-testid={`switch-tier-${tier.id}`}
                         />
                       </div>
@@ -700,18 +701,16 @@ export default function AdminDashboard() {
                   <SelectValue placeholder="Select pricing tier" />
                 </SelectTrigger>
                 <SelectContent>
-                  {loadingTiers ? (
+                  {loadingActiveTiers ? (
                     <div className="p-2 text-sm text-muted-foreground">Loading tiers...</div>
-                  ) : !tiers || tiers.filter(t => t.active).length === 0 ? (
+                  ) : !activeTiers || activeTiers.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground">No active tiers available</div>
                   ) : (
-                    tiers
-                      .filter(tier => tier.active)
-                      .map((tier) => (
-                        <SelectItem key={tier.id} value={tier.id}>
-                          {tier.tierName} ({tier.discountPercentage}% off)
-                        </SelectItem>
-                      ))
+                    activeTiers.map((tier) => (
+                      <SelectItem key={tier.id} value={tier.id}>
+                        {tier.tierName} ({tier.discountPercentage}% off)
+                      </SelectItem>
+                    ))
                   )}
                 </SelectContent>
               </Select>

@@ -80,15 +80,18 @@ router.post('/api/b2b/setup-admin', async (req: Request, res: Response) => {
   }
 });
 
-// Public route: Get all products with all tier pricing
+// Public route: Get all products with active tier pricing only
 router.get('/api/b2b/pricing', async (req: Request, res: Response) => {
   try {
-    const [products, tiers] = await Promise.all([
+    const [products, allTiers] = await Promise.all([
       storage.getProducts(),
       storage.getAllTierPricing(),
     ]);
 
-    res.json({ products, tiers });
+    // Filter for active tiers only for public visibility
+    const activeTiers = allTiers.filter(tier => tier.active);
+
+    res.json({ products, tiers: activeTiers });
   } catch (error) {
     console.error('Error fetching B2B pricing:', error);
     res.status(500).json({ error: 'Failed to fetch pricing data' });

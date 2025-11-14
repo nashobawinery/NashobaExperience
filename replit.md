@@ -7,6 +7,15 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (November 14, 2025)
+**B2B Tier Active/Inactive Toggle Feature - COMPLETE:**
+- **Purpose**: Allow admins to control which pricing tiers appear on public pricing page and in customer approval dropdown
+- **Settings Tab UI**: Added "Pricing Tiers" card with Switch toggles for each tier, active/inactive badges, and reduced opacity for inactive rows
+- **Hook Separation**: Created `useB2bPublicTiers()` for public/approval use (fetches only active tiers) and kept `useB2bAdminTiers()` for Settings tab management (shows all tiers)
+- **Cache Invalidation**: Toggle mutation invalidates both `["b2b", "admin", "tiers"]` and `["b2b", "public", "tiers"]` for real-time updates across all components
+- **Backend Filtering**: GET `/api/b2b/pricing` filters server-side for active tiers only; admin endpoint returns all tiers for management
+- **Customer Protection**: Existing customers assigned to inactive tiers retain their pricing; only new assignments and public visibility are affected
+- **Status**: ✅ All features implemented and tested - inactive tiers hidden from public/approval while admins retain full control
+
 **B2B Admin Dashboard Enhancement - COMPLETE:**
 - **Comprehensive Admin Tools**: Enhanced B2B admin dashboard with 4 main tabs - Customers, Orders, Sales Reps, and Account Settings
 - **Password Management**: Added password change functionality for B2B admins at `/api/b2b/admin/change-password` endpoint with secure validation

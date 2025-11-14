@@ -73,7 +73,7 @@ export function useB2bAdminSalesReps() {
   });
 }
 
-// Fetch all tiers
+// Fetch all tiers (admin - shows all tiers including inactive for management)
 export function useB2bAdminTiers() {
   return useQuery<TierPricing[]>({
     queryKey: ["b2b", "admin", "tiers"],
@@ -155,7 +155,9 @@ export function useToggleTierActive() {
       return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}/toggle-active`, { active });
     },
     onSuccess: () => {
+      // Invalidate both admin tiers (for Settings tab) and public tiers (for pricing/approval)
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tiers"] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "public", "tiers"] });
     },
   });
 }
