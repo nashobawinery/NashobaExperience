@@ -10,7 +10,12 @@ import {
   insertWhitelistedEmailSchema,
   insertCommercialSchema,
   insertVideoSchema,
-  insertTriviaAchievementSchema
+  insertTriviaAchievementSchema,
+  insertTierPricingSchema,
+  insertSalesRepSchema,
+  insertB2bCustomerSchema,
+  insertB2bOrderSchema,
+  insertB2bOrderItemSchema
 } from '@shared/schema';
 import { z, ZodError } from 'zod';
 
@@ -120,6 +125,7 @@ export interface ExcelProductRow {
   staff_pick?: string | boolean;
   wine_of_month?: string | boolean;
   tags?: string;
+  case_size?: number | string;
 }
 
 export interface ParseResult {
@@ -207,6 +213,7 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
       staffPick: normalizeBool(row.staff_pick),
       wineOfMonth: normalizeBool(row.wine_of_month),
       tags: parseTags(row.tags),
+      caseSize: row.case_size ? Number(row.case_size) : 12,
     });
   });
 
@@ -248,6 +255,7 @@ export function generateExcelTemplate(): Buffer {
       staff_pick: 'Yes',
       wine_of_month: 'No',
       tags: 'red wine, cabernet, premium, award-winning',
+      case_size: 12,
     },
   ];
 
@@ -292,6 +300,7 @@ export function exportProductsToExcel(products: any[]): Buffer {
     staff_pick: product.staffPick ? 'Yes' : 'No',
     wine_of_month: product.wineOfMonth ? 'Yes' : 'No',
     tags: product.tags ? product.tags.join(', ') : '',
+    case_size: product.caseSize || 12,
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -313,6 +322,11 @@ export function exportAllDataToExcel(data: {
   commercials: any[];
   videos: any[];
   triviaAchievements: any[];
+  tierPricing?: any[];
+  salesReps?: any[];
+  b2bCustomers?: any[];
+  b2bOrders?: any[];
+  b2bOrderItems?: any[];
 }): Buffer {
   const workbook = XLSX.utils.book_new();
 
@@ -350,6 +364,7 @@ export function exportAllDataToExcel(data: {
     staff_pick: product.staffPick ? 'Yes' : 'No',
     wine_of_month: product.wineOfMonth ? 'Yes' : 'No',
     tags: product.tags ? product.tags.join(', ') : '',
+    case_size: product.caseSize || 12,
   }));
   const productsSheet = XLSX.utils.json_to_sheet(productData);
   XLSX.utils.book_append_sheet(workbook, productsSheet, 'Products');
@@ -459,6 +474,119 @@ export function exportAllDataToExcel(data: {
   const achievementsSheet = XLSX.utils.json_to_sheet(achievementsData);
   XLSX.utils.book_append_sheet(workbook, achievementsSheet, 'TriviaAchievements');
 
+  // B2B Tier Pricing sheet (if provided) - NO ID export, tierName is business key
+  if (data.tierPricing && data.tierPricing.length > 0) {
+    const tierData = data.tierPricing.map(tier => ({
+      tier_name: tier.tierName, // Business key for upsert
+      description: tier.description || '',
+      discount_percentage: tier.discountPercentage ? parseFloat(tier.discountPercentage) : 0,
+      sort_order: tier.sortOrder,
+    }));
+    const tierSheet = XLSX.utils.json_to_sheet(tierData);
+    XLSX.utils.book_append_sheet(workbook, tierSheet, 'TierPricing');
+  }
+
+  // B2B Sales Reps sheet (if provided) - EXCLUDE password_hash, email is business key
+  if (data.salesReps && data.salesReps.length > 0) {
+    const salesRepData = data.salesReps.map(rep => ({
+      email: rep.email, // Business key for upsert
+      first_name: rep.firstName,
+      last_name: rep.lastName,
+      password_hash: '', // NEVER export passwords
+      phone_number: rep.phoneNumber || '',
+      active: rep.active ? 'Yes' : 'No',
+    }));
+    const salesRepSheet = XLSX.utils.json_to_sheet(salesRepData);
+    XLSX.utils.book_append_sheet(workbook, salesRepSheet, 'SalesReps');
+  }
+
+  // B2B Customers sheet (if provided) - Use business keys for FKs
+  if (data.b2bCustomers && data.b2bCustomers.length > 0) {
+    const customerData = data.b2bCustomers.map(customer => {
+      // Find tier name from tierPricing data
+      const tier = data.tierPricing?.find(t => t.id === customer.pricingTierId);
+      // Find sales rep email from salesReps data
+      const salesRep = data.salesReps?.find(r => r.id === customer.salesRepId);
+      
+      return {
+        email_address: customer.emailAddress, // Business key for upsert
+        account_name: customer.accountName,
+        account_status: customer.accountStatus,
+        pricing_tier_name: tier?.tierName || '', // Business key instead of UUID
+        license_number: customer.licenseNumber || '',
+        tax_id: customer.taxId || '',
+        credit_terms: customer.creditTerms || '',
+        credit_limit: customer.creditLimit ? parseFloat(customer.creditLimit) : undefined,
+        primary_contact_name: customer.primaryContactName,
+        primary_contact_role: customer.primaryContactRole || '',
+        password_hash: '', // NEVER export passwords
+        phone_number: customer.phoneNumber,
+        alt_phone_number: customer.altPhoneNumber || '',
+        billing_address: customer.billingAddress || '',
+        billing_city: customer.billingCity || '',
+        billing_state: customer.billingState || '',
+        billing_zip_code: customer.billingZipCode || '',
+        shipping_address: customer.shippingAddress || '',
+        shipping_city: customer.shippingCity || '',
+        shipping_state: customer.shippingState || '',
+        shipping_zip_code: customer.shippingZipCode || '',
+        sales_rep_email: salesRep?.email || '', // Business key instead of UUID
+        approved_at: customer.approvedAt || '',
+        notes: customer.notes || '',
+        accepts_marketing: customer.acceptsMarketing ? 'Yes' : 'No',
+      };
+    });
+    const customerSheet = XLSX.utils.json_to_sheet(customerData);
+    XLSX.utils.book_append_sheet(workbook, customerSheet, 'B2bCustomers');
+  }
+
+  // B2B Orders sheet (OPTIONAL - only if provided) - Use business keys for FKs
+  if (data.b2bOrders && data.b2bOrders.length > 0) {
+    const orderData = data.b2bOrders.map(order => {
+      // Find customer email from b2bCustomers data
+      const customer = data.b2bCustomers?.find(c => c.id === order.customerId);
+      
+      return {
+        order_number: order.orderNumber, // Business key for upsert
+        customer_email: customer?.emailAddress || '', // Business key instead of UUID
+        order_date: order.orderDate,
+        status: order.status,
+        subtotal: order.subtotal ? parseFloat(order.subtotal) : 0,
+        tax: order.tax ? parseFloat(order.tax) : 0,
+        total: order.total ? parseFloat(order.total) : 0,
+        notes: order.notes || '',
+        shipping_address: order.shippingAddress || '',
+        shipping_city: order.shippingCity || '',
+        shipping_state: order.shippingState || '',
+        shipping_zip_code: order.shippingZipCode || '',
+      };
+    });
+    const orderSheet = XLSX.utils.json_to_sheet(orderData);
+    XLSX.utils.book_append_sheet(workbook, orderSheet, 'B2bOrders');
+  }
+
+  // B2B Order Items sheet (OPTIONAL - only if provided) - Use business keys for FKs
+  if (data.b2bOrderItems && data.b2bOrderItems.length > 0) {
+    const orderItemData = data.b2bOrderItems.map(item => {
+      // Find order number from b2bOrders data
+      const order = data.b2bOrders?.find(o => o.id === item.orderId);
+      // Find product SKU from products data
+      const product = data.products?.find(p => p.id === item.productId);
+      
+      return {
+        order_number: order?.orderNumber || '', // Business key instead of UUID
+        product_sku: product?.sku || item.sku || '', // Business key instead of UUID
+        product_name: item.productName,
+        quantity: item.quantity,
+        unit_price: item.unitPrice ? parseFloat(item.unitPrice) : 0,
+        retail_price: item.retailPrice ? parseFloat(item.retailPrice) : 0,
+        line_total: item.lineTotal ? parseFloat(item.lineTotal) : 0,
+      };
+    });
+    const orderItemSheet = XLSX.utils.json_to_sheet(orderItemData);
+    XLSX.utils.book_append_sheet(workbook, orderItemSheet, 'B2bOrderItems');
+  }
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -474,6 +602,11 @@ export interface ParseAllDataResult {
   commercials: any[];
   videos: any[];
   triviaAchievements: any[];
+  tierPricing: any[];
+  salesReps: any[];
+  b2bCustomers: any[];
+  b2bOrders: any[];
+  b2bOrderItems: any[];
   errors: string[];
   warnings: string[];
 }
@@ -491,6 +624,11 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     commercials: [],
     videos: [],
     triviaAchievements: [],
+    tierPricing: [],
+    salesReps: [],
+    b2bCustomers: [],
+    b2bOrders: [],
+    b2bOrderItems: [],
     errors: [],
     warnings: [],
   };
