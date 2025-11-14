@@ -46,6 +46,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Database Synchronization
 - **Process**: Export/import system using multi-sheet Excel workbooks to synchronize database configuration between environments.
+- **Upsert Logic**: Import system uses ID-first upsert strategy - if record ID exists, update it; otherwise check natural business key (SKU, email, question text, etc.); if found, update; if not, create new. Enables workflows like exporting data, modifying prices in Excel, and re-importing to update existing records.
+- **Validation**: Comprehensive Zod-based validation pipeline checks each row before database insertion, capturing detailed errors (sheet name, row number, field name, error reason) displayed in admin UI with 50-error display limit.
 
 ## External Dependencies
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
