@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { useState } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,56 +10,48 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Landing from "@/pages/Landing";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
+
+function AdminRoute() {
+  const [, setLocation] = useLocation();
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <AdminDashboard onBackToGuest={() => setLocation("/")} />;
+}
 
 function Router() {
-  const [location, setLocation] = useLocation();
   const [showAdmin, setShowAdmin] = useState(false);
-  const { user, isLoading, isAdmin } = useAuth();
-
-  // Check if /admin route is accessed
-  useEffect(() => {
-    if (location === "/admin") {
-      if (isAdmin) {
-        setShowAdmin(true);
-      } else if (!isLoading) {
-        // Not admin - redirect to guest app
-        setLocation("/");
-      }
-    }
-  }, [location, isAdmin, isLoading, setLocation]);
-
-  // Force exit admin mode when user is not authenticated or not admin
-  useEffect(() => {
-    if (showAdmin && (!user || user.role !== "admin")) {
-      setShowAdmin(false);
-      setLocation("/");
-    }
-  }, [user, showAdmin, setLocation]);
+  const { user, isAdmin } = useAuth();
 
   // Handle admin button click
   const handleAdminClick = () => {
     if (!user) {
-      // Not logged in - redirect to login
       window.location.href = "/api/login";
       return;
     }
     
     if (!isAdmin) {
-      // Logged in but not admin - show error
       alert("Access denied. Only administrators can access this area.");
       return;
     }
     
-    // Logged in as admin - show dashboard
     setShowAdmin(true);
   };
 
-  // Show admin dashboard if requested and user is admin
   if (showAdmin && isAdmin) {
-    return <AdminDashboard onBackToGuest={() => {
-      setShowAdmin(false);
-      setLocation("/");
-    }} />;
+    return <AdminDashboard onBackToGuest={() => setShowAdmin(false)} />;
   }
 
   return (
@@ -76,6 +68,7 @@ function Router() {
       </div>
       <Switch>
         <Route path="/" component={GuestApp} />
+        <Route path="/admin" component={AdminRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>
