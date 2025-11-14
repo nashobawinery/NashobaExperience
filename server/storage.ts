@@ -2027,10 +2027,12 @@ export class DatabaseStorage implements IStorage {
         
         // 2. Recalculate totals from item quantities and prices (don't trust caller)
         const subtotal = items.reduce((sum, item) => {
-          const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
-          return sum + itemTotal;
+          const qty = item.quantity || 0;
+          const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0);
+          return sum + (qty * price);
         }, 0);
-        const total = subtotal + (orderData.tax || 0);
+        const taxAmount = typeof orderData.tax === 'string' ? parseFloat(orderData.tax) : (orderData.tax || 0);
+        const total = subtotal + taxAmount;
         
         // 3. Validate non-empty items for positive totals
         if (total > 0 && items.length === 0) {
@@ -2043,11 +2045,15 @@ export class DatabaseStorage implements IStorage {
         // 5. Insert new items (if any) with recalculated lineTotals
         if (items.length > 0) {
           await tx.insert(b2bOrderItems).values(
-            items.map(item => ({
-              ...item,
-              orderId: existing.id,
-              lineTotal: (item.quantity || 0) * (item.unitPrice || 0),  // Recalculate
-            }))
+            items.map(item => {
+              const qty = item.quantity || 0;
+              const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0);
+              return {
+                ...item,
+                orderId: existing.id,
+                lineTotal: (qty * price).toString(),  // Convert to string for decimal column
+              };
+            })
           );
         }
         
@@ -2055,19 +2061,21 @@ export class DatabaseStorage implements IStorage {
         const [updatedOrder] = await tx.update(b2bOrders)
           .set({
             ...orderData,
-            subtotal,
-            total,
+            subtotal: subtotal.toString(),  // Convert to string for decimal column
+            total: total.toString(),
             updatedAt: new Date(),
           })
           .where(eq(b2bOrders.id, existing.id))
           .returning();
         
         // 7. Handle customer totals
+        const oldTotal = typeof currentOrder.total === 'string' ? parseFloat(currentOrder.total) : currentOrder.total;
+        
         if (currentOrder.customerId !== orderData.customerId) {
           // Customer changed - decrement old (use OLD total), increment new (use NEW total)
           await tx.update(b2bCustomers)
             .set({
-              totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} - ${currentOrder.total}`,
+              totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} - ${oldTotal}`,
               updatedAt: new Date(),
             })
             .where(eq(b2bCustomers.id, currentOrder.customerId));
@@ -2075,21 +2083,17 @@ export class DatabaseStorage implements IStorage {
           await tx.update(b2bCustomers)
             .set({
               totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} + ${total}`,
-              lastOrderDate: orderData.orderDate 
-                ? sql`GREATEST(${b2bCustomers.lastOrderDate}, ${orderData.orderDate})`
-                : sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
+              lastOrderDate: sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
               updatedAt: new Date(),
             })
             .where(eq(b2bCustomers.id, orderData.customerId));
         } else {
           // Same customer - apply delta (NEW total - OLD total)
-          const delta = total - currentOrder.total;
+          const delta = total - oldTotal;
           await tx.update(b2bCustomers)
             .set({
               totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} + ${delta}`,
-              lastOrderDate: orderData.orderDate
-                ? sql`GREATEST(${b2bCustomers.lastOrderDate}, ${orderData.orderDate})`
-                : sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
+              lastOrderDate: sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
               updatedAt: new Date(),
             })
             .where(eq(b2bCustomers.id, orderData.customerId));
