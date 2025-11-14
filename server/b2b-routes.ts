@@ -723,6 +723,26 @@ router.patch('/api/b2b/admin/tiers/:id', requireB2bAdmin, async (req: Request, r
   }
 });
 
+// Admin: Toggle tier active status
+router.patch('/api/b2b/admin/tiers/:id/toggle-active', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { active } = req.body;
+    
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'Active must be a boolean value' });
+    }
+    
+    const tier = await storage.toggleTierActive(req.params.id, active);
+    if (!tier) {
+      return res.status(404).json({ error: 'Tier not found' });
+    }
+    res.json(tier);
+  } catch (error) {
+    console.error('Error toggling tier active status:', error);
+    res.status(500).json({ error: 'Failed to toggle tier active status' });
+  }
+});
+
 // Admin: Delete tier pricing
 router.delete('/api/b2b/admin/tiers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
   try {

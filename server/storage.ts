@@ -267,6 +267,7 @@ export interface IStorage {
   getTierPricingByNameNormalized(tierName: string): Promise<TierPricing | undefined>;
   createTierPricing(data: InsertTierPricing): Promise<TierPricing>;
   updateTierPricing(id: string, data: Partial<InsertTierPricing>): Promise<TierPricing | undefined>;
+  toggleTierActive(id: string, active: boolean): Promise<TierPricing | undefined>;
   deleteTierPricing(id: string): Promise<boolean>;
   upsertTierPricing(data: InsertTierPricing): Promise<{ tierPricing: TierPricing; action: 'created' | 'updated' }>;
 
@@ -1633,6 +1634,15 @@ export class DatabaseStorage implements IStorage {
     const [tier] = await db
       .update(tierPricing)
       .set({ ...data, updatedAt: new Date() })
+      .where(eq(tierPricing.id, id))
+      .returning();
+    return tier;
+  }
+
+  async toggleTierActive(id: string, active: boolean): Promise<TierPricing | undefined> {
+    const [tier] = await db
+      .update(tierPricing)
+      .set({ active, updatedAt: new Date() })
       .where(eq(tierPricing.id, id))
       .returning();
     return tier;
