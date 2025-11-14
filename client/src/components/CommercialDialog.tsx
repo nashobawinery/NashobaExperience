@@ -12,37 +12,26 @@ export default function CommercialDialog({ commercial, onClose }: CommercialDial
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-2xl max-h-[85vh] p-0 flex flex-col relative"
+        className="max-w-2xl max-h-[85vh] overflow-hidden"
         data-testid="dialog-commercial"
       >
-        <DialogHeader className="sr-only">
-          <DialogTitle>{commercial.title}</DialogTitle>
-          <DialogDescription>
-            {commercial.description || "Commercial message"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm hover-elevate"
-          onClick={onClose}
-          data-testid="button-close-commercial"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <DialogTitle className="sr-only">{commercial.title}</DialogTitle>
+        <DialogDescription className="sr-only">
+          {commercial.description || "Commercial message"}
+        </DialogDescription>
 
         {commercial.imageUrl && (
-          <div className="w-full max-h-[50vh] flex-shrink-0 overflow-hidden flex items-center justify-center bg-black">
+          <div className="w-full -mx-6 -mt-6 max-h-[50vh] flex items-center justify-center bg-black">
             <img
               src={commercial.imageUrl}
               alt={commercial.title}
               className="w-full h-auto object-contain max-h-[50vh]"
+              data-testid="img-commercial"
             />
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="space-y-4">
           <h2 className="text-2xl font-semibold" data-testid="text-commercial-title">
             {commercial.title}
           </h2>
