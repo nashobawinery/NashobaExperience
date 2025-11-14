@@ -603,15 +603,22 @@ router.post('/api/b2b/admin/customers/:id/approve', requireB2bAdmin, async (req:
     }
 
     // Approve customer with hashed password
+    const adminId = (req.session as any).b2bUserId;
+    console.log('[Approve] Admin ID from session:', adminId);
+    console.log('[Approve] Approving customer:', id, 'with tier:', tierId);
+    
     const approvedCustomer = await storage.approveB2bCustomer(
       id,
       tierId,
       passwordHash,
-      req.session.b2bUserId!
+      adminId
     );
 
+    console.log('[Approve] Result:', approvedCustomer ? 'SUCCESS' : 'FAILED');
+
     if (!approvedCustomer) {
-      return res.status(500).json({ error: 'Failed to approve customer' });
+      console.error('[Approve] approveB2bCustomer returned null - this means the update failed');
+      return res.status(500).json({ error: 'Failed to approve customer - database update failed' });
     }
 
     // Send approval email with login credentials
