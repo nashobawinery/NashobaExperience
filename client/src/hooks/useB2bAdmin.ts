@@ -37,6 +37,13 @@ export interface SalesRep {
   active: boolean;
 }
 
+export interface TierPricing {
+  id: string;
+  tierName: string;
+  discountPercentage: string;
+  minOrderQuantity?: number;
+}
+
 // Fetch all orders
 export function useB2bAdminOrders() {
   return useQuery<B2bOrder[]>({
@@ -59,6 +66,20 @@ export function useB2bAdminSalesReps() {
       const response = await fetch("/api/b2b/admin/sales-reps");
       if (!response.ok) {
         throw new Error("Failed to fetch sales reps");
+      }
+      return response.json();
+    },
+  });
+}
+
+// Fetch all tiers
+export function useB2bAdminTiers() {
+  return useQuery<TierPricing[]>({
+    queryKey: ["b2b", "admin", "tiers"],
+    queryFn: async () => {
+      const response = await fetch("/api/b2b/admin/tiers");
+      if (!response.ok) {
+        throw new Error("Failed to fetch tiers");
       }
       return response.json();
     },

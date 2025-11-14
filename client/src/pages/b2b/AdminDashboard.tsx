@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep } from "@/hooks/useB2bAdmin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
   const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
   const { data: salesReps, isLoading: loadingSalesReps } = useB2bAdminSalesReps();
+  const { data: tiers, isLoading: loadingTiers } = useB2bAdminTiers();
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
@@ -603,12 +604,17 @@ export default function AdminDashboard() {
                   <SelectValue placeholder="Select pricing tier" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tier1">Tier 1 (10% off)</SelectItem>
-                  <SelectItem value="tier2">Tier 2 (20% off)</SelectItem>
-                  <SelectItem value="tier3">Tier 3 (30% off)</SelectItem>
-                  <SelectItem value="tier4">Tier 4 (40% off)</SelectItem>
-                  <SelectItem value="tier5">Tier 5 (50% off)</SelectItem>
-                  <SelectItem value="tier6">Tier 6 (60% off)</SelectItem>
+                  {loadingTiers ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading tiers...</div>
+                  ) : !tiers || tiers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No tiers available</div>
+                  ) : (
+                    tiers.map((tier) => (
+                      <SelectItem key={tier.id} value={tier.id}>
+                        {tier.tierName} ({tier.discountPercentage}% off)
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
