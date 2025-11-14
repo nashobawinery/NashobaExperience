@@ -35,6 +35,12 @@ function toCurrencyString(val: number | string | undefined | null): string | nul
   return isNaN(num) ? null : String(num.toFixed(2));
 }
 
+function toDecimal(val: number | string | undefined | null): number | null {
+  if (val === undefined || val === null || val === '') return null;
+  const num = Number(val);
+  return isNaN(num) ? null : Number(num.toFixed(2));
+}
+
 function toNumber(val: number | string | undefined | null, defaultValue: number = 0): number {
   if (val === undefined || val === null || val === '') return defaultValue;
   const num = Number(val);
@@ -896,38 +902,62 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     result.warnings.push('No TriviaAchievements sheet found in the Excel file');
   }
 
-  // Parse B2B Tier Pricing sheet (minimal parsing, full validation in routes.ts)
+  // Parse B2B Tier Pricing sheet (validated - independent entity)
   if (workbook.SheetNames.includes('TierPricing')) {
     const tierSheet = workbook.Sheets['TierPricing'];
     const rawTierData: any[] = XLSX.utils.sheet_to_json(tierSheet);
     
-    result.tierPricing = rawTierData.map((row: any) => ({
+    // Inline schema to avoid .omit() type inference issues
+    const tierPricingSchema = z.object({
+      tierName: z.string().min(1),
+      description: z.string().nullable(),
+      discountPercentage: z.number(),
+      sortOrder: z.number(),
+    });
+
+    const validationResult = validateSheet('TierPricing', rawTierData, tierPricingSchema, (row: any) => ({
       tierName: row.tier_name?.trim() || '',
       description: row.description?.trim() || null,
-      discountPercentage: toCurrencyString(row.discount_percentage),
+      discountPercentage: toDecimal(row.discount_percentage),  // No || 0 default
       sortOrder: toNumber(row.sort_order, 0),
     }));
+
+    result.tierPricing = validationResult.records;
+    result.errors.push(...validationResult.errors);
   }
 
-  // Parse B2B Sales Reps sheet (minimal parsing, full validation in routes.ts)
+  // Parse B2B Sales Reps sheet (validated - independent entity, password excluded)
   if (workbook.SheetNames.includes('SalesReps')) {
     const salesRepSheet = workbook.Sheets['SalesReps'];
     const rawSalesRepData: any[] = XLSX.utils.sheet_to_json(salesRepSheet);
     
-    result.salesReps = rawSalesRepData.map((row: any) => ({
+    // Inline schema to avoid .omit() type inference issues
+    const salesRepSchema = z.object({
+      email: z.string().email(),
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      phoneNumber: z.string().nullable(),
+      active: z.boolean(),
+    });
+
+    const validationResult = validateSheet('SalesReps', rawSalesRepData, salesRepSchema, (row: any) => ({
       email: row.email?.trim() || '',
       firstName: row.first_name?.trim() || '',
       lastName: row.last_name?.trim() || '',
       phoneNumber: row.phone_number?.trim() || null,
       active: normalizeBool(row.active !== undefined ? row.active : true),
     }));
+
+    result.salesReps = validationResult.records;
+    result.errors.push(...validationResult.errors);
   }
 
-  // Parse B2B Customers sheet (business keys for FKs, full validation in routes.ts)
+  // Parse B2B Customers sheet (business keys for FKs, password excluded)
   if (workbook.SheetNames.includes('B2bCustomers')) {
     const customerSheet = workbook.Sheets['B2bCustomers'];
     const rawCustomerData: any[] = XLSX.utils.sheet_to_json(customerSheet);
     
+    // Parse with business keys, FK resolution happens in routes.ts
     result.b2bCustomers = rawCustomerData.map((row: any) => ({
       emailAddress: row.email_address?.trim() || '',
       accountName: row.account_name?.trim() || '',
@@ -937,7 +967,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       licenseNumber: row.license_number?.trim() || null,
       taxId: row.tax_id?.trim() || null,
       creditTerms: row.credit_terms?.trim() || null,
-      creditLimit: toCurrencyString(row.credit_limit),
+      creditLimit: toDecimal(row.credit_limit),
       primaryContactName: row.primary_contact_name?.trim() || '',
       primaryContactRole: row.primary_contact_role?.trim() || null,
       phoneNumber: row.phone_number?.trim() || '',
@@ -956,19 +986,20 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     }));
   }
 
-  // Parse B2B Orders sheet (OPTIONAL - business keys for FKs, full validation in routes.ts)
+  // Parse B2B Orders sheet (OPTIONAL - business keys for FKs, validation in routes.ts)
   if (workbook.SheetNames.includes('B2bOrders')) {
     const orderSheet = workbook.Sheets['B2bOrders'];
     const rawOrderData: any[] = XLSX.utils.sheet_to_json(orderSheet);
     
+    // Parse with business keys, FK resolution happens in routes.ts
     result.b2bOrders = rawOrderData.map((row: any) => ({
       orderNumber: row.order_number?.trim() || '',
       customerEmail: row.customer_email?.trim() || '', // Business key for FK
       orderDate: row.order_date?.trim() || new Date().toISOString(),
       status: row.status?.trim() || 'pending',
-      subtotal: toCurrencyString(row.subtotal),
-      tax: toCurrencyString(row.tax),
-      total: toCurrencyString(row.total),
+      subtotal: toDecimal(row.subtotal),  // No || 0 default
+      tax: toDecimal(row.tax),
+      total: toDecimal(row.total),
       notes: row.notes?.trim() || null,
       shippingAddress: row.shipping_address?.trim() || null,
       shippingCity: row.shipping_city?.trim() || null,
@@ -977,20 +1008,21 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     }));
   }
 
-  // Parse B2B Order Items sheet (OPTIONAL - business keys for FKs, full validation in routes.ts)
+  // Parse B2B Order Items sheet (OPTIONAL - business keys for FKs, validation in routes.ts)
   if (workbook.SheetNames.includes('B2bOrderItems')) {
     const orderItemSheet = workbook.Sheets['B2bOrderItems'];
     const rawOrderItemData: any[] = XLSX.utils.sheet_to_json(orderItemSheet);
     
+    // Parse with business keys, FK resolution happens in routes.ts
     result.b2bOrderItems = rawOrderItemData.map((row: any) => ({
       orderNumber: row.order_number?.trim() || '', // Business key for FK
       productSku: row.product_sku?.trim() || '', // Business key for FK
       productName: row.product_name?.trim() || '',
       sku: row.sku?.trim() || row.product_sku?.trim() || '',
       quantity: toNumber(row.quantity, 1),
-      unitPrice: toCurrencyString(row.unit_price),
-      retailPrice: toCurrencyString(row.retail_price),
-      lineTotal: toCurrencyString(row.line_total),
+      unitPrice: toDecimal(row.unit_price),  // No || 0 default
+      retailPrice: toDecimal(row.retail_price),
+      lineTotal: toDecimal(row.line_total),
     }));
   }
 
