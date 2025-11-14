@@ -1,0 +1,80 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+export interface B2bCustomer {
+  id: string;
+  accountName: string;
+  emailAddress: string;
+  phoneNumber: string;
+  accountStatus: string;
+  tier?: string;
+  salesRep?: string;
+  businessAddress?: string;
+  businessType?: string;
+  taxId?: string;
+  approvedAt?: string;
+}
+
+export function useB2bAdminCustomers(status?: string) {
+  return useQuery<B2bCustomer[]>({
+    queryKey: ["b2b", "admin", "customers", status],
+    queryFn: async () => {
+      const url = status 
+        ? `/api/b2b/admin/customers?status=${status}`
+        : "/api/b2b/admin/customers";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch customers");
+      }
+      return response.json();
+    },
+  });
+}
+
+export function useB2bApproveCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      customerId,
+      tierId,
+      salesRepId,
+    }: {
+      customerId: string;
+      tierId: string;
+      salesRepId?: string;
+    }) => {
+      return apiRequest(`/api/b2b/admin/customers/${customerId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tierId, salesRepId }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+    },
+  });
+}
+
+export function useB2bRejectCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      customerId,
+      reason,
+    }: {
+      customerId: string;
+      reason: string;
+    }) => {
+      return apiRequest(`/api/b2b/admin/customers/${customerId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+    },
+  });
+}
