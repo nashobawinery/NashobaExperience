@@ -850,7 +850,7 @@ router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Reque
     }
 
     // Get current admin from session
-    const adminId = (req.session as any).b2bUser?.id;
+    const adminId = (req.session as any).b2bUserId;
     if (!adminId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
