@@ -101,6 +101,13 @@ function lower(column: AnyColumn): SQL {
   return sql`lower(${column})`;
 }
 
+// Helper for normalized business-key lookups (case-insensitive, trimmed)
+// Callers must guard against blank input before calling this
+function buildLowerTrimEquals(column: AnyColumn, value: string): SQL<unknown> {
+  const normalized = value.trim().toLowerCase();
+  return sql`LOWER(TRIM(${column})) = ${normalized}`;
+}
+
 export interface IStorage {
   // Users (for authentication)
   getUser(id: string): Promise<User | undefined>;
@@ -257,17 +264,21 @@ export interface IStorage {
   // B2B - Tier Pricing
   getAllTierPricing(): Promise<TierPricing[]>;
   getTierPricing(id: string): Promise<TierPricing | undefined>;
+  getTierPricingByNameNormalized(tierName: string): Promise<TierPricing | undefined>;
   createTierPricing(data: InsertTierPricing): Promise<TierPricing>;
   updateTierPricing(id: string, data: Partial<InsertTierPricing>): Promise<TierPricing | undefined>;
   deleteTierPricing(id: string): Promise<boolean>;
+  upsertTierPricing(data: InsertTierPricing): Promise<{ tierPricing: TierPricing; action: 'created' | 'updated' }>;
 
   // B2B - Sales Reps
   getAllSalesReps(activeOnly?: boolean): Promise<SalesRep[]>;
   getSalesRep(id: string): Promise<SalesRep | undefined>;
   getSalesRepByEmail(email: string): Promise<SalesRep | undefined>;
+  getSalesRepByEmailNormalized(email: string): Promise<SalesRep | undefined>;
   createSalesRep(data: InsertSalesRep): Promise<SalesRep>;
   updateSalesRep(id: string, data: Partial<InsertSalesRep>): Promise<SalesRep | undefined>;
   deleteSalesRep(id: string): Promise<boolean>;
+  upsertSalesRep(data: Omit<InsertSalesRep, 'passwordHash'> & { passwordHash?: string }): Promise<{ salesRep: SalesRep; action: 'created' | 'updated' }>;
 
   // B2B - Admins
   getAllB2bAdmins(activeOnly?: boolean): Promise<B2bAdmin[]>;
@@ -281,19 +292,23 @@ export interface IStorage {
   getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]>;
   getB2bCustomer(id: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined>;
   getB2bCustomerByEmail(email: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined>;
+  getB2bCustomerCoreByEmail(email: string): Promise<B2bCustomer | undefined>;
   createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer>;
   updateB2bCustomer(id: string, data: Partial<InsertB2bCustomer>): Promise<B2bCustomer | undefined>;
   deleteB2bCustomer(id: string): Promise<boolean>;
   approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined>;
+  upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }>;
 
   // B2B - Orders
   getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
   getB2bOrders(customerId: string): Promise<(B2bOrder & { items: (B2bOrderItem & { product: Product })[] })[]>;
   getB2bOrder(id: string): Promise<(B2bOrder & { customer: B2bCustomer; items: (B2bOrderItem & { product: Product })[] }) | undefined>;
+  getB2bOrderByNumberNormalized(orderNumber: string): Promise<B2bOrder | undefined>;
   createB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<B2bOrder>;
   updateB2bOrder(id: string, data: Partial<InsertB2bOrder>): Promise<B2bOrder | undefined>;
   deleteB2bOrder(id: string): Promise<boolean>;
   getCustomerPreviousProducts(customerId: string): Promise<Product[]>;
+  upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }>;
 
   // B2B - Settings
   getB2bSetting(key: string): Promise<B2bSetting | undefined>;
@@ -1552,22 +1567,22 @@ export class DatabaseStorage implements IStorage {
       
       if (!characteristic) {
         // Create with category if provided, otherwise defaults to all types
-        const productTypes = category ? [category] : undefined;
+        const productTypes = category ? [category as any] : undefined;
         characteristic = await this.createCharacteristic(name, productTypes);
       } else if (category && characteristic.productTypes) {
         // For existing characteristics, ensure current category is in productTypes
-        if (!characteristic.productTypes.includes(category)) {
-          const updatedProductTypes = [...characteristic.productTypes, category];
+        if (!characteristic.productTypes.includes(category as any)) {
+          const updatedProductTypes = [...characteristic.productTypes, category as any];
           await db
             .update(characteristics)
             .set({ 
-              productTypes: updatedProductTypes,
+              productTypes: updatedProductTypes as any,
               updatedAt: new Date()
             })
             .where(eq(characteristics.id, characteristic.id));
           
           // Update local object to reflect the change
-          characteristic.productTypes = updatedProductTypes;
+          characteristic.productTypes = updatedProductTypes as any;
         }
       }
       
@@ -1601,6 +1616,14 @@ export class DatabaseStorage implements IStorage {
     return tier;
   }
 
+  async getTierPricingByNameNormalized(tierName: string): Promise<TierPricing | undefined> {
+    const normalized = tierName?.trim();
+    if (!normalized) return undefined;
+    const result = await db.select().from(tierPricing)
+      .where(buildLowerTrimEquals(tierPricing.tierName, normalized));
+    return result[0];
+  }
+
   async createTierPricing(data: InsertTierPricing): Promise<TierPricing> {
     const [tier] = await db.insert(tierPricing).values(data).returning();
     return tier;
@@ -1618,6 +1641,25 @@ export class DatabaseStorage implements IStorage {
   async deleteTierPricing(id: string): Promise<boolean> {
     const result = await db.delete(tierPricing).where(eq(tierPricing.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertTierPricing(data: InsertTierPricing): Promise<{ tierPricing: TierPricing; action: 'created' | 'updated' }> {
+    if (!data.tierName) {
+      throw new Error("tierName is required for upsert operation");
+    }
+
+    const existing = await this.getTierPricingByNameNormalized(data.tierName);
+    
+    if (existing) {
+      const updated = await this.updateTierPricing(existing.id, data);
+      if (!updated) {
+        throw new Error("Failed to update tier pricing");
+      }
+      return { tierPricing: updated, action: 'updated' };
+    } else {
+      const created = await this.createTierPricing(data);
+      return { tierPricing: created, action: 'created' };
+    }
   }
 
   // B2B - Sales Reps implementations
@@ -1638,6 +1680,14 @@ export class DatabaseStorage implements IStorage {
     return rep;
   }
 
+  async getSalesRepByEmailNormalized(email: string): Promise<SalesRep | undefined> {
+    const normalized = email?.trim();
+    if (!normalized) return undefined;
+    const result = await db.select().from(salesReps)
+      .where(buildLowerTrimEquals(salesReps.email, normalized));
+    return result[0];
+  }
+
   async createSalesRep(data: InsertSalesRep): Promise<SalesRep> {
     const [rep] = await db.insert(salesReps).values(data).returning();
     return rep;
@@ -1655,6 +1705,35 @@ export class DatabaseStorage implements IStorage {
   async deleteSalesRep(id: string): Promise<boolean> {
     const result = await db.delete(salesReps).where(eq(salesReps.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertSalesRep(data: Omit<InsertSalesRep, 'passwordHash'> & { passwordHash?: string }): Promise<{ salesRep: SalesRep; action: 'created' | 'updated' }> {
+    if (!data.email) {
+      throw new Error("email is required for upsert operation");
+    }
+
+    const existing = await this.getSalesRepByEmailNormalized(data.email);
+    
+    if (existing) {
+      // On update: preserve existing passwordHash, filter undefined fields
+      const updateData = Object.fromEntries(
+        Object.entries({ ...data, passwordHash: existing.passwordHash })
+          .filter(([_, v]) => v !== undefined)
+      ) as Partial<InsertSalesRep>;
+      
+      const updated = await this.updateSalesRep(existing.id, updateData);
+      if (!updated) {
+        throw new Error("Failed to update sales rep");
+      }
+      return { salesRep: updated, action: 'updated' };
+    } else {
+      // On create: require passwordHash
+      if (!data.passwordHash) {
+        throw new Error("passwordHash is required when creating a new sales rep");
+      }
+      const created = await this.createSalesRep(data as InsertSalesRep);
+      return { salesRep: created, action: 'created' };
+    }
   }
 
   // B2B - Admins implementations
@@ -1745,6 +1824,14 @@ export class DatabaseStorage implements IStorage {
     return { ...result.customer, tier: result.tier, salesRep: result.salesRep };
   }
 
+  async getB2bCustomerCoreByEmail(email: string): Promise<B2bCustomer | undefined> {
+    const normalized = email?.trim();
+    if (!normalized) return undefined;
+    const result = await db.select().from(b2bCustomers)
+      .where(buildLowerTrimEquals(b2bCustomers.emailAddress, normalized));
+    return result[0];
+  }
+
   async createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer> {
     const [customer] = await db.insert(b2bCustomers).values(data).returning();
     return customer;
@@ -1762,6 +1849,35 @@ export class DatabaseStorage implements IStorage {
   async deleteB2bCustomer(id: string): Promise<boolean> {
     const result = await db.delete(b2bCustomers).where(eq(b2bCustomers.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }> {
+    if (!data.emailAddress) {
+      throw new Error("emailAddress is required for upsert operation");
+    }
+
+    const existing = await this.getB2bCustomerCoreByEmail(data.emailAddress);
+    
+    if (existing) {
+      // On update: preserve existing passwordHash, filter undefined fields
+      const updateData = Object.fromEntries(
+        Object.entries({ ...data, passwordHash: existing.passwordHash })
+          .filter(([_, v]) => v !== undefined)
+      ) as Partial<InsertB2bCustomer>;
+      
+      const updated = await this.updateB2bCustomer(existing.id, updateData);
+      if (!updated) {
+        throw new Error("Failed to update B2B customer");
+      }
+      return { customer: updated, action: 'updated' };
+    } else {
+      // On create: require passwordHash
+      if (!data.passwordHash) {
+        throw new Error("passwordHash is required when creating a new B2B customer");
+      }
+      const created = await this.createB2bCustomer(data as InsertB2bCustomer);
+      return { customer: created, action: 'created' };
+    }
   }
 
   async approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined> {
@@ -1850,6 +1966,14 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getB2bOrderByNumberNormalized(orderNumber: string): Promise<B2bOrder | undefined> {
+    const normalized = orderNumber?.trim();
+    if (!normalized) return undefined;
+    const result = await db.select().from(b2bOrders)
+      .where(buildLowerTrimEquals(b2bOrders.orderNumber, normalized));
+    return result[0];
+  }
+
   async createB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<B2bOrder> {
     const [order] = await db.insert(b2bOrders).values(orderData).returning();
 
@@ -1883,6 +2007,108 @@ export class DatabaseStorage implements IStorage {
   async deleteB2bOrder(id: string): Promise<boolean> {
     const result = await db.delete(b2bOrders).where(eq(b2bOrders.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }> {
+    if (!orderData.orderNumber) {
+      throw new Error("orderNumber is required for upsert operation");
+    }
+
+    const existing = await this.getB2bOrderByNumberNormalized(orderData.orderNumber);
+    
+    if (existing) {
+      // Update existing order with transaction
+      const updated = await db.transaction(async (tx) => {
+        // 1. Re-select with FOR UPDATE lock
+        const [currentOrder] = await tx.select()
+          .from(b2bOrders)
+          .where(eq(b2bOrders.id, existing.id))
+          .for('update');
+        
+        // 2. Recalculate totals from item quantities and prices (don't trust caller)
+        const subtotal = items.reduce((sum, item) => {
+          const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+          return sum + itemTotal;
+        }, 0);
+        const total = subtotal + (orderData.tax || 0);
+        
+        // 3. Validate non-empty items for positive totals
+        if (total > 0 && items.length === 0) {
+          throw new Error("Order cannot have positive total with zero items");
+        }
+        
+        // 4. Delete existing items
+        await tx.delete(b2bOrderItems).where(eq(b2bOrderItems.orderId, existing.id));
+        
+        // 5. Insert new items (if any) with recalculated lineTotals
+        if (items.length > 0) {
+          await tx.insert(b2bOrderItems).values(
+            items.map(item => ({
+              ...item,
+              orderId: existing.id,
+              lineTotal: (item.quantity || 0) * (item.unitPrice || 0),  // Recalculate
+            }))
+          );
+        }
+        
+        // 6. Update order with recalculated totals
+        const [updatedOrder] = await tx.update(b2bOrders)
+          .set({
+            ...orderData,
+            subtotal,
+            total,
+            updatedAt: new Date(),
+          })
+          .where(eq(b2bOrders.id, existing.id))
+          .returning();
+        
+        // 7. Handle customer totals
+        if (currentOrder.customerId !== orderData.customerId) {
+          // Customer changed - decrement old (use OLD total), increment new (use NEW total)
+          await tx.update(b2bCustomers)
+            .set({
+              totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} - ${currentOrder.total}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(b2bCustomers.id, currentOrder.customerId));
+          
+          await tx.update(b2bCustomers)
+            .set({
+              totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} + ${total}`,
+              lastOrderDate: orderData.orderDate 
+                ? sql`GREATEST(${b2bCustomers.lastOrderDate}, ${orderData.orderDate})`
+                : sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
+              updatedAt: new Date(),
+            })
+            .where(eq(b2bCustomers.id, orderData.customerId));
+        } else {
+          // Same customer - apply delta (NEW total - OLD total)
+          const delta = total - currentOrder.total;
+          await tx.update(b2bCustomers)
+            .set({
+              totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} + ${delta}`,
+              lastOrderDate: orderData.orderDate
+                ? sql`GREATEST(${b2bCustomers.lastOrderDate}, ${orderData.orderDate})`
+                : sql`GREATEST(${b2bCustomers.lastOrderDate}, NOW())`,
+              updatedAt: new Date(),
+            })
+            .where(eq(b2bCustomers.id, orderData.customerId));
+        }
+        
+        // 8. Return rehydrated order with items
+        const itemsResult = await tx.select()
+          .from(b2bOrderItems)
+          .where(eq(b2bOrderItems.orderId, existing.id));
+        
+        return updatedOrder;
+      });
+      
+      return { order: updated, action: 'updated' };
+    } else {
+      // Create new order (createB2bOrder already handles transaction)
+      const created = await this.createB2bOrder(orderData, items);
+      return { order: created, action: 'created' };
+    }
   }
 
   async getCustomerPreviousProducts(customerId: string): Promise<Product[]> {
