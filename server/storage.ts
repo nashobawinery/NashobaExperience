@@ -92,6 +92,7 @@ export interface IStorage {
   getAllWhitelistedEmails(): Promise<WhitelistedEmail[]>;
   getWhitelistedEmail(email: string): Promise<WhitelistedEmail | undefined>;
   addWhitelistedEmail(data: InsertWhitelistedEmail): Promise<WhitelistedEmail>;
+  upsertWhitelistedEmail(data: InsertWhitelistedEmail & { id?: string }): Promise<{ email: WhitelistedEmail; action: 'created' | 'updated' }>;
   deleteWhitelistedEmail(id: string): Promise<boolean>;
 
   // Products
@@ -139,6 +140,7 @@ export interface IStorage {
   getTriviaQuestion(id: string): Promise<TriviaQuestion | undefined>;
   createTriviaQuestion(question: InsertTriviaQuestion): Promise<TriviaQuestion>;
   updateTriviaQuestion(id: string, question: Partial<InsertTriviaQuestion>): Promise<TriviaQuestion | undefined>;
+  upsertTriviaQuestion(question: InsertTriviaQuestion & { id?: string }): Promise<{ question: TriviaQuestion; action: 'created' | 'updated' }>;
   deleteTriviaQuestion(id: string): Promise<boolean>;
   
   getTriviaScores(sessionId: string): Promise<TriviaScore[]>;
@@ -149,6 +151,7 @@ export interface IStorage {
   getTriviaAchievements(): Promise<TriviaAchievement[]>;
   createTriviaAchievement(data: InsertTriviaAchievement): Promise<TriviaAchievement>;
   updateTriviaAchievement(id: string, data: Partial<InsertTriviaAchievement>): Promise<TriviaAchievement | undefined>;
+  upsertTriviaAchievement(data: InsertTriviaAchievement & { id?: string }): Promise<{ achievement: TriviaAchievement; action: 'created' | 'updated' }>;
   deleteTriviaAchievement(id: string): Promise<boolean>;
 
   // Trivia Attempts
@@ -183,6 +186,7 @@ export interface IStorage {
   getFilterOption(id: string): Promise<FilterOption | undefined>;
   createFilterOption(option: InsertFilterOption): Promise<FilterOption>;
   updateFilterOption(id: string, option: Partial<InsertFilterOption>): Promise<FilterOption | undefined>;
+  upsertFilterOption(option: InsertFilterOption & { id?: string }): Promise<{ filterOption: FilterOption; action: 'created' | 'updated' }>;
   deleteFilterOption(id: string): Promise<boolean>;
   updateFilterOptionOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 
@@ -191,6 +195,7 @@ export interface IStorage {
   getSlideshowImage(id: string): Promise<SlideshowImage | undefined>;
   createSlideshowImage(image: InsertSlideshowImage): Promise<SlideshowImage>;
   updateSlideshowImage(id: string, image: Partial<InsertSlideshowImage>): Promise<SlideshowImage | undefined>;
+  upsertSlideshowImage(image: InsertSlideshowImage & { id?: string }): Promise<{ image: SlideshowImage; action: 'created' | 'updated' }>;
   deleteSlideshowImage(id: string): Promise<boolean>;
   updateSlideshowImageOrder(updates: { id: string; displayOrder: number }[]): Promise<void>;
 
@@ -199,6 +204,7 @@ export interface IStorage {
   getMediaLibraryFile(id: string): Promise<MediaLibrary | undefined>;
   createMediaLibraryFile(file: InsertMediaLibrary): Promise<MediaLibrary>;
   updateMediaLibraryFile(id: string, file: Partial<InsertMediaLibrary>): Promise<MediaLibrary | undefined>;
+  upsertMediaLibraryFile(file: InsertMediaLibrary & { id?: string }): Promise<{ file: MediaLibrary; action: 'created' | 'updated' }>;
   deleteMediaLibraryFile(id: string): Promise<boolean>;
 
   // Videos
@@ -206,6 +212,7 @@ export interface IStorage {
   getVideo(id: string): Promise<Video | undefined>;
   createVideo(video: InsertVideo): Promise<Video>;
   updateVideo(id: string, video: Partial<InsertVideo>): Promise<Video | undefined>;
+  upsertVideo(video: InsertVideo & { id?: string }): Promise<{ video: Video; action: 'created' | 'updated' }>;
   deleteVideo(id: string): Promise<boolean>;
   updateVideoOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 
@@ -214,6 +221,7 @@ export interface IStorage {
   getCommercial(id: string): Promise<Commercial | undefined>;
   createCommercial(commercial: InsertCommercial): Promise<Commercial>;
   updateCommercial(id: string, commercial: Partial<InsertCommercial>): Promise<Commercial | undefined>;
+  upsertCommercial(commercial: InsertCommercial & { id?: string }): Promise<{ commercial: Commercial; action: 'created' | 'updated' }>;
   deleteCommercial(id: string): Promise<boolean>;
   updateCommercialOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 
@@ -307,6 +315,36 @@ export class DatabaseStorage implements IStorage {
   async deleteWhitelistedEmail(id: string): Promise<boolean> {
     const result = await db.delete(whitelistedEmails).where(eq(whitelistedEmails.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertWhitelistedEmail(data: InsertWhitelistedEmail & { id?: string }): Promise<{ email: WhitelistedEmail; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (data.id) {
+      const result = await db.select().from(whitelistedEmails).where(eq(whitelistedEmails.id, data.id)).limit(1);
+      if (result.length > 0) {
+        const updated = await db
+          .update(whitelistedEmails)
+          .set({ role: data.role })
+          .where(eq(whitelistedEmails.id, data.id))
+          .returning();
+        return { email: updated[0], action: 'updated' };
+      }
+    }
+    
+    // Try to find by email (natural key)
+    const existing = await this.getWhitelistedEmail(data.email);
+    if (existing) {
+      const updated = await db
+        .update(whitelistedEmails)
+        .set({ role: data.role })
+        .where(eq(whitelistedEmails.id, existing.id))
+        .returning();
+      return { email: updated[0], action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.addWhitelistedEmail(data);
+    return { email: created, action: 'created' };
   }
 
   async getProducts(filters?: ProductFilters): Promise<Product[]> {
@@ -721,6 +759,35 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  async upsertTriviaQuestion(question: InsertTriviaQuestion & { id?: string }): Promise<{ question: TriviaQuestion; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (question.id) {
+      const existing = await this.getTriviaQuestion(question.id);
+      if (existing) {
+        const updated = await this.updateTriviaQuestion(existing.id, question);
+        if (!updated) throw new Error("Failed to update trivia question");
+        return { question: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by question text (natural key)
+    const existingByQuestion = await db
+      .select()
+      .from(triviaQuestions)
+      .where(sql`LOWER(TRIM(${triviaQuestions.question})) = LOWER(TRIM(${question.question}))`)
+      .limit(1);
+    
+    if (existingByQuestion.length > 0) {
+      const updated = await this.updateTriviaQuestion(existingByQuestion[0].id, question);
+      if (!updated) throw new Error("Failed to update trivia question");
+      return { question: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createTriviaQuestion(question);
+    return { question: created, action: 'created' };
+  }
+
   async getTriviaScores(sessionId: string): Promise<TriviaScore[]> {
     return await db
       .select()
@@ -763,6 +830,35 @@ export class DatabaseStorage implements IStorage {
   async deleteTriviaAchievement(id: string): Promise<boolean> {
     const result = await db.delete(triviaAchievements).where(eq(triviaAchievements.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertTriviaAchievement(data: InsertTriviaAchievement & { id?: string }): Promise<{ achievement: TriviaAchievement; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (data.id) {
+      const result = await db.select().from(triviaAchievements).where(eq(triviaAchievements.id, data.id)).limit(1);
+      if (result.length > 0) {
+        const updated = await this.updateTriviaAchievement(result[0].id, data);
+        if (!updated) throw new Error("Failed to update achievement");
+        return { achievement: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by scoreThreshold (natural key - unique)
+    const existing = await db
+      .select()
+      .from(triviaAchievements)
+      .where(eq(triviaAchievements.scoreThreshold, data.scoreThreshold))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      const updated = await this.updateTriviaAchievement(existing[0].id, data);
+      if (!updated) throw new Error("Failed to update achievement");
+      return { achievement: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createTriviaAchievement(data);
+    return { achievement: created, action: 'created' };
   }
 
   async getTriviaAttempt(sessionId: string): Promise<TriviaAttempt | undefined> {
@@ -951,6 +1047,38 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async upsertFilterOption(option: InsertFilterOption & { id?: string }): Promise<{ filterOption: FilterOption; action: 'created' | 'updated' }> {
+    // Try to find by ID first if provided
+    if (option.id) {
+      const existing = await this.getFilterOption(option.id);
+      if (existing) {
+        const updated = await this.updateFilterOption(existing.id, option);
+        if (!updated) throw new Error("Failed to update filter option");
+        return { filterOption: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by fieldType + optionValue (natural key)
+    const existingByKey = await db
+      .select()
+      .from(filterOptions)
+      .where(and(
+        eq(filterOptions.fieldType, option.fieldType),
+        eq(filterOptions.optionValue, option.optionValue)
+      ))
+      .limit(1);
+    
+    if (existingByKey.length > 0) {
+      const updated = await this.updateFilterOption(existingByKey[0].id, option);
+      if (!updated) throw new Error("Failed to update filter option");
+      return { filterOption: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createFilterOption(option);
+    return { filterOption: created, action: 'created' };
+  }
+
   // Slideshow Images
   async getSlideshowImages(activeOnly?: boolean): Promise<SlideshowImage[]> {
     let query = db.select().from(slideshowImages).orderBy(slideshowImages.displayOrder);
@@ -995,6 +1123,43 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async upsertSlideshowImage(image: InsertSlideshowImage & { id?: string }): Promise<{ image: SlideshowImage; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (image.id) {
+      const existing = await this.getSlideshowImage(image.id);
+      if (existing) {
+        const updated = await this.updateSlideshowImage(existing.id, image);
+        if (!updated) throw new Error("Failed to update slideshow image");
+        return { image: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by imageUrl or filename (natural key)
+    const naturalKey = image.imageUrl || image.filename;
+    if (naturalKey) {
+      const existing = await db
+        .select()
+        .from(slideshowImages)
+        .where(
+          or(
+            eq(slideshowImages.imageUrl, naturalKey),
+            eq(slideshowImages.filename, naturalKey)
+          )
+        )
+        .limit(1);
+      
+      if (existing.length > 0) {
+        const updated = await this.updateSlideshowImage(existing[0].id, image);
+        if (!updated) throw new Error("Failed to update slideshow image");
+        return { image: updated, action: 'updated' };
+      }
+    }
+    
+    // Create new
+    const created = await this.createSlideshowImage(image);
+    return { image: created, action: 'created' };
+  }
+
   async getMediaLibraryFiles(category?: string): Promise<MediaLibrary[]> {
     let query = db.select().from(mediaLibrary).orderBy(desc(mediaLibrary.createdAt));
     
@@ -1027,6 +1192,35 @@ export class DatabaseStorage implements IStorage {
   async deleteMediaLibraryFile(id: string): Promise<boolean> {
     const result = await db.delete(mediaLibrary).where(eq(mediaLibrary.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async upsertMediaLibraryFile(file: InsertMediaLibrary & { id?: string }): Promise<{ file: MediaLibrary; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (file.id) {
+      const existing = await this.getMediaLibraryFile(file.id);
+      if (existing) {
+        const updated = await this.updateMediaLibraryFile(existing.id, file);
+        if (!updated) throw new Error("Failed to update media library file");
+        return { file: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by objectPath (natural key - unique)
+    const existing = await db
+      .select()
+      .from(mediaLibrary)
+      .where(eq(mediaLibrary.objectPath, file.objectPath))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      const updated = await this.updateMediaLibraryFile(existing[0].id, file);
+      if (!updated) throw new Error("Failed to update media library file");
+      return { file: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createMediaLibraryFile(file);
+    return { file: created, action: 'created' };
   }
 
   // Videos
@@ -1073,6 +1267,38 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async upsertVideo(video: InsertVideo & { id?: string }): Promise<{ video: Video; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (video.id) {
+      const existing = await this.getVideo(video.id);
+      if (existing) {
+        const updated = await this.updateVideo(existing.id, video);
+        if (!updated) throw new Error("Failed to update video");
+        return { video: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by title + videoUrl combination (natural key)
+    const existing = await db
+      .select()
+      .from(videos)
+      .where(and(
+        eq(videos.title, video.title),
+        eq(videos.videoUrl, video.videoUrl)
+      ))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      const updated = await this.updateVideo(existing[0].id, video);
+      if (!updated) throw new Error("Failed to update video");
+      return { video: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createVideo(video);
+    return { video: created, action: 'created' };
+  }
+
   // Commercials
   async getCommercials(activeOnly?: boolean): Promise<Commercial[]> {
     let query = db.select().from(commercials).orderBy(commercials.sortOrder);
@@ -1115,6 +1341,38 @@ export class DatabaseStorage implements IStorage {
         .set({ sortOrder: update.sortOrder, updatedAt: new Date() })
         .where(eq(commercials.id, update.id));
     }
+  }
+
+  async upsertCommercial(commercial: InsertCommercial & { id?: string }): Promise<{ commercial: Commercial; action: 'created' | 'updated' }> {
+    // Try to find by ID first
+    if (commercial.id) {
+      const existing = await this.getCommercial(commercial.id);
+      if (existing) {
+        const updated = await this.updateCommercial(existing.id, commercial);
+        if (!updated) throw new Error("Failed to update commercial");
+        return { commercial: updated, action: 'updated' };
+      }
+    }
+    
+    // Try to find by title + imageUrl combination (natural key)
+    const existing = await db
+      .select()
+      .from(commercials)
+      .where(and(
+        eq(commercials.title, commercial.title),
+        eq(commercials.imageUrl, commercial.imageUrl)
+      ))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      const updated = await this.updateCommercial(existing[0].id, commercial);
+      if (!updated) throw new Error("Failed to update commercial");
+      return { commercial: updated, action: 'updated' };
+    }
+    
+    // Create new
+    const created = await this.createCommercial(commercial);
+    return { commercial: created, action: 'created' };
   }
 
   // Characteristics
