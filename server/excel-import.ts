@@ -1,5 +1,91 @@
 import * as XLSX from 'xlsx';
 import type { InsertProduct } from '@shared/schema';
+import { 
+  insertProductSchema,
+  insertFilterOptionSchema,
+  insertTriviaQuestionSchema,
+  insertSlideshowImageSchema,
+  insertAppSettingSchema,
+  insertMediaLibrarySchema,
+  insertWhitelistedEmailSchema,
+  insertCommercialSchema,
+  insertVideoSchema,
+  insertTriviaAchievementSchema
+} from '@shared/schema';
+import { z, ZodError } from 'zod';
+
+// Shared normalization utilities
+function normalizeBool(val: string | boolean | undefined): boolean {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const lower = val.toLowerCase().trim();
+    return lower === 'yes' || lower === 'true' || lower === '1';
+  }
+  return false;
+}
+
+function toCurrencyString(val: number | string | undefined | null): string | null {
+  if (val === undefined || val === null || val === '') return null;
+  const num = Number(val);
+  return isNaN(num) ? null : String(num.toFixed(2));
+}
+
+function toNumber(val: number | string | undefined | null, defaultValue: number = 0): number {
+  if (val === undefined || val === null || val === '') return defaultValue;
+  const num = Number(val);
+  return isNaN(num) ? defaultValue : num;
+}
+
+function splitTags(val: string | undefined | null): string[] | null {
+  if (!val || !val.trim()) return null;
+  return val.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+}
+
+// Format Zod validation errors for actionable messages
+function formatZodError(sheetName: string, rowNum: number, error: ZodError): string {
+  const issues = error.errors.map(issue => {
+    const field = issue.path.join('.');
+    return `${field}: ${issue.message}`;
+  }).join('; ');
+  return `${sheetName} Row ${rowNum} - ${issues}`;
+}
+
+// Generic sheet validation helper
+interface ValidateSheetResult<T> {
+  records: T[];
+  errors: string[];
+  skipped: number;
+}
+
+function validateSheet<T>(
+  sheetName: string,
+  rawRows: any[],
+  schema: z.ZodType<T>,
+  transformer: (row: any) => any
+): ValidateSheetResult<T> {
+  const records: T[] = [];
+  const errors: string[] = [];
+  let skipped = 0;
+
+  rawRows.forEach((row, index) => {
+    const rowNum = index + 2; // Excel row number (header is row 1)
+    
+    try {
+      const transformed = transformer(row);
+      const result = schema.safeParse(transformed);
+      
+      if (result.success) {
+        records.push(result.data);
+      } else {
+        errors.push(formatZodError(sheetName, rowNum, result.error));
+      }
+    } catch (error) {
+      errors.push(`${sheetName} Row ${rowNum} - ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+
+  return { records, errors, skipped };
+}
 
 export interface ExcelProductRow {
   name?: string;
@@ -409,56 +495,36 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     warnings: [],
   };
 
-  // Parse Products sheet
+  // Parse Products sheet with validation
   if (workbook.SheetNames.includes('Products')) {
     const productsSheet = workbook.Sheets['Products'];
-    const productsData: ExcelProductRow[] = XLSX.utils.sheet_to_json(productsSheet);
+    const rawProductsData: ExcelProductRow[] = XLSX.utils.sheet_to_json(productsSheet);
     
-    productsData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
+    const validationResult = validateSheet('Products', rawProductsData, insertProductSchema, (row: ExcelProductRow) => {
+      // Skip completely blank rows
       if (!row.name || !row.name.trim()) {
-        return;
+        throw new Error('Blank row - skipping');
       }
 
-      if (!row.price || isNaN(Number(row.price))) {
-        result.errors.push(`Products Row ${rowNum}: Invalid or missing price for "${row.name}"`);
-        return;
-      }
-
-      if (!row.description || !row.description.trim()) {
-        result.errors.push(`Products Row ${rowNum}: Missing description for "${row.name}"`);
-        return;
-      }
-
-      const normalizeBool = (val: string | boolean | undefined): boolean => {
-        if (typeof val === 'boolean') return val;
-        if (typeof val === 'string') {
-          const lower = val.toLowerCase().trim();
-          return lower === 'yes' || lower === 'true' || lower === '1';
-        }
-        return false;
-      };
-
-      result.products.push({
+      return {
         name: row.name.trim(),
-        category: (row.category?.trim() || 'wine') as any,
+        category: row.category?.trim() || 'wine',
         type: row.type?.trim() || null,
         varietal: row.varietal?.trim() || null,
         vintageYear: row.vintage_year?.trim() || null,
         region: row.region?.trim() || null,
-        description: row.description.trim(),
+        description: row.description?.trim() || '',
         tastingNotes: row.tasting_notes?.trim() || null,
         foodPairings: row.food_pairings?.trim() || null,
         servingTemp: row.serving_temp?.trim() || null,
         alcoholContent: row.alcohol_content?.trim() || null,
         bottleSize: row.bottle_size?.trim() || null,
-        price: String(Number(row.price).toFixed(2)),
-        cost: row.cost ? String(Number(row.cost).toFixed(2)) : null,
-        wholesalePricing: row.wholesale_pricing ? String(Number(row.wholesale_pricing).toFixed(2)) : null,
+        price: toCurrencyString(row.price),
+        cost: toCurrencyString(row.cost),
+        wholesalePricing: toCurrencyString(row.wholesale_pricing),
         sku: row.sku ? String(row.sku).trim() : null,
-        stockQuantity: row.stock_quantity ? Number(row.stock_quantity) : 0,
-        lowStockThreshold: row.low_stock_threshold ? Number(row.low_stock_threshold) : 10,
+        stockQuantity: toNumber(row.stock_quantity, 0),
+        lowStockThreshold: toNumber(row.low_stock_threshold, 10),
         imageUrl: row.image_url?.trim() || null,
         labelImageUrl: row.label_image_url?.trim() || null,
         lifestyleImageUrl: row.lifestyle_image_url?.trim() || null,
@@ -472,9 +538,12 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
         newArrival: normalizeBool(row.new_arrival),
         staffPick: normalizeBool(row.staff_pick),
         wineOfMonth: normalizeBool(row.wine_of_month),
-        tags: row.tags ? row.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0) : null,
-      });
+        tags: splitTags(row.tags),
+      };
     });
+
+    result.products = validationResult.records;
+    result.errors.push(...validationResult.errors);
   } else {
     result.warnings.push('No Products sheet found in the Excel file');
   }
@@ -482,223 +551,211 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
   // Parse Filter Options sheet
   if (workbook.SheetNames.includes('FilterOptions')) {
     const filterSheet = workbook.Sheets['FilterOptions'];
-    const filterData: any[] = XLSX.utils.sheet_to_json(filterSheet);
+    const rawFilterData: any[] = XLSX.utils.sheet_to_json(filterSheet);
     
-    filterData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.field_type || !row.option_value || !row.display_label) {
-        result.errors.push(`FilterOptions Row ${rowNum}: Missing required fields`);
-        return;
-      }
-
-      result.filterOptions.push({
-        fieldType: row.field_type.trim(),
-        optionValue: row.option_value.trim(),
-        displayLabel: row.display_label.trim(),
-        sortOrder: row.sort_order ? Number(row.sort_order) : 0,
-        isActive: row.is_active ? (typeof row.is_active === 'string' ? row.is_active.toLowerCase() === 'yes' : row.is_active) : true,
-      });
+    const validationResult = validateSheet('FilterOptions', rawFilterData, insertFilterOptionSchema, (row: any) => {
+      return {
+        fieldType: row.field_type?.trim() || '',
+        optionValue: row.option_value?.trim() || '',
+        displayLabel: row.display_label?.trim() || '',
+        sortOrder: toNumber(row.sort_order, 0),
+        isActive: normalizeBool(row.is_active !== undefined ? row.is_active : true),
+      };
     });
+
+    result.filterOptions = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No FilterOptions sheet found in the Excel file');
   }
 
   // Parse Trivia Questions sheet
   if (workbook.SheetNames.includes('TriviaQuestions')) {
     const triviaSheet = workbook.Sheets['TriviaQuestions'];
-    const triviaData: any[] = XLSX.utils.sheet_to_json(triviaSheet);
+    const rawTriviaData: any[] = XLSX.utils.sheet_to_json(triviaSheet);
     
-    triviaData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.question || !row.answer_1 || !row.answer_2) {
-        result.errors.push(`TriviaQuestions Row ${rowNum}: Missing required fields`);
-        return;
-      }
-
+    const validationResult = validateSheet('TriviaQuestions', rawTriviaData, insertTriviaQuestionSchema, (row: any) => {
       const answers = [
         row.answer_1?.trim(),
         row.answer_2?.trim(),
-        row.answer_3?.trim() || null,
-        row.answer_4?.trim() || null,
-      ].filter(a => a !== null);
+        row.answer_3?.trim(),
+        row.answer_4?.trim(),
+      ].filter((a: any) => a && a.length > 0);
 
-      result.triviaQuestions.push({
-        question: row.question.trim(),
+      return {
+        question: row.question?.trim() || '',
         answers,
-        correctIndex: row.correct_index !== undefined ? Number(row.correct_index) : 0,
+        correctIndex: toNumber(row.correct_index, 0),
         explanation: row.explanation?.trim() || '',
         image: row.image?.trim() || null,
-        isActive: row.is_active ? (typeof row.is_active === 'string' ? row.is_active.toLowerCase() === 'yes' : row.is_active) : true,
-      });
+        isActive: normalizeBool(row.is_active !== undefined ? row.is_active : true),
+      };
     });
+
+    result.triviaQuestions = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No TriviaQuestions sheet found in the Excel file');
   }
 
   // Parse Slideshow Images sheet
   if (workbook.SheetNames.includes('SlideshowImages')) {
     const slideshowSheet = workbook.Sheets['SlideshowImages'];
-    const slideshowData: any[] = XLSX.utils.sheet_to_json(slideshowSheet);
+    const rawSlideshowData: any[] = XLSX.utils.sheet_to_json(slideshowSheet);
     
-    slideshowData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.filename) {
-        result.errors.push(`SlideshowImages Row ${rowNum}: Missing filename`);
-        return;
-      }
-
-      result.slideshowImages.push({
-        filename: row.filename.trim(),
+    const validationResult = validateSheet('SlideshowImages', rawSlideshowData, insertSlideshowImageSchema, (row: any) => {
+      return {
+        filename: row.filename?.trim() || null,
+        imageUrl: row.image_url?.trim() || null,
+        title: row.title?.trim() || null,
+        contentHtml: row.content_html?.trim() || null,
         caption: row.caption?.trim() || null,
         description: row.description?.trim() || null,
-        displayOrder: row.display_order ? Number(row.display_order) : 0,
-        isActive: row.is_active ? (typeof row.is_active === 'string' ? row.is_active.toLowerCase() === 'yes' : row.is_active) : true,
-      });
+        displayOrder: toNumber(row.display_order, 0),
+        isActive: normalizeBool(row.is_active !== undefined ? row.is_active : true),
+        isRequired: normalizeBool(row.is_required),
+      };
     });
+
+    result.slideshowImages = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No SlideshowImages sheet found in the Excel file');
   }
 
   // Parse App Settings sheet
   if (workbook.SheetNames.includes('AppSettings')) {
     const settingsSheet = workbook.Sheets['AppSettings'];
-    const settingsData: any[] = XLSX.utils.sheet_to_json(settingsSheet);
+    const rawSettingsData: any[] = XLSX.utils.sheet_to_json(settingsSheet);
     
-    settingsData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.key || !row.value) {
-        result.errors.push(`AppSettings Row ${rowNum}: Missing key or value`);
-        return;
+    const validationResult = validateSheet('AppSettings', rawSettingsData, insertAppSettingSchema, (row: any) => {
+      let parsedValue;
+      try {
+        parsedValue = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      } catch (e) {
+        throw new Error(`Invalid JSON value for key "${row.key}"`);
       }
 
-      try {
-        const parsedValue = JSON.parse(row.value);
-        result.appSettings.push({
-          key: row.key.trim(),
-          value: parsedValue,
-        });
-      } catch (e) {
-        result.errors.push(`AppSettings Row ${rowNum}: Invalid JSON value for key "${row.key}"`);
-      }
+      return {
+        key: row.key?.trim() || '',
+        value: parsedValue,
+      };
     });
+
+    result.appSettings = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No AppSettings sheet found in the Excel file');
   }
 
   // Parse Media Library sheet
   if (workbook.SheetNames.includes('MediaLibrary')) {
     const mediaSheet = workbook.Sheets['MediaLibrary'];
-    const mediaData: any[] = XLSX.utils.sheet_to_json(mediaSheet);
+    const rawMediaData: any[] = XLSX.utils.sheet_to_json(mediaSheet);
     
-    mediaData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.filename || !row.object_path || !row.public_url) {
-        result.errors.push(`MediaLibrary Row ${rowNum}: Missing required fields (filename, object_path, public_url)`);
-        return;
-      }
-
-      result.mediaLibrary.push({
-        filename: row.filename.trim(),
-        originalFilename: row.original_filename?.trim() || row.filename.trim(),
+    const validationResult = validateSheet('MediaLibrary', rawMediaData, insertMediaLibrarySchema, (row: any) => {
+      return {
+        filename: row.filename?.trim() || '',
+        originalFilename: row.original_filename?.trim() || row.filename?.trim() || '',
         mimeType: row.mime_type?.trim() || 'application/octet-stream',
-        fileSize: row.file_size ? Number(row.file_size) : 0,
-        objectPath: row.object_path.trim(),
-        publicUrl: row.public_url.trim(),
+        fileSize: toNumber(row.file_size, 0),
+        objectPath: row.object_path?.trim() || '',
+        publicUrl: row.public_url?.trim() || '',
         category: row.category?.trim() || 'uncategorized',
         description: row.description?.trim() || null,
         altText: row.alt_text?.trim() || null,
-        tags: row.tags ? row.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0) : null,
-      });
+        tags: splitTags(row.tags),
+      };
     });
+
+    result.mediaLibrary = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No MediaLibrary sheet found in the Excel file');
   }
 
   // Parse Whitelisted Emails sheet
   if (workbook.SheetNames.includes('WhitelistedEmails')) {
     const whitelistSheet = workbook.Sheets['WhitelistedEmails'];
-    const whitelistData: any[] = XLSX.utils.sheet_to_json(whitelistSheet);
+    const rawWhitelistData: any[] = XLSX.utils.sheet_to_json(whitelistSheet);
     
-    whitelistData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.email) {
-        result.errors.push(`WhitelistedEmails Row ${rowNum}: Missing email`);
-        return;
-      }
-
-      result.whitelistedEmails.push({
-        email: row.email.trim(),
+    const validationResult = validateSheet('WhitelistedEmails', rawWhitelistData, insertWhitelistedEmailSchema, (row: any) => {
+      return {
+        email: row.email?.trim() || '',
         role: row.role?.trim() || 'viewer',
-      });
+      };
     });
+
+    result.whitelistedEmails = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No WhitelistedEmails sheet found in the Excel file');
   }
 
   // Parse Commercials sheet
   if (workbook.SheetNames.includes('Commercials')) {
     const commercialsSheet = workbook.Sheets['Commercials'];
-    const commercialsData: any[] = XLSX.utils.sheet_to_json(commercialsSheet);
+    const rawCommercialsData: any[] = XLSX.utils.sheet_to_json(commercialsSheet);
     
-    commercialsData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.title) {
-        result.errors.push(`Commercials Row ${rowNum}: Missing title`);
-        return;
-      }
-
-      result.commercials.push({
-        title: row.title.trim(),
+    const validationResult = validateSheet('Commercials', rawCommercialsData, insertCommercialSchema, (row: any) => {
+      return {
+        title: row.title?.trim() || '',
         description: row.description?.trim() || null,
-        imageUrl: row.imageUrl?.trim() || null,
-        sortOrder: row.sortOrder ? Number(row.sortOrder) : 0,
-        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
-      });
+        imageUrl: row.image_url?.trim() || row.imageUrl?.trim() || '',
+        sortOrder: toNumber(row.sort_order || row.sortOrder, 0),
+        isActive: normalizeBool(row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true)),
+      };
     });
+
+    result.commercials = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No Commercials sheet found in the Excel file');
   }
 
   // Parse Videos sheet
   if (workbook.SheetNames.includes('Videos')) {
     const videosSheet = workbook.Sheets['Videos'];
-    const videosData: any[] = XLSX.utils.sheet_to_json(videosSheet);
+    const rawVideosData: any[] = XLSX.utils.sheet_to_json(videosSheet);
     
-    videosData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.name || !row.videoUrl) {
-        result.errors.push(`Videos Row ${rowNum}: Missing name or videoUrl`);
-        return;
-      }
-
-      result.videos.push({
-        name: row.name.trim(),
+    const validationResult = validateSheet('Videos', rawVideosData, insertVideoSchema, (row: any) => {
+      return {
+        title: row.title?.trim() || row.name?.trim() || '',
         description: row.description?.trim() || null,
-        videoUrl: row.videoUrl.trim(),
-        thumbnailUrl: row.thumbnailUrl?.trim() || null,
-        category: row.category?.trim() || 'general',
-        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
-        sortOrder: row.sortOrder ? Number(row.sortOrder) : 0,
-      });
+        videoUrl: row.video_url?.trim() || row.videoUrl?.trim() || '',
+        thumbnailUrl: row.thumbnail_url?.trim() || row.thumbnailUrl?.trim() || null,
+        duration: row.duration?.trim() || null,
+        sortOrder: toNumber(row.sort_order || row.sortOrder, 0),
+        isActive: normalizeBool(row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true)),
+      };
     });
+
+    result.videos = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No Videos sheet found in the Excel file');
   }
 
   // Parse Trivia Achievements sheet
   if (workbook.SheetNames.includes('TriviaAchievements')) {
     const achievementsSheet = workbook.Sheets['TriviaAchievements'];
-    const achievementsData: any[] = XLSX.utils.sheet_to_json(achievementsSheet);
+    const rawAchievementsData: any[] = XLSX.utils.sheet_to_json(achievementsSheet);
     
-    achievementsData.forEach((row, index) => {
-      const rowNum = index + 2;
-      
-      if (!row.scoreThreshold || !row.rewardType || !row.rewardValue || !row.rewardLabel) {
-        result.errors.push(`TriviaAchievements Row ${rowNum}: Missing required fields`);
-        return;
-      }
-
-      result.triviaAchievements.push({
-        scoreThreshold: Number(row.scoreThreshold),
-        rewardType: row.rewardType.trim(),
-        rewardValue: String(row.rewardValue),
-        rewardLabel: row.rewardLabel.trim(),
-        message: row.message?.trim() || null,
-        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
-      });
+    const validationResult = validateSheet('TriviaAchievements', rawAchievementsData, insertTriviaAchievementSchema, (row: any) => {
+      return {
+        scoreThreshold: toNumber(row.score_threshold || row.scoreThreshold),
+        rewardType: (row.reward_type?.trim() || row.rewardType?.trim() || '') as any,
+        rewardValue: toCurrencyString(row.reward_value || row.rewardValue) || '0',
+        achievementMessage: row.achievement_message?.trim() || row.achievementMessage?.trim() || row.message?.trim() || '',
+        enabled: normalizeBool(row.enabled !== undefined ? row.enabled : (row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true))),
+        displayOrder: toNumber(row.display_order || row.displayOrder, 0),
+      };
     });
+
+    result.triviaAchievements = validationResult.records;
+    result.errors.push(...validationResult.errors);
+  } else {
+    result.warnings.push('No TriviaAchievements sheet found in the Excel file');
   }
 
   return result;

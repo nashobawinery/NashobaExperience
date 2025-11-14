@@ -60,6 +60,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
@@ -510,6 +511,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         (result.triviaQuestions?.failed || 0) + (result.slideshowImages?.failed || 0) + 
         (result.appSettings?.failed || 0);
       
+      // Store detailed errors for display
+      setImportErrors(result.errors || []);
+      
       if (totalFailed === 0) {
         toast({ 
           title: "Import Successful", 
@@ -518,7 +522,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       } else {
         toast({ 
           title: "Import Completed with Some Errors", 
-          description: `${totalSuccess} items imported, ${totalFailed} failed`,
+          description: `${totalSuccess} items imported, ${totalFailed} failed. See detailed errors below.`,
           variant: "destructive"
         });
       }
@@ -850,6 +854,27 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       {importAllDataMutation.isPending ? "Importing..." : "Import All Data"}
                     </Button>
                   </div>
+
+                  {importErrors.length > 0 && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-h-96 overflow-y-auto">
+                      <h4 className="font-medium text-destructive mb-3 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        Import Errors ({importErrors.length})
+                      </h4>
+                      <div className="space-y-1" data-testid="list-import-errors">
+                        {importErrors.slice(0, 50).map((error, index) => (
+                          <div key={index} className="text-sm text-muted-foreground font-mono bg-background/50 p-2 rounded">
+                            {error}
+                          </div>
+                        ))}
+                        {importErrors.length > 50 && (
+                          <p className="text-sm text-muted-foreground mt-2 font-medium">
+                            ... and {importErrors.length - 50} more errors
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {uploadResult && (
                     <div className="space-y-4">
