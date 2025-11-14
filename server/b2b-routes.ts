@@ -42,6 +42,44 @@ router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
   }
 });
 
+// Public route: One-time admin setup (creates default admin if none exists)
+router.post('/api/b2b/setup-admin', async (req: Request, res: Response) => {
+  try {
+    // Check if any admin already exists
+    const admins = await storage.getAllB2bAdmins();
+    
+    if (admins.length > 0) {
+      return res.status(400).json({ 
+        error: 'Admin account already exists',
+        message: 'An admin account has already been created. Please use the login page.'
+      });
+    }
+
+    // Create the default admin
+    const passwordHash = await hashPassword('admin123');
+    const admin = await storage.createB2bAdmin({
+      firstName: 'B2B',
+      lastName: 'Admin',
+      email: 'admin@nashobawinery.com',
+      passwordHash,
+      active: true,
+    });
+
+    res.json({ 
+      success: true,
+      message: 'Admin account created successfully!',
+      credentials: {
+        email: 'admin@nashobawinery.com',
+        password: 'admin123',
+        warning: 'Please change this password immediately after logging in!'
+      }
+    });
+  } catch (error) {
+    console.error('Setup admin error:', error);
+    res.status(500).json({ error: 'Failed to create admin account' });
+  }
+});
+
 // Public route: Get all products with all tier pricing
 router.get('/api/b2b/pricing', async (req: Request, res: Response) => {
   try {
