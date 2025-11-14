@@ -482,7 +482,7 @@ export const insertSalesRepSchema = createInsertSchema(salesReps).omit({ id: tru
 export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
-export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true });
+export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
 
 // Types

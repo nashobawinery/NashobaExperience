@@ -998,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
@@ -1008,6 +1008,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getCommercials(),
         storage.getVideos(),
         storage.getTriviaAchievements(),
+        // B2B data
+        storage.getAllTierPricing(),
+        storage.getAllSalesReps(),
+        storage.getAllB2bCustomers(),
       ]);
 
       const appSettingsData: any[] = [];
@@ -1024,6 +1028,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Ignore if settings don't exist
       }
 
+      // Fetch B2B orders with items (getAllB2bOrders returns orders with customer but not items)
+      const allOrders = await storage.getAllB2bOrders();
+      const b2bOrders: any[] = [];
+      const b2bOrderItems: any[] = [];
+      
+      for (const orderWithCustomer of allOrders) {
+        const fullOrder = await storage.getB2bOrder(orderWithCustomer.id);
+        if (fullOrder) {
+          // Extract core order fields (exclude customer and items from the order object)
+          const { customer, items, ...coreOrder } = fullOrder;
+          b2bOrders.push(coreOrder);
+          b2bOrderItems.push(...items);
+        }
+      }
+
       const { exportAllDataToExcel } = await import("./excel-import");
       const buffer = exportAllDataToExcel({
         products,
@@ -1036,6 +1055,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         commercials,
         videos,
         triviaAchievements,
+        // B2B data
+        tierPricing,
+        salesReps,
+        b2bCustomers: b2bCustomers.map(c => c), // Already has tier and salesRep joined
+        b2bOrders,
+        b2bOrderItems,
       });
       
       const timestamp = new Date().toISOString().split('T')[0];
@@ -1109,6 +1134,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         commercials: { success: 0, failed: 0 },
         videos: { success: 0, failed: 0 },
         triviaAchievements: { success: 0, failed: 0 },
+        tierPricing: { success: 0, failed: 0 },
+        salesReps: { success: 0, failed: 0 },
+        b2bCustomers: { success: 0, failed: 0 },
+        b2bOrders: { success: 0, failed: 0 },
+        b2bOrderItems: { success: 0, failed: 0 },
         errors: [...parseResult.errors],
         warnings: [...parseResult.warnings],
       };
@@ -1238,14 +1268,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // B2B DATA IMPORT - Process in dependency order
+      // 1. Import tier pricing (independent)
+      const tierNameToId = new Map<string, string>();
+      for (const tier of parseResult.tierPricing) {
+        try {
+          const { tierPricing: upserted } = await storage.upsertTierPricing(tier);
+          tierNameToId.set(tier.tierName.toLowerCase().trim(), upserted.id);
+          results.tierPricing.success++;
+        } catch (error) {
+          results.tierPricing.failed++;
+          results.errors.push(`Tier "${tier.tierName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 2. Import sales reps (independent)
+      const salesRepEmailToId = new Map<string, string>();
+      for (const rep of parseResult.salesReps) {
+        try {
+          const { salesRep: upserted } = await storage.upsertSalesRep(rep);
+          salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
+          results.salesReps.success++;
+        } catch (error) {
+          results.salesReps.failed++;
+          results.errors.push(`Sales Rep "${rep.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Build product SKU lookup map for order items
+      const productSkuToId = new Map<string, string>();
+      const allProducts = await storage.getProducts({});
+      for (const prod of allProducts) {
+        if (prod.sku) {
+          productSkuToId.set(prod.sku.toLowerCase().trim(), prod.id);
+        }
+      }
+
+      // 3. Import B2B customers (depends on tiers and sales reps)
+      for (const customer of parseResult.b2bCustomers) {
+        try {
+          // Resolve FK: tier name → tier ID
+          let pricingTierId: string | null = null;
+          if (customer.pricingTierName) {
+            const tierId = tierNameToId.get(customer.pricingTierName.toLowerCase().trim());
+            if (!tierId) {
+              throw new Error(`Tier "${customer.pricingTierName}" not found`);
+            }
+            pricingTierId = tierId;
+          }
+
+          // Resolve FK: sales rep email → sales rep ID
+          let salesRepId: string | null = null;
+          if (customer.salesRepEmail) {
+            const repId = salesRepEmailToId.get(customer.salesRepEmail.toLowerCase().trim());
+            if (!repId) {
+              throw new Error(`Sales Rep "${customer.salesRepEmail}" not found`);
+            }
+            salesRepId = repId;
+          }
+
+          // Prepare customer data with resolved FKs
+          const customerData = {
+            ...customer,
+            pricingTierId,
+            salesRepId,
+          };
+          delete (customerData as any).pricingTierName;
+          delete (customerData as any).salesRepEmail;
+
+          const upserted = await storage.upsertB2bCustomer(customerData);
+          results.b2bCustomers.success++;
+        } catch (error) {
+          results.b2bCustomers.failed++;
+          results.errors.push(`B2B Customer "${customer.emailAddress}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 4. Import B2B orders with their items (depends on customers and products)
+      // Group items by order number first
+      const itemsByOrderNumber = new Map<string, any[]>();
+      for (const item of parseResult.b2bOrderItems) {
+        const orderKey = item.orderNumber.toLowerCase().trim();
+        if (!itemsByOrderNumber.has(orderKey)) {
+          itemsByOrderNumber.set(orderKey, []);
+        }
+        itemsByOrderNumber.get(orderKey)!.push(item);
+      }
+
+      const orderNumberToId = new Map<string, string>();
+      for (const order of parseResult.b2bOrders) {
+        try {
+          // Resolve FK: customer email → customer ID
+          const customer = await storage.getB2bCustomerByEmail(order.customerEmail);
+          if (!customer) {
+            throw new Error(`Customer "${order.customerEmail}" not found`);
+          }
+
+          // Prepare order data with resolved FK
+          const orderData = {
+            ...order,
+            customerId: customer.id,
+          };
+          delete (orderData as any).customerEmail;
+
+          // Get items for this order and resolve their FKs
+          const rawItems = itemsByOrderNumber.get(order.orderNumber.toLowerCase().trim()) || [];
+          const resolvedItems = [];
+          
+          for (const item of rawItems) {
+            // Resolve FK: product SKU → product ID
+            const productId = productSkuToId.get(item.productSku.toLowerCase().trim());
+            if (!productId) {
+              throw new Error(`Product SKU "${item.productSku}" not found`);
+            }
+
+            // Find product to get name
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) {
+              throw new Error(`Product ID "${productId}" not found in product list`);
+            }
+
+            const itemData = {
+              productId,
+              productName: product.name,
+              sku: product.sku,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              retailPrice: item.retailPrice,
+              lineTotal: item.lineTotal,
+            };
+            resolvedItems.push(itemData);
+            results.b2bOrderItems.success++;
+          }
+
+          // Upsert order with items (orderId will be added by storage layer)
+          const { order: upserted } = await storage.upsertB2bOrder(orderData, resolvedItems);
+          orderNumberToId.set(order.orderNumber.toLowerCase().trim(), upserted.id);
+          results.b2bOrders.success++;
+        } catch (error) {
+          results.b2bOrders.failed++;
+          results.errors.push(`B2B Order "${order.orderNumber}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       const totalSuccess = results.products.success + results.filterOptions.success + 
         results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success + 
         results.mediaLibrary.success + results.whitelistedEmails.success + results.commercials.success + 
-        results.videos.success + results.triviaAchievements.success;
+        results.videos.success + results.triviaAchievements.success + results.tierPricing.success + 
+        results.salesReps.success + results.b2bCustomers.success + results.b2bOrders.success + results.b2bOrderItems.success;
       const totalFailed = results.products.failed + results.filterOptions.failed + 
         results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed + 
         results.mediaLibrary.failed + results.whitelistedEmails.failed + results.commercials.failed + 
-        results.videos.failed + results.triviaAchievements.failed;
+        results.videos.failed + results.triviaAchievements.failed + results.tierPricing.failed + 
+        results.salesReps.failed + results.b2bCustomers.failed + results.b2bOrders.failed + results.b2bOrderItems.failed;
 
       const message = totalSuccess > 0
         ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`
