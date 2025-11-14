@@ -1112,36 +1112,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Import filter options
+      // Import filter options (skip duplicates)
       for (const filter of parseResult.filterOptions) {
         try {
           await storage.createFilterOption(filter);
           results.filterOptions.success++;
         } catch (error) {
-          results.filterOptions.failed++;
-          results.errors.push(`Filter "${filter.displayLabel}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.filterOptions.success++; // Already exists, count as success
+          } else {
+            results.filterOptions.failed++;
+            results.errors.push(`Filter "${filter.displayLabel}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import trivia questions
+      // Import trivia questions (skip duplicates)
       for (const trivia of parseResult.triviaQuestions) {
         try {
           await storage.createTriviaQuestion(trivia);
           results.triviaQuestions.success++;
         } catch (error) {
-          results.triviaQuestions.failed++;
-          results.errors.push(`Trivia: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.triviaQuestions.success++; // Already exists, count as success
+          } else {
+            results.triviaQuestions.failed++;
+            results.errors.push(`Trivia: ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import slideshow images
+      // Import slideshow images (skip duplicates)
       for (const image of parseResult.slideshowImages) {
         try {
           await storage.createSlideshowImage(image);
           results.slideshowImages.success++;
         } catch (error) {
-          results.slideshowImages.failed++;
-          results.errors.push(`Slideshow Image "${image.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.slideshowImages.success++; // Already exists, count as success
+          } else {
+            results.slideshowImages.failed++;
+            results.errors.push(`Slideshow Image "${image.filename}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
@@ -1156,58 +1171,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Import media library
+      // Import media library (skip duplicates)
       for (const media of parseResult.mediaLibrary) {
         try {
           await storage.createMediaLibraryFile(media);
           results.mediaLibrary.success++;
         } catch (error) {
-          results.mediaLibrary.failed++;
-          results.errors.push(`Media file "${media.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.mediaLibrary.success++; // Already exists, count as success
+          } else {
+            results.mediaLibrary.failed++;
+            results.errors.push(`Media file "${media.filename}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import whitelisted emails
+      // Import whitelisted emails (skip duplicates)
       for (const email of parseResult.whitelistedEmails) {
         try {
           await storage.addWhitelistedEmail(email);
           results.whitelistedEmails.success++;
         } catch (error) {
-          results.whitelistedEmails.failed++;
-          results.errors.push(`Whitelisted email "${email.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.whitelistedEmails.success++; // Already exists, count as success
+          } else {
+            results.whitelistedEmails.failed++;
+            results.errors.push(`Whitelisted email "${email.email}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import commercials
+      // Import commercials (skip duplicates)
       for (const commercial of parseResult.commercials) {
         try {
           await storage.createCommercial(commercial);
           results.commercials.success++;
         } catch (error) {
-          results.commercials.failed++;
-          results.errors.push(`Commercial "${commercial.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.commercials.success++; // Already exists, count as success
+          } else {
+            results.commercials.failed++;
+            results.errors.push(`Commercial "${commercial.title}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import videos
+      // Import videos (skip duplicates)
       for (const video of parseResult.videos) {
         try {
           await storage.createVideo(video);
           results.videos.success++;
         } catch (error) {
-          results.videos.failed++;
-          results.errors.push(`Video "${video.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.videos.success++; // Already exists, count as success
+          } else {
+            results.videos.failed++;
+            results.errors.push(`Video "${video.name}": ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
-      // Import trivia achievements
+      // Import trivia achievements (skip duplicates)
       for (const achievement of parseResult.triviaAchievements) {
         try {
           await storage.createTriviaAchievement(achievement);
           results.triviaAchievements.success++;
         } catch (error) {
-          results.triviaAchievements.failed++;
-          results.errors.push(`Trivia achievement (${achievement.scoreThreshold} points): ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = error instanceof Error ? error.message : '';
+          if (errorMsg.includes('duplicate key value violates unique constraint')) {
+            results.triviaAchievements.success++; // Already exists, count as success
+          } else {
+            results.triviaAchievements.failed++;
+            results.errors.push(`Trivia achievement (${achievement.scoreThreshold} points): ${errorMsg || 'Unknown error'}`);
+          }
         }
       }
 
