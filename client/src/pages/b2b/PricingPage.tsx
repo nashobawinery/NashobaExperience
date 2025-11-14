@@ -6,12 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Lock, Wine, TrendingDown, Package, Clock, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useB2bAdminTiers } from "@/hooks/useB2bAdmin";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function B2BPricingPage() {
   const [, setLocation] = useLocation();
   const [accessCode, setAccessCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
+  const { data: allTiers, isLoading: loadingTiers } = useB2bAdminTiers();
+  
+  // Filter for active tiers only
+  const activeTiers = allTiers?.filter(tier => tier.active) || [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,14 +81,6 @@ export default function B2BPricingPage() {
     },
   ];
 
-  const tiers = [
-    { name: "Tier 1", discount: "10% off", volume: "Small accounts" },
-    { name: "Tier 2", discount: "20% off", volume: "Growing partners" },
-    { name: "Tier 3", discount: "30% off", volume: "Established clients" },
-    { name: "Tier 4", discount: "40% off", volume: "Major distributors" },
-    { name: "Tier 5", discount: "50% off", volume: "Premium partners" },
-    { name: "Tier 6", discount: "60% off", volume: "Exclusive tier" },
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
@@ -129,22 +127,34 @@ export default function B2BPricingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {tiers.map((tier, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                  >
-                    <div>
-                      <p className="font-medium">{tier.name}</p>
-                      <p className="text-sm text-muted-foreground">{tier.volume}</p>
+              {loadingTiers ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : activeTiers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No active pricing tiers available at this time
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {activeTiers.map((tier) => (
+                    <div
+                      key={tier.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                    >
+                      <div>
+                        <p className="font-medium">{tier.tierName}</p>
+                        <p className="text-sm text-muted-foreground">Wholesale pricing</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-primary">{tier.discountPercentage}% off</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-primary">{tier.discount}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

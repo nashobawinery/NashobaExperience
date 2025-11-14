@@ -702,14 +702,16 @@ export default function AdminDashboard() {
                 <SelectContent>
                   {loadingTiers ? (
                     <div className="p-2 text-sm text-muted-foreground">Loading tiers...</div>
-                  ) : !tiers || tiers.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">No tiers available</div>
+                  ) : !tiers || tiers.filter(t => t.active).length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No active tiers available</div>
                   ) : (
-                    tiers.map((tier) => (
-                      <SelectItem key={tier.id} value={tier.id}>
-                        {tier.tierName} ({tier.discountPercentage}% off)
-                      </SelectItem>
-                    ))
+                    tiers
+                      .filter(tier => tier.active)
+                      .map((tier) => (
+                        <SelectItem key={tier.id} value={tier.id}>
+                          {tier.tierName} ({tier.discountPercentage}% off)
+                        </SelectItem>
+                      ))
                   )}
                 </SelectContent>
               </Select>
