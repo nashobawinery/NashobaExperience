@@ -13,11 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Building, ArrowLeft } from "lucide-react";
 
 const registrationSchema = z.object({
-  accountName: z.string().min(2, "Account name must be at least 2 characters"),
+  accountName: z.string().min(2, "Business name must be at least 2 characters"),
+  primaryContactName: z.string().min(2, "Contact name must be at least 2 characters"),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
-  businessAddress: z.string().min(5, "Business address is required"),
-  businessType: z.string().min(1, "Please select a business type"),
+  billingAddress: z.string().min(5, "Business address is required"),
   taxId: z.string().optional(),
 });
 
@@ -40,10 +40,10 @@ export default function RegistrationPage() {
     resolver: zodResolver(registrationSchema),
     defaultValues: {
       accountName: "",
+      primaryContactName: "",
       emailAddress: "",
       phoneNumber: "",
-      businessAddress: "",
-      businessType: "",
+      billingAddress: "",
       taxId: "",
     },
   });
@@ -127,6 +127,24 @@ export default function RegistrationPage() {
 
                 <FormField
                   control={form.control}
+                  name="primaryContactName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Name *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Primary contact name"
+                          data-testid="input-contact-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="emailAddress"
                   render={({ field }) => (
                     <FormItem>
@@ -165,32 +183,7 @@ export default function RegistrationPage() {
 
                 <FormField
                   control={form.control}
-                  name="businessType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Business Type *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-business-type">
-                            <SelectValue placeholder="Select business type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="restaurant">Restaurant</SelectItem>
-                          <SelectItem value="retail">Retail Store</SelectItem>
-                          <SelectItem value="distributor">Distributor</SelectItem>
-                          <SelectItem value="hotel">Hotel/Hospitality</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="businessAddress"
+                  name="billingAddress"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Business Address *</FormLabel>
@@ -199,7 +192,7 @@ export default function RegistrationPage() {
                           {...field}
                           placeholder="123 Main St, City, State, ZIP"
                           rows={3}
-                          data-testid="input-address"
+                          data-testid="input-billing-address"
                         />
                       </FormControl>
                       <FormMessage />

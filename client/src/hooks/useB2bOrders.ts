@@ -39,11 +39,11 @@ export function useB2bCheckout() {
 
   return useMutation({
     mutationFn: async (orderData: { items: { productId: string; quantity: number }[] }) => {
-      return apiRequest("/api/b2b/customer/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orderData),
-      });
+      return apiRequest(
+        "POST",
+        "/api/b2b/customer/checkout",
+        orderData
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "orders"] });

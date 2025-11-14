@@ -34,7 +34,8 @@ router.use(createB2bSessionMiddleware());
 router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
   const { code } = req.body;
   
-  if (code === 'B2BNashoba') {
+  // Accept WHOLESALE2025 as the valid access code
+  if (code === 'WHOLESALE2025') {
     res.json({ valid: true });
   } else {
     res.json({ valid: false });

@@ -331,6 +331,28 @@ export async function seedDatabase() {
   console.log("Starting database seed...");
 
   try {
+    // Seed B2B pricing tiers (must be FIRST, as they're referenced by foreign keys)
+    console.log("Checking B2B pricing tiers...");
+    const existingTiers = await storage.getAllTierPricing();
+    
+    if (existingTiers.length === 0) {
+      console.log("Seeding B2B pricing tiers...");
+      const tiers = [
+        { id: "tier1", tierName: "Tier 1", description: "Small accounts - 10% wholesale discount", discountPercentage: "10.00", sortOrder: 1 },
+        { id: "tier2", tierName: "Tier 2", description: "Growing partners - 20% wholesale discount", discountPercentage: "20.00", sortOrder: 2 },
+        { id: "tier3", tierName: "Tier 3", description: "Established clients - 30% wholesale discount", discountPercentage: "30.00", sortOrder: 3 },
+        { id: "tier4", tierName: "Tier 4", description: "Major distributors - 40% wholesale discount", discountPercentage: "40.00", sortOrder: 4 },
+        { id: "tier5", tierName: "Tier 5", description: "Premium partners - 50% wholesale discount", discountPercentage: "50.00", sortOrder: 5 },
+        { id: "tier6", tierName: "Tier 6", description: "Exclusive partners - 60% wholesale discount", discountPercentage: "60.00", sortOrder: 6 },
+      ];
+      for (const tier of tiers) {
+        await storage.createTierPricing(tier);
+      }
+      console.log(`✓ Seeded ${tiers.length} B2B pricing tiers`);
+    } else {
+      console.log(`✓ B2B pricing tiers already exist (${existingTiers.length} tiers)`);
+    }
+
     // Seed products
     console.log("Seeding products...");
     for (const product of seedProducts) {

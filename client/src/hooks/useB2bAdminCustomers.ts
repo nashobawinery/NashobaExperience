@@ -44,11 +44,11 @@ export function useB2bApproveCustomer() {
       tierId: string;
       salesRepId?: string;
     }) => {
-      return apiRequest(`/api/b2b/admin/customers/${customerId}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tierId, salesRepId }),
-      });
+      return apiRequest(
+        "POST",
+        `/api/b2b/admin/customers/${customerId}/approve`,
+        { tierId, salesRepId }
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
@@ -67,11 +67,11 @@ export function useB2bRejectCustomer() {
       customerId: string;
       reason: string;
     }) => {
-      return apiRequest(`/api/b2b/admin/customers/${customerId}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
+      return apiRequest(
+        "POST",
+        `/api/b2b/admin/customers/${customerId}/reject`,
+        { reason }
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
