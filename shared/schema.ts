@@ -99,6 +99,7 @@ export const products = pgTable("products", {
   staffPick: boolean("staff_pick").notNull().default(false),
   wineOfMonth: boolean("wine_of_month").notNull().default(false),
   tags: text("tags").array(),
+  caseSize: integer("case_size").notNull().default(12),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
