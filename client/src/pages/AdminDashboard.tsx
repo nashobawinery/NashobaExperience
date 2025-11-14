@@ -295,11 +295,24 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const handleSaveProduct = () => {
     if (editProductId && editProductData) {
       // Join selected characteristics into comma-separated string
+      // Process tags: if it's a string, split by comma; if already array, keep as-is
+      let processedTags: string[] | null = null;
+      const tagsValue: any = editProductData.tags;
+      if (tagsValue) {
+        if (typeof tagsValue === 'string') {
+          const tagArray = (tagsValue as string).split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0);
+          processedTags = tagArray.length > 0 ? tagArray : null;
+        } else if (Array.isArray(tagsValue)) {
+          processedTags = (tagsValue as string[]).length > 0 ? tagsValue as string[] : null;
+        }
+      }
+      
       const updatedData = {
         ...editProductData,
         characteristics: selectedCharacteristics.length > 0 
           ? selectedCharacteristics.join(', ') 
-          : null
+          : null,
+        tags: processedTags
       };
       
       updateProductMutation.mutate({ 
@@ -2046,12 +2059,13 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 <Label htmlFor="edit-tags">Tags (comma-separated)</Label>
                 <Input
                   id="edit-tags"
-                  value={Array.isArray(editProductData.tags) ? editProductData.tags.join(', ') : ''}
+                  value={Array.isArray(editProductData.tags) ? editProductData.tags.join(', ') : editProductData.tags || ''}
                   onChange={(e) => setEditProductData({ 
                     ...editProductData, 
-                    tags: e.target.value.split(',').map(t => t.trim()).filter(t => t)
+                    tags: e.target.value as any
                   })}
                   placeholder="e.g., organic, local, award-winning"
+                  data-testid="input-tags"
                 />
               </div>
             </div>
