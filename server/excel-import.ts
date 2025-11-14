@@ -223,6 +223,10 @@ export function exportAllDataToExcel(data: {
   slideshowImages: any[];
   appSettings: any[];
   mediaLibrary: any[];
+  whitelistedEmails: any[];
+  commercials: any[];
+  videos: any[];
+  triviaAchievements: any[];
 }): Buffer {
   const workbook = XLSX.utils.book_new();
 
@@ -325,6 +329,50 @@ export function exportAllDataToExcel(data: {
   const mediaSheet = XLSX.utils.json_to_sheet(mediaData);
   XLSX.utils.book_append_sheet(workbook, mediaSheet, 'MediaLibrary');
 
+  // Whitelisted Emails sheet
+  const whitelistData = data.whitelistedEmails.map(email => ({
+    email: email.email,
+    role: email.role,
+  }));
+  const whitelistSheet = XLSX.utils.json_to_sheet(whitelistData);
+  XLSX.utils.book_append_sheet(workbook, whitelistSheet, 'WhitelistedEmails');
+
+  // Commercials sheet
+  const commercialsData = data.commercials.map(commercial => ({
+    title: commercial.title,
+    description: commercial.description || '',
+    imageUrl: commercial.imageUrl || '',
+    sortOrder: commercial.sortOrder,
+    isActive: commercial.isActive ? 'Yes' : 'No',
+  }));
+  const commercialsSheet = XLSX.utils.json_to_sheet(commercialsData);
+  XLSX.utils.book_append_sheet(workbook, commercialsSheet, 'Commercials');
+
+  // Videos sheet
+  const videosData = data.videos.map(video => ({
+    name: video.name,
+    description: video.description || '',
+    videoUrl: video.videoUrl,
+    thumbnailUrl: video.thumbnailUrl || '',
+    category: video.category,
+    isActive: video.isActive ? 'Yes' : 'No',
+    sortOrder: video.sortOrder,
+  }));
+  const videosSheet = XLSX.utils.json_to_sheet(videosData);
+  XLSX.utils.book_append_sheet(workbook, videosSheet, 'Videos');
+
+  // Trivia Achievements sheet
+  const achievementsData = data.triviaAchievements.map(achievement => ({
+    scoreThreshold: achievement.scoreThreshold,
+    rewardType: achievement.rewardType,
+    rewardValue: achievement.rewardValue,
+    rewardLabel: achievement.rewardLabel,
+    message: achievement.message || '',
+    isActive: achievement.isActive ? 'Yes' : 'No',
+  }));
+  const achievementsSheet = XLSX.utils.json_to_sheet(achievementsData);
+  XLSX.utils.book_append_sheet(workbook, achievementsSheet, 'TriviaAchievements');
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -336,6 +384,10 @@ export interface ParseAllDataResult {
   slideshowImages: any[];
   appSettings: any[];
   mediaLibrary: any[];
+  whitelistedEmails: any[];
+  commercials: any[];
+  videos: any[];
+  triviaAchievements: any[];
   errors: string[];
   warnings: string[];
 }
@@ -349,6 +401,10 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     slideshowImages: [],
     appSettings: [],
     mediaLibrary: [],
+    whitelistedEmails: [],
+    commercials: [],
+    videos: [],
+    triviaAchievements: [],
     errors: [],
     warnings: [],
   };
@@ -549,6 +605,98 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
         description: row.description?.trim() || null,
         altText: row.alt_text?.trim() || null,
         tags: row.tags ? row.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0) : null,
+      });
+    });
+  }
+
+  // Parse Whitelisted Emails sheet
+  if (workbook.SheetNames.includes('WhitelistedEmails')) {
+    const whitelistSheet = workbook.Sheets['WhitelistedEmails'];
+    const whitelistData: any[] = XLSX.utils.sheet_to_json(whitelistSheet);
+    
+    whitelistData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      if (!row.email) {
+        result.errors.push(`WhitelistedEmails Row ${rowNum}: Missing email`);
+        return;
+      }
+
+      result.whitelistedEmails.push({
+        email: row.email.trim(),
+        role: row.role?.trim() || 'viewer',
+      });
+    });
+  }
+
+  // Parse Commercials sheet
+  if (workbook.SheetNames.includes('Commercials')) {
+    const commercialsSheet = workbook.Sheets['Commercials'];
+    const commercialsData: any[] = XLSX.utils.sheet_to_json(commercialsSheet);
+    
+    commercialsData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      if (!row.title) {
+        result.errors.push(`Commercials Row ${rowNum}: Missing title`);
+        return;
+      }
+
+      result.commercials.push({
+        title: row.title.trim(),
+        description: row.description?.trim() || null,
+        imageUrl: row.imageUrl?.trim() || null,
+        sortOrder: row.sortOrder ? Number(row.sortOrder) : 0,
+        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
+      });
+    });
+  }
+
+  // Parse Videos sheet
+  if (workbook.SheetNames.includes('Videos')) {
+    const videosSheet = workbook.Sheets['Videos'];
+    const videosData: any[] = XLSX.utils.sheet_to_json(videosSheet);
+    
+    videosData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      if (!row.name || !row.videoUrl) {
+        result.errors.push(`Videos Row ${rowNum}: Missing name or videoUrl`);
+        return;
+      }
+
+      result.videos.push({
+        name: row.name.trim(),
+        description: row.description?.trim() || null,
+        videoUrl: row.videoUrl.trim(),
+        thumbnailUrl: row.thumbnailUrl?.trim() || null,
+        category: row.category?.trim() || 'general',
+        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
+        sortOrder: row.sortOrder ? Number(row.sortOrder) : 0,
+      });
+    });
+  }
+
+  // Parse Trivia Achievements sheet
+  if (workbook.SheetNames.includes('TriviaAchievements')) {
+    const achievementsSheet = workbook.Sheets['TriviaAchievements'];
+    const achievementsData: any[] = XLSX.utils.sheet_to_json(achievementsSheet);
+    
+    achievementsData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      if (!row.scoreThreshold || !row.rewardType || !row.rewardValue || !row.rewardLabel) {
+        result.errors.push(`TriviaAchievements Row ${rowNum}: Missing required fields`);
+        return;
+      }
+
+      result.triviaAchievements.push({
+        scoreThreshold: Number(row.scoreThreshold),
+        rewardType: row.rewardType.trim(),
+        rewardValue: String(row.rewardValue),
+        rewardLabel: row.rewardLabel.trim(),
+        message: row.message?.trim() || null,
+        isActive: row.isActive ? (typeof row.isActive === 'string' ? row.isActive.toLowerCase() === 'yes' : row.isActive) : true,
       });
     });
   }

@@ -932,19 +932,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
         storage.getSlideshowImages(),
         storage.getMediaLibraryFiles(),
+        storage.getWhitelistedEmails(),
+        storage.getCommercials(),
+        storage.getVideos(),
+        storage.getTriviaAchievements(),
       ]);
 
       const appSettingsData: any[] = [];
       try {
-        const discounts = await storage.getSetting('discountTiers');
+        const discounts = await storage.getSetting('discount_tiers');
         if (discounts) {
           appSettingsData.push(discounts);
+        }
+        const cannedDiscounts = await storage.getSetting('canned_discount_tiers');
+        if (cannedDiscounts) {
+          appSettingsData.push(cannedDiscounts);
         }
       } catch (e) {
         // Ignore if settings don't exist
@@ -958,6 +966,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         slideshowImages,
         appSettings: appSettingsData,
         mediaLibrary,
+        whitelistedEmails,
+        commercials,
+        videos,
+        triviaAchievements,
       });
       
       const timestamp = new Date().toISOString().split('T')[0];
@@ -1027,6 +1039,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         slideshowImages: { success: 0, failed: 0 },
         appSettings: { success: 0, failed: 0 },
         mediaLibrary: { success: 0, failed: 0 },
+        whitelistedEmails: { success: 0, failed: 0 },
+        commercials: { success: 0, failed: 0 },
+        videos: { success: 0, failed: 0 },
+        triviaAchievements: { success: 0, failed: 0 },
         errors: [...parseResult.errors],
         warnings: [...parseResult.warnings],
       };
@@ -1097,12 +1113,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Import whitelisted emails
+      for (const email of parseResult.whitelistedEmails) {
+        try {
+          await storage.addWhitelistedEmail(email);
+          results.whitelistedEmails.success++;
+        } catch (error) {
+          results.whitelistedEmails.failed++;
+          results.errors.push(`Whitelisted email "${email.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import commercials
+      for (const commercial of parseResult.commercials) {
+        try {
+          await storage.createCommercial(commercial);
+          results.commercials.success++;
+        } catch (error) {
+          results.commercials.failed++;
+          results.errors.push(`Commercial "${commercial.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import videos
+      for (const video of parseResult.videos) {
+        try {
+          await storage.createVideo(video);
+          results.videos.success++;
+        } catch (error) {
+          results.videos.failed++;
+          results.errors.push(`Video "${video.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Import trivia achievements
+      for (const achievement of parseResult.triviaAchievements) {
+        try {
+          await storage.createTriviaAchievement(achievement);
+          results.triviaAchievements.success++;
+        } catch (error) {
+          results.triviaAchievements.failed++;
+          results.errors.push(`Trivia achievement (${achievement.scoreThreshold} points): ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       const totalSuccess = results.products.success + results.filterOptions.success + 
         results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success + 
-        results.mediaLibrary.success;
+        results.mediaLibrary.success + results.whitelistedEmails.success + results.commercials.success + 
+        results.videos.success + results.triviaAchievements.success;
       const totalFailed = results.products.failed + results.filterOptions.failed + 
         results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed + 
-        results.mediaLibrary.failed;
+        results.mediaLibrary.failed + results.whitelistedEmails.failed + results.commercials.failed + 
+        results.videos.failed + results.triviaAchievements.failed;
 
       const message = totalSuccess > 0
         ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`
