@@ -1047,14 +1047,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         warnings: [...parseResult.warnings],
       };
 
-      // Import products
+      // Import products (update existing or create new based on SKU)
       for (const product of parseResult.products) {
         try {
-          await storage.createProduct(product);
+          const existingProduct = await storage.getProductBySku(product.sku);
+          if (existingProduct) {
+            // Update existing product
+            await storage.updateProduct(existingProduct.id, product);
+          } else {
+            // Create new product
+            await storage.createProduct(product);
+          }
           results.products.success++;
         } catch (error) {
           results.products.failed++;
-          results.errors.push(`Product "${product.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          results.errors.push(`Product "${product.name}" (SKU: ${product.sku}): ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
