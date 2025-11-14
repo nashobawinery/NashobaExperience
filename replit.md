@@ -6,6 +6,14 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (November 14, 2025)
+**Trivia Management Enhancements:**
+- **Bulk Deletion**: Added checkbox selection on each trivia question with "Select All" toggle and "Delete Selected (N)" button for efficient duplicate removal
+- **Character Counter**: Live character counter on explanation field showing X/200 characters with visual warnings (orange at 181+, red at 200, blocks typing at 200)
+- **Validation**: Enhanced explanation field validation using `z.preprocess` to trim whitespace before checking min(1) max(200) length constraints
+- **Backend**: New POST `/api/trivia/questions/bulk-delete` endpoint with Zod validation requiring array of UUID strings with minimum 1 ID
+- **UX**: Selection state clears automatically after successful bulk delete operation
+
 ## System Architecture
 
 ### Frontend
