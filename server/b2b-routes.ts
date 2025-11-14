@@ -829,4 +829,47 @@ router.post('/api/b2b/admin/settings', requireB2bAdmin, async (req: Request, res
   }
 });
 
+// Admin: Change password
+router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    // Get current admin from session
+    const adminId = (req.session as any).b2bUser?.id;
+    if (!adminId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const admin = await storage.getB2bAdmin(adminId);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    // Verify current password
+    const authenticated = await authenticateB2bAdmin(admin.email, currentPassword);
+    if (!authenticated) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+    
+    // Update password
+    await storage.updateB2bAdmin(adminId, { passwordHash: newPasswordHash });
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
 export default router;
