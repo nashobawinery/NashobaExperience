@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useToggleTierActive } from "@/hooks/useB2bAdmin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit } from "lucide-react";
+import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -33,6 +34,7 @@ export default function AdminDashboard() {
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
   const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
   const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
+  const { mutateAsync: toggleTierActive, isPending: isTogglingTier } = useToggleTierActive();
 
   const [approveDialog, setApproveDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
@@ -154,6 +156,22 @@ export default function AdminDashboard() {
       toast({
         title: "Password Change Failed",
         description: error.message || "Please check your current password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleTier = async (tierId: string, currentActive: boolean) => {
+    try {
+      await toggleTierActive({ tierId, active: !currentActive });
+      toast({
+        title: "Tier Updated",
+        description: `Tier has been ${!currentActive ? 'activated' : 'deactivated'}. ${!currentActive ? 'It will now appear in pricing and approval options.' : 'It has been hidden from new customer pricing and approval.'}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update tier status",
         variant: "destructive",
       });
     }
@@ -595,6 +613,70 @@ export default function AdminDashboard() {
                   {isChangingPassword ? "Changing Password..." : "Change Password"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Tier Management Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Pricing Tiers
+              </CardTitle>
+              <CardDescription>
+                Manage which pricing tiers are active for new customers
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingTiers ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : !tiers || tiers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No pricing tiers configured
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {tiers.map((tier) => (
+                    <div
+                      key={tier.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
+                      data-testid={`tier-${tier.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold">{tier.tierName}</p>
+                          <Badge variant={tier.active ? 'default' : 'secondary'}>
+                            {tier.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {tier.discountPercentage}% wholesale discount
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label htmlFor={`tier-${tier.id}-switch`} className="text-sm cursor-pointer">
+                          {tier.active ? 'Active' : 'Inactive'}
+                        </Label>
+                        <Switch
+                          id={`tier-${tier.id}-switch`}
+                          checked={tier.active}
+                          onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
+                          disabled={isTogglingTier}
+                          data-testid={`switch-tier-${tier.id}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+                    Note: Inactive tiers will not appear on the public pricing page or in the customer approval dropdown. 
+                    Existing customers assigned to inactive tiers will retain their pricing.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

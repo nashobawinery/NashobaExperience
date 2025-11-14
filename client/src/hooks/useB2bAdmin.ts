@@ -41,6 +41,7 @@ export interface TierPricing {
   id: string;
   tierName: string;
   discountPercentage: string;
+  active: boolean;
   minOrderQuantity?: number;
 }
 
@@ -141,6 +142,20 @@ export function useChangeAdminPassword() {
       newPassword: string;
     }) => {
       return apiRequest("POST", "/api/b2b/admin/change-password", data);
+    },
+  });
+}
+
+// Toggle tier active status
+export function useToggleTierActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ tierId, active }: { tierId: string; active: boolean }) => {
+      return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}/toggle-active`, { active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tiers"] });
     },
   });
 }
