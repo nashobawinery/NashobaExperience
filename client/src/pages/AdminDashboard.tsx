@@ -35,6 +35,7 @@ import {
   createProduct, 
   updateProduct, 
   deleteProduct,
+  deleteDuplicateProducts,
   getTriviaQuestions,
   createTriviaQuestion,
   updateTriviaQuestion,
@@ -470,6 +471,24 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     },
   });
 
+  const deleteDuplicatesMutation = useMutation({
+    mutationFn: deleteDuplicateProducts,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({ 
+        title: "Duplicates Deleted", 
+        description: result.message || `Successfully deleted ${result.duplicatesDeleted} duplicate product(s)`
+      });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to delete duplicates",
+        variant: "destructive" 
+      });
+    },
+  });
+
   const importAllDataMutation = useMutation({
     mutationFn: importAllData,
     onSuccess: (result) => {
@@ -559,6 +578,12 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const handleUploadAllData = () => {
     if (selectedFile) {
       importAllDataMutation.mutate(selectedFile);
+    }
+  };
+
+  const handleDeleteDuplicates = () => {
+    if (window.confirm('Are you sure you want to delete duplicate products? This will keep the oldest product for each SKU and remove all duplicates.')) {
+      deleteDuplicatesMutation.mutate();
     }
   };
 
@@ -736,6 +761,24 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       <Download className="w-4 h-4 mr-2" />
                       {exportAllDataMutation.isPending ? "Exporting..." : "Export All Data"}
                     </Button>
+                  </div>
+
+                  <div className="border-t pt-6">
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center">
+                      <h3 className="font-medium text-destructive mb-2">Delete Duplicate Products</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        This will find products with duplicate SKUs and keep only the oldest one, deleting all duplicates.
+                      </p>
+                      <Button 
+                        variant="destructive"
+                        onClick={handleDeleteDuplicates}
+                        disabled={deleteDuplicatesMutation.isPending}
+                        data-testid="button-delete-duplicates"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {deleteDuplicatesMutation.isPending ? "Deleting..." : "Delete Duplicate Products"}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="border-2 border-dashed border-muted rounded-lg p-8">

@@ -900,6 +900,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   });
 
+  app.post("/api/admin/products/delete-duplicates", isAdmin, async (req, res) => {
+    try {
+      const allProducts = await storage.getProducts({});
+      
+      // Group products by SKU
+      const productsBySku = new Map<string, typeof allProducts>();
+      for (const product of allProducts) {
+        if (!productsBySku.has(product.sku)) {
+          productsBySku.set(product.sku, []);
+        }
+        productsBySku.get(product.sku)!.push(product);
+      }
+      
+      let duplicatesDeleted = 0;
+      const errors: string[] = [];
+      
+      // For each SKU with duplicates, keep the first one and delete the rest
+      for (const [sku, products] of productsBySku) {
+        if (products.length > 1) {
+          // Sort by createdAt to keep the oldest
+          products.sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          
+          // Delete all but the first one
+          for (let i = 1; i < products.length; i++) {
+            try {
+              await storage.deleteProduct(products[i].id);
+              duplicatesDeleted++;
+            } catch (error) {
+              errors.push(`Failed to delete duplicate for SKU ${sku}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+          }
+        }
+      }
+      
+      res.json({
+        message: `Successfully deleted ${duplicatesDeleted} duplicate product${duplicatesDeleted !== 1 ? 's' : ''}`,
+        duplicatesDeleted,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error) {
+      console.error("Error deleting duplicates:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete duplicates" });
+    }
+  });
+
   app.get("/api/admin/products/template", async (req, res) => {
     try {
       const { generateExcelTemplate } = await import("./excel-import");

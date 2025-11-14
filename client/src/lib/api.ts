@@ -405,6 +405,19 @@ export async function importAllData(file: File): Promise<any> {
   return response.json();
 }
 
+export async function deleteDuplicateProducts(): Promise<{ message: string; duplicatesDeleted: number }> {
+  const response = await fetch("/api/admin/products/delete-duplicates", {
+    method: "POST",
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Failed to delete duplicates" }));
+    throw new Error(errorData.message || "Failed to delete duplicates");
+  }
+  
+  return response.json();
+}
+
 export async function submitSurvey(sessionId: string, surveyData: {
   easeOfUse: number | null;
   helpfulness: number | null;
