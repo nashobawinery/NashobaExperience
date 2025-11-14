@@ -73,6 +73,24 @@ import {
   type Characteristic,
   type InsertProductCharacteristic,
   type ProductCharacteristic,
+  tierPricing,
+  salesReps,
+  b2bCustomers,
+  b2bOrders,
+  b2bOrderItems,
+  b2bSettings,
+  type InsertTierPricing,
+  type TierPricing,
+  type InsertSalesRep,
+  type SalesRep,
+  type InsertB2bCustomer,
+  type B2bCustomer,
+  type InsertB2bOrder,
+  type B2bOrder,
+  type InsertB2bOrderItem,
+  type B2bOrderItem,
+  type InsertB2bSetting,
+  type B2bSetting,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -232,6 +250,44 @@ export interface IStorage {
   createCharacteristic(name: string, productTypes?: string[]): Promise<Characteristic>;
   getProductCharacteristics(productId: string): Promise<Characteristic[]>;
   setProductCharacteristics(productId: string, characteristicNames: string[], category?: string): Promise<void>;
+
+  // B2B - Tier Pricing
+  getAllTierPricing(): Promise<TierPricing[]>;
+  getTierPricing(id: string): Promise<TierPricing | undefined>;
+  createTierPricing(data: InsertTierPricing): Promise<TierPricing>;
+  updateTierPricing(id: string, data: Partial<InsertTierPricing>): Promise<TierPricing | undefined>;
+  deleteTierPricing(id: string): Promise<boolean>;
+
+  // B2B - Sales Reps
+  getAllSalesReps(activeOnly?: boolean): Promise<SalesRep[]>;
+  getSalesRep(id: string): Promise<SalesRep | undefined>;
+  getSalesRepByEmail(email: string): Promise<SalesRep | undefined>;
+  createSalesRep(data: InsertSalesRep): Promise<SalesRep>;
+  updateSalesRep(id: string, data: Partial<InsertSalesRep>): Promise<SalesRep | undefined>;
+  deleteSalesRep(id: string): Promise<boolean>;
+
+  // B2B - Customers
+  getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]>;
+  getB2bCustomer(id: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined>;
+  getB2bCustomerByEmail(email: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined>;
+  createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer>;
+  updateB2bCustomer(id: string, data: Partial<InsertB2bCustomer>): Promise<B2bCustomer | undefined>;
+  deleteB2bCustomer(id: string): Promise<boolean>;
+  approveB2bCustomer(id: string, tierId: string, password: string): Promise<B2bCustomer | undefined>;
+
+  // B2B - Orders
+  getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
+  getB2bOrders(customerId: string): Promise<(B2bOrder & { items: (B2bOrderItem & { product: Product })[] })[]>;
+  getB2bOrder(id: string): Promise<(B2bOrder & { customer: B2bCustomer; items: (B2bOrderItem & { product: Product })[] }) | undefined>;
+  createB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<B2bOrder>;
+  updateB2bOrder(id: string, data: Partial<InsertB2bOrder>): Promise<B2bOrder | undefined>;
+  deleteB2bOrder(id: string): Promise<boolean>;
+  getCustomerPreviousProducts(customerId: string): Promise<Product[]>;
+
+  // B2B - Settings
+  getB2bSetting(key: string): Promise<B2bSetting | undefined>;
+  setB2bSetting(key: string, value: string): Promise<B2bSetting>;
+  getAllB2bSettings(): Promise<B2bSetting[]>;
 }
 
 export interface ProductFilters {
@@ -1522,6 +1578,297 @@ export class DatabaseStorage implements IStorage {
     
     // Clean up unused characteristics (usage count = 0)
     await db.delete(characteristics).where(eq(characteristics.usageCount, 0));
+  }
+
+  // B2B - Tier Pricing implementations
+  async getAllTierPricing(): Promise<TierPricing[]> {
+    return db.select().from(tierPricing).orderBy(tierPricing.sortOrder);
+  }
+
+  async getTierPricing(id: string): Promise<TierPricing | undefined> {
+    const [tier] = await db.select().from(tierPricing).where(eq(tierPricing.id, id));
+    return tier;
+  }
+
+  async createTierPricing(data: InsertTierPricing): Promise<TierPricing> {
+    const [tier] = await db.insert(tierPricing).values(data).returning();
+    return tier;
+  }
+
+  async updateTierPricing(id: string, data: Partial<InsertTierPricing>): Promise<TierPricing | undefined> {
+    const [tier] = await db
+      .update(tierPricing)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tierPricing.id, id))
+      .returning();
+    return tier;
+  }
+
+  async deleteTierPricing(id: string): Promise<boolean> {
+    const result = await db.delete(tierPricing).where(eq(tierPricing.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // B2B - Sales Reps implementations
+  async getAllSalesReps(activeOnly = false): Promise<SalesRep[]> {
+    if (activeOnly) {
+      return db.select().from(salesReps).where(eq(salesReps.active, true));
+    }
+    return db.select().from(salesReps);
+  }
+
+  async getSalesRep(id: string): Promise<SalesRep | undefined> {
+    const [rep] = await db.select().from(salesReps).where(eq(salesReps.id, id));
+    return rep;
+  }
+
+  async getSalesRepByEmail(email: string): Promise<SalesRep | undefined> {
+    const [rep] = await db.select().from(salesReps).where(eq(salesReps.email, email));
+    return rep;
+  }
+
+  async createSalesRep(data: InsertSalesRep): Promise<SalesRep> {
+    const [rep] = await db.insert(salesReps).values(data).returning();
+    return rep;
+  }
+
+  async updateSalesRep(id: string, data: Partial<InsertSalesRep>): Promise<SalesRep | undefined> {
+    const [rep] = await db
+      .update(salesReps)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(salesReps.id, id))
+      .returning();
+    return rep;
+  }
+
+  async deleteSalesRep(id: string): Promise<boolean> {
+    const result = await db.delete(salesReps).where(eq(salesReps.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // B2B - Customers implementations
+  async getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]> {
+    const query = db
+      .select({
+        customer: b2bCustomers,
+        tier: tierPricing,
+        salesRep: salesReps,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .leftJoin(salesReps, eq(b2bCustomers.salesRepId, salesReps.id));
+
+    const results = status
+      ? await query.where(eq(b2bCustomers.accountStatus, status as any))
+      : await query;
+
+    return results.map(r => ({ ...r.customer, tier: r.tier, salesRep: r.salesRep }));
+  }
+
+  async getB2bCustomer(id: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined> {
+    const [result] = await db
+      .select({
+        customer: b2bCustomers,
+        tier: tierPricing,
+        salesRep: salesReps,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .leftJoin(salesReps, eq(b2bCustomers.salesRepId, salesReps.id))
+      .where(eq(b2bCustomers.id, id));
+
+    if (!result) return undefined;
+    return { ...result.customer, tier: result.tier, salesRep: result.salesRep };
+  }
+
+  async getB2bCustomerByEmail(email: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined> {
+    const [result] = await db
+      .select({
+        customer: b2bCustomers,
+        tier: tierPricing,
+        salesRep: salesReps,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .leftJoin(salesReps, eq(b2bCustomers.salesRepId, salesReps.id))
+      .where(eq(b2bCustomers.emailAddress, email));
+
+    if (!result) return undefined;
+    return { ...result.customer, tier: result.tier, salesRep: result.salesRep };
+  }
+
+  async createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer> {
+    const [customer] = await db.insert(b2bCustomers).values(data).returning();
+    return customer;
+  }
+
+  async updateB2bCustomer(id: string, data: Partial<InsertB2bCustomer>): Promise<B2bCustomer | undefined> {
+    const [customer] = await db
+      .update(b2bCustomers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bCustomers.id, id))
+      .returning();
+    return customer;
+  }
+
+  async deleteB2bCustomer(id: string): Promise<boolean> {
+    const result = await db.delete(b2bCustomers).where(eq(b2bCustomers.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async approveB2bCustomer(id: string, tierId: string, password: string): Promise<B2bCustomer | undefined> {
+    const [customer] = await db
+      .update(b2bCustomers)
+      .set({
+        accountStatus: 'active' as any,
+        pricingTierId: tierId,
+        passwordHash: password,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bCustomers.id, id))
+      .returning();
+    return customer;
+  }
+
+  // B2B - Orders implementations
+  async getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]> {
+    const results = await db
+      .select({
+        order: b2bOrders,
+        customer: b2bCustomers,
+      })
+      .from(b2bOrders)
+      .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .orderBy(desc(b2bOrders.orderDate));
+
+    return results.map(r => ({ ...r.order, customer: r.customer }));
+  }
+
+  async getB2bOrders(customerId: string): Promise<(B2bOrder & { items: (B2bOrderItem & { product: Product })[] })[]> {
+    const orders = await db
+      .select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.customerId, customerId))
+      .orderBy(desc(b2bOrders.orderDate));
+
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const items = await db
+          .select({
+            item: b2bOrderItems,
+            product: products,
+          })
+          .from(b2bOrderItems)
+          .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+          .where(eq(b2bOrderItems.orderId, order.id));
+
+        return {
+          ...order,
+          items: items.map(i => ({ ...i.item, product: i.product })),
+        };
+      })
+    );
+
+    return ordersWithItems;
+  }
+
+  async getB2bOrder(id: string): Promise<(B2bOrder & { customer: B2bCustomer; items: (B2bOrderItem & { product: Product })[] }) | undefined> {
+    const [result] = await db
+      .select({
+        order: b2bOrders,
+        customer: b2bCustomers,
+      })
+      .from(b2bOrders)
+      .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .where(eq(b2bOrders.id, id));
+
+    if (!result) return undefined;
+
+    const items = await db
+      .select({
+        item: b2bOrderItems,
+        product: products,
+      })
+      .from(b2bOrderItems)
+      .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+      .where(eq(b2bOrderItems.orderId, id));
+
+    return {
+      ...result.order,
+      customer: result.customer,
+      items: items.map(i => ({ ...i.item, product: i.product })),
+    };
+  }
+
+  async createB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<B2bOrder> {
+    const [order] = await db.insert(b2bOrders).values(orderData).returning();
+
+    if (items.length > 0) {
+      const itemsWithOrderId = items.map(item => ({ ...item, orderId: order.id }));
+      await db.insert(b2bOrderItems).values(itemsWithOrderId);
+    }
+
+    // Update customer's last order date and total purchase value
+    await db
+      .update(b2bCustomers)
+      .set({
+        lastOrderDate: new Date(),
+        totalPurchaseValue: sql`${b2bCustomers.totalPurchaseValue} + ${orderData.total}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bCustomers.id, orderData.customerId));
+
+    return order;
+  }
+
+  async updateB2bOrder(id: string, data: Partial<InsertB2bOrder>): Promise<B2bOrder | undefined> {
+    const [order] = await db
+      .update(b2bOrders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bOrders.id, id))
+      .returning();
+    return order;
+  }
+
+  async deleteB2bOrder(id: string): Promise<boolean> {
+    const result = await db.delete(b2bOrders).where(eq(b2bOrders.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getCustomerPreviousProducts(customerId: string): Promise<Product[]> {
+    const items = await db
+      .selectDistinct({ product: products })
+      .from(b2bOrderItems)
+      .innerJoin(b2bOrders, eq(b2bOrderItems.orderId, b2bOrders.id))
+      .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+      .where(eq(b2bOrders.customerId, customerId));
+
+    return items.map(i => i.product);
+  }
+
+  // B2B - Settings implementations
+  async getB2bSetting(key: string): Promise<B2bSetting | undefined> {
+    const [setting] = await db
+      .select()
+      .from(b2bSettings)
+      .where(eq(b2bSettings.settingKey, key));
+    return setting;
+  }
+
+  async setB2bSetting(key: string, value: string): Promise<B2bSetting> {
+    const [setting] = await db
+      .insert(b2bSettings)
+      .values({ settingKey: key, settingValue: value })
+      .onConflictDoUpdate({
+        target: b2bSettings.settingKey,
+        set: { settingValue: value, updatedAt: new Date() },
+      })
+      .returning();
+    return setting;
+  }
+
+  async getAllB2bSettings(): Promise<B2bSetting[]> {
+    return db.select().from(b2bSettings);
   }
 }
 
