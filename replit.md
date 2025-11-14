@@ -7,6 +7,26 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (November 14, 2025)
+**B2B Database Synchronization System - COMPLETE:**
+- **Cross-Environment Export/Import**: Excel-based database synchronization using portable business keys instead of environment-specific UUIDs
+- **Business Keys Implementation**: 
+  - TierPricing: `tier_name` (e.g., "Tier 1")
+  - SalesReps: `email` (e.g., "rep@nashobawinery.com")
+  - B2bCustomers: `email_address` with FK references via `pricing_tier_name`, `sales_rep_email`
+  - B2bOrders: `order_number` (e.g., "ORD-001") with `customer_email` FK
+  - B2bOrderItems: Composite of `order_number` + `product_sku`
+  - Products: `case_size` field added to support B2B case-based pricing
+- **Storage Layer Enhancements**: 4 new upsert methods (upsertTierPricing, upsertSalesRep, upsertB2bCustomer, upsertB2bOrder) with:
+  - Decimal handling: Parse strings to numbers for calculations, convert back for storage
+  - Password preservation: Existing hashes preserved during customer updates
+  - FK resolution: Cross-sheet lookup using case-insensitive business key matching
+  - Transactional order updates: Delete+recreate items, recalculate totals from quantities/prices
+- **Export Endpoint**: `GET /api/admin/data/export-all` updated to include 5 B2B sheets with business keys instead of UUIDs
+- **Import Endpoint**: `POST /api/admin/data/import-all` enhanced with FK resolution logic using buildLowerTrimEquals for normalized lookups
+- **Security**: Password fields excluded from exports; admins must reset passwords after cross-environment imports
+- **Validation**: Schema alignment - insertB2bOrderItemSchema properly omits orderId (assigned by storage layer)
+- **Status**: ✅ Tested and verified - Export confirmed working with TierPricing and B2bCustomers sheets using correct business keys
+
 **B2B Wholesale Platform - PRODUCTION READY (COMPLETE):**
 - **Full-Stack Implementation**: Complete B2B wholesale platform with backend APIs and frontend UI at `/b2b/*` routes
 - **Access Control**: Pricing presentation page with access code gate ('WHOLESALE2025')
@@ -88,7 +108,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Database Synchronization
 - **Process**: Export/import system using multi-sheet Excel workbooks to synchronize database configuration between environments.
-- **Upsert Logic**: Import system uses ID-first upsert strategy - if record ID exists, update it; otherwise check natural business key (SKU, email, question text, etc.); if found, update; if not, create new. Enables workflows like exporting data, modifying prices in Excel, and re-importing to update existing records.
+- **Cross-Environment Portability**: B2B data exports use portable business keys (tier_name, email, order_number, sku) instead of UUIDs for seamless synchronization across dev/staging/prod environments.
+- **B2B Export Sheets**: TierPricing, SalesReps, B2bCustomers, B2bOrders, B2bOrderItems with foreign key references resolved via business keys (e.g., pricing_tier_name, sales_rep_email, customer_email, product_sku).
+- **Upsert Logic**: Import system uses ID-first upsert strategy - if record ID exists, update it; otherwise check natural business key (SKU, email, question text, tier_name, order_number, etc.); if found, update; if not, create new. Enables workflows like exporting data, modifying prices in Excel, and re-importing to update existing records.
+- **FK Resolution**: Cross-sheet lookup dictionaries built during import using case-insensitive matching (buildLowerTrimEquals) to resolve business keys to database IDs.
+- **Security**: Password fields excluded from B2B exports; admins must manually reset customer passwords after cross-environment imports.
 - **Validation**: Comprehensive Zod-based validation pipeline checks each row before database insertion, capturing detailed errors (sheet name, row number, field name, error reason) displayed in admin UI with 50-error display limit.
 
 ## External Dependencies
