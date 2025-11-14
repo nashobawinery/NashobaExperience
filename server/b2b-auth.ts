@@ -20,7 +20,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
 declare module 'express-session' {
   interface SessionData {
     b2bUserId?: string;
-    b2bUserType?: 'customer' | 'sales_rep';
+    b2bUserType?: 'customer' | 'sales_rep' | 'admin';
     b2bUserEmail?: string;
   }
 }
@@ -72,6 +72,33 @@ export function requireB2bSalesRep(req: Request, res: Response, next: NextFuncti
     return res.status(403).json({ error: 'Sales representative access required' });
   }
   next();
+}
+
+export function requireB2bAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.b2bUserId || req.session.b2bUserType !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
+// Admin authentication
+export async function authenticateB2bAdmin(email: string, password: string) {
+  const admin = await storage.getB2bAdminByEmail(email);
+  
+  if (!admin || !admin.passwordHash) {
+    return null;
+  }
+
+  if (!admin.active) {
+    throw new Error('Admin account is not active');
+  }
+
+  const isValid = await comparePassword(password, admin.passwordHash);
+  if (!isValid) {
+    return null;
+  }
+
+  return admin;
 }
 
 // Authentication helpers

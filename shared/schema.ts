@@ -12,7 +12,7 @@ export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
 export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
 export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended"]);
-export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep"]);
+export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep", "admin"]);
 
 // Beer-specific enums
 export const beerStyleEnum = pgEnum("beer_style", ["ipa", "lager", "stout", "porter", "ale", "wheat_beer", "pilsner", "sour", "amber", "pale_ale", "saison", "belgian"]);
@@ -349,6 +349,17 @@ export const salesReps = pgTable("sales_reps", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const b2bAdmins = pgTable("b2b_admins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  email: varchar("email").notNull().unique(),
+  passwordHash: varchar("password_hash").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const b2bCustomers = pgTable("b2b_customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   accountName: varchar("account_name").notNull(),
@@ -373,6 +384,8 @@ export const b2bCustomers = pgTable("b2b_customers", {
   shippingState: varchar("shipping_state"),
   shippingZipCode: varchar("shipping_zip_code"),
   salesRepId: varchar("sales_rep_id").references(() => salesReps.id),
+  approvedAt: timestamp("approved_at"),
+  approvedByAdminId: varchar("approved_by_admin_id").references(() => b2bAdmins.id),
   signupDate: timestamp("signup_date").notNull().defaultNow(),
   lastOrderDate: timestamp("last_order_date"),
   totalPurchaseValue: decimal("total_purchase_value", { precision: 10, scale: 2 }).default('0'),
@@ -466,7 +479,8 @@ export const insertProductCharacteristicSchema = createInsertSchema(productChara
 // B2B Insert schemas
 export const insertTierPricingSchema = createInsertSchema(tierPricing).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSalesRepSchema = createInsertSchema(salesReps).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true });
+export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
@@ -556,6 +570,9 @@ export type TierPricing = typeof tierPricing.$inferSelect;
 
 export type InsertSalesRep = z.infer<typeof insertSalesRepSchema>;
 export type SalesRep = typeof salesReps.$inferSelect;
+
+export type InsertB2bAdmin = z.infer<typeof insertB2bAdminSchema>;
+export type B2bAdmin = typeof b2bAdmins.$inferSelect;
 
 export type InsertB2bCustomer = z.infer<typeof insertB2bCustomerSchema>;
 export type B2bCustomer = typeof b2bCustomers.$inferSelect;

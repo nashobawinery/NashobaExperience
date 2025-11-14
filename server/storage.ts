@@ -75,6 +75,7 @@ import {
   type ProductCharacteristic,
   tierPricing,
   salesReps,
+  b2bAdmins,
   b2bCustomers,
   b2bOrders,
   b2bOrderItems,
@@ -83,6 +84,8 @@ import {
   type TierPricing,
   type InsertSalesRep,
   type SalesRep,
+  type InsertB2bAdmin,
+  type B2bAdmin,
   type InsertB2bCustomer,
   type B2bCustomer,
   type InsertB2bOrder,
@@ -266,6 +269,14 @@ export interface IStorage {
   updateSalesRep(id: string, data: Partial<InsertSalesRep>): Promise<SalesRep | undefined>;
   deleteSalesRep(id: string): Promise<boolean>;
 
+  // B2B - Admins
+  getAllB2bAdmins(activeOnly?: boolean): Promise<B2bAdmin[]>;
+  getB2bAdmin(id: string): Promise<B2bAdmin | undefined>;
+  getB2bAdminByEmail(email: string): Promise<B2bAdmin | undefined>;
+  createB2bAdmin(data: InsertB2bAdmin): Promise<B2bAdmin>;
+  updateB2bAdmin(id: string, data: Partial<InsertB2bAdmin>): Promise<B2bAdmin | undefined>;
+  deleteB2bAdmin(id: string): Promise<boolean>;
+
   // B2B - Customers
   getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]>;
   getB2bCustomer(id: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined>;
@@ -273,7 +284,7 @@ export interface IStorage {
   createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer>;
   updateB2bCustomer(id: string, data: Partial<InsertB2bCustomer>): Promise<B2bCustomer | undefined>;
   deleteB2bCustomer(id: string): Promise<boolean>;
-  approveB2bCustomer(id: string, tierId: string, password: string): Promise<B2bCustomer | undefined>;
+  approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined>;
 
   // B2B - Orders
   getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
@@ -1646,6 +1657,43 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  // B2B - Admins implementations
+  async getAllB2bAdmins(activeOnly = false): Promise<B2bAdmin[]> {
+    if (activeOnly) {
+      return db.select().from(b2bAdmins).where(eq(b2bAdmins.active, true));
+    }
+    return db.select().from(b2bAdmins);
+  }
+
+  async getB2bAdmin(id: string): Promise<B2bAdmin | undefined> {
+    const [admin] = await db.select().from(b2bAdmins).where(eq(b2bAdmins.id, id));
+    return admin;
+  }
+
+  async getB2bAdminByEmail(email: string): Promise<B2bAdmin | undefined> {
+    const [admin] = await db.select().from(b2bAdmins).where(eq(b2bAdmins.email, email));
+    return admin;
+  }
+
+  async createB2bAdmin(data: InsertB2bAdmin): Promise<B2bAdmin> {
+    const [admin] = await db.insert(b2bAdmins).values(data).returning();
+    return admin;
+  }
+
+  async updateB2bAdmin(id: string, data: Partial<InsertB2bAdmin>): Promise<B2bAdmin | undefined> {
+    const [admin] = await db
+      .update(b2bAdmins)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bAdmins.id, id))
+      .returning();
+    return admin;
+  }
+
+  async deleteB2bAdmin(id: string): Promise<boolean> {
+    const result = await db.delete(b2bAdmins).where(eq(b2bAdmins.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
   // B2B - Customers implementations
   async getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]> {
     const query = db
@@ -1716,13 +1764,15 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
-  async approveB2bCustomer(id: string, tierId: string, password: string): Promise<B2bCustomer | undefined> {
+  async approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined> {
     const [customer] = await db
       .update(b2bCustomers)
       .set({
         accountStatus: 'active' as any,
         pricingTierId: tierId,
-        passwordHash: password,
+        passwordHash,
+        approvedAt: new Date(),
+        approvedByAdminId,
         updatedAt: new Date(),
       })
       .where(eq(b2bCustomers.id, id))

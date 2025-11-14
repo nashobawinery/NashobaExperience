@@ -7,6 +7,15 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (November 14, 2025)
+**B2B Wholesale Platform Backend (COMPLETE):**
+- **Complete Backend Implementation**: Built entirely separate B2B wholesale platform at `/api/b2b/*` with tier-based pricing, email/password authentication, customer approval workflow, case pricing, order management, and reorder functionality
+- **Session Isolation**: B2B uses dedicated `b2b.sid` session cookie completely separate from tasting app authentication (`connect.sid`)
+- **Database**: 7 new B2B tables (b2bAdmins, b2bSessions, salesReps, tier_pricing, b2bCustomers, b2bOrders, b2bOrderItems, b2bSettings) with case_size field added to products table
+- **Security**: Bcrypt password hashing throughout, protected routes with role-based middleware (admin/customer/sales rep)
+- **Default Admin**: Initial B2B admin account created (email: admin@nashobawinery.com, password: admin123) - CHANGE IMMEDIATELY
+- **Backend Status**: ✅ Fully functional and tested - ready for frontend development
+- **Next**: Build B2B frontend pages (pricing gate, registration, login, catalog, cart, checkout, admin dashboard)
+
 **Trivia Management Enhancements:**
 - **Bulk Deletion**: Added checkbox selection on each trivia question with "Select All" toggle and "Delete Selected (N)" button for efficient duplicate removal
 - **Character Counter**: Live character counter on explanation field showing X/200 characters with visual warnings (orange at 181+, red at 200, blocks typing at 200)
@@ -51,6 +60,21 @@ Preferred communication style: Simple, everyday language.
 - **Session Management**: PostgreSQL-backed sessions using `express-session` with TLS-only cookies in production.
 - **Protected Endpoints**: All admin operations require authentication and admin role verification via `isAdmin` middleware.
 - **User Management UI**: Admins can manage user roles through the Settings tab in the Admin Dashboard.
+
+### B2B Wholesale Platform
+**COMPLETELY SEPARATE PLATFORM** from the tasting app with its own authentication, sessions, and routes:
+- **Authentication**: Email/password authentication with bcrypt password hashing, completely isolated from tasting app (uses `b2b.sid` session cookie vs `connect.sid`)
+- **User Types**: Three separate roles - B2B Admins, Sales Representatives, and B2B Customers - each with dedicated login endpoints and permissions
+- **Database Tables**: 7 dedicated B2B tables (b2bAdmins, b2bSessions, salesReps, tier_pricing, b2bCustomers, b2bOrders, b2bOrderItems, b2bSettings) plus case_size field on products
+- **Tier-Based Pricing**: 6 pricing tiers (10%-60% wholesale discounts) with tier-specific pricing stored in dedicated tier_pricing table
+- **Customer Workflow**: Registration → Admin approval (generates temporary password from phone) → Email notification → Customer login → Order placement
+- **Case Pricing**: All orders calculated by case (default 12 bottles) with tier-based discounts applied automatically
+- **Order Management**: Complete order history, reorder functionality, email notifications via SendGrid
+- **Admin Tools**: Customer approval/rejection, tier assignment, sales rep management, order viewing, system settings
+- **Session Isolation**: B2B routes mounted BEFORE main session middleware in server/routes.ts to ensure complete authentication separation
+- **API Routes**: All B2B endpoints at `/api/b2b/*` with role-based middleware protection (requireB2bAuth, requireB2bCustomer, requireB2bSalesRep, requireB2bAdmin)
+- **Default Admin**: Initial admin seeded at admin@nashobawinery.com / admin123 (MUST BE CHANGED)
+- **Status**: Backend complete and tested - ready for frontend development
 
 ### Database Synchronization
 - **Process**: Export/import system using multi-sheet Excel workbooks to synchronize database configuration between environments.

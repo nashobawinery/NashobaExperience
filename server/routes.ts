@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { ObjectStorageService } from "./objectStorage";
+import b2bRouter from "./b2b-routes";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
@@ -30,7 +31,11 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Mount B2B routes FIRST (before main session middleware) to ensure session isolation
+  app.use(b2bRouter);
+
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
+  // This applies session middleware to all non-B2B routes
   await setupAuth(app);
 
   // Authentication routes
