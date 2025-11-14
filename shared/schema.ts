@@ -332,6 +332,7 @@ export const tierPricing = pgTable("tier_pricing", {
   tierName: text("tier_name").notNull().unique(),
   description: text("description"),
   discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).notNull(),
+  active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
