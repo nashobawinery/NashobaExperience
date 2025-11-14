@@ -1112,51 +1112,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Import filter options (skip duplicates)
+      // Import filter options (upsert: update if exists, create if new)
       for (const filter of parseResult.filterOptions) {
         try {
-          await storage.createFilterOption(filter);
+          await storage.upsertFilterOption(filter);
           results.filterOptions.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.filterOptions.success++; // Already exists, count as success
-          } else {
-            results.filterOptions.failed++;
-            results.errors.push(`Filter "${filter.displayLabel}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.filterOptions.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Filter "${filter.displayLabel}": ${errorMsg}`);
         }
       }
 
-      // Import trivia questions (skip duplicates)
+      // Import trivia questions (upsert: update if exists, create if new)
       for (const trivia of parseResult.triviaQuestions) {
         try {
-          await storage.createTriviaQuestion(trivia);
+          await storage.upsertTriviaQuestion(trivia);
           results.triviaQuestions.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.triviaQuestions.success++; // Already exists, count as success
-          } else {
-            results.triviaQuestions.failed++;
-            results.errors.push(`Trivia: ${errorMsg || 'Unknown error'}`);
-          }
+          results.triviaQuestions.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Trivia: ${errorMsg}`);
         }
       }
 
-      // Import slideshow images (skip duplicates)
+      // Import slideshow images (upsert: update if exists, create if new)
       for (const image of parseResult.slideshowImages) {
         try {
-          await storage.createSlideshowImage(image);
+          await storage.upsertSlideshowImage(image);
           results.slideshowImages.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.slideshowImages.success++; // Already exists, count as success
-          } else {
-            results.slideshowImages.failed++;
-            results.errors.push(`Slideshow Image "${image.filename}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.slideshowImages.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Slideshow Image "${image.filename}": ${errorMsg}`);
         }
       }
 
@@ -1171,83 +1159,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Import media library (skip duplicates)
+      // Import media library (upsert: update if exists, create if new)
       for (const media of parseResult.mediaLibrary) {
         try {
-          await storage.createMediaLibraryFile(media);
+          await storage.upsertMediaLibraryFile(media);
           results.mediaLibrary.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.mediaLibrary.success++; // Already exists, count as success
-          } else {
-            results.mediaLibrary.failed++;
-            results.errors.push(`Media file "${media.filename}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.mediaLibrary.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Media file "${media.filename}": ${errorMsg}`);
         }
       }
 
-      // Import whitelisted emails (skip duplicates)
+      // Import whitelisted emails (upsert: update if exists, create if new)
       for (const email of parseResult.whitelistedEmails) {
         try {
-          await storage.addWhitelistedEmail(email);
+          await storage.upsertWhitelistedEmail(email);
           results.whitelistedEmails.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.whitelistedEmails.success++; // Already exists, count as success
-          } else {
-            results.whitelistedEmails.failed++;
-            results.errors.push(`Whitelisted email "${email.email}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.whitelistedEmails.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Whitelisted email "${email.email}": ${errorMsg}`);
         }
       }
 
-      // Import commercials (skip duplicates)
+      // Import commercials (upsert: update if exists, create if new)
       for (const commercial of parseResult.commercials) {
         try {
-          await storage.createCommercial(commercial);
+          await storage.upsertCommercial(commercial);
           results.commercials.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.commercials.success++; // Already exists, count as success
-          } else {
-            results.commercials.failed++;
-            results.errors.push(`Commercial "${commercial.title}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.commercials.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Commercial "${commercial.title}": ${errorMsg}`);
         }
       }
 
-      // Import videos (skip duplicates)
+      // Import videos (upsert: update if exists, create if new)
       for (const video of parseResult.videos) {
         try {
-          await storage.createVideo(video);
+          await storage.upsertVideo(video);
           results.videos.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.videos.success++; // Already exists, count as success
-          } else {
-            results.videos.failed++;
-            results.errors.push(`Video "${video.name}": ${errorMsg || 'Unknown error'}`);
-          }
+          results.videos.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Video "${video.name}": ${errorMsg}`);
         }
       }
 
-      // Import trivia achievements (skip duplicates)
+      // Import trivia achievements (upsert: update if exists, create if new)
       for (const achievement of parseResult.triviaAchievements) {
         try {
-          await storage.createTriviaAchievement(achievement);
+          await storage.upsertTriviaAchievement(achievement);
           results.triviaAchievements.success++;
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '';
-          if (errorMsg.includes('duplicate key value violates unique constraint')) {
-            results.triviaAchievements.success++; // Already exists, count as success
-          } else {
-            results.triviaAchievements.failed++;
-            results.errors.push(`Trivia achievement (${achievement.scoreThreshold} points): ${errorMsg || 'Unknown error'}`);
-          }
+          results.triviaAchievements.failed++;
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.errors.push(`Trivia achievement (${achievement.scoreThreshold} points): ${errorMsg}`);
         }
       }
 
