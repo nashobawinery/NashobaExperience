@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, or, sql, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, or, sql, inArray, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
@@ -757,6 +757,12 @@ export class DatabaseStorage implements IStorage {
   async deleteTriviaQuestion(id: string): Promise<boolean> {
     const result = await db.delete(triviaQuestions).where(eq(triviaQuestions.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async deleteTriviaQuestions(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const result = await db.delete(triviaQuestions).where(inArray(triviaQuestions.id, ids));
+    return result.rowCount || 0;
   }
 
   async upsertTriviaQuestion(question: InsertTriviaQuestion & { id?: string }): Promise<{ question: TriviaQuestion; action: 'created' | 'updated' }> {

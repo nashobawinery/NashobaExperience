@@ -40,6 +40,7 @@ import {
   createTriviaQuestion,
   updateTriviaQuestion,
   deleteTriviaQuestion,
+  bulkDeleteTriviaQuestions,
   downloadProductTemplate,
   exportProducts,
   exportAllData,
@@ -76,6 +77,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   // Trivia edit dialog state
   const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
   const [editTriviaData, setEditTriviaData] = useState<Partial<TriviaQuestion>>({});
+  const [selectedTriviaIds, setSelectedTriviaIds] = useState<Set<string>>(new Set());
   
   // Product view toggle
   const [productViewMode, setProductViewMode] = useState<'list' | 'bulk'>('list');
@@ -251,6 +253,25 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     },
   });
 
+  const bulkDeleteTriviaMutation = useMutation({
+    mutationFn: bulkDeleteTriviaQuestions,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
+      setSelectedTriviaIds(new Set());
+      toast({ 
+        title: "Questions Deleted", 
+        description: `Successfully deleted ${data.deletedCount} question(s)` 
+      });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to delete questions",
+        variant: "destructive"
+      });
+    },
+  });
+
   // Handler functions
   const handleAddProduct = () => {
     toast({ title: "Add Product", description: "Product form would open here" });
@@ -376,6 +397,31 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
   const handleDeleteTrivia = (id: string) => {
     deleteTriviaMutation.mutate(id);
+  };
+
+  const handleBulkDeleteTrivia = () => {
+    if (selectedTriviaIds.size === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedTriviaIds.size} question(s)?`)) {
+      bulkDeleteTriviaMutation.mutate(Array.from(selectedTriviaIds));
+    }
+  };
+
+  const handleToggleTriviaSelection = (id: string) => {
+    const newSelection = new Set(selectedTriviaIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedTriviaIds(newSelection);
+  };
+
+  const handleSelectAllTrivia = () => {
+    if (selectedTriviaIds.size === triviaQuestions.length) {
+      setSelectedTriviaIds(new Set());
+    } else {
+      setSelectedTriviaIds(new Set(triviaQuestions.map((q: TriviaQuestion) => q.id)));
+    }
   };
 
   const handleToggleTriviaActive = (id: string) => {
@@ -960,10 +1006,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     <h2 className="font-serif text-2xl font-medium mb-2">Trivia Questions</h2>
                     <p className="text-muted-foreground">Manage fun facts and quiz questions</p>
                   </div>
-                  <Button onClick={handleAddTrivia} data-testid="button-add-trivia">
-                    <HelpCircle className="w-4 h-4 mr-2" />
-                    Add Question
-                  </Button>
+                  <div className="flex gap-2">
+                    {selectedTriviaIds.size > 0 && (
+                      <Button 
+                        variant="destructive" 
+                        onClick={handleBulkDeleteTrivia}
+                        disabled={bulkDeleteTriviaMutation.isPending}
+                        data-testid="button-bulk-delete-trivia"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Selected ({selectedTriviaIds.size})
+                      </Button>
+                    )}
+                    <Button onClick={handleAddTrivia} data-testid="button-add-trivia">
+                      <HelpCircle className="w-4 h-4 mr-2" />
+                      Add Question
+                    </Button>
+                  </div>
                 </div>
 
               {triviaLoading ? (
@@ -977,50 +1036,68 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <p className="text-muted-foreground">No trivia questions yet. Create one to get started!</p>
                 </div>
               ) : (
-                <div className="grid gap-4">
-                  {triviaQuestions.map((question: TriviaQuestion) => (
-                    <Card key={question.id} className="p-4" data-testid={`card-trivia-${question.id}`}>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium mb-2">
-                            {question.question}
-                          </p>
-                          <div className="flex gap-2 items-center flex-wrap">
-                            <span className="text-sm text-muted-foreground">
-                              {Array.isArray(question.answers) ? question.answers.length : 0} answers
-                            </span>
-                            <span className="text-sm text-muted-foreground">•</span>
-                            <Badge 
-                              variant={question.isActive ? "default" : "secondary"}
-                              className="cursor-pointer"
-                              onClick={() => handleToggleTriviaActive(question.id)}
-                              data-testid={`badge-trivia-status-${question.id}`}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Checkbox 
+                      checked={selectedTriviaIds.size === triviaQuestions.length && triviaQuestions.length > 0}
+                      onCheckedChange={handleSelectAllTrivia}
+                      data-testid="checkbox-select-all-trivia"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Select All ({triviaQuestions.length} questions)
+                    </span>
+                  </div>
+                  <div className="grid gap-4">
+                    {triviaQuestions.map((question: TriviaQuestion) => (
+                      <Card key={question.id} className="p-4" data-testid={`card-trivia-${question.id}`}>
+                        <div className="flex items-start gap-3">
+                          <Checkbox 
+                            checked={selectedTriviaIds.has(question.id)}
+                            onCheckedChange={() => handleToggleTriviaSelection(question.id)}
+                            data-testid={`checkbox-trivia-${question.id}`}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium mb-2">
+                              {question.question}
+                            </p>
+                            <div className="flex gap-2 items-center flex-wrap">
+                              <span className="text-sm text-muted-foreground">
+                                {Array.isArray(question.answers) ? question.answers.length : 0} answers
+                              </span>
+                              <span className="text-sm text-muted-foreground">•</span>
+                              <Badge 
+                                variant={question.isActive ? "default" : "secondary"}
+                                className="cursor-pointer"
+                                onClick={() => handleToggleTriviaActive(question.id)}
+                                data-testid={`badge-trivia-status-${question.id}`}
+                              >
+                                {question.isActive ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleEditTrivia(question.id)}
+                              data-testid={`button-edit-trivia-${question.id}`}
                             >
-                              {question.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleDeleteTrivia(question.id)}
+                              data-testid={`button-delete-trivia-${question.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleEditTrivia(question.id)}
-                            data-testid={`button-edit-trivia-${question.id}`}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleDeleteTrivia(question.id)}
-                            data-testid={`button-delete-trivia-${question.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               )}
             </Card>
@@ -2037,7 +2114,24 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 value={editTriviaData.explanation || ''}
                 onChange={(e) => setEditTriviaData({ ...editTriviaData, explanation: e.target.value })}
                 rows={3}
+                maxLength={200}
               />
+              <div className="flex items-center justify-between text-sm">
+                <span className={cn(
+                  "text-muted-foreground",
+                  (editTriviaData.explanation?.length || 0) > 180 && "text-orange-600 font-medium",
+                  (editTriviaData.explanation?.length || 0) >= 200 && "text-destructive font-medium"
+                )}>
+                  {editTriviaData.explanation?.length || 0}/200 characters
+                </span>
+                {(editTriviaData.explanation?.length || 0) > 180 && (
+                  <span className="text-xs text-orange-600">
+                    {(editTriviaData.explanation?.length || 0) > 200 ? 
+                      "Maximum length exceeded" : 
+                      "Approaching maximum visible length"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>

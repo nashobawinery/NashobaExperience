@@ -361,7 +361,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/trivia/questions/:id", isAdmin, async (req, res) => {
     try {
-      const question = await storage.updateTriviaQuestion(req.params.id, req.body);
+      const data = insertTriviaQuestionSchema.partial().parse(req.body);
+      const question = await storage.updateTriviaQuestion(req.params.id, data);
       if (!question) {
         return res.status(404).json({ message: "Question not found" });
       }
@@ -377,6 +378,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: "Question not found" });
     }
     res.json({ success: true });
+  });
+
+  app.post("/api/trivia/questions/bulk-delete", isAdmin, async (req, res) => {
+    try {
+      const bulkDeleteSchema = z.object({
+        ids: z.array(z.string().uuid()).min(1, "At least one ID is required")
+      });
+      const { ids } = bulkDeleteSchema.parse(req.body);
+      const deletedCount = await storage.deleteTriviaQuestions(ids);
+      res.json({ success: true, deletedCount });
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to delete questions" });
+    }
   });
 
   // Trivia Scores

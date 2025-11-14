@@ -332,7 +332,12 @@ export const insertGuestSessionSchema = createInsertSchema(guestSessions).omit({
 export const insertFavoriteSchema = createInsertSchema(favorites).omit({ id: true, createdAt: true });
 export const insertViewHistorySchema = createInsertSchema(viewHistory).omit({ id: true, lastViewedAt: true });
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true });
-export const insertTriviaQuestionSchema = createInsertSchema(triviaQuestions).omit({ id: true, createdAt: true });
+export const insertTriviaQuestionSchema = createInsertSchema(triviaQuestions).omit({ id: true, createdAt: true }).extend({
+  explanation: z.preprocess(
+    (val) => typeof val === 'string' ? val.trim() : val,
+    z.string().min(1, "Explanation is required").max(200, "Explanation must be 200 characters or less")
+  )
+});
 export const insertTriviaAchievementSchema = createInsertSchema(triviaAchievements).omit({ id: true, createdAt: true });
 export const insertTriviaAttemptSchema = createInsertSchema(triviaAttempts).omit({ id: true, startedAt: true, correctAnswers: true }).extend({
   correctAnswers: z.number().int().min(0).default(0)

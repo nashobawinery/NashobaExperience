@@ -273,6 +273,16 @@ export async function deleteTriviaQuestion(id: string): Promise<void> {
   if (!response.ok) throw new Error("Failed to delete trivia question");
 }
 
+export async function bulkDeleteTriviaQuestions(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
+  const response = await fetch('/api/trivia/questions/bulk-delete', { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  });
+  if (!response.ok) throw new Error("Failed to delete questions");
+  return response.json();
+}
+
 export async function createProduct(product: any): Promise<Product> {
   const response = await fetch("/api/products", {
     method: "POST",
