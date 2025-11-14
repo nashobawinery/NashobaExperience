@@ -7,6 +7,15 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (November 14, 2025)
+**B2B Admin Dashboard Enhancement - COMPLETE:**
+- **Comprehensive Admin Tools**: Enhanced B2B admin dashboard with 4 main tabs - Customers, Orders, Sales Reps, and Account Settings
+- **Password Management**: Added password change functionality for B2B admins at `/api/b2b/admin/change-password` endpoint with secure validation
+- **Order Viewing**: Complete order history with customer details, order numbers, totals, and order dates visible to admins
+- **Sales Rep Management**: Full CRUD for sales representatives - create, edit, assign territories, set passwords, activate/deactivate accounts
+- **Enhanced UI**: Tabbed interface with clear navigation, comprehensive data display, and streamlined workflows
+- **Account Setup**: One-time admin account setup page at `/b2b/setup` for production deployment (creates default admin@nashobawinery.com)
+- **Status**: ✅ All admin features tested and functional
+
 **B2B Database Synchronization System - COMPLETE:**
 - **Cross-Environment Export/Import**: Excel-based database synchronization using portable business keys instead of environment-specific UUIDs
 - **Business Keys Implementation**: 
@@ -98,12 +107,16 @@ Preferred communication style: Simple, everyday language.
 - **Customer Workflow**: Registration → Admin approval (generates temporary password from phone) → Email notification → Customer login → Order placement
 - **Case Pricing**: All orders calculated by case (default 12 bottles) with tier-based discounts applied automatically
 - **Order Management**: Complete order history, reorder functionality, email notifications via SendGrid
-- **Admin Tools**: Customer approval/rejection, tier assignment, sales rep management, order viewing, system settings
+- **Admin Dashboard**: Comprehensive 4-tab dashboard with:
+  - **Customers Tab**: Pending/active customer lists, approve/reject workflows, tier assignment
+  - **Orders Tab**: Complete order history with customer details, order numbers, totals, dates
+  - **Sales Reps Tab**: Create/edit sales representatives, assign territories, manage passwords and activation
+  - **Settings Tab**: Change admin password with validation (minimum 6 characters, current password verification)
 - **Session Isolation**: B2B routes mounted BEFORE main session middleware in server/routes.ts to ensure complete authentication separation
 - **API Routes**: All B2B endpoints at `/api/b2b/*` with role-based middleware protection (requireB2bAuth, requireB2bCustomer, requireB2bSalesRep, requireB2bAdmin)
-- **Default Admin**: Initial admin seeded at admin@nashobawinery.com / admin123 (MUST BE CHANGED)
+- **Default Admin**: Initial admin seeded at admin@nashobawinery.com / admin123 (change via Settings tab or setup page)
 - **Access Gate**: Public pricing presentation page at /b2b requires access code 'WHOLESALE2025'
-- **Frontend Routes**: Complete UI at /b2b/* (pricing, register, login/admin, login/customer, login/sales, catalog, cart, checkout, orders, admin)
+- **Frontend Routes**: Complete UI at /b2b/* (pricing, register, setup, login/admin, login/customer, login/sales, catalog, cart, checkout, orders, admin with 4 tabs)
 - **Status**: ✅ PRODUCTION READY - Complete full-stack platform with all features functional
 
 ### Database Synchronization
