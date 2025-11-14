@@ -1,0 +1,28 @@
+Category 	Field Name	Data Type (example)	Description
+Account Information	customer_id	INT/UUID	A unique identifier for the customer account (the retail store).
+account_name	VARCHAR	The legal name of the retail store/business.
+account_status	ENUM/VARCHAR	Current status (e.g., Active, Pending Approval, Inactive, Suspended).
+pricing_tier	ENUM/VARCHAR	(User requested field) The assigned pricing level (e.g., Tier 1/Gold, Tier 2/Silver, Standard, Key Account). This will link to your pricing logic.
+license_number	VARCHAR	The retail store's state liquor license number for compliance purposes.
+tax_id	VARCHAR	The business's tax identification number.
+credit_terms	VARCHAR	Agreed-upon payment terms (e.g., Net 30, COD, Credit Card Only).
+credit_limit	DECIMAL	The maximum credit line extended to the account.
+Contact Information	primary_contact_name	VARCHAR	Name of the primary point of contact (e.g., owner, manager, or wine buyer).
+primary_contact_role	VARCHAR	Role of the contact person at the store.
+email_address	VARCHAR	Email for communication, marketing, and order confirmations.
+phone_number	VARCHAR	Primary contact phone number.
+alt_phone_number	VARCHAR	Secondary phone number if needed.
+Location/Address	billing_address	TEXT	Billing street address.
+billing_city	VARCHAR	Billing city.
+billing_state	VARCHAR	Billing state.
+billing_zip_code	VARCHAR	Billing ZIP code.
+shipping_address	TEXT	Physical shipping address (could be a different table if multiple locations exist).
+shipping_city	VARCHAR	Shipping city.
+shipping_state	VARCHAR	Shipping state.
+shipping_zip_code	VARCHAR	Shipping ZIP code.
+Sales & Marketing	sales_representative_id	INT	Identifier for the internal sales rep managing the account.
+signup_date	DATE	Date the account was created.
+last_order_date	DATE	Date of the most recent purchase (useful for RFM analysis).
+total_purchase_value	DECIMAL	Total revenue generated from this customer over time.
+notes	TEXT	Unstructured field for capturing additional details or conversation records.
+accepts_marketing	BOOLEAN	Flag to track if the customer has opted into marketing emails/promotions.
