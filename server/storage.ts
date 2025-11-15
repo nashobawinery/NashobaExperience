@@ -80,6 +80,7 @@ import {
   b2bOrders,
   b2bOrderItems,
   b2bSettings,
+  b2bSlideshowSlides,
   type InsertTierPricing,
   type TierPricing,
   type InsertSalesRep,
@@ -94,6 +95,8 @@ import {
   type B2bOrderItem,
   type InsertB2bSetting,
   type B2bSetting,
+  type InsertB2bSlideshowSlide,
+  type B2bSlideshowSlide,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
