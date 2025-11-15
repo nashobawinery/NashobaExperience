@@ -78,8 +78,8 @@ export default function PricingSheetPage() {
 
   // Group products by category
   const wines = products.filter(p => p.category === "wine");
-  const spirits = products.filter(p => p.category === "spirit");
-  const canned = products.filter(p => p.category === "canned");
+  const spirits = products.filter(p => p.category === "spirits");
+  const canned = products.filter(p => p.category === "canned_cocktail" || p.category === "canned_wine");
 
   const calculatePrice = (retailPrice: string, discountPercentage: string) => {
     const retail = parseFloat(retailPrice);
