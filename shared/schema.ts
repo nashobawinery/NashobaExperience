@@ -444,6 +444,16 @@ export const b2bSettings = pgTable("b2b_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const b2bPasswordResetTokens = pgTable("b2b_password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull(),
+  userType: b2bUserTypeEnum("user_type").notNull(),
+  token: varchar("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -485,6 +495,7 @@ export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ i
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
+export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -586,3 +597,6 @@ export type B2bOrderItem = typeof b2bOrderItems.$inferSelect;
 
 export type InsertB2bSetting = z.infer<typeof insertB2bSettingSchema>;
 export type B2bSetting = typeof b2bSettings.$inferSelect;
+
+export type InsertB2bPasswordResetToken = z.infer<typeof insertB2bPasswordResetTokenSchema>;
+export type B2bPasswordResetToken = typeof b2bPasswordResetTokens.$inferSelect;
