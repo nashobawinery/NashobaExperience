@@ -173,7 +173,7 @@ export default function B2BPricingPage() {
   // Initial welcome view (before access code entry)
   if (!isVerified) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <div className="relative min-h-screen flex items-center justify-center">
         {/* Background Image with Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
         <img 
@@ -182,7 +182,7 @@ export default function B2BPricingPage() {
           className="absolute inset-0 w-full h-full object-cover" 
         />
         
-        <div className="relative z-20 w-full max-w-2xl px-6 text-center">
+        <div className="relative z-20 w-full max-w-2xl px-6 py-12 text-center">
           {/* Logo */}
           <div className="mb-8 flex justify-center">
             <img 
