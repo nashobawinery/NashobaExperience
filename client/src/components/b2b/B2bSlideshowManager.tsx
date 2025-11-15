@@ -81,8 +81,8 @@ export function B2bSlideshowManager() {
     content: "",
     highlight: "",
     mediaType: "none" as "none" | "image" | "video",
-    mediaLibraryId: null as string | null,
-    videoId: null as string | null,
+    mediaLibraryId: "" as string,
+    videoId: "" as string,
     iconName: "none",
     sortOrder: 0,
     active: true,
@@ -101,7 +101,7 @@ export function B2bSlideshowManager() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: Omit<typeof formData, 'mediaLibraryId' | 'videoId'> & { mediaLibraryId: string | null; videoId: string | null }) => {
       return apiRequest("/api/b2b/admin/slideshow/slides", "POST", data);
     },
     onSuccess: () => {
@@ -116,7 +116,7 @@ export function B2bSlideshowManager() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Omit<typeof formData, 'mediaLibraryId' | 'videoId'> & { mediaLibraryId: string | null; videoId: string | null }> }) => {
       return apiRequest(`/api/b2b/admin/slideshow/slides/${id}`, "PATCH", data);
     },
     onSuccess: () => {
@@ -152,8 +152,8 @@ export function B2bSlideshowManager() {
         content: slide.content,
         highlight: slide.highlight || "",
         mediaType: slide.mediaType as any,
-        mediaLibraryId: slide.mediaLibraryId || null,
-        videoId: slide.videoId || null,
+        mediaLibraryId: slide.mediaLibraryId || "",
+        videoId: slide.videoId || "",
         iconName: slide.iconName || "none",
         sortOrder: slide.sortOrder,
         active: slide.active,
@@ -166,8 +166,8 @@ export function B2bSlideshowManager() {
         content: "",
         highlight: "",
         mediaType: "none",
-        mediaLibraryId: null,
-        videoId: null,
+        mediaLibraryId: "",
+        videoId: "",
         iconName: "none",
         sortOrder: maxOrder + 1,
         active: true,
@@ -184,10 +184,38 @@ export function B2bSlideshowManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate media selection
+    if (formData.mediaType === "image" && !formData.mediaLibraryId) {
+      toast({ 
+        title: "Validation Error", 
+        description: "Please select an image from the Media Library", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (formData.mediaType === "video" && !formData.videoId) {
+      toast({ 
+        title: "Validation Error", 
+        description: "Please select a video", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    // Prepare data for submission - convert empty strings to null for optional fields
+    const submitData = {
+      ...formData,
+      mediaLibraryId: formData.mediaLibraryId || null,
+      videoId: formData.videoId || null,
+    };
+    
+    console.log('Submitting slide data:', JSON.stringify(submitData, null, 2));
+    
     if (editingSlide) {
-      updateMutation.mutate({ id: editingSlide.id, data: formData });
+      updateMutation.mutate({ id: editingSlide.id, data: submitData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(submitData);
     }
   };
 
@@ -425,8 +453,8 @@ export function B2bSlideshowManager() {
                   setFormData({ 
                     ...formData, 
                     mediaType: value,
-                    mediaLibraryId: value === "image" ? formData.mediaLibraryId : null,
-                    videoId: value === "video" ? formData.videoId : null,
+                    mediaLibraryId: value === "image" ? formData.mediaLibraryId : "",
+                    videoId: value === "video" ? formData.videoId : "",
                   });
                 }}
               >
@@ -444,27 +472,29 @@ export function B2bSlideshowManager() {
             {formData.mediaType === "image" && (
               <div>
                 <Label htmlFor="mediaLibraryId">Select Image *</Label>
-                <Select
-                  value={formData.mediaLibraryId || ""}
-                  onValueChange={(value) => setFormData({ ...formData, mediaLibraryId: value })}
-                >
-                  <SelectTrigger data-testid="select-media-library">
-                    <SelectValue placeholder="Choose an image from Media Library" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingMedia ? (
-                      <SelectItem value="loading" disabled>Loading media library...</SelectItem>
-                    ) : mediaLibrary.length === 0 ? (
-                      <SelectItem value="empty" disabled>No images available. Upload images in Media Library first.</SelectItem>
-                    ) : (
-                      mediaLibrary.map((item) => (
+                {isLoadingMedia ? (
+                  <div className="text-sm text-muted-foreground p-2">Loading media library...</div>
+                ) : mediaLibrary.length === 0 ? (
+                  <div className="text-sm text-destructive p-2 border rounded-md">
+                    No images available. Upload images in Media Library first.
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.mediaLibraryId}
+                    onValueChange={(value) => setFormData({ ...formData, mediaLibraryId: value })}
+                  >
+                    <SelectTrigger data-testid="select-media-library">
+                      <SelectValue placeholder="Choose an image from Media Library" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mediaLibrary.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           {item.originalFilename}
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-sm text-muted-foreground mt-1">
                   Images must be uploaded to Media Library first
                 </p>
@@ -474,27 +504,29 @@ export function B2bSlideshowManager() {
             {formData.mediaType === "video" && (
               <div>
                 <Label htmlFor="videoId">Select Video *</Label>
-                <Select
-                  value={formData.videoId || ""}
-                  onValueChange={(value) => setFormData({ ...formData, videoId: value })}
-                >
-                  <SelectTrigger data-testid="select-video">
-                    <SelectValue placeholder="Choose a video" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingVideos ? (
-                      <SelectItem value="loading" disabled>Loading videos...</SelectItem>
-                    ) : videos.length === 0 ? (
-                      <SelectItem value="empty" disabled>No videos available. Add videos in Admin Dashboard first.</SelectItem>
-                    ) : (
-                      videos.map((video) => (
+                {isLoadingVideos ? (
+                  <div className="text-sm text-muted-foreground p-2">Loading videos...</div>
+                ) : videos.length === 0 ? (
+                  <div className="text-sm text-destructive p-2 border rounded-md">
+                    No videos available. Add videos in Admin Dashboard first.
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.videoId}
+                    onValueChange={(value) => setFormData({ ...formData, videoId: value })}
+                  >
+                    <SelectTrigger data-testid="select-video">
+                      <SelectValue placeholder="Choose a video" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {videos.map((video) => (
                         <SelectItem key={video.id} value={video.id}>
                           {video.title}
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-sm text-muted-foreground mt-1">
                   Videos must be configured in the Videos section first
                 </p>
