@@ -126,26 +126,25 @@ router.get('/api/b2b/admin/videos', requireB2bAdmin, async (req: Request, res: R
 // Public route: Get active B2B slideshow slides
 router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
   try {
-    const { mediaLibrary, videos } = await import('@shared/schema');
     const slides = await db.select().from(b2bSlideshowSlides).where(eq(b2bSlideshowSlides.active, true)).orderBy(b2bSlideshowSlides.sortOrder);
     
-    // Resolve media references
-    const slidesWithMedia = await Promise.all(slides.map(async (slide) => {
+    // Resolve media references using Express proxy endpoints
+    const slidesWithMedia = slides.map((slide) => {
       let mediaUrl = null;
       
       if (slide.mediaType === 'image' && slide.mediaLibraryId) {
-        const [media] = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, slide.mediaLibraryId));
-        mediaUrl = media?.publicUrl || null;
+        // Use Express proxy endpoint instead of direct GCS URL
+        mediaUrl = `/api/media-library/${slide.mediaLibraryId}/file`;
       } else if (slide.mediaType === 'video' && slide.videoId) {
-        const [video] = await db.select().from(videos).where(eq(videos.id, slide.videoId));
-        mediaUrl = video?.videoUrl || null;
+        // Use video proxy endpoint
+        mediaUrl = `/api/videos/${slide.videoId}/stream`;
       }
       
       return {
         ...slide,
         mediaUrl,
       };
-    }));
+    });
     
     res.json(slidesWithMedia);
   } catch (error) {
@@ -157,26 +156,25 @@ router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
 // Admin route: Get all B2B slideshow slides (including inactive)
 router.get('/api/b2b/admin/slideshow/slides', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const { mediaLibrary, videos } = await import('@shared/schema');
     const slides = await db.select().from(b2bSlideshowSlides).orderBy(b2bSlideshowSlides.sortOrder);
     
-    // Resolve media references for admin view as well
-    const slidesWithMedia = await Promise.all(slides.map(async (slide) => {
+    // Resolve media references using Express proxy endpoints
+    const slidesWithMedia = slides.map((slide) => {
       let mediaUrl = null;
       
       if (slide.mediaType === 'image' && slide.mediaLibraryId) {
-        const [media] = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, slide.mediaLibraryId));
-        mediaUrl = media?.publicUrl || null;
+        // Use Express proxy endpoint instead of direct GCS URL
+        mediaUrl = `/api/media-library/${slide.mediaLibraryId}/file`;
       } else if (slide.mediaType === 'video' && slide.videoId) {
-        const [video] = await db.select().from(videos).where(eq(videos.id, slide.videoId));
-        mediaUrl = video?.videoUrl || null;
+        // Use video proxy endpoint
+        mediaUrl = `/api/videos/${slide.videoId}/stream`;
       }
       
       return {
         ...slide,
         mediaUrl,
       };
-    }));
+    });
     
     res.json(slidesWithMedia);
   } catch (error) {
