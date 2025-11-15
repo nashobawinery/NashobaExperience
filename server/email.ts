@@ -258,6 +258,108 @@ Nashoba Valley Winery Team
   return { subject, html, text };
 }
 
+export function generateAccessRequestEmail(name: string, businessName: string, email: string): { subject: string; html: string; text: string } {
+  const subject = `Wholesale Access Code Request - ${businessName}`;
+  
+  const text = `
+Wholesale Access Code Request
+
+Name: ${name}
+Business: ${businessName}
+Email: ${email}
+
+This request was submitted through the B2B wholesale pricing landing page.
+
+Please provide them with the wholesale access code: WHOLESALE2025
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+    .info-box { 
+      background-color: #F5F5F0; 
+      border-left: 4px solid #5C2535; 
+      padding: 16px; 
+      margin: 20px 0;
+    }
+    .info-row {
+      margin: 8px 0;
+      padding: 4px 0;
+    }
+    .label {
+      font-weight: bold;
+      color: #5C2535;
+      display: inline-block;
+      min-width: 100px;
+    }
+    .access-code {
+      background-color: #5C2535;
+      color: #F5F5F0;
+      padding: 12px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-align: center;
+      margin: 20px 0;
+      font-family: monospace;
+    }
+    .footer { 
+      text-align: center; 
+      color: #666; 
+      font-size: 12px; 
+      margin-top: 30px; 
+      padding-top: 20px; 
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Wholesale Access Code Request</h1>
+  </div>
+  <div class="content">
+    <p>A new request for wholesale access has been submitted:</p>
+    
+    <div class="info-box">
+      <div class="info-row">
+        <span class="label">Name:</span>
+        <span>${name}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Business:</span>
+        <span>${businessName}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Email:</span>
+        <span>${email}</span>
+      </div>
+    </div>
+    
+    <p>Please provide them with the wholesale access code:</p>
+    
+    <div class="access-code">
+      WHOLESALE2025
+    </div>
+    
+    <p><strong>Note:</strong> This request was submitted through the B2B wholesale pricing landing page.</p>
+    
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+      <p>This is an automated notification from the B2B wholesale platform.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {

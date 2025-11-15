@@ -24,7 +24,7 @@ import {
   salesReps,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
-import { generatePasswordResetEmail, sendEmail } from './email';
+import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
 import { eq, and, gt } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
@@ -47,6 +47,29 @@ router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
     res.json({ valid: true });
   } else {
     res.json({ valid: false });
+  }
+});
+
+// Public route: Request wholesale access code
+router.post('/api/b2b/request-access', async (req: Request, res: Response) => {
+  try {
+    const { name, businessName, email } = req.body;
+
+    if (!name || !businessName || !email) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Generate email content
+    const emailContent = generateAccessRequestEmail(name, businessName, email);
+    
+    // Send to support email
+    const supportEmail = process.env.RESEND_FROM_EMAIL || 'support@nashobawinery.com';
+    await sendEmail(supportEmail, emailContent.subject, emailContent.html, emailContent.text);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Request access error:', error);
+    res.status(500).json({ error: 'Failed to send access request' });
   }
 });
 
