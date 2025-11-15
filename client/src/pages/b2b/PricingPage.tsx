@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail, Heart, Star } from "lucide-react";
+import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail, Heart, Star, GlassWater, MapPin, Boxes } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -650,6 +650,41 @@ export default function B2BPricingPage() {
                     <p className="font-medium mb-1">Start Ordering</p>
                     <p className="text-sm text-muted-foreground">
                       Browse products and place orders at your tier pricing
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Services */}
+              <div className="pt-6 border-t space-y-4">
+                <h3 className="font-semibold text-lg mb-4">Additional Services We Offer</h3>
+                
+                <div className="flex items-start gap-3">
+                  <GlassWater className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm mb-1">In-Store Tastings & Wine Dinners</p>
+                    <p className="text-sm text-muted-foreground">
+                      Let us host an in-store tasting or wine dinner featuring our premium adult beverages
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Boxes className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm mb-1">Sample Program</p>
+                    <p className="text-sm text-muted-foreground">
+                      Get 1-ounce samples of our wines mailed directly to your store
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm mb-1">Winery Tours</p>
+                    <p className="text-sm text-muted-foreground">
+                      Set up a visit to our winery for you and your staff to explore our products and our passion
                     </p>
                   </div>
                 </div>
