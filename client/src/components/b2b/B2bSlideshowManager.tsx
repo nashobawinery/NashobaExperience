@@ -1,0 +1,475 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  GripVertical,
+  Image as ImageIcon,
+  Video,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
+import type { B2bSlideshowSlide } from "@shared/schema";
+
+const iconOptions = [
+  { value: "none", label: "No Icon" },
+  { value: "Sprout", label: "Sprout (Agriculture)" },
+  { value: "Users", label: "Users (Family)" },
+  { value: "Award", label: "Award (Quality)" },
+  { value: "Wine", label: "Wine Glass" },
+  { value: "Package", label: "Package" },
+  { value: "TrendingUp", label: "Trending Up" },
+  { value: "Shield", label: "Shield" },
+  { value: "Heart", label: "Heart" },
+  { value: "Star", label: "Star" },
+];
+
+export function B2bSlideshowManager() {
+  const { toast } = useToast();
+  const [editingSlide, setEditingSlide] = useState<B2bSlideshowSlide | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    title: "",
+    content: "",
+    highlight: "",
+    mediaType: "none" as "none" | "image" | "video",
+    mediaUrl: "",
+    iconName: "none",
+    sortOrder: 0,
+    active: true,
+  });
+
+  const { data: slides = [], isLoading } = useQuery<B2bSlideshowSlide[]>({
+    queryKey: ["/api/b2b/admin/slideshow/slides"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("/api/b2b/admin/slideshow/slides", "POST", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/slideshow/slides"] });
+      toast({ title: "Success", description: "Slide created successfully" });
+      handleCloseDialog();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create slide", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
+      return apiRequest(`/api/b2b/admin/slideshow/slides/${id}`, "PATCH", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/slideshow/slides"] });
+      toast({ title: "Success", description: "Slide updated successfully" });
+      handleCloseDialog();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update slide", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/b2b/admin/slideshow/slides/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/b2b/slideshow/slides"] });
+      toast({ title: "Success", description: "Slide deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete slide", variant: "destructive" });
+    },
+  });
+
+  const handleOpenDialog = (slide?: B2bSlideshowSlide) => {
+    if (slide) {
+      setEditingSlide(slide);
+      setFormData({
+        title: slide.title,
+        content: slide.content,
+        highlight: slide.highlight || "",
+        mediaType: slide.mediaType as any,
+        mediaUrl: slide.mediaUrl || "",
+        iconName: slide.iconName || "none",
+        sortOrder: slide.sortOrder,
+        active: slide.active,
+      });
+    } else {
+      setEditingSlide(null);
+      const maxOrder = Math.max(...slides.map(s => s.sortOrder), -1);
+      setFormData({
+        title: "",
+        content: "",
+        highlight: "",
+        mediaType: "none",
+        mediaUrl: "",
+        iconName: "none",
+        sortOrder: maxOrder + 1,
+        active: true,
+      });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setEditingSlide(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingSlide) {
+      updateMutation.mutate({ id: editingSlide.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const handleToggleActive = (slide: B2bSlideshowSlide) => {
+    updateMutation.mutate({
+      id: slide.id,
+      data: { active: !slide.active },
+    });
+  };
+
+  const handleDelete = (slide: B2bSlideshowSlide) => {
+    if (confirm(`Are you sure you want to delete "${slide.title}"?`)) {
+      deleteMutation.mutate(slide.id);
+    }
+  };
+
+  const handleMoveSlide = (slide: B2bSlideshowSlide, direction: "up" | "down") => {
+    const currentIndex = slides.findIndex(s => s.id === slide.id);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= slides.length) return;
+
+    const currentOrder = slides[currentIndex].sortOrder;
+    const targetOrder = slides[targetIndex].sortOrder;
+
+    updateMutation.mutate({
+      id: slide.id,
+      data: { sortOrder: targetOrder },
+    });
+
+    updateMutation.mutate({
+      id: slides[targetIndex].id,
+      data: { sortOrder: currentOrder },
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-64" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
+          <div>
+            <CardTitle className="font-serif">B2B Slideshow Slides</CardTitle>
+            <CardDescription>
+              Manage the slides shown on the B2B landing page after access code entry
+            </CardDescription>
+          </div>
+          <Button onClick={() => handleOpenDialog()} data-testid="button-add-slide">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Slide
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {slides.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-lg mb-4">No slides found</p>
+              <p className="text-sm">Click "Add Slide" to create your first B2B slideshow slide</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px]">Order</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Media</TableHead>
+                  <TableHead>Icon</TableHead>
+                  <TableHead className="text-center">Active</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slides.map((slide, index) => (
+                  <TableRow key={slide.id} data-testid={`slide-row-${slide.id}`}>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => handleMoveSlide(slide, "up")}
+                          disabled={index === 0}
+                          data-testid={`button-move-up-${slide.id}`}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => handleMoveSlide(slide, "down")}
+                          disabled={index === slides.length - 1}
+                          data-testid={`button-move-down-${slide.id}`}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{slide.title}</div>
+                        <div className="text-sm text-muted-foreground line-clamp-1">
+                          {slide.content}
+                        </div>
+                        {slide.highlight && (
+                          <Badge variant="outline" className="mt-1">
+                            {slide.highlight}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {slide.mediaType === "image" && (
+                        <div className="flex items-center gap-2">
+                          <ImageIcon className="h-4 w-4" />
+                          <span className="text-sm">Image</span>
+                        </div>
+                      )}
+                      {slide.mediaType === "video" && (
+                        <div className="flex items-center gap-2">
+                          <Video className="h-4 w-4" />
+                          <span className="text-sm">Video</span>
+                        </div>
+                      )}
+                      {slide.mediaType === "none" && (
+                        <span className="text-sm text-muted-foreground">None</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {slide.iconName && slide.iconName !== "none" ? (
+                        <Badge variant="secondary">{slide.iconName}</Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">None</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={slide.active}
+                        onCheckedChange={() => handleToggleActive(slide)}
+                        data-testid={`switch-active-${slide.id}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenDialog(slide)}
+                          data-testid={`button-edit-${slide.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(slide)}
+                          data-testid={`button-delete-${slide.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingSlide ? "Edit Slide" : "Add New Slide"}</DialogTitle>
+            <DialogDescription>
+              Configure the slide content and media. The slide will be displayed in a 2-column layout with media (1/3 width) and content (2/3 width).
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+                data-testid="input-title"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="content">Content *</Label>
+              <Textarea
+                id="content"
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                rows={4}
+                required
+                data-testid="input-content"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="highlight">Highlight Text (Optional)</Label>
+              <Input
+                id="highlight"
+                value={formData.highlight}
+                onChange={(e) => setFormData({ ...formData, highlight: e.target.value })}
+                placeholder="e.g., '100% locally grown fruit'"
+                data-testid="input-highlight"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="mediaType">Media Type</Label>
+              <Select
+                value={formData.mediaType}
+                onValueChange={(value: any) => setFormData({ ...formData, mediaType: value })}
+              >
+                <SelectTrigger data-testid="select-media-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Media</SelectItem>
+                  <SelectItem value="image">Image</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.mediaType !== "none" && (
+              <div>
+                <Label htmlFor="mediaUrl">Media URL *</Label>
+                <Input
+                  id="mediaUrl"
+                  type="url"
+                  value={formData.mediaUrl}
+                  onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })}
+                  placeholder="https://example.com/media.jpg"
+                  required
+                  data-testid="input-media-url"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Use the Media Library to upload files and copy their public URLs
+                </p>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="iconName">Icon (Optional)</Label>
+              <Select
+                value={formData.iconName}
+                onValueChange={(value) => setFormData({ ...formData, iconName: value })}
+              >
+                <SelectTrigger data-testid="select-icon">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {iconOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                Optional: Choose an icon to display alongside the content
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="active"
+                checked={formData.active}
+                onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
+                data-testid="switch-dialog-active"
+              />
+              <Label htmlFor="active">Active (visible on landing page)</Label>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingSlide ? "Update" : "Create"} Slide
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
