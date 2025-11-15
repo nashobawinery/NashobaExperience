@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail } from "lucide-react";
+import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail, Heart, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import type { B2bSlideshowSlide } from "@shared/schema";
 
 export default function B2BPricingPage() {
   const [, setLocation] = useLocation();
@@ -37,6 +39,9 @@ export default function B2BPricingPage() {
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const { toast } = useToast();
   const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
+  const { data: slides = [], isLoading: loadingSlides } = useQuery<B2bSlideshowSlide[]>({
+    queryKey: ["/api/b2b/slideshow/slides"],
+  });
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,26 +81,22 @@ export default function B2BPricingPage() {
     }
   };
 
-  const slides = [
-    {
-      icon: Sprout,
-      title: "Support Local Agriculture",
-      content: "By choosing Nashoba Valley Winery, you're supporting a working farm that has been cultivating the land since 1978. Every bottle represents our commitment to sustainable farming practices and local food systems.",
-      highlight: "100% locally grown fruit",
-    },
-    {
-      icon: Users,
-      title: "Family-Owned Since 1978",
-      content: "We're a family business that employs local residents and contributes to the regional economy. Your partnership helps us maintain our orchards, vineyards, and brewing operations while creating jobs in our community.",
-      highlight: "Supporting 50+ local jobs",
-    },
-    {
-      icon: Award,
-      title: "Award-Winning Quality",
-      content: "Our products have won numerous awards while staying true to our agricultural roots. We grow our own apples, peaches, and grapes right here in Massachusetts, creating unique products you won't find anywhere else.",
-      highlight: "Farm-to-bottle excellence",
-    },
-  ];
+  const iconMap: Record<string, any> = {
+    Sprout,
+    Users,
+    Award,
+    Wine,
+    Package,
+    TrendingDown,
+    Shield,
+    Heart,
+    Star,
+  };
+
+  const getIconComponent = (iconName?: string | null) => {
+    if (!iconName || iconName === "none") return null;
+    return iconMap[iconName] || null;
+  };
 
   const slideVariants = {
     enter: (direction: number) => ({
@@ -389,6 +390,20 @@ export default function B2BPricingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {loadingSlides ? (
+              <div className="py-12 space-y-4">
+                <Skeleton className="h-64 w-full" />
+                <div className="flex justify-center gap-2">
+                  <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                  <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                  <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                </div>
+              </div>
+            ) : slides.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <p>No slideshow content available at this time.</p>
+              </div>
+            ) : (
             <div className="relative">
               <AnimatePresence initial={false} custom={direction} mode="wait">
                 <motion.div
@@ -404,42 +419,72 @@ export default function B2BPricingPage() {
                   }}
                   className="py-8"
                 >
-                  <div className="text-center max-w-3xl mx-auto">
-                    <div className="flex justify-center mb-6">
-                      {(() => {
-                        const IconComponent = slides[currentSlide].icon;
-                        return <IconComponent className="h-16 w-16 text-primary" />;
-                      })()}
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-serif font-light mb-4">
-                      {slides[currentSlide].title}
-                    </h3>
-                    <p className="text-base md:text-lg text-muted-foreground mb-6 leading-relaxed">
-                      {slides[currentSlide].content}
-                    </p>
-                    <div className="inline-block bg-primary/10 border border-primary/20 rounded-lg px-6 py-3">
-                      <p className="text-sm md:text-base font-medium text-primary">
-                        {slides[currentSlide].highlight}
-                      </p>
-                    </div>
-                    
-                    {/* View B2B Pricing button on last slide */}
-                    {currentSlide === slides.length - 1 && (
-                      <div className="mt-8">
-                        <Button
-                          size="lg"
-                          onClick={() => setLocation("/b2b/pricing-sheet")}
-                          className="gap-2 text-lg px-8 py-6"
-                          data-testid="button-view-pricing-sheet"
-                        >
-                          <TrendingDown className="h-5 w-5" />
-                          View B2B Pricing Sheet
-                        </Button>
-                        <p className="text-sm text-muted-foreground mt-3">
-                          See detailed pricing and profit margins by tier
-                        </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+                    {/* Media Column (1/3 width) */}
+                    {slides[currentSlide].mediaType !== "none" && slides[currentSlide].mediaUrl && (
+                      <div className="md:col-span-1">
+                        {slides[currentSlide].mediaType === "image" ? (
+                          <img 
+                            src={slides[currentSlide].mediaUrl!} 
+                            alt={slides[currentSlide].title}
+                            className="w-full h-auto rounded-lg object-cover"
+                          />
+                        ) : slides[currentSlide].mediaType === "video" ? (
+                          <video 
+                            src={slides[currentSlide].mediaUrl!}
+                            controls
+                            className="w-full h-auto rounded-lg"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : null}
                       </div>
                     )}
+                    
+                    {/* Content Column (2/3 width) */}
+                    <div className={slides[currentSlide].mediaType !== "none" && slides[currentSlide].mediaUrl ? "md:col-span-2" : "md:col-span-3"}>
+                      <div className="text-center max-w-3xl mx-auto">
+                        {(() => {
+                          const IconComponent = getIconComponent(slides[currentSlide].iconName);
+                          return IconComponent ? (
+                            <div className="flex justify-center mb-6">
+                              <IconComponent className="h-16 w-16 text-primary" />
+                            </div>
+                          ) : null;
+                        })()}
+                        <h3 className="text-2xl md:text-3xl font-serif font-light mb-4">
+                          {slides[currentSlide].title}
+                        </h3>
+                        <p className="text-base md:text-lg text-muted-foreground mb-6 leading-relaxed">
+                          {slides[currentSlide].content}
+                        </p>
+                        {slides[currentSlide].highlight && (
+                          <div className="inline-block bg-primary/10 border border-primary/20 rounded-lg px-6 py-3">
+                            <p className="text-sm md:text-base font-medium text-primary">
+                              {slides[currentSlide].highlight}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* View B2B Pricing button on last slide */}
+                        {currentSlide === slides.length - 1 && (
+                          <div className="mt-8">
+                            <Button
+                              size="lg"
+                              onClick={() => setLocation("/b2b/pricing-sheet")}
+                              className="gap-2 text-lg px-8 py-6"
+                              data-testid="button-view-pricing-sheet"
+                            >
+                              <TrendingDown className="h-5 w-5" />
+                              View B2B Pricing Sheet
+                            </Button>
+                            <p className="text-sm text-muted-foreground mt-3">
+                              See detailed pricing and profit margins by tier
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               </AnimatePresence>
@@ -485,6 +530,7 @@ export default function B2BPricingPage() {
                 </Button>
               </div>
             </div>
+            )}
           </CardContent>
         </Card>
 

@@ -52,8 +52,8 @@ const iconOptions = [
   { value: "Award", label: "Award (Quality)" },
   { value: "Wine", label: "Wine Glass" },
   { value: "Package", label: "Package" },
-  { value: "TrendingUp", label: "Trending Up" },
-  { value: "Shield", label: "Shield" },
+  { value: "TrendingDown", label: "Trending Down (Pricing)" },
+  { value: "Shield", label: "Shield (Quality)" },
   { value: "Heart", label: "Heart" },
   { value: "Star", label: "Star" },
 ];
