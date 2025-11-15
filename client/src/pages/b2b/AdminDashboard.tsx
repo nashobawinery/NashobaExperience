@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useToggleTierActive } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign } from "lucide-react";
+import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -37,6 +38,7 @@ export default function AdminDashboard() {
   const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
   const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
   const { mutateAsync: toggleTierActive, isPending: isTogglingTier } = useToggleTierActive();
+  const { mutateAsync: updateTier, isPending: isUpdatingTier } = useUpdateTier();
 
   const [approveDialog, setApproveDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
@@ -61,6 +63,16 @@ export default function AdminDashboard() {
     phoneNumber: "",
     territory: "",
     password: "",
+  });
+
+  // Edit tier dialog state
+  const [editTierDialog, setEditTierDialog] = useState<{ isOpen: boolean; tier: any | null }>({
+    isOpen: false,
+    tier: null,
+  });
+  const [editTierForm, setEditTierForm] = useState({
+    discountPercentage: 0,
+    description: "",
   });
 
   const handleApprove = async () => {
@@ -174,6 +186,52 @@ export default function AdminDashboard() {
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update tier status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenEditTier = (tier: any) => {
+    setEditTierDialog({ isOpen: true, tier });
+    setEditTierForm({
+      discountPercentage: parseFloat(tier.discountPercentage),
+      description: tier.description || "",
+    });
+  };
+
+  const handleUpdateTier = async () => {
+    if (!editTierDialog.tier) return;
+
+    try {
+      const discountPercentage = editTierForm.discountPercentage;
+      
+      if (isNaN(discountPercentage) || discountPercentage < 0 || discountPercentage > 100) {
+        toast({
+          title: "Invalid Input",
+          description: "Discount percentage must be between 0 and 100",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await updateTier({
+        tierId: editTierDialog.tier.id,
+        discountPercentage,
+        description: editTierForm.description,
+      });
+
+      toast({
+        title: "Tier Updated",
+        description: "Pricing tier has been updated successfully",
+      });
+
+      setEditTierDialog({ isOpen: false, tier: null });
+      setEditTierForm({ discountPercentage: 0, description: "" });
+    } catch (error: any) {
+      console.error('Update tier error:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update tier",
         variant: "destructive",
       });
     }
@@ -658,17 +716,33 @@ export default function AdminDashboard() {
                         <p className="text-sm text-muted-foreground">
                           {tier.discountPercentage}% wholesale discount
                         </p>
+                        {tier.description && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {tier.description}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
-                        <Label htmlFor={`tier-${tier.id}-switch`} className="text-sm cursor-pointer">
-                          {tier.active ? 'Active' : 'Inactive'}
-                        </Label>
-                        <Switch
-                          id={`tier-${tier.id}-switch`}
-                          checked={tier.active}
-                          onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
-                          data-testid={`switch-tier-${tier.id}`}
-                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenEditTier(tier)}
+                          data-testid={`button-edit-tier-${tier.id}`}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`tier-${tier.id}-switch`} className="text-sm cursor-pointer">
+                            {tier.active ? 'Active' : 'Inactive'}
+                          </Label>
+                          <Switch
+                            id={`tier-${tier.id}-switch`}
+                            checked={tier.active}
+                            onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
+                            data-testid={`switch-tier-${tier.id}`}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -843,6 +917,71 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tier Dialog */}
+      <Dialog open={editTierDialog.isOpen} onOpenChange={(open) => setEditTierDialog({ isOpen: open, tier: editTierDialog.tier })}>
+        <DialogContent data-testid="dialog-edit-tier">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Edit Pricing Tier</DialogTitle>
+            <DialogDescription>
+              Update the discount percentage and description for {editTierDialog.tier?.tierName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="discount-percentage">Discount Percentage (%) *</Label>
+              <Input
+                id="discount-percentage"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={editTierForm.discountPercentage}
+                onChange={(e) => setEditTierForm({ ...editTierForm, discountPercentage: parseFloat(e.target.value) || 0 })}
+                data-testid="input-discount-percentage"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter a value between 0 and 100
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tier-description">Description</Label>
+              <Textarea
+                id="tier-description"
+                value={editTierForm.description}
+                onChange={(e) => setEditTierForm({ ...editTierForm, description: e.target.value })}
+                data-testid="input-tier-description"
+                placeholder="Optional description for this tier"
+                maxLength={500}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                {editTierForm.description.length}/500 characters
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditTierDialog({ isOpen: false, tier: null })}
+              data-testid="button-cancel-edit-tier"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateTier}
+              disabled={isUpdatingTier}
+              data-testid="button-save-tier"
+            >
+              {isUpdatingTier ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

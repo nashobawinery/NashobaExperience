@@ -40,6 +40,7 @@ export interface SalesRep {
 export interface TierPricing {
   id: string;
   tierName: string;
+  description?: string;
   discountPercentage: string;
   active: boolean;
   minOrderQuantity?: number;
@@ -153,6 +154,26 @@ export function useToggleTierActive() {
   return useMutation({
     mutationFn: async ({ tierId, active }: { tierId: string; active: boolean }) => {
       return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}/toggle-active`, { active });
+    },
+    onSuccess: () => {
+      // Invalidate both admin tiers (for Settings tab) and public tiers (for pricing/approval)
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tiers"] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "public", "tiers"] });
+    },
+  });
+}
+
+// Update tier details (discount percentage and description)
+export function useUpdateTier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ tierId, discountPercentage, description }: { 
+      tierId: string; 
+      discountPercentage?: number; 
+      description?: string;
+    }) => {
+      return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}`, { discountPercentage, description });
     },
     onSuccess: () => {
       // Invalidate both admin tiers (for Settings tab) and public tiers (for pricing/approval)

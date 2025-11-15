@@ -715,12 +715,28 @@ router.post('/api/b2b/admin/tiers', requireB2bAdmin, async (req: Request, res: R
 // Admin: Update tier pricing
 router.patch('/api/b2b/admin/tiers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const tier = await storage.updateTierPricing(req.params.id, req.body);
+    const updateSchema = z.object({
+      discountPercentage: z.number().min(0).max(100).optional(),
+      description: z.string().max(500).optional(),
+    });
+
+    const validated = updateSchema.parse(req.body);
+    
+    // Convert discountPercentage to string for storage (decimal type) with fixed precision
+    const updateData: Partial<{ discountPercentage: string; description: string }> = {
+      ...(validated.description !== undefined && { description: validated.description }),
+      ...(validated.discountPercentage !== undefined && { discountPercentage: validated.discountPercentage.toFixed(2) }),
+    };
+    
+    const tier = await storage.updateTierPricing(req.params.id, updateData);
     if (!tier) {
       return res.status(404).json({ error: 'Tier not found' });
     }
     res.json(tier);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
     console.error('Error updating tier:', error);
     res.status(500).json({ error: 'Failed to update tier' });
   }

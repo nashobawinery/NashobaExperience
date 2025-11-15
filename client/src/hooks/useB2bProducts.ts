@@ -42,6 +42,7 @@ export function useB2bPreviousProducts() {
 export interface TierPricing {
   id: string;
   tierName: string;
+  description?: string;
   discountPercentage: string;
   active: boolean;
   minOrderQuantity?: number;
