@@ -4,13 +4,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award } from "lucide-react";
+import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import logoUrl from "@assets/NVW logo no background_1762469370864.png";
 import wineryAerialUrl from "@assets/Winery-areal_1762431445607.webp";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function B2BPricingPage() {
   const [, setLocation] = useLocation();
@@ -19,6 +28,13 @@ export default function B2BPricingPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [requestForm, setRequestForm] = useState({
+    name: "",
+    businessName: "",
+    email: "",
+  });
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const { toast } = useToast();
   const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
 
@@ -115,6 +131,42 @@ export default function B2BPricingPage() {
     setCurrentSlide(index);
   };
 
+  const handleRequestAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingRequest(true);
+
+    try {
+      const response = await fetch("/api/b2b/request-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestForm),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Request Sent",
+          description: "We'll contact you shortly with your access code",
+        });
+        setRequestDialogOpen(false);
+        setRequestForm({ name: "", businessName: "", email: "" });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to send request. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
   // Initial welcome view (before access code entry)
   if (!isVerified) {
     return (
@@ -159,7 +211,7 @@ export default function B2BPricingPage() {
                 id="access-code"
                 data-testid="input-access-code"
                 type="text"
-                placeholder="WHOLESALE2025"
+                placeholder="Enter your Wholesale Access Code Here"
                 value={accessCode}
                 onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
                 className="text-center text-xl font-mono tracking-wider border-0 bg-background/50 focus-visible:ring-2 py-6 mb-4"
@@ -203,6 +255,90 @@ export default function B2BPricingPage() {
                 Admin Login
               </Button>
             </div>
+          </div>
+
+          {/* Request Access Code Dialog */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-primary-foreground/70 mb-3">
+              Don't have an access code?
+            </p>
+            <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30 gap-2"
+                  data-testid="button-request-access"
+                >
+                  <Mail className="h-4 w-4" />
+                  Request Access Code
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Request Wholesale Access Code</DialogTitle>
+                  <DialogDescription>
+                    Fill out the form below and we'll send you an access code to view our wholesale pricing.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleRequestAccess} className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="request-name">Your Name *</Label>
+                    <Input
+                      id="request-name"
+                      data-testid="input-request-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={requestForm.name}
+                      onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="request-business">Store/Restaurant Name *</Label>
+                    <Input
+                      id="request-business"
+                      data-testid="input-request-business"
+                      type="text"
+                      placeholder="My Restaurant & Bar"
+                      value={requestForm.businessName}
+                      onChange={(e) => setRequestForm({ ...requestForm, businessName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="request-email">Email Address *</Label>
+                    <Input
+                      id="request-email"
+                      data-testid="input-request-email"
+                      type="email"
+                      placeholder="you@yourbusiness.com"
+                      value={requestForm.email}
+                      onChange={(e) => setRequestForm({ ...requestForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRequestDialogOpen(false)}
+                      className="flex-1"
+                      data-testid="button-cancel-request"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={isSubmittingRequest}
+                      data-testid="button-submit-request"
+                    >
+                      {isSubmittingRequest ? "Sending..." : "Submit Request"}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>
