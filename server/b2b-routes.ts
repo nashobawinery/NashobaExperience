@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { storage } from './storage';
-import { db } from '@db';
+import { db } from './db';
 import {
   createB2bSessionMiddleware,
   requireB2bAuth,
