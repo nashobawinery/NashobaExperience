@@ -1316,6 +1316,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 3. Import B2B customers (depends on tiers and sales reps)
       for (const customer of parseResult.b2bCustomers) {
         try {
+          // Check if customer already exists
+          const existingCustomer = await storage.getB2bCustomerCoreByEmail(customer.emailAddress);
+          
+          // Skip new customers without passwords (passwords are not exported)
+          if (!existingCustomer && (!customer.passwordHash || !customer.passwordHash.trim())) {
+            results.warnings.push(`B2B Customer "${customer.emailAddress}": Skipped (new record without password - passwords are not exported for security)`);
+            continue;
+          }
+          
           // Resolve FK: tier name → tier ID
           let pricingTierId: string | null = null;
           if (customer.pricingTierName) {
@@ -1434,8 +1443,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 6. Import B2B admins (independent - no FK dependencies)
       for (const admin of parseResult.b2bAdmins) {
         try {
-          const upserted = await storage.upsertB2bAdmin(admin);
-          results.b2bAdmins.success++;
+          // Check if admin already exists
+          const existingAdmin = await storage.getB2bAdminByEmail(admin.email);
+          
+          if (existingAdmin) {
+            // Update existing admin (password will be preserved)
+            const upserted = await storage.upsertB2bAdmin(admin);
+            results.b2bAdmins.success++;
+          } else if (admin.passwordHash && admin.passwordHash.trim()) {
+            // Create new admin only if password is provided
+            const upserted = await storage.upsertB2bAdmin(admin);
+            results.b2bAdmins.success++;
+          } else {
+            // Skip new admin without password
+            results.warnings.push(`B2B Admin "${admin.email}": Skipped (new record without password - passwords are not exported for security)`);
+          }
         } catch (error) {
           results.b2bAdmins.failed++;
           results.errors.push(`B2B Admin "${admin.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
