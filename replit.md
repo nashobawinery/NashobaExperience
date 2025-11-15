@@ -47,7 +47,8 @@ Preferred communication style: Simple, everyday language.
 - **Architecture**: A completely separate full-stack platform from the tasting app with its own authentication, sessions, and routes (`/b2b/*`).
 - **User Types**: B2B Admins, Sales Representatives, and B2B Customers with dedicated login endpoints and permissions.
 - **Database**: 7 dedicated B2B tables and `case_size` field on products.
-- **Tier-Based Pricing**: 6 pricing tiers (10%-60% wholesale discounts) with tier-specific pricing.
+- **Tier-Based Pricing**: 6 pricing tiers (10%-60% wholesale discounts) with tier-specific pricing, active/inactive toggle, and editable discount percentage and description.
+- **Tier Management**: Admins can edit tier details (discount percentage, description), toggle active/inactive status. Inactive tiers hidden from public pricing and approval workflows while existing customers retain their pricing.
 - **Customer Workflow**: Registration, admin approval, email notification, login, order placement.
 - **Case Pricing**: All orders calculated by case with tier-based discounts.
 - **Admin Dashboard**: Comprehensive 4-tab dashboard for managing customers, orders, sales reps, and account settings.
