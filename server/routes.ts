@@ -998,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
@@ -1012,6 +1012,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAllTierPricing(),
         storage.getAllSalesReps(),
         storage.getAllB2bCustomers(),
+        storage.getAllB2bSlideshowSlides(),
+        storage.getAllB2bAdmins(),
+        storage.getAllB2bSettings(),
       ]);
 
       const appSettingsData: any[] = [];
@@ -1061,6 +1064,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         b2bCustomers: b2bCustomers.map(c => c), // Already has tier and salesRep joined
         b2bOrders,
         b2bOrderItems,
+        b2bSlideshowSlides,
+        b2bAdmins,
+        b2bSettings,
       });
       
       const timestamp = new Date().toISOString().split('T')[0];
@@ -1139,6 +1145,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         b2bCustomers: { success: 0, failed: 0 },
         b2bOrders: { success: 0, failed: 0 },
         b2bOrderItems: { success: 0, failed: 0 },
+        b2bSlideshowSlides: { success: 0, failed: 0 },
+        b2bAdmins: { success: 0, failed: 0 },
+        b2bSettings: { success: 0, failed: 0 },
         errors: [...parseResult.errors],
         warnings: [...parseResult.warnings],
       };
@@ -1411,16 +1420,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // 5. Import B2B slideshow slides (independent - no FK dependencies)
+      for (const slide of parseResult.b2bSlideshowSlides) {
+        try {
+          await storage.upsertB2bSlideshowSlide(slide);
+          results.b2bSlideshowSlides.success++;
+        } catch (error) {
+          results.b2bSlideshowSlides.failed++;
+          results.errors.push(`B2B Slideshow Slide "${slide.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 6. Import B2B admins (independent - no FK dependencies)
+      for (const admin of parseResult.b2bAdmins) {
+        try {
+          const upserted = await storage.upsertB2bAdmin(admin);
+          results.b2bAdmins.success++;
+        } catch (error) {
+          results.b2bAdmins.failed++;
+          results.errors.push(`B2B Admin "${admin.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 7. Import B2B settings (independent - no FK dependencies)
+      for (const setting of parseResult.b2bSettings) {
+        try {
+          await storage.setB2bSetting(setting.settingKey, setting.settingValue);
+          results.b2bSettings.success++;
+        } catch (error) {
+          results.b2bSettings.failed++;
+          results.errors.push(`B2B Setting "${setting.settingKey}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       const totalSuccess = results.products.success + results.filterOptions.success + 
         results.triviaQuestions.success + results.slideshowImages.success + results.appSettings.success + 
         results.mediaLibrary.success + results.whitelistedEmails.success + results.commercials.success + 
         results.videos.success + results.triviaAchievements.success + results.tierPricing.success + 
-        results.salesReps.success + results.b2bCustomers.success + results.b2bOrders.success + results.b2bOrderItems.success;
+        results.salesReps.success + results.b2bCustomers.success + results.b2bOrders.success + results.b2bOrderItems.success +
+        results.b2bSlideshowSlides.success + results.b2bAdmins.success + results.b2bSettings.success;
       const totalFailed = results.products.failed + results.filterOptions.failed + 
         results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed + 
         results.mediaLibrary.failed + results.whitelistedEmails.failed + results.commercials.failed + 
         results.videos.failed + results.triviaAchievements.failed + results.tierPricing.failed + 
-        results.salesReps.failed + results.b2bCustomers.failed + results.b2bOrders.failed + results.b2bOrderItems.failed;
+        results.salesReps.failed + results.b2bCustomers.failed + results.b2bOrders.failed + results.b2bOrderItems.failed +
+        results.b2bSlideshowSlides.failed + results.b2bAdmins.failed + results.b2bSettings.failed;
 
       const message = totalSuccess > 0
         ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`

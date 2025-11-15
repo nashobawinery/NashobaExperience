@@ -288,6 +288,7 @@ export interface IStorage {
   createB2bAdmin(data: InsertB2bAdmin): Promise<B2bAdmin>;
   updateB2bAdmin(id: string, data: Partial<InsertB2bAdmin>): Promise<B2bAdmin | undefined>;
   deleteB2bAdmin(id: string): Promise<boolean>;
+  upsertB2bAdmin(data: Omit<InsertB2bAdmin, 'passwordHash'> & { passwordHash?: string }): Promise<{ admin: B2bAdmin; action: 'created' | 'updated' }>;
 
   // B2B - Customers
   getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]>;
@@ -315,6 +316,11 @@ export interface IStorage {
   getB2bSetting(key: string): Promise<B2bSetting | undefined>;
   setB2bSetting(key: string, value: string): Promise<B2bSetting>;
   getAllB2bSettings(): Promise<B2bSetting[]>;
+  
+  // B2B - Slideshow Slides
+  getAllB2bSlideshowSlides(): Promise<B2bSlideshowSlide[]>;
+  getB2bSlideshowSlideByTitle(title: string): Promise<B2bSlideshowSlide | undefined>;
+  upsertB2bSlideshowSlide(data: InsertB2bSlideshowSlide): Promise<{ slide: B2bSlideshowSlide; action: 'created' | 'updated' }>;
 }
 
 export interface ProductFilters {
@@ -1783,6 +1789,35 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  async upsertB2bAdmin(data: Omit<InsertB2bAdmin, 'passwordHash'> & { passwordHash?: string }): Promise<{ admin: B2bAdmin; action: 'created' | 'updated' }> {
+    if (!data.email) {
+      throw new Error("email is required for upsert operation");
+    }
+
+    const existing = await this.getB2bAdminByEmail(data.email);
+    
+    if (existing) {
+      // On update: preserve existing passwordHash, filter undefined fields
+      const updateData = Object.fromEntries(
+        Object.entries({ ...data, passwordHash: existing.passwordHash })
+          .filter(([_, v]) => v !== undefined)
+      ) as Partial<InsertB2bAdmin>;
+      
+      const updated = await this.updateB2bAdmin(existing.id, updateData);
+      if (!updated) {
+        throw new Error("Failed to update B2B admin");
+      }
+      return { admin: updated, action: 'updated' };
+    } else {
+      // On create: require passwordHash
+      if (!data.passwordHash) {
+        throw new Error("passwordHash is required when creating a new B2B admin");
+      }
+      const created = await this.createB2bAdmin(data as InsertB2bAdmin);
+      return { admin: created, action: 'created' };
+    }
+  }
+
   // B2B - Customers implementations
   async getAllB2bCustomers(status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]> {
     const query = db
@@ -2159,6 +2194,48 @@ export class DatabaseStorage implements IStorage {
 
   async getAllB2bSettings(): Promise<B2bSetting[]> {
     return db.select().from(b2bSettings);
+  }
+  
+  async getAllB2bSlideshowSlides(): Promise<B2bSlideshowSlide[]> {
+    return db.select().from(b2bSlideshowSlides).orderBy(b2bSlideshowSlides.sortOrder);
+  }
+
+  async getB2bSlideshowSlideByTitle(title: string): Promise<B2bSlideshowSlide | undefined> {
+    const [slide] = await db
+      .select()
+      .from(b2bSlideshowSlides)
+      .where(eq(b2bSlideshowSlides.title, title));
+    return slide;
+  }
+
+  async upsertB2bSlideshowSlide(data: InsertB2bSlideshowSlide): Promise<{ slide: B2bSlideshowSlide; action: 'created' | 'updated' }> {
+    if (!data.title) {
+      throw new Error("title is required for upsert operation");
+    }
+
+    const existing = await this.getB2bSlideshowSlideByTitle(data.title);
+    
+    if (existing) {
+      // Update existing slide
+      const [updated] = await db
+        .update(b2bSlideshowSlides)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(b2bSlideshowSlides.id, existing.id))
+        .returning();
+      
+      if (!updated) {
+        throw new Error("Failed to update B2B slideshow slide");
+      }
+      return { slide: updated, action: 'updated' };
+    } else {
+      // Create new slide
+      const [created] = await db
+        .insert(b2bSlideshowSlides)
+        .values(data)
+        .returning();
+      
+      return { slide: created, action: 'created' };
+    }
   }
 }
 

@@ -333,6 +333,9 @@ export function exportAllDataToExcel(data: {
   b2bCustomers?: any[];
   b2bOrders?: any[];
   b2bOrderItems?: any[];
+  b2bSlideshowSlides?: any[];
+  b2bAdmins?: any[];
+  b2bSettings?: any[];
 }): Buffer {
   const workbook = XLSX.utils.book_new();
 
@@ -593,6 +596,44 @@ export function exportAllDataToExcel(data: {
     XLSX.utils.book_append_sheet(workbook, orderItemSheet, 'B2bOrderItems');
   }
 
+  // B2B Slideshow Slides sheet (if provided)
+  if (data.b2bSlideshowSlides && data.b2bSlideshowSlides.length > 0) {
+    const slideshowData = data.b2bSlideshowSlides.map(slide => ({
+      title: slide.title,
+      content: slide.content || '',
+      highlight: slide.highlight || '',
+      media_type: slide.mediaType || 'none',
+      media_url: slide.mediaUrl || '',
+      icon_name: slide.iconName || '',
+      sort_order: slide.sortOrder,
+      active: slide.active ? 'Yes' : 'No',
+    }));
+    const slideshowSheet = XLSX.utils.json_to_sheet(slideshowData);
+    XLSX.utils.book_append_sheet(workbook, slideshowSheet, 'B2bSlideshowSlides');
+  }
+
+  // B2B Admins sheet (if provided) - EXCLUDE password_hash, email is business key
+  if (data.b2bAdmins && data.b2bAdmins.length > 0) {
+    const adminData = data.b2bAdmins.map(admin => ({
+      email: admin.email, // Business key for upsert
+      name: admin.name,
+      password_hash: '', // NEVER export passwords
+      active: admin.active ? 'Yes' : 'No',
+    }));
+    const adminSheet = XLSX.utils.json_to_sheet(adminData);
+    XLSX.utils.book_append_sheet(workbook, adminSheet, 'B2bAdmins');
+  }
+
+  // B2B Settings sheet (if provided)
+  if (data.b2bSettings && data.b2bSettings.length > 0) {
+    const settingsData = data.b2bSettings.map(setting => ({
+      key: setting.key, // Business key for upsert
+      value: JSON.stringify(setting.value),
+    }));
+    const settingsSheet = XLSX.utils.json_to_sheet(settingsData);
+    XLSX.utils.book_append_sheet(workbook, settingsSheet, 'B2bSettings');
+  }
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -613,6 +654,9 @@ export interface ParseAllDataResult {
   b2bCustomers: any[];
   b2bOrders: any[];
   b2bOrderItems: any[];
+  b2bSlideshowSlides: any[];
+  b2bAdmins: any[];
+  b2bSettings: any[];
   errors: string[];
   warnings: string[];
 }
@@ -635,6 +679,9 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     b2bCustomers: [],
     b2bOrders: [],
     b2bOrderItems: [],
+    b2bSlideshowSlides: [],
+    b2bAdmins: [],
+    b2bSettings: [],
     errors: [],
     warnings: [],
   };
@@ -1023,6 +1070,47 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       unitPrice: toDecimal(row.unit_price),  // No || 0 default
       retailPrice: toDecimal(row.retail_price),
       lineTotal: toDecimal(row.line_total),
+    }));
+  }
+
+  // Parse B2B Slideshow Slides sheet
+  if (workbook.SheetNames.includes('B2bSlideshowSlides')) {
+    const slideSheet = workbook.Sheets['B2bSlideshowSlides'];
+    const rawSlideData: any[] = XLSX.utils.sheet_to_json(slideSheet);
+    
+    result.b2bSlideshowSlides = rawSlideData.map((row: any) => ({
+      title: row.title?.trim() || '',
+      content: row.content?.trim() || '',
+      highlight: row.highlight?.trim() || '',
+      mediaType: row.media_type?.trim() || 'none',
+      mediaUrl: row.media_url?.trim() || '',
+      iconName: row.icon_name?.trim() || '',
+      sortOrder: toNumber(row.sort_order, 0),
+      active: normalizeBool(row.active),
+    }));
+  }
+
+  // Parse B2B Admins sheet (email is business key)
+  if (workbook.SheetNames.includes('B2bAdmins')) {
+    const adminSheet = workbook.Sheets['B2bAdmins'];
+    const rawAdminData: any[] = XLSX.utils.sheet_to_json(adminSheet);
+    
+    result.b2bAdmins = rawAdminData.map((row: any) => ({
+      email: row.email?.trim() || '', // Business key for upsert
+      name: row.name?.trim() || '',
+      passwordHash: row.password_hash?.trim() || '', // Will be empty from export, handle in routes
+      active: normalizeBool(row.active !== undefined ? row.active : true),
+    }));
+  }
+
+  // Parse B2B Settings sheet (key is business key)
+  if (workbook.SheetNames.includes('B2bSettings')) {
+    const settingsSheet = workbook.Sheets['B2bSettings'];
+    const rawSettingsData: any[] = XLSX.utils.sheet_to_json(settingsSheet);
+    
+    result.b2bSettings = rawSettingsData.map((row: any) => ({
+      key: row.key?.trim() || '', // Business key for upsert
+      value: row.value ? JSON.parse(row.value) : {},
     }));
   }
 
