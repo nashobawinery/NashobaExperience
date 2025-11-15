@@ -99,11 +99,55 @@ router.get('/api/b2b/pricing/tiers', async (req: Request, res: Response) => {
   }
 });
 
+// Admin route: Get media library items
+router.get('/api/b2b/admin/media-library', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { mediaLibrary } = await import('@shared/schema');
+    const items = await db.select().from(mediaLibrary).orderBy(mediaLibrary.createdAt);
+    res.json(items);
+  } catch (error) {
+    console.error('Error fetching media library:', error);
+    res.status(500).json({ error: 'Failed to fetch media library' });
+  }
+});
+
+// Admin route: Get videos
+router.get('/api/b2b/admin/videos', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { videos } = await import('@shared/schema');
+    const videoList = await db.select().from(videos).where(eq(videos.isActive, true)).orderBy(videos.sortOrder);
+    res.json(videoList);
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    res.status(500).json({ error: 'Failed to fetch videos' });
+  }
+});
+
 // Public route: Get active B2B slideshow slides
 router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
   try {
+    const { mediaLibrary, videos } = await import('@shared/schema');
     const slides = await db.select().from(b2bSlideshowSlides).where(eq(b2bSlideshowSlides.active, true)).orderBy(b2bSlideshowSlides.sortOrder);
-    res.json(slides);
+    
+    // Resolve media references
+    const slidesWithMedia = await Promise.all(slides.map(async (slide) => {
+      let mediaUrl = null;
+      
+      if (slide.mediaType === 'image' && slide.mediaLibraryId) {
+        const [media] = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, slide.mediaLibraryId));
+        mediaUrl = media?.publicUrl || null;
+      } else if (slide.mediaType === 'video' && slide.videoId) {
+        const [video] = await db.select().from(videos).where(eq(videos.id, slide.videoId));
+        mediaUrl = video?.videoUrl || null;
+      }
+      
+      return {
+        ...slide,
+        mediaUrl,
+      };
+    }));
+    
+    res.json(slidesWithMedia);
   } catch (error) {
     console.error('Get slides error:', error);
     res.status(500).json({ error: 'Failed to fetch slides' });
