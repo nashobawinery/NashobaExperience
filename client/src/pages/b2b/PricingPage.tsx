@@ -380,7 +380,7 @@ export default function B2BPricingPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-32">
         {/* Why Partner With Us Slideshow */}
         <Card className="mb-12">
           <CardHeader>
@@ -534,17 +534,6 @@ export default function B2BPricingPage() {
             </div>
             )}
           </CardContent>
-          <CardFooter className="flex justify-center pt-6 border-t">
-            <Button
-              size="lg"
-              onClick={() => setLocation("/b2b/pricing-sheet")}
-              className="gap-2 text-base px-8"
-              data-testid="button-proceed-to-pricing"
-            >
-              <TrendingDown className="h-5 w-5" />
-              Proceed to Pricing Sheet
-            </Button>
-          </CardFooter>
         </Card>
 
         {/* Pricing Tiers and Set Up Account */}
@@ -759,6 +748,21 @@ export default function B2BPricingPage() {
               </p>
             </CardContent>
           </Card>
+        </div>
+      </div>
+
+      {/* Sticky Proceed to Pricing Sheet Button */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Button
+            size="lg"
+            onClick={() => setLocation("/b2b/pricing-sheet")}
+            className="w-full gap-2 text-base px-8 py-6"
+            data-testid="button-proceed-to-pricing"
+          >
+            <TrendingDown className="h-5 w-5" />
+            Proceed to Pricing Sheet
+          </Button>
         </div>
       </div>
     </div>
