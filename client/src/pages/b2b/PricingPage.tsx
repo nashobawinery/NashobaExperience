@@ -214,7 +214,7 @@ export default function B2BPricingPage() {
                 placeholder="Enter your Wholesale Access Code Here"
                 value={accessCode}
                 onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-                className="text-center text-xl font-mono tracking-wider border-0 bg-background/50 focus-visible:ring-2 py-6 mb-4"
+                className="text-center text-xl font-mono tracking-wider border-2 border-primary/30 bg-background/50 focus-visible:ring-2 focus-visible:border-primary py-6 mb-4"
                 required
               />
               <Button
@@ -227,7 +227,7 @@ export default function B2BPricingPage() {
                 {isVerifying ? "Verifying..." : "View Wholesale Pricing"}
               </Button>
               <p className="text-sm text-muted-foreground mt-4">
-                Contact our sales team for an access code
+                No Access Code? Press the Request button below
               </p>
             </div>
           </form>
