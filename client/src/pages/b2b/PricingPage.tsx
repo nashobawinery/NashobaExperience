@@ -4,19 +4,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Lock, Wine, TrendingDown, Package, Clock, Shield } from "lucide-react";
+import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
+import logoUrl from "@assets/NVW logo no background_1762469370864.png";
+import wineryAerialUrl from "@assets/Winery-areal_1762431445607.webp";
 
 export default function B2BPricingPage() {
   const [, setLocation] = useLocation();
   const [accessCode, setAccessCode] = useState("");
+  const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [direction, setDirection] = useState(0);
   const { toast } = useToast();
   const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsVerifying(true);
 
@@ -30,13 +36,12 @@ export default function B2BPricingPage() {
       const data = await response.json();
 
       if (data.valid) {
+        setIsVerified(true);
+        sessionStorage.setItem("b2b_verified", "true");
         toast({
           title: "Access Granted",
           description: "Welcome to our wholesale platform",
         });
-        // Store verification in sessionStorage
-        sessionStorage.setItem("b2b_verified", "true");
-        setLocation("/b2b/register");
       } else {
         toast({
           title: "Invalid Access Code",
@@ -55,79 +60,298 @@ export default function B2BPricingPage() {
     }
   };
 
-  const features = [
+  const slides = [
     {
-      icon: TrendingDown,
-      title: "Wholesale Pricing",
-      description: "Exclusive tier-based discounts from 10% to 60% off retail",
+      icon: Sprout,
+      title: "Support Local Agriculture",
+      content: "By choosing Nashoba Valley Winery, you're supporting a working farm that has been cultivating the land since 1978. Every bottle represents our commitment to sustainable farming practices and local food systems.",
+      highlight: "100% locally grown fruit",
     },
     {
-      icon: Package,
-      title: "Case Quantities",
-      description: "All orders calculated by case (12 bottles per case)",
+      icon: Users,
+      title: "Family-Owned Since 1978",
+      content: "We're a family business that employs local residents and contributes to the regional economy. Your partnership helps us maintain our orchards, vineyards, and brewing operations while creating jobs in our community.",
+      highlight: "Supporting 50+ local jobs",
     },
     {
-      icon: Clock,
-      title: "Fast Approval",
-      description: "Quick account approval process, typically within 24 hours",
-    },
-    {
-      icon: Shield,
-      title: "Dedicated Support",
-      description: "Assigned sales representative for personalized service",
+      icon: Award,
+      title: "Award-Winning Quality",
+      content: "Our products have won numerous awards while staying true to our agricultural roots. We grow our own apples, peaches, and grapes right here in Massachusetts, creating unique products you won't find anywhere else.",
+      highlight: "Farm-to-bottle excellence",
     },
   ];
 
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 300 : -300,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 300 : -300,
+      opacity: 0,
+    }),
+  };
 
+  const nextSlide = () => {
+    if (currentSlide < slides.length - 1) {
+      setDirection(1);
+      setCurrentSlide(currentSlide + 1);
+    }
+  };
+
+  const prevSlide = () => {
+    if (currentSlide > 0) {
+      setDirection(-1);
+      setCurrentSlide(currentSlide - 1);
+    }
+  };
+
+  const goToSlide = (index: number) => {
+    setDirection(index > currentSlide ? 1 : -1);
+    setCurrentSlide(index);
+  };
+
+  // Initial welcome view (before access code entry)
+  if (!isVerified) {
+    return (
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Background Image with Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
+        <img 
+          src={wineryAerialUrl} 
+          alt="Nashoba Valley Winery Aerial View" 
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
+        
+        <div className="relative z-20 w-full max-w-2xl px-6 text-center">
+          {/* Logo */}
+          <div className="mb-8 flex justify-center">
+            <img 
+              src={logoUrl} 
+              alt="Nashoba Valley Winery Logo" 
+              className="w-48 h-auto object-contain drop-shadow-2xl"
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </div>
+          
+          {/* Title */}
+          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-light text-primary-foreground mb-4 tracking-wide leading-tight">
+            Nashoba Valley Winery
+          </h1>
+          <p className="text-2xl md:text-3xl text-primary-foreground/90 mb-4 font-light">
+            Wholesale Program
+          </p>
+          <p className="text-lg text-primary-foreground/80 mb-12 max-w-xl mx-auto">
+            Premium wines, spirits, and craft beverages from our working farm
+          </p>
+
+          {/* Access Code Form */}
+          <form onSubmit={handleVerifyCode} className="space-y-4">
+            <div className="bg-background/95 backdrop-blur-md rounded-lg p-6 shadow-xl">
+              <Label htmlFor="access-code" className="text-base mb-3 block">
+                Enter Access Code to View Wholesale Pricing
+              </Label>
+              <Input
+                id="access-code"
+                data-testid="input-access-code"
+                type="text"
+                placeholder="WHOLESALE2025"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                className="text-center text-xl font-mono tracking-wider border-0 bg-background/50 focus-visible:ring-2 py-6 mb-4"
+                required
+              />
+              <Button
+                type="submit"
+                data-testid="button-verify-code"
+                size="lg"
+                className="w-full py-6 text-lg font-medium"
+                disabled={isVerifying || !accessCode}
+              >
+                {isVerifying ? "Verifying..." : "View Wholesale Pricing"}
+              </Button>
+              <p className="text-sm text-muted-foreground mt-4">
+                Contact our sales team for an access code
+              </p>
+            </div>
+          </form>
+
+          {/* Login Links */}
+          <div className="mt-8 space-y-3">
+            <p className="text-sm text-primary-foreground/70">
+              Already have an account?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button
+                variant="outline"
+                className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30"
+                onClick={() => setLocation("/b2b/login/customer")}
+                data-testid="button-customer-login"
+              >
+                Customer Login
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30"
+                onClick={() => setLocation("/b2b/login/admin")}
+                data-testid="button-admin-login"
+              >
+                Admin Login
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pricing view (after access code verified)
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-primary text-primary-foreground">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-primary opacity-90" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
+        <img 
+          src={wineryAerialUrl} 
+          alt="Nashoba Valley Winery" 
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
+        
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
           <div className="text-center">
-            <Wine className="h-16 w-16 mx-auto mb-6 text-primary-foreground/80" />
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-light mb-6">
-              Nashoba Valley Winery
+            <div className="mb-6 flex justify-center">
+              <img 
+                src={logoUrl} 
+                alt="Nashoba Valley Winery Logo" 
+                className="w-32 md:w-40 h-auto object-contain drop-shadow-2xl"
+                style={{ mixBlendMode: 'multiply' }}
+              />
+            </div>
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-serif font-light text-primary-foreground mb-3">
+              Wholesale Pricing
             </h1>
-            <p className="text-xl md:text-2xl font-light mb-4">
-              Wholesale Program
-            </p>
-            <p className="text-lg text-primary-foreground/80 max-w-2xl mx-auto">
-              Premium wines, spirits, and craft beverages for restaurants, retailers, and distributors
+            <p className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mx-auto">
+              Premium products from our working farm to your business
             </p>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {features.map((feature, index) => (
-            <Card key={index} className="text-center">
-              <CardContent className="pt-6">
-                <feature.icon className="h-12 w-12 mx-auto mb-4 text-primary" />
-                <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Why Partner With Us Slideshow */}
+        <Card className="mb-12">
+          <CardHeader>
+            <CardTitle className="font-serif text-2xl md:text-3xl text-center">
+              Why Partner With Nashoba Valley Winery
+            </CardTitle>
+            <CardDescription className="text-center text-base">
+              Supporting local farms while offering exceptional products
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative">
+              <AnimatePresence initial={false} custom={direction} mode="wait">
+                <motion.div
+                  key={currentSlide}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    x: { type: "spring", stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.2 },
+                  }}
+                  className="py-8"
+                >
+                  <div className="text-center max-w-3xl mx-auto">
+                    <div className="flex justify-center mb-6">
+                      {(() => {
+                        const IconComponent = slides[currentSlide].icon;
+                        return <IconComponent className="h-16 w-16 text-primary" />;
+                      })()}
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-serif font-light mb-4">
+                      {slides[currentSlide].title}
+                    </h3>
+                    <p className="text-base md:text-lg text-muted-foreground mb-6 leading-relaxed">
+                      {slides[currentSlide].content}
+                    </p>
+                    <div className="inline-block bg-primary/10 border border-primary/20 rounded-lg px-6 py-3">
+                      <p className="text-sm md:text-base font-medium text-primary">
+                        {slides[currentSlide].highlight}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
 
+              {/* Navigation */}
+              <div className="flex justify-between items-center mt-8 gap-4">
+                <Button
+                  variant="outline"
+                  onClick={prevSlide}
+                  disabled={currentSlide === 0}
+                  className="gap-2"
+                  data-testid="button-prev-slide"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back
+                </Button>
+
+                {/* Progress Dots */}
+                <div className="flex gap-2">
+                  {slides.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => goToSlide(index)}
+                      className={`h-2.5 rounded-full transition-all duration-300 ${
+                        index === currentSlide
+                          ? "w-8 bg-primary"
+                          : "w-2.5 bg-muted-foreground/40 hover:bg-muted-foreground/60"
+                      }`}
+                      data-testid={`dot-slide-${index}`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <Button
+                  onClick={nextSlide}
+                  disabled={currentSlide === slides.length - 1}
+                  className="gap-2"
+                  data-testid="button-next-slide"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pricing Tiers and Set Up Account */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {/* Pricing Tiers */}
           <Card>
             <CardHeader>
-              <CardTitle className="font-serif text-2xl">Pricing Tiers</CardTitle>
+              <CardTitle className="font-serif text-2xl flex items-center gap-2">
+                <TrendingDown className="h-6 w-6 text-primary" />
+                Wholesale Pricing Tiers
+              </CardTitle>
               <CardDescription>
-                Competitive wholesale pricing based on your account tier
+                Competitive tier-based pricing for your business
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingTiers ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
+                    <Skeleton key={i} className="h-20 w-full" />
                   ))}
                 </div>
               ) : !activeTiers || activeTiers.length === 0 ? (
@@ -139,139 +363,153 @@ export default function B2BPricingPage() {
                   {activeTiers.map((tier) => (
                     <div
                       key={tier.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                      className="flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate"
+                      data-testid={`tier-${tier.tierName}`}
                     >
                       <div>
-                        <p className="font-medium">{tier.tierName}</p>
-                        <p className="text-sm text-muted-foreground">Wholesale pricing</p>
+                        <p className="font-semibold text-lg">{tier.tierName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {tier.description || "Wholesale pricing"}
+                        </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-primary">{tier.discountPercentage}% off</p>
+                        <p className="text-2xl font-bold text-primary">{tier.discountPercentage}%</p>
+                        <p className="text-xs text-muted-foreground">off retail</p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Package className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="font-medium text-sm mb-1">Case Quantities</p>
+                    <p className="text-sm text-muted-foreground">
+                      All orders are calculated by case (12 bottles per case)
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Access Code Entry */}
+          {/* Set Up Account */}
           <Card>
             <CardHeader>
               <CardTitle className="font-serif text-2xl flex items-center gap-2">
-                <Lock className="h-6 w-6" />
-                Access Required
+                <Shield className="h-6 w-6 text-primary" />
+                Ready to Get Started?
               </CardTitle>
               <CardDescription>
-                Enter your access code to view pricing and register
+                Set up your wholesale account to start ordering
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="access-code">Access Code</Label>
-                  <Input
-                    id="access-code"
-                    data-testid="input-access-code"
-                    type="text"
-                    placeholder="Enter your access code"
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-                    className="text-center text-lg font-mono tracking-wider"
-                    required
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Contact your sales representative for an access code
-                  </p>
-                </div>
-
-                <Button
-                  type="submit"
-                  data-testid="button-verify-code"
-                  className="w-full"
-                  size="lg"
-                  disabled={isVerifying || !accessCode}
-                >
-                  {isVerifying ? "Verifying..." : "Continue to Registration"}
-                </Button>
-
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-center text-muted-foreground mb-3">
-                    Already have an account?
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setLocation("/b2b/login/customer")}
-                      data-testid="button-customer-login"
-                    >
-                      Customer Login
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setLocation("/b2b/login/admin")}
-                      data-testid="button-admin-login"
-                    >
-                      Admin Login
-                    </Button>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 font-semibold">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">Create Account</p>
+                    <p className="text-sm text-muted-foreground">
+                      Register with your business details
+                    </p>
                   </div>
                 </div>
-              </form>
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 font-semibold">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">Quick Approval</p>
+                    <p className="text-sm text-muted-foreground">
+                      Our team reviews your account (typically within 24 hours)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 font-semibold">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">Start Ordering</p>
+                    <p className="text-sm text-muted-foreground">
+                      Browse products and place orders at your tier pricing
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full text-lg py-6"
+                onClick={() => setLocation("/b2b/register")}
+                data-testid="button-setup-account"
+              >
+                Set Up Your Account
+              </Button>
+
+              <div className="pt-4 border-t">
+                <p className="text-sm text-center text-muted-foreground mb-3">
+                  Already have an account?
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setLocation("/b2b/login/customer")}
+                    data-testid="button-customer-login-bottom"
+                  >
+                    Customer Login
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setLocation("/b2b/login/admin")}
+                    data-testid="button-admin-login-bottom"
+                  >
+                    Admin Login
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* How It Works */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-serif text-2xl">How It Works</CardTitle>
-            <CardDescription>Simple steps to start ordering</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 text-xl font-semibold">
-                  1
-                </div>
-                <h4 className="font-medium mb-2">Register</h4>
-                <p className="text-sm text-muted-foreground">
-                  Complete registration with your business details
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 text-xl font-semibold">
-                  2
-                </div>
-                <h4 className="font-medium mb-2">Get Approved</h4>
-                <p className="text-sm text-muted-foreground">
-                  Our team reviews and approves your account
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 text-xl font-semibold">
-                  3
-                </div>
-                <h4 className="font-medium mb-2">Browse & Order</h4>
-                <p className="text-sm text-muted-foreground">
-                  View tier pricing and place orders by case
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 text-xl font-semibold">
-                  4
-                </div>
-                <h4 className="font-medium mb-2">Receive Products</h4>
-                <p className="text-sm text-muted-foreground">
-                  Fast fulfillment and dedicated support
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Benefits Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <TrendingDown className="h-12 w-12 mx-auto mb-4 text-primary" />
+              <h3 className="font-semibold text-lg mb-2">Wholesale Discounts</h3>
+              <p className="text-sm text-muted-foreground">
+                Save 10% to 60% off retail prices with our tier-based pricing
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <Sprout className="h-12 w-12 mx-auto mb-4 text-primary" />
+              <h3 className="font-semibold text-lg mb-2">Local & Sustainable</h3>
+              <p className="text-sm text-muted-foreground">
+                Support a working farm committed to sustainable agriculture
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <Shield className="h-12 w-12 mx-auto mb-4 text-primary" />
+              <h3 className="font-semibold text-lg mb-2">Dedicated Support</h3>
+              <p className="text-sm text-muted-foreground">
+                Assigned sales representative for personalized service
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

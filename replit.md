@@ -45,13 +45,14 @@ Preferred communication style: Simple, everyday language.
 
 ### B2B Wholesale Platform
 - **Architecture**: A completely separate full-stack platform from the tasting app with its own authentication, sessions, and routes (`/b2b/*`).
+- **Landing Page**: Features tasting app-style aesthetic with winery aerial background image and gradient overlay. Access code WHOLESALE2025 grants view of wholesale pricing tiers without requiring account creation. Interactive slideshow highlights benefits of supporting local farms.
 - **User Types**: B2B Admins, Sales Representatives, and B2B Customers with dedicated login endpoints and permissions.
 - **Database**: 7 dedicated B2B tables and `case_size` field on products.
 - **Tier-Based Pricing**: 6 pricing tiers (10%-60% wholesale discounts) with tier-specific pricing, active/inactive toggle, and editable discount percentage and description.
 - **Tier Management**: Admins can edit tier details (discount percentage, description), toggle active/inactive status. Inactive tiers hidden from public pricing and approval workflows while existing customers retain their pricing.
-- **Customer Workflow**: Registration, admin approval, email notification, login, order placement.
+- **Customer Workflow**: Registration via "Set Up Account" button, admin approval, email notification, login, order placement.
 - **Case Pricing**: All orders calculated by case with tier-based discounts.
-- **Admin Dashboard**: Comprehensive 4-tab dashboard for managing customers, orders, sales reps, and account settings.
+- **Admin Dashboard**: Comprehensive 4-tab dashboard for managing customers, orders, sales reps, and account settings with full administrator management (create, edit, delete admins with security safeguards).
 
 ### Database Synchronization
 - **Process**: Export/import system using multi-sheet Excel workbooks to synchronize database configuration between environments.
