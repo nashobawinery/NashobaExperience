@@ -869,8 +869,14 @@ router.post('/api/b2b/admin/admins', requireB2bAdmin, async (req: Request, res: 
     const admin = await storage.createB2bAdmin({ ...data, passwordHash });
     
     res.json(admin);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating admin:', error);
+    
+    // Check for unique constraint violation (duplicate email)
+    if (error.code === '23505' && error.constraint?.includes('email')) {
+      return res.status(400).json({ error: 'An admin with this email already exists' });
+    }
+    
     res.status(500).json({ error: 'Failed to create admin' });
   }
 });

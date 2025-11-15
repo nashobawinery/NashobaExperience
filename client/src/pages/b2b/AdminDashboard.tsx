@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
+import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ import { format } from "date-fns";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const { user: currentUser } = useB2bAuth();
   const { data: pendingCustomers, isLoading: loadingPending } = useB2bAdminCustomers("pending_approval");
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
   const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
@@ -957,7 +959,10 @@ export default function AdminDashboard() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => setDeleteAdminDialog({ isOpen: true, admin })}
-                                disabled={!admin.active || (admins.filter(a => a.active).length <= 1)}
+                                disabled={
+                                  admin.id === currentUser?.id || 
+                                  (admin.active && admins.filter(a => a.active).length <= 1)
+                                }
                                 data-testid={`button-delete-admin-${admin.id}`}
                               >
                                 <Trash2 className="h-4 w-4 mr-1" />
@@ -966,9 +971,9 @@ export default function AdminDashboard() {
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {!admin.active ? (
-                              <p>Cannot delete inactive admin</p>
-                            ) : admins.filter(a => a.active).length <= 1 ? (
+                            {admin.id === currentUser?.id ? (
+                              <p>Cannot delete your own admin account</p>
+                            ) : admin.active && admins.filter(a => a.active).length <= 1 ? (
                               <p>Cannot delete the last active admin</p>
                             ) : (
                               <p>Delete this administrator</p>
