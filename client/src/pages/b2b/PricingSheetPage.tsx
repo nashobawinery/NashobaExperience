@@ -498,6 +498,42 @@ export default function PricingSheetPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Tier Information Footer */}
+        {!loadingTiers && tiers.length > 0 && (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Wholesale Pricing Tiers
+              </CardTitle>
+              <CardDescription>
+                Our tier-based discount structure for wholesale partners
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tiers.map((tier) => (
+                  <Card key={tier.id} className="border-2" data-testid={`tier-card-${tier.tierName.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg font-serif">{tier.tierName}</CardTitle>
+                        <Badge variant="secondary" className="text-base font-semibold">
+                          {tier.discountPercentage}% Off
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        {tier.description || `Save ${tier.discountPercentage}% on all wholesale orders`}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Product Detail Dialog */}
