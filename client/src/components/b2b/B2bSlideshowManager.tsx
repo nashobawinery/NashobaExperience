@@ -45,6 +45,8 @@ import {
 } from "lucide-react";
 import type { B2bSlideshowSlide } from "@shared/schema";
 
+type B2bSlideshowSlideWithMedia = B2bSlideshowSlide & { mediaUrl?: string | null };
+
 const iconOptions = [
   { value: "none", label: "No Icon" },
   { value: "Sprout", label: "Sprout (Agriculture)" },
@@ -88,7 +90,7 @@ export function B2bSlideshowManager() {
     active: true,
   });
 
-  const { data: slides = [], isLoading } = useQuery<B2bSlideshowSlide[]>({
+  const { data: slides = [], isLoading } = useQuery<B2bSlideshowSlideWithMedia[]>({
     queryKey: ["/api/b2b/admin/slideshow/slides"],
   });
 
@@ -342,13 +344,28 @@ export function B2bSlideshowManager() {
                     <TableCell>
                       {slide.mediaType === "image" && (
                         <div className="flex items-center gap-2">
-                          <ImageIcon className="h-4 w-4" />
+                          {slide.mediaUrl ? (
+                            <img 
+                              src={slide.mediaUrl} 
+                              alt="Thumbnail"
+                              className="h-12 w-12 object-cover rounded border"
+                            />
+                          ) : (
+                            <ImageIcon className="h-4 w-4" />
+                          )}
                           <span className="text-sm">Image</span>
                         </div>
                       )}
                       {slide.mediaType === "video" && (
                         <div className="flex items-center gap-2">
-                          <Video className="h-4 w-4" />
+                          {slide.mediaUrl ? (
+                            <video 
+                              src={slide.mediaUrl} 
+                              className="h-12 w-12 object-cover rounded border"
+                            />
+                          ) : (
+                            <Video className="h-4 w-4" />
+                          )}
                           <span className="text-sm">Video</span>
                         </div>
                       )}
