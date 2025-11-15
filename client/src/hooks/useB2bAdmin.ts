@@ -37,6 +37,16 @@ export interface SalesRep {
   active: boolean;
 }
 
+export interface B2bAdmin {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TierPricing {
   id: string;
   tierName: string;
@@ -68,6 +78,20 @@ export function useB2bAdminSalesReps() {
       const response = await fetch("/api/b2b/admin/sales-reps");
       if (!response.ok) {
         throw new Error("Failed to fetch sales reps");
+      }
+      return response.json();
+    },
+  });
+}
+
+// Fetch all admins
+export function useB2bAdmins() {
+  return useQuery<B2bAdmin[]>({
+    queryKey: ["b2b", "admin", "admins"],
+    queryFn: async () => {
+      const response = await fetch("/api/b2b/admin/admins");
+      if (!response.ok) {
+        throw new Error("Failed to fetch admins");
       }
       return response.json();
     },
@@ -131,6 +155,63 @@ export function useUpdateSalesRep() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "sales-reps"] });
+    },
+  });
+}
+
+// Create admin
+export function useCreateAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      password: string;
+    }) => {
+      return apiRequest("POST", "/api/b2b/admin/admins", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "admins"] });
+    },
+  });
+}
+
+// Update admin
+export function useUpdateAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      password?: string;
+      active?: boolean;
+    }) => {
+      return apiRequest("PATCH", `/api/b2b/admin/admins/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "admins"] });
+    },
+  });
+}
+
+// Delete admin
+export function useDeleteAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/b2b/admin/admins/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "admins"] });
     },
   });
 }

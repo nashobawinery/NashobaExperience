@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -30,6 +41,7 @@ export default function AdminDashboard() {
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
   const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
   const { data: salesReps, isLoading: loadingSalesReps } = useB2bAdminSalesReps();
+  const { data: admins, isLoading: loadingAdmins } = useB2bAdmins();
   const { data: adminTiers, isLoading: loadingAdminTiers } = useB2bAdminTiers(); // All tiers for Settings tab
   const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
@@ -37,6 +49,9 @@ export default function AdminDashboard() {
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
   const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
   const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
+  const { mutateAsync: createAdmin, isPending: isCreatingAdmin } = useCreateAdmin();
+  const { mutateAsync: updateAdmin, isPending: isUpdatingAdmin } = useUpdateAdmin();
+  const { mutateAsync: deleteAdmin, isPending: isDeletingAdmin } = useDeleteAdmin();
   const { mutateAsync: toggleTierActive, isPending: isTogglingTier } = useToggleTierActive();
   const { mutateAsync: updateTier, isPending: isUpdatingTier } = useUpdateTier();
 
@@ -73,6 +88,24 @@ export default function AdminDashboard() {
   const [editTierForm, setEditTierForm] = useState({
     discountPercentage: 0,
     description: "",
+  });
+
+  // Admin dialog state
+  const [adminDialog, setAdminDialog] = useState<{ isOpen: boolean; admin: any | null }>({
+    isOpen: false,
+    admin: null,
+  });
+  const [adminForm, setAdminForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+  });
+
+  // Delete admin confirmation state
+  const [deleteAdminDialog, setDeleteAdminDialog] = useState<{ isOpen: boolean; admin: any | null }>({
+    isOpen: false,
+    admin: null,
   });
 
   const handleApprove = async () => {
@@ -232,6 +265,105 @@ export default function AdminDashboard() {
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update tier",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      if (adminDialog.admin) {
+        // Update existing admin
+        const updateData: any = {
+          id: adminDialog.admin.id,
+          firstName: adminForm.firstName,
+          lastName: adminForm.lastName,
+          email: adminForm.email,
+        };
+        
+        // Only include password if it's not empty
+        if (adminForm.password) {
+          updateData.password = adminForm.password;
+        }
+        
+        await updateAdmin(updateData);
+        
+        toast({
+          title: "Admin Updated",
+          description: "Administrator has been updated successfully",
+        });
+      } else {
+        // Create new admin
+        if (!adminForm.password) {
+          toast({
+            title: "Password Required",
+            description: "Password is required for new administrators",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        await createAdmin(adminForm);
+        
+        toast({
+          title: "Admin Created",
+          description: "New administrator has been created successfully",
+        });
+      }
+
+      setAdminDialog({ isOpen: false, admin: null });
+      setAdminForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Operation Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openAdminDialog = (admin?: any) => {
+    if (admin) {
+      setAdminForm({
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        email: admin.email,
+        password: "",
+      });
+    } else {
+      setAdminForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+      });
+    }
+    setAdminDialog({ isOpen: true, admin: admin || null });
+  };
+
+  const handleDeleteAdminConfirm = async () => {
+    if (!deleteAdminDialog.admin) return;
+
+    try {
+      await deleteAdmin(deleteAdminDialog.admin.id);
+      
+      toast({
+        title: "Admin Deleted",
+        description: "Administrator has been removed successfully",
+      });
+
+      setDeleteAdminDialog({ isOpen: false, admin: null });
+    } catch (error: any) {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete administrator",
         variant: "destructive",
       });
     }
@@ -754,6 +886,106 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+
+          {/* Admin Management Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Administrators
+                  </CardTitle>
+                  <CardDescription>
+                    Manage admin accounts who can access this dashboard
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => openAdminDialog()}
+                  size="sm"
+                  data-testid="button-add-admin"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Admin
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingAdmins ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : !admins || admins.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No administrators found
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {admins.map((admin) => (
+                    <div
+                      key={admin.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${!admin.active ? 'opacity-60' : ''}`}
+                      data-testid={`admin-${admin.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold">
+                            {admin.firstName} {admin.lastName}
+                          </p>
+                          <Badge variant={admin.active ? 'default' : 'secondary'}>
+                            {admin.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{admin.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openAdminDialog(admin)}
+                          data-testid={`button-edit-admin-${admin.id}`}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteAdminDialog({ isOpen: true, admin })}
+                                disabled={!admin.active || (admins.filter(a => a.active).length <= 1)}
+                                data-testid={`button-delete-admin-${admin.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {!admin.active ? (
+                              <p>Cannot delete inactive admin</p>
+                            ) : admins.filter(a => a.active).length <= 1 ? (
+                              <p>Cannot delete the last active admin</p>
+                            ) : (
+                              <p>Delete this administrator</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+                    Note: You cannot delete your own admin account or the last active administrator. 
+                    At least one active admin must remain to manage the system.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -984,6 +1216,124 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Dialog */}
+      <Dialog open={adminDialog.isOpen} onOpenChange={(open) => setAdminDialog({ isOpen: open, admin: adminDialog.admin })}>
+        <DialogContent data-testid="dialog-admin">
+          <DialogHeader>
+            <DialogTitle className="font-serif">
+              {adminDialog.admin ? "Edit" : "Add"} Administrator
+            </DialogTitle>
+            <DialogDescription>
+              {adminDialog.admin ? "Update administrator details" : "Create a new administrator account"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAdminSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="admin-first-name">First Name *</Label>
+                <Input
+                  id="admin-first-name"
+                  value={adminForm.firstName}
+                  onChange={(e) => setAdminForm({ ...adminForm, firstName: e.target.value })}
+                  data-testid="input-admin-first-name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-last-name">Last Name *</Label>
+                <Input
+                  id="admin-last-name"
+                  value={adminForm.lastName}
+                  onChange={(e) => setAdminForm({ ...adminForm, lastName: e.target.value })}
+                  data-testid="input-admin-last-name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="admin-email">Email *</Label>
+              <Input
+                id="admin-email"
+                type="email"
+                value={adminForm.email}
+                onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                data-testid="input-admin-email"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">
+                Password {adminDialog.admin ? "(leave blank to keep current)" : "*"}
+              </Label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={adminForm.password}
+                onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                data-testid="input-admin-password"
+                required={!adminDialog.admin}
+                minLength={6}
+              />
+              {!adminDialog.admin ? (
+                <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Leave blank to keep current password</p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAdminDialog({ isOpen: false, admin: null })}
+                data-testid="button-cancel-admin"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingAdmin || isUpdatingAdmin}
+                data-testid="button-save-admin"
+              >
+                {(isCreatingAdmin || isUpdatingAdmin) ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Admin Confirmation */}
+      <AlertDialog open={deleteAdminDialog.isOpen} onOpenChange={(open) => setDeleteAdminDialog({ isOpen: open, admin: deleteAdminDialog.admin })}>
+        <AlertDialogContent data-testid="dialog-delete-admin-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Administrator?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">
+                {deleteAdminDialog.admin?.firstName} {deleteAdminDialog.admin?.lastName}
+              </span>
+              ? This action cannot be undone. The administrator will lose access to this dashboard immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-admin">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAdminConfirm}
+              disabled={isDeletingAdmin}
+              data-testid="button-confirm-delete-admin"
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeletingAdmin ? "Deleting..." : "Delete Admin"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

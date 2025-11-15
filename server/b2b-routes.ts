@@ -841,6 +841,102 @@ router.delete('/api/b2b/admin/sales-reps/:id', requireB2bAdmin, async (req: Requ
   }
 });
 
+// Admin: Get all admins
+router.get('/api/b2b/admin/admins', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const admins = await storage.getAllB2bAdmins();
+    res.json(admins);
+  } catch (error) {
+    console.error('Error fetching admins:', error);
+    res.status(500).json({ error: 'Failed to fetch admins' });
+  }
+});
+
+// Admin: Create admin
+router.post('/api/b2b/admin/admins', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { password, ...data } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const admin = await storage.createB2bAdmin({ ...data, passwordHash });
+    
+    res.json(admin);
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    res.status(500).json({ error: 'Failed to create admin' });
+  }
+});
+
+// Admin: Update admin
+router.patch('/api/b2b/admin/admins/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { password, ...data } = req.body;
+    
+    const updateData: any = data;
+    if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      }
+      updateData.passwordHash = await hashPassword(password);
+    }
+
+    const admin = await storage.updateB2bAdmin(req.params.id, updateData);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    res.json(admin);
+  } catch (error) {
+    console.error('Error updating admin:', error);
+    res.status(500).json({ error: 'Failed to update admin' });
+  }
+});
+
+// Admin: Delete admin
+router.delete('/api/b2b/admin/admins/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    // Prevent deleting self
+    const currentAdminId = (req.session as any).b2bUserId;
+    if (!currentAdminId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    if (req.params.id === currentAdminId) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+
+    // Get the admin being deleted to check if they're active
+    const adminToDelete = await storage.getB2bAdmin(req.params.id);
+    if (!adminToDelete) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    // Only enforce "last admin" check if the admin being deleted is active
+    if (adminToDelete.active) {
+      const allActiveAdmins = await storage.getAllB2bAdmins(true); // active only
+      if (allActiveAdmins.length <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the last active admin account' });
+      }
+    }
+
+    const success = await storage.deleteB2bAdmin(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting admin:', error);
+    res.status(500).json({ error: 'Failed to delete admin' });
+  }
+});
+
 // Admin: Get all orders
 router.get('/api/b2b/admin/orders', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
