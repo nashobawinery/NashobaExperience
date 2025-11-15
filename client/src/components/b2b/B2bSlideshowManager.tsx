@@ -205,9 +205,17 @@ export function B2bSlideshowManager() {
       return;
     }
     
-    // Prepare data for submission - convert empty strings to null for optional fields
+    // Prepare data for submission - construct mediaUrl like tasting app does
+    let mediaUrl = null;
+    if (formData.mediaType === "image" && formData.mediaLibraryId) {
+      mediaUrl = `/api/media-library/${formData.mediaLibraryId}/file`;
+    } else if (formData.mediaType === "video" && formData.videoId) {
+      mediaUrl = `/api/videos/${formData.videoId}/stream`;
+    }
+    
     const submitData = {
       ...formData,
+      mediaUrl, // Add the constructed URL
       mediaLibraryId: formData.mediaLibraryId || null,
       videoId: formData.videoId || null,
     };

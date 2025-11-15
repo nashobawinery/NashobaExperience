@@ -126,27 +126,9 @@ router.get('/api/b2b/admin/videos', requireB2bAdmin, async (req: Request, res: R
 // Public route: Get active B2B slideshow slides
 router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
   try {
+    // Simple approach matching tasting app - just return the slides with their stored mediaUrl
     const slides = await db.select().from(b2bSlideshowSlides).where(eq(b2bSlideshowSlides.active, true)).orderBy(b2bSlideshowSlides.sortOrder);
-    
-    // Resolve media references using Express proxy endpoints
-    const slidesWithMedia = slides.map((slide) => {
-      let mediaUrl = null;
-      
-      if (slide.mediaType === 'image' && slide.mediaLibraryId) {
-        // Use Express proxy endpoint instead of direct GCS URL
-        mediaUrl = `/api/media-library/${slide.mediaLibraryId}/file`;
-      } else if (slide.mediaType === 'video' && slide.videoId) {
-        // Use video proxy endpoint
-        mediaUrl = `/api/videos/${slide.videoId}/stream`;
-      }
-      
-      return {
-        ...slide,
-        mediaUrl,
-      };
-    });
-    
-    res.json(slidesWithMedia);
+    res.json(slides);
   } catch (error) {
     console.error('Get slides error:', error);
     res.status(500).json({ error: 'Failed to fetch slides' });
@@ -156,27 +138,9 @@ router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
 // Admin route: Get all B2B slideshow slides (including inactive)
 router.get('/api/b2b/admin/slideshow/slides', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
+    // Simple approach matching tasting app - just return the slides with their stored mediaUrl
     const slides = await db.select().from(b2bSlideshowSlides).orderBy(b2bSlideshowSlides.sortOrder);
-    
-    // Resolve media references using Express proxy endpoints
-    const slidesWithMedia = slides.map((slide) => {
-      let mediaUrl = null;
-      
-      if (slide.mediaType === 'image' && slide.mediaLibraryId) {
-        // Use Express proxy endpoint instead of direct GCS URL
-        mediaUrl = `/api/media-library/${slide.mediaLibraryId}/file`;
-      } else if (slide.mediaType === 'video' && slide.videoId) {
-        // Use video proxy endpoint
-        mediaUrl = `/api/videos/${slide.videoId}/stream`;
-      }
-      
-      return {
-        ...slide,
-        mediaUrl,
-      };
-    });
-    
-    res.json(slidesWithMedia);
+    res.json(slides);
   } catch (error) {
     console.error('Get all slides error:', error);
     res.status(500).json({ error: 'Failed to fetch slides' });

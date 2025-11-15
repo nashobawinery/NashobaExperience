@@ -272,6 +272,7 @@ export const b2bSlideshowSlides = pgTable("b2b_slideshow_slides", {
   content: text("content").notNull(),
   highlight: text("highlight"),
   mediaType: text("media_type").notNull(),
+  mediaUrl: text("media_url"), // Direct URL (e.g., /api/media-library/{id}/file) - like tasting app
   mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
   videoId: varchar("video_id").references(() => videos.id, { onDelete: "set null" }),
   iconName: text("icon_name"),
