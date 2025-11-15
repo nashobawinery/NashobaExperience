@@ -52,6 +52,18 @@ function splitTags(val: string | undefined | null): string[] | null {
   return val.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
 }
 
+function parseDate(val: Date | string | undefined | null): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    const parsed = new Date(trimmed);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
 // Format Zod validation errors for actionable messages
 function formatZodError(sheetName: string, rowNum: number, error: ZodError): string {
   const issues = error.errors.map(issue => {
@@ -1027,7 +1039,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       shippingCity: row.shipping_city?.trim() || null,
       shippingState: row.shipping_state?.trim() || null,
       shippingZipCode: row.shipping_zip_code?.trim() || null,
-      approvedAt: row.approved_at?.trim() || null,
+      approvedAt: parseDate(row.approved_at),
       notes: row.notes?.trim() || null,
       acceptsMarketing: normalizeBool(row.accepts_marketing),
     }));
@@ -1042,7 +1054,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     result.b2bOrders = rawOrderData.map((row: any) => ({
       orderNumber: row.order_number?.trim() || '',
       customerEmail: row.customer_email?.trim() || '', // Business key for FK
-      orderDate: row.order_date?.trim() || new Date().toISOString(),
+      orderDate: parseDate(row.order_date) || new Date(),
       status: row.status?.trim() || 'pending',
       subtotal: toDecimal(row.subtotal),  // No || 0 default
       tax: toDecimal(row.tax),
