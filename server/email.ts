@@ -167,6 +167,97 @@ Thank you for visiting Nashoba Winery!
   return { subject, html, text };
 }
 
+export function generatePasswordResetEmail(resetLink: string, userType: string): { subject: string; html: string; text: string } {
+  const roleDisplay = userType === "sales_rep" ? "Sales Representative" : userType.charAt(0).toUpperCase() + userType.slice(1);
+
+  const subject = `Password Reset Request - Nashoba Winery B2B`;
+  
+  const text = `
+Password Reset Request
+
+Hello,
+
+We received a request to reset your password for your ${roleDisplay} account at Nashoba Valley Winery B2B Portal.
+
+Click the link below to reset your password:
+${resetLink}
+
+This link will expire in 1 hour for security reasons.
+
+If you didn't request this password reset, you can safely ignore this email.
+
+Best regards,
+Nashoba Valley Winery Team
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+    .button { 
+      display: inline-block;
+      background-color: #5C2535; 
+      color: #F5F5F0 !important; 
+      padding: 14px 28px; 
+      text-decoration: none; 
+      border-radius: 4px; 
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    .warning { 
+      background-color: #FEF3C7; 
+      border-left: 4px solid #F59E0B; 
+      padding: 12px 16px; 
+      margin: 20px 0;
+    }
+    .footer { 
+      text-align: center; 
+      color: #666; 
+      font-size: 12px; 
+      margin-top: 30px; 
+      padding-top: 20px; 
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Password Reset Request</h1>
+  </div>
+  <div class="content">
+    <p>Hello,</p>
+    
+    <p>We received a request to reset your password for your <strong>${roleDisplay}</strong> account at Nashoba Valley Winery B2B Portal.</p>
+    
+    <p style="text-align: center;">
+      <a href="${resetLink}" class="button">Reset Your Password</a>
+    </p>
+    
+    <div class="warning">
+      <strong>⏰ Important:</strong> This link will expire in 1 hour for security reasons.
+    </div>
+    
+    <p>If the button above doesn't work, copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #5C2535;">${resetLink}</p>
+    
+    <p>If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+    
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { storage } from './storage';
+import { db } from '@db';
 import {
   createB2bSessionMiddleware,
   requireB2bAuth,
@@ -17,8 +18,15 @@ import {
   insertB2bCustomerSchema,
   insertB2bOrderSchema,
   insertB2bOrderItemSchema,
+  b2bPasswordResetTokens,
+  b2bAdmins,
+  b2bCustomers,
+  salesReps,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
+import { generatePasswordResetEmail, sendEmail } from './email';
+import { eq, and, gt } from 'drizzle-orm';
+import { randomBytes } from 'crypto';
 
 const router = Router();
 
@@ -77,6 +85,163 @@ router.post('/api/b2b/setup-admin', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Setup admin error:', error);
     res.status(500).json({ error: 'Failed to create admin account' });
+  }
+});
+
+// Public route: Request password reset
+router.post('/api/b2b/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email, userType } = req.body;
+
+    if (!email || !userType) {
+      return res.status(400).json({ error: 'Email and user type are required' });
+    }
+
+    // Validate user type
+    if (!['customer', 'sales_rep', 'admin'].includes(userType)) {
+      return res.status(400).json({ error: 'Invalid user type' });
+    }
+
+    // Check if user exists
+    let userExists = false;
+    if (userType === 'customer') {
+      const customer = await storage.getB2bCustomerByEmail(email);
+      userExists = !!customer;
+    } else if (userType === 'sales_rep') {
+      const salesRep = await db.select().from(salesReps).where(eq(salesReps.email, email)).limit(1);
+      userExists = salesRep.length > 0;
+    } else if (userType === 'admin') {
+      const admin = await db.select().from(b2bAdmins).where(eq(b2bAdmins.email, email)).limit(1);
+      userExists = admin.length > 0;
+    }
+
+    // For security, always return success even if user doesn't exist
+    // This prevents email enumeration
+    if (!userExists) {
+      console.log(`Password reset requested for non-existent ${userType}: ${email}`);
+      return res.json({ success: true });
+    }
+
+    // Generate secure random token
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Store token in database
+    await db.insert(b2bPasswordResetTokens).values({
+      email,
+      userType: userType as 'customer' | 'sales_rep' | 'admin',
+      token,
+      expiresAt,
+    });
+
+    // Send password reset email
+    const resetLink = `${req.protocol}://${req.get('host')}/b2b/reset-password?token=${token}`;
+    const emailContent = generatePasswordResetEmail(resetLink, userType);
+    
+    await sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process password reset request' });
+  }
+});
+
+// Public route: Verify reset token
+router.get('/api/b2b/verify-reset-token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ valid: false, error: 'Token is required' });
+    }
+
+    const resetToken = await db
+      .select()
+      .from(b2bPasswordResetTokens)
+      .where(
+        and(
+          eq(b2bPasswordResetTokens.token, token),
+          eq(b2bPasswordResetTokens.used, false),
+          gt(b2bPasswordResetTokens.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (resetToken.length === 0) {
+      return res.json({ valid: false });
+    }
+
+    res.json({ valid: true, userType: resetToken[0].userType });
+  } catch (error) {
+    console.error('Verify reset token error:', error);
+    res.status(500).json({ valid: false, error: 'Failed to verify token' });
+  }
+});
+
+// Public route: Reset password with token
+router.post('/api/b2b/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Find valid token
+    const resetToken = await db
+      .select()
+      .from(b2bPasswordResetTokens)
+      .where(
+        and(
+          eq(b2bPasswordResetTokens.token, token),
+          eq(b2bPasswordResetTokens.used, false),
+          gt(b2bPasswordResetTokens.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (resetToken.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const { email, userType } = resetToken[0];
+
+    // Hash new password
+    const passwordHash = await hashPassword(newPassword);
+
+    // Update password based on user type
+    if (userType === 'customer') {
+      await db
+        .update(b2bCustomers)
+        .set({ passwordHash })
+        .where(eq(b2bCustomers.emailAddress, email));
+    } else if (userType === 'sales_rep') {
+      await db
+        .update(salesReps)
+        .set({ passwordHash })
+        .where(eq(salesReps.email, email));
+    } else if (userType === 'admin') {
+      await db
+        .update(b2bAdmins)
+        .set({ passwordHash })
+        .where(eq(b2bAdmins.email, email));
+    }
+
+    // Mark token as used
+    await db
+      .update(b2bPasswordResetTokens)
+      .set({ used: true })
+      .where(eq(b2bPasswordResetTokens.token, token));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

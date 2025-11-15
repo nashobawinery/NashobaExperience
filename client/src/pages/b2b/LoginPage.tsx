@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
-import { LogIn, ArrowLeft } from "lucide-react";
+import { LogIn, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const { refetch } = useB2bAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -149,18 +150,47 @@ export default function LoginPage() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="password"
-                          placeholder="Enter your password"
-                          data-testid="input-password"
-                          autoComplete="current-password"
-                        />
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter your password"
+                            data-testid="input-password"
+                            autoComplete="current-password"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                            data-testid="button-toggle-password"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <div className="text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="px-0 h-auto text-sm hover:underline"
+                    onClick={() => setLocation(`/b2b/forgot-password?role=${role}`)}
+                    data-testid="button-forgot-password"
+                  >
+                    Forgot Password?
+                  </Button>
+                </div>
 
                 <Button
                   type="submit"

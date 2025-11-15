@@ -19,6 +19,8 @@ import { ProtectedRoute } from "@/components/b2b/ProtectedRoute";
 import B2bPricingPage from "@/pages/b2b/PricingPage";
 import B2bRegistrationPage from "@/pages/b2b/RegistrationPage";
 import B2bLoginPage from "@/pages/b2b/LoginPage";
+import B2bForgotPasswordPage from "@/pages/b2b/ForgotPasswordPage";
+import B2bResetPasswordPage from "@/pages/b2b/ResetPasswordPage";
 import B2bSetupPage from "@/pages/b2b/SetupPage";
 import B2bCatalogPage from "@/pages/b2b/CatalogPage";
 import B2bCartPage from "@/pages/b2b/CartPage";
@@ -56,6 +58,8 @@ function B2bRoutes() {
           <Route path="/b2b" component={B2bPricingPage} />
           <Route path="/b2b/register" component={B2bRegistrationPage} />
           <Route path="/b2b/login/:role" component={B2bLoginPage} />
+          <Route path="/b2b/forgot-password" component={B2bForgotPasswordPage} />
+          <Route path="/b2b/reset-password" component={B2bResetPasswordPage} />
           <Route path="/b2b/setup" component={B2bSetupPage} />
 
           {/* Protected Customer Routes */}
