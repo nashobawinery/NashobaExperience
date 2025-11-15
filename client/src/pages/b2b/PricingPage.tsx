@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { B2bSlideshowSlide } from "@shared/schema";
 
+type B2bSlideshowSlideWithMedia = B2bSlideshowSlide & { mediaUrl?: string };
+
 export default function B2BPricingPage() {
   const [, setLocation] = useLocation();
   const [accessCode, setAccessCode] = useState("");
@@ -39,7 +41,7 @@ export default function B2BPricingPage() {
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const { toast } = useToast();
   const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
-  const { data: slides = [], isLoading: loadingSlides } = useQuery<B2bSlideshowSlide[]>({
+  const { data: slides = [], isLoading: loadingSlides } = useQuery<B2bSlideshowSlideWithMedia[]>({
     queryKey: ["/api/b2b/slideshow/slides"],
   });
 
@@ -532,6 +534,17 @@ export default function B2BPricingPage() {
             </div>
             )}
           </CardContent>
+          <CardFooter className="flex justify-center pt-6 border-t">
+            <Button
+              size="lg"
+              onClick={() => setLocation("/b2b/pricing-sheet")}
+              className="gap-2 text-base px-8"
+              data-testid="button-proceed-to-pricing"
+            >
+              <TrendingDown className="h-5 w-5" />
+              Proceed to Pricing Sheet
+            </Button>
+          </CardFooter>
         </Card>
 
         {/* Pricing Tiers and Set Up Account */}

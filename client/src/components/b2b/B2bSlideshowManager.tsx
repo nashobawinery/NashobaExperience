@@ -102,7 +102,7 @@ export function B2bSlideshowManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<typeof formData, 'mediaLibraryId' | 'videoId'> & { mediaLibraryId: string | null; videoId: string | null }) => {
-      return apiRequest("/api/b2b/admin/slideshow/slides", "POST", data);
+      return apiRequest("POST", "/api/b2b/admin/slideshow/slides", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
@@ -117,7 +117,7 @@ export function B2bSlideshowManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Omit<typeof formData, 'mediaLibraryId' | 'videoId'> & { mediaLibraryId: string | null; videoId: string | null }> }) => {
-      return apiRequest(`/api/b2b/admin/slideshow/slides/${id}`, "PATCH", data);
+      return apiRequest("PATCH", `/api/b2b/admin/slideshow/slides/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
@@ -132,7 +132,7 @@ export function B2bSlideshowManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/b2b/admin/slideshow/slides/${id}`, "DELETE");
+      return apiRequest("DELETE", `/api/b2b/admin/slideshow/slides/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/b2b/admin/slideshow/slides"] });
@@ -210,8 +210,6 @@ export function B2bSlideshowManager() {
       videoId: formData.videoId || null,
     };
     
-    console.log('Submitting slide data:', JSON.stringify(submitData, null, 2));
-    
     if (editingSlide) {
       updateMutation.mutate({ id: editingSlide.id, data: submitData });
     } else {
@@ -220,10 +218,8 @@ export function B2bSlideshowManager() {
   };
 
   const handleToggleActive = (slide: B2bSlideshowSlide) => {
-    updateMutation.mutate({
-      id: slide.id,
-      data: { active: !slide.active },
-    });
+    const data = { active: !slide.active };
+    updateMutation.mutate({ id: slide.id, data });
   };
 
   const handleDelete = (slide: B2bSlideshowSlide) => {
