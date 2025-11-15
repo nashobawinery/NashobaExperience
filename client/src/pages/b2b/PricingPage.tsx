@@ -549,65 +549,102 @@ export default function B2BPricingPage() {
 
         {/* Pricing Tiers and Set Up Account */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {/* Pricing Tiers */}
+          {/* Additional Services */}
           <Card>
             <CardHeader>
               <CardTitle className="font-serif text-2xl flex items-center gap-2">
-                <TrendingDown className="h-6 w-6 text-primary" />
-                Wholesale Pricing Tiers
+                <Wine className="h-6 w-6 text-primary" />
+                Additional Services We Offer
               </CardTitle>
               <CardDescription>
-                Competitive tier-based pricing for your business
+                Enhance your business with our value-added services
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {loadingTiers ? (
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-20 w-full" />
-                  ))}
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-3">
+                <GlassWater className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm mb-1">In-Store Tastings & Wine Dinners</p>
+                  <p className="text-sm text-muted-foreground">
+                    Let us host an in-store tasting or wine dinner featuring our premium adult beverages
+                  </p>
                 </div>
-              ) : !activeTiers || activeTiers.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  No active pricing tiers available at this time
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {activeTiers.map((tier) => (
-                    <div
-                      key={tier.id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate"
-                      data-testid={`tier-${tier.tierName}`}
-                    >
-                      <div>
-                        <p className="font-semibold text-lg">{tier.tierName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {tier.description || "Wholesale pricing"}
-                        </p>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Boxes className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm mb-1">Sample Program</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get 1-ounce samples of our wines mailed directly to your store
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm mb-1">Winery Tours</p>
+                  <p className="text-sm text-muted-foreground">
+                    Set up a visit to our winery for you and your staff to explore our products and our passion
+                  </p>
+                </div>
+              </div>
+
+              {/* Pricing Tiers */}
+              <div className="pt-6 border-t">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingDown className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg">Wholesale Pricing Tiers</h3>
+                </div>
+                {loadingTiers ? (
+                  <div className="space-y-3">
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
+                  </div>
+                ) : !activeTiers || activeTiers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No active pricing tiers available at this time
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {activeTiers.map((tier) => (
+                      <div
+                        key={tier.id}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
+                        data-testid={`tier-${tier.tierName}`}
+                      >
+                        <div>
+                          <p className="font-semibold">{tier.tierName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {tier.description || "Wholesale pricing"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-primary">{tier.discountPercentage}%</p>
+                          <p className="text-xs text-muted-foreground">off retail</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">{tier.discountPercentage}%</p>
-                        <p className="text-xs text-muted-foreground">off retail</p>
-                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Package className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm mb-1">Case Quantities</p>
+                      <p className="text-sm text-muted-foreground">
+                        All orders are calculated by case (12 bottles per case)
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Package className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium text-sm mb-1">Case Quantities</p>
-                    <p className="text-sm text-muted-foreground">
-                      All orders are calculated by case (12 bottles per case)
-                    </p>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Set Up Account */}
+          {/* Ready to Get Started - Right Column */}
           <Card>
             <CardHeader>
               <CardTitle className="font-serif text-2xl flex items-center gap-2">
@@ -650,41 +687,6 @@ export default function B2BPricingPage() {
                     <p className="font-medium mb-1">Start Ordering</p>
                     <p className="text-sm text-muted-foreground">
                       Browse products and place orders at your tier pricing
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Services */}
-              <div className="pt-6 border-t space-y-4">
-                <h3 className="font-semibold text-lg mb-4">Additional Services We Offer</h3>
-                
-                <div className="flex items-start gap-3">
-                  <GlassWater className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm mb-1">In-Store Tastings & Wine Dinners</p>
-                    <p className="text-sm text-muted-foreground">
-                      Let us host an in-store tasting or wine dinner featuring our premium adult beverages
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Boxes className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm mb-1">Sample Program</p>
-                    <p className="text-sm text-muted-foreground">
-                      Get 1-ounce samples of our wines mailed directly to your store
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm mb-1">Winery Tours</p>
-                    <p className="text-sm text-muted-foreground">
-                      Set up a visit to our winery for you and your staff to explore our products and our passion
                     </p>
                   </div>
                 </div>
