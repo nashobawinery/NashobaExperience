@@ -22,6 +22,8 @@ import {
   b2bAdmins,
   b2bCustomers,
   salesReps,
+  products,
+  tierPricing,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
@@ -70,6 +72,28 @@ router.post('/api/b2b/request-access', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Request access error:', error);
     res.status(500).json({ error: 'Failed to send access request' });
+  }
+});
+
+// Public route: Get all products for pricing sheet
+router.get('/api/b2b/pricing/products', async (req: Request, res: Response) => {
+  try {
+    const allProducts = await db.select().from(products).where(eq(products.available, true));
+    res.json(allProducts);
+  } catch (error) {
+    console.error('Get products error:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// Public route: Get all tiers for pricing sheet
+router.get('/api/b2b/pricing/tiers', async (req: Request, res: Response) => {
+  try {
+    const allTiers = await db.select().from(tierPricing).where(eq(tierPricing.active, true)).orderBy(tierPricing.sortOrder);
+    res.json(allTiers);
+  } catch (error) {
+    console.error('Get tiers error:', error);
+    res.status(500).json({ error: 'Failed to fetch tiers' });
   }
 });
 

@@ -422,6 +422,24 @@ export default function B2BPricingPage() {
                         {slides[currentSlide].highlight}
                       </p>
                     </div>
+                    
+                    {/* View B2B Pricing button on last slide */}
+                    {currentSlide === slides.length - 1 && (
+                      <div className="mt-8">
+                        <Button
+                          size="lg"
+                          onClick={() => setLocation("/b2b/pricing-sheet")}
+                          className="gap-2 text-lg px-8 py-6"
+                          data-testid="button-view-pricing-sheet"
+                        >
+                          <TrendingDown className="h-5 w-5" />
+                          View B2B Pricing Sheet
+                        </Button>
+                        <p className="text-sm text-muted-foreground mt-3">
+                          See detailed pricing and profit margins by tier
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               </AnimatePresence>
