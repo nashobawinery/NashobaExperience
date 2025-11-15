@@ -266,6 +266,20 @@ export const slideshowImages = pgTable("slideshow_images", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const b2bSlideshowSlides = pgTable("b2b_slideshow_slides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  highlight: text("highlight"),
+  mediaType: text("media_type").notNull(),
+  mediaUrl: text("media_url"),
+  iconName: text("icon_name"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const mediaLibrary = pgTable("media_library", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   filename: text("filename").notNull(),
@@ -481,6 +495,7 @@ export const insertSurveySchema = createInsertSchema(surveys).omit({ id: true, c
 export const insertProductNoteSchema = createInsertSchema(productNotes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertB2bSlideshowSlideSchema = createInsertSchema(b2bSlideshowSlides).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCommercialSchema = createInsertSchema(commercials).omit({ id: true, createdAt: true, updatedAt: true });
@@ -545,6 +560,9 @@ export type FilterOption = typeof filterOptions.$inferSelect;
 
 export type InsertSlideshowImage = z.infer<typeof insertSlideshowImageSchema>;
 export type SlideshowImage = typeof slideshowImages.$inferSelect;
+
+export type InsertB2bSlideshowSlide = z.infer<typeof insertB2bSlideshowSlideSchema>;
+export type B2bSlideshowSlide = typeof b2bSlideshowSlides.$inferSelect;
 
 export type InsertMediaLibrary = z.infer<typeof insertMediaLibrarySchema>;
 export type MediaLibrary = typeof mediaLibrary.$inferSelect;

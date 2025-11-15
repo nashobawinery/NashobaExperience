@@ -18,12 +18,14 @@ import {
   insertB2bCustomerSchema,
   insertB2bOrderSchema,
   insertB2bOrderItemSchema,
+  insertB2bSlideshowSlideSchema,
   b2bPasswordResetTokens,
   b2bAdmins,
   b2bCustomers,
   salesReps,
   products,
   tierPricing,
+  b2bSlideshowSlides,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
@@ -94,6 +96,74 @@ router.get('/api/b2b/pricing/tiers', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get tiers error:', error);
     res.status(500).json({ error: 'Failed to fetch tiers' });
+  }
+});
+
+// Public route: Get active B2B slideshow slides
+router.get('/api/b2b/slideshow/slides', async (req: Request, res: Response) => {
+  try {
+    const slides = await db.select().from(b2bSlideshowSlides).where(eq(b2bSlideshowSlides.active, true)).orderBy(b2bSlideshowSlides.sortOrder);
+    res.json(slides);
+  } catch (error) {
+    console.error('Get slides error:', error);
+    res.status(500).json({ error: 'Failed to fetch slides' });
+  }
+});
+
+// Admin route: Get all B2B slideshow slides (including inactive)
+router.get('/api/b2b/admin/slideshow/slides', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const slides = await db.select().from(b2bSlideshowSlides).orderBy(b2bSlideshowSlides.sortOrder);
+    res.json(slides);
+  } catch (error) {
+    console.error('Get all slides error:', error);
+    res.status(500).json({ error: 'Failed to fetch slides' });
+  }
+});
+
+// Admin route: Create B2B slideshow slide
+router.post('/api/b2b/admin/slideshow/slides', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = insertB2bSlideshowSlideSchema.parse(req.body);
+    const [newSlide] = await db.insert(b2bSlideshowSlides).values(validatedData).returning();
+    res.json(newSlide);
+  } catch (error) {
+    console.error('Create slide error:', error);
+    res.status(500).json({ error: 'Failed to create slide' });
+  }
+});
+
+// Admin route: Update B2B slideshow slide
+router.patch('/api/b2b/admin/slideshow/slides/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const validatedData = insertB2bSlideshowSlideSchema.partial().parse(req.body);
+    const [updatedSlide] = await db
+      .update(b2bSlideshowSlides)
+      .set({ ...validatedData, updatedAt: new Date() })
+      .where(eq(b2bSlideshowSlides.id, id))
+      .returning();
+    
+    if (!updatedSlide) {
+      return res.status(404).json({ error: 'Slide not found' });
+    }
+    
+    res.json(updatedSlide);
+  } catch (error) {
+    console.error('Update slide error:', error);
+    res.status(500).json({ error: 'Failed to update slide' });
+  }
+});
+
+// Admin route: Delete B2B slideshow slide
+router.delete('/api/b2b/admin/slideshow/slides/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await db.delete(b2bSlideshowSlides).where(eq(b2bSlideshowSlides.id, id));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete slide error:', error);
+    res.status(500).json({ error: 'Failed to delete slide' });
   }
 });
 
