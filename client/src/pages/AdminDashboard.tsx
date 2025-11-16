@@ -1,5 +1,6 @@
 import AdminProductManager from "@/components/AdminProductManager";
 import BulkProductEditor from "@/components/BulkProductEditor";
+import ProductMediaManager from "@/components/ProductMediaManager";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import TriviaIntervalManager from "@/components/TriviaIntervalManager";
@@ -685,10 +686,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <Card className="p-4">
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-muted-foreground">Product Management</h3>
-                <TabsList className="grid w-full grid-cols-3 h-auto">
+                <TabsList className="grid w-full grid-cols-4 h-auto">
                   <TabsTrigger value="products" data-testid="tab-products" className="flex items-center justify-center gap-2">
                     <Package className="w-4 h-4" />
                     <span>Products</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="product-media" data-testid="tab-product-media" className="flex items-center justify-center gap-2">
+                    <Image className="w-4 h-4" />
+                    <span>Product Media</span>
                   </TabsTrigger>
                   <TabsTrigger value="import" data-testid="tab-import" className="flex items-center justify-center gap-2">
                     <Upload className="w-4 h-4" />
@@ -792,6 +797,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 <BulkProductEditor />
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="product-media">
+            <ProductMediaManager />
           </TabsContent>
 
           <TabsContent value="import">

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { ObjectStorageService } from "./objectStorage";
+import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -26,6 +26,7 @@ import {
   insertFilterOptionSchema,
   insertSlideshowImageSchema,
   insertMediaLibrarySchema,
+  insertProductMediaSchema,
   insertVideoSchema,
   insertCommercialSchema,
   categoryEnum,
@@ -1867,6 +1868,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: error instanceof Error ? error.message : "Migration failed" 
       });
+    }
+  });
+
+  // Product Media Management
+  app.get("/api/admin/products-with-media", isAdmin, async (req, res) => {
+    try {
+      const products = await storage.getProductsWithMedia();
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products with media:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.post("/api/admin/product-media/upload", isAdmin, async (req, res) => {
+    try {
+      const multer = (await import("multer")).default;
+      const upload = multer({ storage: multer.memoryStorage() });
+
+      upload.single('file')(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({ message: "File upload failed" });
+        }
+
+        const file = (req as any).file;
+        if (!file) {
+          return res.status(400).json({ message: "No file provided" });
+        }
+
+        const { productId, role } = req.body;
+        if (!productId || !role) {
+          return res.status(400).json({ message: "Product ID and role are required" });
+        }
+
+        // Upload to object storage
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        if (!bucketId) {
+          return res.status(500).json({ message: "Object storage not configured" });
+        }
+
+        const extension = file.originalname.split('.').pop() || 'jpg';
+        const filename = `product-${productId}-${role}-${Date.now()}.${extension}`;
+        const objectPath = `public/products/${filename}`;
+
+        // Upload using objectStorageClient (same pattern as migration script)
+        const bucket = objectStorageClient.bucket(bucketId);
+        const bucketFile = bucket.file(objectPath);
+
+        await bucketFile.save(file.buffer, {
+          metadata: {
+            contentType: file.mimetype,
+          },
+        });
+
+        // Set public ACL using ObjectStorageService
+        const objectStorageService = new ObjectStorageService();
+        const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+          owner: 'system',
+          visibility: 'public',
+        });
+
+        // Construct the public URL
+        const publicUrl = `https://storage.googleapis.com/${bucketId}/${normalizedPath}`;
+
+        // Create media library record
+        const mediaData = {
+          filename,
+          originalFilename: file.originalname,
+          objectPath,
+          publicUrl,
+          mimeType: file.mimetype,
+          fileSize: file.size,
+          category: "product-images" as any,
+        };
+
+        const mediaRecord = await storage.createMediaLibraryFile(mediaData);
+
+        // Create product_media link
+        const productMediaData = {
+          productId,
+          mediaId: mediaRecord.id,
+          role: role as "primary" | "label" | "lifestyle" | "gallery",
+          sortOrder: 0,
+        };
+
+        const productMedia = await storage.createProductMedia(productMediaData);
+
+        res.json({
+          success: true,
+          media: mediaRecord,
+          productMedia,
+        });
+      });
+    } catch (error) {
+      console.error("Error uploading product media:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Upload failed" });
+    }
+  });
+
+  app.delete("/api/admin/product-media/:id", isAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteProductMedia(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Product media not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting product media:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Delete failed" });
     }
   });
 
