@@ -75,6 +75,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [selectedCharacteristics, setSelectedCharacteristics] = useState<string[]>([]);
   const [characteristicsOpen, setCharacteristicsOpen] = useState(false);
   
+  // Image selection mode state
+  const [mainImageMode, setMainImageMode] = useState<'url' | 'media'>('url');
+  const [labelImageMode, setLabelImageMode] = useState<'url' | 'media'>('url');
+  const [lifestyleImageMode, setLifestyleImageMode] = useState<'url' | 'media'>('url');
+  
   // Trivia edit dialog state
   const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
   const [editTriviaData, setEditTriviaData] = useState<Partial<TriviaQuestion>>({});
@@ -98,6 +103,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const { data: filterOptions = [] } = useQuery<FilterOption[]>({
     queryKey: ['/api/filter-options'],
     queryFn: () => getFilterOptions(),
+  });
+
+  // Fetch media library images for selection
+  const { data: mediaLibraryFiles = [] } = useQuery<Array<{ id: string; filename: string; originalFilename: string; mimeType: string }>>({
+    queryKey: ['/api/media-library'],
   });
 
   // Group filter options by type
@@ -1961,34 +1971,182 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             {/* Images */}
             <div className="space-y-4">
               <h3 className="font-medium text-sm text-muted-foreground">Images</h3>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-image-url">Main Image URL</Label>
+              
+              {/* Main Image */}
+              <div className="grid gap-2">
+                <Label>Main Image</Label>
+                <div className="flex gap-4 items-center mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="main-image-mode"
+                      checked={mainImageMode === 'url'}
+                      onChange={() => setMainImageMode('url')}
+                    />
+                    <span className="text-sm">URL</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="main-image-mode"
+                      checked={mainImageMode === 'media'}
+                      onChange={() => setMainImageMode('media')}
+                    />
+                    <span className="text-sm">Select from Media</span>
+                  </label>
+                </div>
+                {mainImageMode === 'url' ? (
                   <Input
                     id="edit-image-url"
                     value={editProductData.imageUrl || ''}
                     onChange={(e) => setEditProductData({ ...editProductData, imageUrl: e.target.value })}
                     placeholder="https://..."
+                    data-testid="input-main-image-url"
                   />
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                      <div
+                        key={file.id}
+                        className={cn(
+                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
+                          editProductData.imageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
+                        )}
+                        onClick={() => setEditProductData({ ...editProductData, imageUrl: `/api/media-library/${file.id}/file` })}
+                        data-testid={`select-main-image-${file.id}`}
+                      >
+                        <img
+                          src={`/api/media-library/${file.id}/file`}
+                          alt={file.originalFilename}
+                          className="w-full h-full object-cover"
+                        />
+                        {editProductData.imageUrl === `/api/media-library/${file.id}/file` && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <Check className="w-6 h-6 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Label Image */}
+              <div className="grid gap-2">
+                <Label>Label Image</Label>
+                <div className="flex gap-4 items-center mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="label-image-mode"
+                      checked={labelImageMode === 'url'}
+                      onChange={() => setLabelImageMode('url')}
+                    />
+                    <span className="text-sm">URL</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="label-image-mode"
+                      checked={labelImageMode === 'media'}
+                      onChange={() => setLabelImageMode('media')}
+                    />
+                    <span className="text-sm">Select from Media</span>
+                  </label>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-label-image">Label Image URL</Label>
+                {labelImageMode === 'url' ? (
                   <Input
                     id="edit-label-image"
                     value={editProductData.labelImageUrl || ''}
                     onChange={(e) => setEditProductData({ ...editProductData, labelImageUrl: e.target.value })}
                     placeholder="https://..."
+                    data-testid="input-label-image-url"
                   />
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                      <div
+                        key={file.id}
+                        className={cn(
+                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
+                          editProductData.labelImageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
+                        )}
+                        onClick={() => setEditProductData({ ...editProductData, labelImageUrl: `/api/media-library/${file.id}/file` })}
+                        data-testid={`select-label-image-${file.id}`}
+                      >
+                        <img
+                          src={`/api/media-library/${file.id}/file`}
+                          alt={file.originalFilename}
+                          className="w-full h-full object-cover"
+                        />
+                        {editProductData.labelImageUrl === `/api/media-library/${file.id}/file` && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <Check className="w-6 h-6 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lifestyle Image */}
+              <div className="grid gap-2">
+                <Label>Lifestyle Image</Label>
+                <div className="flex gap-4 items-center mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="lifestyle-image-mode"
+                      checked={lifestyleImageMode === 'url'}
+                      onChange={() => setLifestyleImageMode('url')}
+                    />
+                    <span className="text-sm">URL</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="lifestyle-image-mode"
+                      checked={lifestyleImageMode === 'media'}
+                      onChange={() => setLifestyleImageMode('media')}
+                    />
+                    <span className="text-sm">Select from Media</span>
+                  </label>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-lifestyle-image">Lifestyle Image URL</Label>
+                {lifestyleImageMode === 'url' ? (
                   <Input
                     id="edit-lifestyle-image"
                     value={editProductData.lifestyleImageUrl || ''}
                     onChange={(e) => setEditProductData({ ...editProductData, lifestyleImageUrl: e.target.value })}
                     placeholder="https://..."
+                    data-testid="input-lifestyle-image-url"
                   />
-                </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                      <div
+                        key={file.id}
+                        className={cn(
+                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
+                          editProductData.lifestyleImageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
+                        )}
+                        onClick={() => setEditProductData({ ...editProductData, lifestyleImageUrl: `/api/media-library/${file.id}/file` })}
+                        data-testid={`select-lifestyle-image-${file.id}`}
+                      >
+                        <img
+                          src={`/api/media-library/${file.id}/file`}
+                          alt={file.originalFilename}
+                          className="w-full h-full object-cover"
+                        />
+                        {editProductData.lifestyleImageUrl === `/api/media-library/${file.id}/file` && (
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <Check className="w-6 h-6 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
