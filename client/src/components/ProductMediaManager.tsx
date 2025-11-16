@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Image as ImageIcon, X, GripVertical } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, X, GripVertical, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ProductMedia {
@@ -41,11 +41,22 @@ export default function ProductMediaManager() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadRole, setUploadRole] = useState<"primary" | "label" | "lifestyle" | "gallery">("gallery");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch products with their media
   const { data: products = [], isLoading } = useQuery<ProductWithMedia[]>({
     queryKey: ['/api/admin/products-with-media'],
+  });
+
+  // Filter products based on search query
+  const filteredProducts = products.filter(product => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(query) ||
+      product.sku.toLowerCase().includes(query)
+    );
   });
 
   // Upload media mutation
@@ -188,8 +199,27 @@ export default function ProductMediaManager() {
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {products.map((product) => {
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="Search products by name or SKU..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-products"
+        />
+      </div>
+
+      {filteredProducts.length === 0 && searchQuery ? (
+        <Card className="p-8">
+          <div className="text-center text-muted-foreground">
+            <p>No products found matching "{searchQuery}"</p>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredProducts.map((product) => {
           const mediaByRole = groupMediaByRole(product.media || []);
           const hasMedia = (product.media?.length || 0) > 0;
 
@@ -267,7 +297,8 @@ export default function ProductMediaManager() {
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
