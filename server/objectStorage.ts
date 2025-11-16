@@ -156,6 +156,20 @@ export class ObjectStorageService {
       return objectFile;
     }
     
+    if (objectPath.startsWith("public/")) {
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (!bucketId) {
+        throw new Error("Object storage not configured");
+      }
+      const bucket = objectStorageClient.bucket(bucketId);
+      const objectFile = bucket.file(objectPath);
+      const [exists] = await objectFile.exists();
+      if (!exists) {
+        throw new ObjectNotFoundError();
+      }
+      return objectFile;
+    }
+    
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
