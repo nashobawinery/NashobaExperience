@@ -54,8 +54,8 @@ export default function ProductMediaManager() {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      product.name.toLowerCase().includes(query) ||
-      product.sku.toLowerCase().includes(query)
+      product.name?.toLowerCase().includes(query) ||
+      product.sku?.toLowerCase().includes(query)
     );
   });
 
