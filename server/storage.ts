@@ -1420,27 +1420,13 @@ export class DatabaseStorage implements IStorage {
 
   async getProductMediaFiles(): Promise<MediaLibrary[]> {
     const results = await db
-      .selectDistinct({
-        id: mediaLibrary.id,
-        filename: mediaLibrary.filename,
-        originalFilename: mediaLibrary.originalFilename,
-        objectPath: mediaLibrary.objectPath,
-        mimeType: mediaLibrary.mimeType,
-        fileSize: mediaLibrary.fileSize,
-        width: mediaLibrary.width,
-        height: mediaLibrary.height,
-        category: mediaLibrary.category,
-        tags: mediaLibrary.tags,
-        altText: mediaLibrary.altText,
-        caption: mediaLibrary.caption,
-        uploadedAt: mediaLibrary.uploadedAt,
-      })
+      .selectDistinct()
       .from(mediaLibrary)
       .innerJoin(productMedia, eq(mediaLibrary.id, productMedia.mediaId))
       .where(like(mediaLibrary.mimeType, 'image/%'))
-      .orderBy(mediaLibrary.uploadedAt);
+      .orderBy(mediaLibrary.createdAt);
 
-    return results;
+    return results.map(r => r.media_library);
   }
 
   async createProductMedia(data: InsertProductMedia): Promise<ProductMedia> {
