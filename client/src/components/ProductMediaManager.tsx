@@ -190,8 +190,8 @@ export default function ProductMediaManager() {
 
       <div className="grid gap-4">
         {products.map((product) => {
-          const mediaByRole = groupMediaByRole(product.media);
-          const hasMedia = product.media.length > 0;
+          const mediaByRole = groupMediaByRole(product.media || []);
+          const hasMedia = (product.media?.length || 0) > 0;
 
           return (
             <Card key={product.id} className="p-6">
