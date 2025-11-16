@@ -681,52 +681,75 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-11 max-w-6xl">
-            <TabsTrigger value="products" data-testid="tab-products">
-              <Package className="w-4 h-4 mr-2" />
-              Products
-            </TabsTrigger>
-            <TabsTrigger value="import" data-testid="tab-import">
-              <Upload className="w-4 h-4 mr-2" />
-              Import/Export
-            </TabsTrigger>
-            <TabsTrigger value="filters" data-testid="tab-filters">
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
-            </TabsTrigger>
-            <TabsTrigger value="slideshow" data-testid="tab-slideshow">
-              <Image className="w-4 h-4 mr-2" />
-              Slideshow
-            </TabsTrigger>
-            <TabsTrigger value="commercials" data-testid="tab-commercials">
-              <Video className="w-4 h-4 mr-2" />
-              Commercials
-            </TabsTrigger>
-            <TabsTrigger value="media" data-testid="tab-media">
-              <Upload className="w-4 h-4 mr-2" />
-              Media Library
-            </TabsTrigger>
-            <TabsTrigger value="videos" data-testid="tab-videos">
-              <Video className="w-4 h-4 mr-2" />
-              Videos
-            </TabsTrigger>
-            <TabsTrigger value="trivia" data-testid="tab-trivia">
-              <HelpCircle className="w-4 h-4 mr-2" />
-              Fun Facts
-            </TabsTrigger>
-            <TabsTrigger value="qrcode" data-testid="tab-qrcode">
-              <QrCode className="w-4 h-4 mr-2" />
-              QR Code
-            </TabsTrigger>
-            <TabsTrigger value="documentation" data-testid="tab-documentation">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Documentation
-            </TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
+          <div className="space-y-4">
+            <Card className="p-4">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Product Management</h3>
+                <TabsList className="grid w-full grid-cols-3 h-auto">
+                  <TabsTrigger value="products" data-testid="tab-products" className="flex items-center justify-center gap-2">
+                    <Package className="w-4 h-4" />
+                    <span>Products</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="import" data-testid="tab-import" className="flex items-center justify-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    <span>Import/Export</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="filters" data-testid="tab-filters" className="flex items-center justify-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    <span>Filters</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Content & Media</h3>
+                <TabsList className="grid w-full grid-cols-5 h-auto">
+                  <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="flex items-center justify-center gap-2">
+                    <Image className="w-4 h-4" />
+                    <span>Slideshow</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="commercials" data-testid="tab-commercials" className="flex items-center justify-center gap-2">
+                    <Video className="w-4 h-4" />
+                    <span>Commercials</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="media" data-testid="tab-media" className="flex items-center justify-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    <span>Media Library</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="videos" data-testid="tab-videos" className="flex items-center justify-center gap-2">
+                    <Video className="w-4 h-4" />
+                    <span>Videos</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="trivia" data-testid="tab-trivia" className="flex items-center justify-center gap-2">
+                    <HelpCircle className="w-4 h-4" />
+                    <span>Fun Facts</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Tools & Configuration</h3>
+                <TabsList className="grid w-full grid-cols-3 h-auto">
+                  <TabsTrigger value="qrcode" data-testid="tab-qrcode" className="flex items-center justify-center gap-2">
+                    <QrCode className="w-4 h-4" />
+                    <span>QR Code</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="documentation" data-testid="tab-documentation" className="flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Documentation</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
+                    <SettingsIcon className="w-4 h-4" />
+                    <span>Settings</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </Card>
+          </div>
 
           <TabsContent value="products">
             <div className="space-y-4">
