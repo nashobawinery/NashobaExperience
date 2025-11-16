@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, or, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, like, or, sql, inArray, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
