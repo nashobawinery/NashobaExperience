@@ -110,6 +110,20 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     queryKey: ['/api/media-library'],
   });
 
+  // Filter media library to only show product-related images
+  const productMediaFiles = useMemo(() => {
+    // Extract all unique mediaIds from all products
+    const productMediaIds = new Set<string>();
+    products.forEach(product => {
+      product.media?.forEach(media => {
+        productMediaIds.add(media.mediaId);
+      });
+    });
+    
+    // Filter media library files to only include those associated with products
+    return mediaLibraryFiles.filter(file => productMediaIds.has(file.id));
+  }, [products, mediaLibraryFiles]);
+
   // Group filter options by type
   const groupedOptions = useMemo(() => {
     const grouped = filterOptions.reduce((acc, option) => {
@@ -2005,7 +2019,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                 ) : (
                   <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
                       <div
                         key={file.id}
                         className={cn(
@@ -2064,7 +2078,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                 ) : (
                   <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
                       <div
                         key={file.id}
                         className={cn(
@@ -2123,7 +2137,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                 ) : (
                   <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {mediaLibraryFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
+                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
                       <div
                         key={file.id}
                         className={cn(
