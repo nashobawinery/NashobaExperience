@@ -1897,9 +1897,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "No file provided" });
         }
 
+        // Magic-byte validation - verify actual file type from buffer
+        const fileTypeModule = await import("file-type");
+        const fileTypeFromBuffer = fileTypeModule.fileTypeFromBuffer;
+        const detectedType = await fileTypeFromBuffer(file.buffer);
+        
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!detectedType || !allowedMimeTypes.includes(detectedType.mime)) {
+          return res.status(400).json({ 
+            message: "Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed" 
+          });
+        }
+
+        const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSizeBytes) {
+          return res.status(400).json({ 
+            message: "File too large. Maximum size is 10MB" 
+          });
+        }
+
         const { productId, role } = req.body;
         if (!productId || !role) {
           return res.status(400).json({ message: "Product ID and role are required" });
+        }
+
+        // Validate productId is a valid UUID to prevent path traversal
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(productId)) {
+          return res.status(400).json({ message: "Invalid product ID format" });
+        }
+
+        const validRoles = ['primary', 'label', 'lifestyle', 'gallery'];
+        if (!validRoles.includes(role)) {
+          return res.status(400).json({ message: "Invalid role" });
         }
 
         // Upload to object storage
@@ -1908,8 +1938,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ message: "Object storage not configured" });
         }
 
-        const extension = file.originalname.split('.').pop() || 'jpg';
-        const filename = `product-${productId}-${role}-${Date.now()}.${extension}`;
+        // Sanitize filename - extract extension safely
+        const originalExt = file.originalname.split('.').pop() || 'jpg';
+        const safeExt = originalExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        const extension = allowedExtensions.includes(safeExt) ? safeExt : 'jpg';
+        
+        // Generate safe filename with timestamp and random component
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 8);
+        const filename = `product-${productId}-${role}-${timestamp}-${random}.${extension}`;
         const objectPath = `public/products/${filename}`;
 
         // Upload using objectStorageClient (same pattern as migration script)
