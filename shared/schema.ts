@@ -13,6 +13,7 @@ export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
 export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
 export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended"]);
 export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep", "admin"]);
+export const productMediaRoleEnum = pgEnum("product_media_role", ["primary", "label", "lifestyle", "gallery"]);
 
 // Beer-specific enums
 export const beerStyleEnum = pgEnum("beer_style", ["ipa", "lager", "stout", "porter", "ale", "wheat_beer", "pilsner", "sour", "amber", "pale_ale", "saison", "belgian"]);
@@ -298,6 +299,18 @@ export const mediaLibrary = pgTable("media_library", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const productMedia = pgTable("product_media", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  mediaId: varchar("media_id").notNull().references(() => mediaLibrary.id, { onDelete: "cascade" }),
+  role: productMediaRoleEnum("role").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique("product_media_unique").on(table.productId, table.role, table.mediaId),
+]);
+
 export const videos = pgTable("videos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
@@ -499,6 +512,7 @@ export const insertFilterOptionSchema = createInsertSchema(filterOptions).omit({
 export const insertSlideshowImageSchema = createInsertSchema(slideshowImages).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSlideshowSlideSchema = createInsertSchema(b2bSlideshowSlides).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProductMediaSchema = createInsertSchema(productMedia).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCommercialSchema = createInsertSchema(commercials).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCharacteristicSchema = createInsertSchema(characteristics).omit({ id: true, createdAt: true, updatedAt: true, usageCount: true });
@@ -568,6 +582,9 @@ export type B2bSlideshowSlide = typeof b2bSlideshowSlides.$inferSelect;
 
 export type InsertMediaLibrary = z.infer<typeof insertMediaLibrarySchema>;
 export type MediaLibrary = typeof mediaLibrary.$inferSelect;
+
+export type InsertProductMedia = z.infer<typeof insertProductMediaSchema>;
+export type ProductMedia = typeof productMedia.$inferSelect;
 
 export type InsertVideo = z.infer<typeof insertVideoSchema>;
 export type Video = typeof videos.$inferSelect;

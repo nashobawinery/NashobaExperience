@@ -8,6 +8,7 @@ import b2bRouter from "./b2b-routes";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
+import { migrateProductImages } from "./migrate-product-images";
 import { 
   insertProductSchema,
   updateProductSchema,
@@ -1835,6 +1836,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete file" });
+    }
+  });
+
+  // Product Image Migration
+  app.post("/api/admin/migrate-product-images", isAdmin, async (req, res) => {
+    try {
+      const options = {
+        dryRun: req.body.dryRun === true,
+        productIds: req.body.productIds,
+        skipExisting: req.body.skipExisting !== false,
+      };
+
+      console.log("Starting product image migration with options:", options);
+      const results = await migrateProductImages(storage, options);
+
+      res.json({
+        success: true,
+        results,
+        summary: {
+          total: results.length,
+          successful: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          totalImagesMigrated: results.reduce((sum, r) => sum + r.imagesMigrated, 0),
+        },
+      });
+    } catch (error) {
+      console.error("Migration error:", error);
+      res.status(500).json({ 
+        success: false,
+        message: error instanceof Error ? error.message : "Migration failed" 
+      });
     }
   });
 

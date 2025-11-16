@@ -81,6 +81,7 @@ import {
   b2bOrderItems,
   b2bSettings,
   b2bSlideshowSlides,
+  productMedia,
   type InsertTierPricing,
   type TierPricing,
   type InsertSalesRep,
@@ -97,6 +98,8 @@ import {
   type B2bSetting,
   type InsertB2bSlideshowSlide,
   type B2bSlideshowSlide,
+  type InsertProductMedia,
+  type ProductMedia,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -130,6 +133,8 @@ export interface IStorage {
   getProducts(filters?: ProductFilters): Promise<Product[]>;
   getProductsWithCharacteristics(beverageTypes?: string[]): Promise<ProductWithCharacteristics[]>;
   getProduct(id: string): Promise<Product | undefined>;
+  getProductWithMedia(id: string): Promise<(Product & { media?: (ProductMedia & { media: MediaLibrary })[] }) | undefined>;
+  getProductsWithMedia(filters?: ProductFilters): Promise<(Product & { media?: (ProductMedia & { media: MediaLibrary })[] })[]>;
   getProductBySku(sku: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
@@ -237,6 +242,12 @@ export interface IStorage {
   updateMediaLibraryFile(id: string, file: Partial<InsertMediaLibrary>): Promise<MediaLibrary | undefined>;
   upsertMediaLibraryFile(file: InsertMediaLibrary & { id?: string }): Promise<{ file: MediaLibrary; action: 'created' | 'updated' }>;
   deleteMediaLibraryFile(id: string): Promise<boolean>;
+
+  // Product Media
+  getProductMedia(productId: string, role?: string): Promise<(ProductMedia & { media: MediaLibrary })[]>;
+  createProductMedia(data: InsertProductMedia): Promise<ProductMedia>;
+  deleteProductMedia(id: string): Promise<boolean>;
+  deleteProductMediaByProductAndRole(productId: string, role: string): Promise<boolean>;
 
   // Videos
   getVideos(activeOnly?: boolean): Promise<Video[]>;
@@ -597,6 +608,28 @@ export class DatabaseStorage implements IStorage {
   async getProduct(id: string): Promise<Product | undefined> {
     const result = await db.select().from(products).where(eq(products.id, id));
     return result[0];
+  }
+
+  async getProductWithMedia(id: string): Promise<(Product & { media?: (ProductMedia & { media: MediaLibrary })[] }) | undefined> {
+    const product = await this.getProduct(id);
+    if (!product) return undefined;
+
+    const media = await this.getProductMedia(id);
+    return { ...product, media: media.length > 0 ? media : undefined };
+  }
+
+  async getProductsWithMedia(filters?: ProductFilters): Promise<(Product & { media?: (ProductMedia & { media: MediaLibrary })[] })[]> {
+    const products = await this.getProducts(filters);
+    
+    // Fetch media for all products in parallel
+    const productsWithMedia = await Promise.all(
+      products.map(async (product) => {
+        const media = await this.getProductMedia(product.id);
+        return { ...product, media: media.length > 0 ? media : undefined };
+      })
+    );
+
+    return productsWithMedia;
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
@@ -1319,6 +1352,48 @@ export class DatabaseStorage implements IStorage {
     // Create new
     const created = await this.createMediaLibraryFile(file);
     return { file: created, action: 'created' };
+  }
+
+  // Product Media implementations
+  async getProductMedia(productId: string, role?: string): Promise<(ProductMedia & { media: MediaLibrary })[]> {
+    const whereConditions = role 
+      ? and(
+          eq(productMedia.productId, productId),
+          eq(productMedia.role, role as any)
+        )
+      : eq(productMedia.productId, productId);
+
+    const results = await db
+      .select({
+        productMedia: productMedia,
+        media: mediaLibrary,
+      })
+      .from(productMedia)
+      .innerJoin(mediaLibrary, eq(productMedia.mediaId, mediaLibrary.id))
+      .where(whereConditions)
+      .orderBy(productMedia.sortOrder);
+
+    return results.map(r => ({ ...r.productMedia, media: r.media }));
+  }
+
+  async createProductMedia(data: InsertProductMedia): Promise<ProductMedia> {
+    const [created] = await db.insert(productMedia).values(data).returning();
+    return created;
+  }
+
+  async deleteProductMedia(id: string): Promise<boolean> {
+    const result = await db.delete(productMedia).where(eq(productMedia.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async deleteProductMediaByProductAndRole(productId: string, role: string): Promise<boolean> {
+    const result = await db.delete(productMedia).where(
+      and(
+        eq(productMedia.productId, productId),
+        eq(productMedia.role, role as any)
+      )
+    );
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Videos
