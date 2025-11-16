@@ -1840,6 +1840,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product media files (only media associated with products via product_media table)
+  app.get("/api/product-media", isAdmin, async (req, res) => {
+    try {
+      const productMediaFiles = await storage.getProductMediaFiles();
+      res.json(productMediaFiles);
+    } catch (error) {
+      console.error('Error fetching product media:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to fetch product media" });
+    }
+  });
+
   // Product Image Migration
   app.post("/api/admin/migrate-product-images", isAdmin, async (req, res) => {
     try {

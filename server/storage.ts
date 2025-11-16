@@ -245,6 +245,7 @@ export interface IStorage {
 
   // Product Media
   getProductMedia(productId: string, role?: string): Promise<(ProductMedia & { media: MediaLibrary })[]>;
+  getProductMediaFiles(): Promise<MediaLibrary[]>;
   createProductMedia(data: InsertProductMedia): Promise<ProductMedia>;
   deleteProductMedia(id: string): Promise<boolean>;
   deleteProductMediaByProductAndRole(productId: string, role: string): Promise<boolean>;
@@ -1415,6 +1416,31 @@ export class DatabaseStorage implements IStorage {
       .orderBy(productMedia.sortOrder);
 
     return results.map(r => ({ ...r.productMedia, media: r.media }));
+  }
+
+  async getProductMediaFiles(): Promise<MediaLibrary[]> {
+    const results = await db
+      .selectDistinct({
+        id: mediaLibrary.id,
+        filename: mediaLibrary.filename,
+        originalFilename: mediaLibrary.originalFilename,
+        objectPath: mediaLibrary.objectPath,
+        mimeType: mediaLibrary.mimeType,
+        fileSize: mediaLibrary.fileSize,
+        width: mediaLibrary.width,
+        height: mediaLibrary.height,
+        category: mediaLibrary.category,
+        tags: mediaLibrary.tags,
+        altText: mediaLibrary.altText,
+        caption: mediaLibrary.caption,
+        uploadedAt: mediaLibrary.uploadedAt,
+      })
+      .from(mediaLibrary)
+      .innerJoin(productMedia, eq(mediaLibrary.id, productMedia.mediaId))
+      .where(like(mediaLibrary.mimeType, 'image/%'))
+      .orderBy(mediaLibrary.uploadedAt);
+
+    return results;
   }
 
   async createProductMedia(data: InsertProductMedia): Promise<ProductMedia> {

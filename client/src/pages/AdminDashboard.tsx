@@ -1,6 +1,7 @@
 import AdminProductManager from "@/components/AdminProductManager";
 import BulkProductEditor from "@/components/BulkProductEditor";
 import ProductMediaManager from "@/components/ProductMediaManager";
+import { ImageSelectionDialog } from "@/components/ImageSelectionDialog";
 import FilterOptionsManager from "@/components/FilterOptionsManager";
 import DiscountTiersManager from "@/components/DiscountTiersManager";
 import TriviaIntervalManager from "@/components/TriviaIntervalManager";
@@ -80,6 +81,12 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [labelImageMode, setLabelImageMode] = useState<'url' | 'media'>('url');
   const [lifestyleImageMode, setLifestyleImageMode] = useState<'url' | 'media'>('url');
   
+  // Image selection dialog state
+  const [imageSelectionDialog, setImageSelectionDialog] = useState<{
+    open: boolean;
+    field: 'main' | 'label' | 'lifestyle';
+  }>({ open: false, field: 'main' });
+  
   // Trivia edit dialog state
   const [editTriviaId, setEditTriviaId] = useState<string | null>(null);
   const [editTriviaData, setEditTriviaData] = useState<Partial<TriviaQuestion>>({});
@@ -104,25 +111,6 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     queryKey: ['/api/filter-options'],
     queryFn: () => getFilterOptions(),
   });
-
-  // Fetch media library images for selection
-  const { data: mediaLibraryFiles = [] } = useQuery<Array<{ id: string; filename: string; originalFilename: string; mimeType: string }>>({
-    queryKey: ['/api/media-library'],
-  });
-
-  // Filter media library to only show product-related images
-  const productMediaFiles = useMemo(() => {
-    // Extract all unique mediaIds from all products
-    const productMediaIds = new Set<string>();
-    products.forEach(product => {
-      product.media?.forEach(media => {
-        productMediaIds.add(media.mediaId);
-      });
-    });
-    
-    // Filter media library files to only include those associated with products
-    return mediaLibraryFiles.filter(file => productMediaIds.has(file.id));
-  }, [products, mediaLibraryFiles]);
 
   // Group filter options by type
   const groupedOptions = useMemo(() => {
@@ -2018,29 +2006,21 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     data-testid="input-main-image-url"
                   />
                 ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
-                      <div
-                        key={file.id}
-                        className={cn(
-                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
-                          editProductData.imageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
-                        )}
-                        onClick={() => setEditProductData({ ...editProductData, imageUrl: `/api/media-library/${file.id}/file` })}
-                        data-testid={`select-main-image-${file.id}`}
-                      >
-                        <img
-                          src={`/api/media-library/${file.id}/file`}
-                          alt={file.originalFilename}
-                          className="w-full h-full object-cover"
-                        />
-                        {editProductData.imageUrl === `/api/media-library/${file.id}/file` && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <Check className="w-6 h-6 text-primary" />
-                          </div>
-                        )}
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setImageSelectionDialog({ open: true, field: 'main' })}
+                      data-testid="button-browse-main-image"
+                    >
+                      Browse Product Images...
+                    </Button>
+                    {editProductData.imageUrl && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-600" />
+                        <span>Image selected</span>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -2077,29 +2057,21 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     data-testid="input-label-image-url"
                   />
                 ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
-                      <div
-                        key={file.id}
-                        className={cn(
-                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
-                          editProductData.labelImageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
-                        )}
-                        onClick={() => setEditProductData({ ...editProductData, labelImageUrl: `/api/media-library/${file.id}/file` })}
-                        data-testid={`select-label-image-${file.id}`}
-                      >
-                        <img
-                          src={`/api/media-library/${file.id}/file`}
-                          alt={file.originalFilename}
-                          className="w-full h-full object-cover"
-                        />
-                        {editProductData.labelImageUrl === `/api/media-library/${file.id}/file` && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <Check className="w-6 h-6 text-primary" />
-                          </div>
-                        )}
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setImageSelectionDialog({ open: true, field: 'label' })}
+                      data-testid="button-browse-label-image"
+                    >
+                      Browse Product Images...
+                    </Button>
+                    {editProductData.labelImageUrl && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-600" />
+                        <span>Image selected</span>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -2136,29 +2108,21 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     data-testid="input-lifestyle-image-url"
                   />
                 ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                    {productMediaFiles.filter(f => f.mimeType.startsWith('image/')).map((file) => (
-                      <div
-                        key={file.id}
-                        className={cn(
-                          "relative aspect-square border-2 rounded-md overflow-hidden cursor-pointer hover-elevate",
-                          editProductData.lifestyleImageUrl === `/api/media-library/${file.id}/file` ? "border-primary" : "border-border"
-                        )}
-                        onClick={() => setEditProductData({ ...editProductData, lifestyleImageUrl: `/api/media-library/${file.id}/file` })}
-                        data-testid={`select-lifestyle-image-${file.id}`}
-                      >
-                        <img
-                          src={`/api/media-library/${file.id}/file`}
-                          alt={file.originalFilename}
-                          className="w-full h-full object-cover"
-                        />
-                        {editProductData.lifestyleImageUrl === `/api/media-library/${file.id}/file` && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <Check className="w-6 h-6 text-primary" />
-                          </div>
-                        )}
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setImageSelectionDialog({ open: true, field: 'lifestyle' })}
+                      data-testid="button-browse-lifestyle-image"
+                    >
+                      Browse Product Images...
+                    </Button>
+                    {editProductData.lifestyleImageUrl && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-600" />
+                        <span>Image selected</span>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -2283,6 +2247,36 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Image Selection Dialog */}
+      <ImageSelectionDialog
+        open={imageSelectionDialog.open}
+        onOpenChange={(open) => setImageSelectionDialog({ ...imageSelectionDialog, open })}
+        onSelect={(imageUrl) => {
+          if (imageSelectionDialog.field === 'main') {
+            setEditProductData({ ...editProductData, imageUrl });
+          } else if (imageSelectionDialog.field === 'label') {
+            setEditProductData({ ...editProductData, labelImageUrl: imageUrl });
+          } else if (imageSelectionDialog.field === 'lifestyle') {
+            setEditProductData({ ...editProductData, lifestyleImageUrl: imageUrl });
+          }
+        }}
+        currentValue={
+          imageSelectionDialog.field === 'main'
+            ? editProductData.imageUrl || undefined
+            : imageSelectionDialog.field === 'label'
+            ? editProductData.labelImageUrl || undefined
+            : editProductData.lifestyleImageUrl || undefined
+        }
+        title={
+          imageSelectionDialog.field === 'main'
+            ? "Select Main Image"
+            : imageSelectionDialog.field === 'label'
+            ? "Select Label Image"
+            : "Select Lifestyle Image"
+        }
+        description="Choose an image from your product media library"
+      />
 
       {/* Trivia Edit Dialog */}
       <Dialog open={editTriviaId !== null} onOpenChange={(open) => !open && handleCancelTriviaEdit()}>
