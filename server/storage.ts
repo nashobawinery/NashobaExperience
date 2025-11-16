@@ -619,17 +619,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductsWithMedia(filters?: ProductFilters): Promise<(Product & { media?: (ProductMedia & { media: MediaLibrary })[] })[]> {
-    const products = await this.getProducts(filters);
-    
-    // Fetch media for all products in parallel
-    const productsWithMedia = await Promise.all(
-      products.map(async (product) => {
-        const media = await this.getProductMedia(product.id);
-        return { ...product, media: media.length > 0 ? media : undefined };
-      })
-    );
+    // Get filtered products first
+    const filteredProducts = await this.getProducts(filters);
+    if (filteredProducts.length === 0) return [];
 
-    return productsWithMedia;
+    const productIds = filteredProducts.map(p => p.id);
+
+    // Fetch all media for these products in a single query with JOIN
+    const mediaResults = await db
+      .select({
+        productId: productMedia.productId,
+        id: productMedia.id,
+        mediaId: productMedia.mediaId,
+        role: productMedia.role,
+        sortOrder: productMedia.sortOrder,
+        mediaFilename: mediaLibrary.filename,
+        mediaObjectPath: mediaLibrary.objectPath,
+        mediaPublicUrl: mediaLibrary.publicUrl,
+        mediaMimeType: mediaLibrary.mimeType,
+        mediaFileSize: mediaLibrary.fileSize,
+        mediaLibraryId: mediaLibrary.id,
+      })
+      .from(productMedia)
+      .leftJoin(mediaLibrary, eq(productMedia.mediaId, mediaLibrary.id))
+      .where(inArray(productMedia.productId, productIds));
+
+    // Group media by product ID
+    const mediaByProductId = new Map<string, any[]>();
+    mediaResults.forEach(row => {
+      if (!mediaByProductId.has(row.productId)) {
+        mediaByProductId.set(row.productId, []);
+      }
+      mediaByProductId.get(row.productId)!.push({
+        id: row.id,
+        mediaId: row.mediaId,
+        role: row.role,
+        sortOrder: row.sortOrder,
+        media: {
+          id: row.mediaLibraryId,
+          filename: row.mediaFilename,
+          objectPath: row.mediaObjectPath,
+          publicUrl: row.mediaPublicUrl,
+          mimeType: row.mediaMimeType,
+          fileSize: row.mediaFileSize,
+        },
+      });
+    });
+
+    // Attach media to products
+    return filteredProducts.map(product => ({
+      ...product,
+      media: mediaByProductId.get(product.id) || undefined,
+    }));
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {

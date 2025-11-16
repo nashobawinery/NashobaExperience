@@ -21,14 +21,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown, ImageOff } from "lucide-react";
 import type { Product } from "@shared/schema";
+import { type ProductWithMedia, getPrimaryImageUrl } from "@/lib/productImageUtils";
 
 type SortField = 'name' | 'category' | 'price' | 'stockQuantity';
 type SortDirection = 'asc' | 'desc' | null;
 
 interface AdminProductManagerProps {
-  products: Product[];
+  products: ProductWithMedia[];
   onAddProduct?: () => void;
   onEditProduct?: (id: string) => void;
   onDeleteProduct?: (id: string) => void;
@@ -175,6 +176,7 @@ export default function AdminProductManager({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">Image</TableHead>
                 <TableHead 
                   className="cursor-pointer hover-elevate select-none"
                   onClick={() => handleSort('name')}
@@ -211,13 +213,28 @@ export default function AdminProductManager({
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredProducts.map((product) => (
+                filteredProducts.map((product) => {
+                  const imageUrl = getPrimaryImageUrl(product);
+                  return (
                   <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                    <TableCell>
+                      <div className="w-12 h-12 rounded overflow-hidden bg-muted flex items-center justify-center">
+                        {imageUrl ? (
+                          <img 
+                            src={imageUrl} 
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageOff className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{product.category}</Badge>
@@ -274,7 +291,8 @@ export default function AdminProductManager({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

@@ -83,10 +83,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   // Product view toggle
   const [productViewMode, setProductViewMode] = useState<'list' | 'bulk'>('list');
 
-  // Fetch products from backend
-  const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ['/api/products'],
-    queryFn: () => getProducts(),
+  // Fetch products with media from backend
+  const { data: products = [], isLoading: productsLoading } = useQuery<(Product & { media?: Array<{ id: string; mediaId: string; role: string; media: { id: string; filename: string; objectPath: string } }> })[]>({
+    queryKey: ['/api/admin/products-with-media'],
   });
 
   // Fetch trivia questions from backend
@@ -148,7 +147,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const createProductMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       toast({ 
         title: "Product Created", 
         description: "The product was successfully created" 
@@ -166,7 +165,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const updateProductMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateProduct(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       toast({ 
         title: "Product Updated", 
         description: "The product was successfully updated" 
@@ -184,7 +183,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const deleteProductMutation = useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       toast({ 
         title: "Product Deleted", 
         description: "The product was successfully removed" 
@@ -491,7 +490,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       
       if (result.failed === 0) {
         toast({ 
@@ -535,7 +534,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const deleteDuplicatesMutation = useMutation({
     mutationFn: deleteDuplicateProducts,
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       toast({ 
         title: "Duplicates Deleted", 
         description: result.message || `Successfully deleted ${result.duplicatesDeleted} duplicate product(s)`
@@ -559,7 +558,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         fileInputRef.current.value = '';
       }
       
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
       queryClient.invalidateQueries({ queryKey: ['/api/filter-options'] });
       queryClient.invalidateQueries({ queryKey: ['/api/trivia/questions'] });
       queryClient.invalidateQueries({ queryKey: ['/api/slideshow/images'] });

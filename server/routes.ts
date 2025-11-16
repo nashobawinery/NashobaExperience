@@ -106,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     console.log('Product filters received:', JSON.stringify(filters));
-    const products = await storage.getProducts(filters);
+    const products = await storage.getProductsWithMedia(filters);
     console.log(`Returned ${products.length} products`);
     res.json(products);
   });

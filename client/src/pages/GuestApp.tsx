@@ -27,6 +27,7 @@ import { Heart, Trophy, Gift } from "lucide-react";
 import * as api from "@/lib/api";
 import type { Product, TriviaQuestion, Commercial } from "@shared/schema";
 import type { SurveyData } from "@/components/TastingSurvey";
+import { type ProductWithMedia, getPrimaryImageUrl } from "@/lib/productImageUtils";
 
 export default function GuestApp() {
   const { toast } = useToast();
@@ -883,7 +884,7 @@ export default function GuestApp() {
       name: fav.product.name,
       category: fav.product.category,
       price: parseFloat(fav.product.price),
-      image: fav.product.imageUrl || '',
+      image: getPrimaryImageUrl(fav.product as ProductWithMedia) || '',
       // Fallback: read from product_notes first, then favorites.note for legacy data
       note: productNotesMap[fav.productId] || fav.note || undefined,
     }));
@@ -1076,7 +1077,7 @@ export default function GuestApp() {
                     id={product.id}
                     name={product.name}
                     category={product.category}
-                    image={product.imageUrl || ''}
+                    image={getPrimaryImageUrl(product as ProductWithMedia) || ''}
                     characteristics={product.characteristics || ''}
                     isFavorite={favoriteIds.has(product.id)}
                     onFavoriteToggle={handleFavoriteToggle}
@@ -1114,7 +1115,7 @@ export default function GuestApp() {
                 name: rec.product.name,
                 category: rec.product.category,
                 price: parseFloat(rec.product.price),
-                image: rec.product.imageUrl || '',
+                image: getPrimaryImageUrl(rec.product as ProductWithMedia) || '',
                 description: rec.product.description || '',
                 reason: rec.reason,
               }))}
