@@ -31,11 +31,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 - **Guest Experience**: Interactive slideshow, product browsing with filtering, product detail modals, educational videos and popups, auto-popup trivia with rewards, shopping cart with tier-based discounts, AI recommendations, pre-survey dialog for checkout actions, comprehensive tasting survey, and email functionalities.
-- **Admin Dashboard**: Comprehensive CRUD for products, inventory, dynamic filter and slideshow image management, video management, trivia, QR code generator, media library, settings, and bulk product import/export.
+- **Admin Dashboard**: Comprehensive CRUD for products, inventory, dynamic filter and slideshow image management, video management, trivia, QR code generator, media library, settings, and bulk product import/export. Bulk delete functionality with checkboxes for efficient cleanup of slideshow images, commercials, and media library files.
 
 ### Media Library (Cloud Storage)
 - **Storage**: Replit App Storage (Google Cloud Storage backend).
 - **Functionality**: Upload, organize, add metadata, copy public URLs, edit, and delete files. Files are served through Express proxy endpoints.
+- **Bulk Operations**: Checkbox-based selection for deleting multiple files simultaneously with automatic state synchronization to prevent stale selections.
 
 ### Authentication & Security
 - **Authentication**: Replit Auth (OpenID Connect) for secure user authentication in the tasting app. Separate email/password authentication for the B2B platform.
