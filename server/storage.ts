@@ -635,6 +635,7 @@ export class DatabaseStorage implements IStorage {
         role: productMedia.role,
         sortOrder: productMedia.sortOrder,
         mediaFilename: mediaLibrary.filename,
+        mediaOriginalFilename: mediaLibrary.originalFilename,
         mediaObjectPath: mediaLibrary.objectPath,
         mediaPublicUrl: mediaLibrary.publicUrl,
         mediaMimeType: mediaLibrary.mimeType,
@@ -659,6 +660,7 @@ export class DatabaseStorage implements IStorage {
         media: {
           id: row.mediaLibraryId,
           filename: row.mediaFilename,
+          originalFilename: row.mediaOriginalFilename,
           objectPath: row.mediaObjectPath,
           publicUrl: row.mediaPublicUrl,
           mimeType: row.mediaMimeType,

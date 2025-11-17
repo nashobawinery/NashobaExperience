@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 interface ImageSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (imageUrl: string) => void;
+  onSelect: (imageUrl: string, filename: string) => void;
   currentValue?: string;
   title?: string;
   description?: string;
@@ -24,12 +24,7 @@ export function ImageSelectionDialog({
   description = "Choose an image from your product media library",
 }: ImageSelectionDialogProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(currentValue || "");
-
-  useEffect(() => {
-    if (open) {
-      setSelectedUrl(currentValue || "");
-    }
-  }, [open, currentValue]);
+  const [selectedFilename, setSelectedFilename] = useState<string>("");
 
   const { data: productMediaFiles = [], isLoading } = useQuery<Array<{
     id: string;
@@ -41,9 +36,29 @@ export function ImageSelectionDialog({
     enabled: open,
   });
 
+  useEffect(() => {
+    if (open) {
+      setSelectedUrl(currentValue || "");
+    }
+  }, [open, currentValue]);
+
+  // Automatically derive filename whenever selectedUrl or productMediaFiles change
+  useEffect(() => {
+    if (selectedUrl && productMediaFiles.length > 0) {
+      const matchingFile = productMediaFiles.find(
+        (file) => `/api/media-library/${file.id}/file` === selectedUrl
+      );
+      if (matchingFile) {
+        setSelectedFilename(matchingFile.originalFilename);
+      }
+    } else if (!selectedUrl) {
+      setSelectedFilename("");
+    }
+  }, [selectedUrl, productMediaFiles]);
+
   const handleSelect = () => {
-    if (selectedUrl) {
-      onSelect(selectedUrl);
+    if (selectedUrl && selectedFilename) {
+      onSelect(selectedUrl, selectedFilename);
       onOpenChange(false);
     }
   };
@@ -80,7 +95,11 @@ export function ImageSelectionDialog({
                       isSelected ? "border-primary ring-2 ring-primary" : "border-border"
                     )}
                     onClick={() => {
-                      onSelect(imageUrl);
+                      setSelectedUrl(imageUrl);
+                      setSelectedFilename(file.originalFilename);
+                    }}
+                    onDoubleClick={() => {
+                      onSelect(imageUrl, file.originalFilename);
                       onOpenChange(false);
                     }}
                     data-testid={`image-option-${file.id}`}
@@ -122,7 +141,7 @@ export function ImageSelectionDialog({
           </Button>
           <Button
             onClick={handleSelect}
-            disabled={!selectedUrl}
+            disabled={!selectedUrl || !selectedFilename}
             data-testid="button-confirm-selection"
           >
             Select Image

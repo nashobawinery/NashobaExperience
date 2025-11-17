@@ -81,6 +81,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [labelImageMode, setLabelImageMode] = useState<'url' | 'media'>('url');
   const [lifestyleImageMode, setLifestyleImageMode] = useState<'url' | 'media'>('url');
   
+  // Store filenames for user-friendly display
+  const [mainImageFilename, setMainImageFilename] = useState<string>('');
+  const [labelImageFilename, setLabelImageFilename] = useState<string>('');
+  const [lifestyleImageFilename, setLifestyleImageFilename] = useState<string>('');
+  
   // Image selection dialog state
   const [imageSelectionDialog, setImageSelectionDialog] = useState<{
     open: boolean;
@@ -96,7 +101,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [productViewMode, setProductViewMode] = useState<'list' | 'bulk'>('list');
 
   // Fetch products with media from backend
-  const { data: products = [], isLoading: productsLoading } = useQuery<(Product & { media?: Array<{ id: string; mediaId: string; role: string; media: { id: string; filename: string; objectPath: string } }> })[]>({
+  const { data: products = [], isLoading: productsLoading } = useQuery<(Product & { media?: Array<{ id: string; mediaId: string; role: string; media: { id: string; filename: string; originalFilename: string; objectPath: string } }> })[]>({
     queryKey: ['/api/admin/products-with-media'],
   });
 
@@ -337,15 +342,20 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         setSelectedCharacteristics([]);
       }
       
-      // Set image modes based on existing product_media entries
+      // Set image modes and filenames based on existing product_media entries
       const productWithMedia = product as any; // Type assertion to access media property
-      const hasPrimaryMedia = productWithMedia.media?.some((m: any) => m.role === 'primary');
-      const hasLabelMedia = productWithMedia.media?.some((m: any) => m.role === 'label');
-      const hasLifestyleMedia = productWithMedia.media?.some((m: any) => m.role === 'lifestyle');
+      const primaryMedia = productWithMedia.media?.find((m: any) => m.role === 'primary');
+      const labelMedia = productWithMedia.media?.find((m: any) => m.role === 'label');
+      const lifestyleMedia = productWithMedia.media?.find((m: any) => m.role === 'lifestyle');
       
-      setMainImageMode(hasPrimaryMedia ? 'media' : 'url');
-      setLabelImageMode(hasLabelMedia ? 'media' : 'url');
-      setLifestyleImageMode(hasLifestyleMedia ? 'media' : 'url');
+      setMainImageMode(primaryMedia ? 'media' : 'url');
+      setLabelImageMode(labelMedia ? 'media' : 'url');
+      setLifestyleImageMode(lifestyleMedia ? 'media' : 'url');
+      
+      // Set filenames for user-friendly display (nested under media.media.originalFilename)
+      setMainImageFilename(primaryMedia?.media?.originalFilename || '');
+      setLabelImageFilename(labelMedia?.media?.originalFilename || '');
+      setLifestyleImageFilename(lifestyleMedia?.media?.originalFilename || '');
     }
   };
 
@@ -2053,6 +2063,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                         setMainImageMode('url');
                         if (mainImageMode === 'media') {
                           setEditProductData({ ...editProductData, imageUrl: '' });
+                          setMainImageFilename('');
                         }
                       }}
                     />
@@ -2089,7 +2100,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     {editProductData.imageUrl && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="w-4 h-4 text-green-600" />
-                        <span>Image selected</span>
+                        <span>
+                          {mainImageMode === 'media' && mainImageFilename 
+                            ? mainImageFilename 
+                            : 'Image selected'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -2109,6 +2124,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                         setLabelImageMode('url');
                         if (labelImageMode === 'media') {
                           setEditProductData({ ...editProductData, labelImageUrl: '' });
+                          setLabelImageFilename('');
                         }
                       }}
                     />
@@ -2145,7 +2161,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     {editProductData.labelImageUrl && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="w-4 h-4 text-green-600" />
-                        <span>Image selected</span>
+                        <span>
+                          {labelImageMode === 'media' && labelImageFilename 
+                            ? labelImageFilename 
+                            : 'Image selected'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -2165,6 +2185,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                         setLifestyleImageMode('url');
                         if (lifestyleImageMode === 'media') {
                           setEditProductData({ ...editProductData, lifestyleImageUrl: '' });
+                          setLifestyleImageFilename('');
                         }
                       }}
                     />
@@ -2201,7 +2222,11 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     {editProductData.lifestyleImageUrl && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="w-4 h-4 text-green-600" />
-                        <span>Image selected</span>
+                        <span>
+                          {lifestyleImageMode === 'media' && lifestyleImageFilename 
+                            ? lifestyleImageFilename 
+                            : 'Image selected'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -2333,13 +2358,16 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       <ImageSelectionDialog
         open={imageSelectionDialog.open}
         onOpenChange={(open) => setImageSelectionDialog({ ...imageSelectionDialog, open })}
-        onSelect={(imageUrl) => {
+        onSelect={(imageUrl, filename) => {
           if (imageSelectionDialog.field === 'main') {
             setEditProductData({ ...editProductData, imageUrl });
+            setMainImageFilename(filename);
           } else if (imageSelectionDialog.field === 'label') {
             setEditProductData({ ...editProductData, labelImageUrl: imageUrl });
+            setLabelImageFilename(filename);
           } else if (imageSelectionDialog.field === 'lifestyle') {
             setEditProductData({ ...editProductData, lifestyleImageUrl: imageUrl });
+            setLifestyleImageFilename(filename);
           }
         }}
         currentValue={
