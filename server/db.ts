@@ -7,14 +7,27 @@ import fs from "fs";
 neonConfig.webSocketConstructor = ws;
 
 function getDatabaseUrl(): string {
+  // In production deployments, database URL is in /tmp/replitdb
+  // In development, it's in the environment variable
+  try {
+    if (fs.existsSync('/tmp/replitdb')) {
+      const dbUrl = fs.readFileSync('/tmp/replitdb', 'utf8').trim();
+      if (dbUrl) {
+        console.log('Using database URL from /tmp/replitdb (production)');
+        return dbUrl;
+      }
+    }
+  } catch (error) {
+    console.log('Could not read /tmp/replitdb, falling back to environment variable');
+  }
+
   if (!process.env.DATABASE_URL) {
     throw new Error(
       "DATABASE_URL must be set. Did you forget to provision a database?",
     );
   }
 
-  const env = process.env.NODE_ENV || 'development';
-  console.log(`Using DATABASE_URL from environment (${env})`);
+  console.log('Using database URL from environment variable (development)');
   return process.env.DATABASE_URL;
 }
 
