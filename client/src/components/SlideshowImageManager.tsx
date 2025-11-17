@@ -27,9 +27,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image, CheckSquare, Square } from "lucide-react";
 import { useState } from "react";
 import type { SlideshowImage, MediaLibrary } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -54,6 +55,7 @@ export default function SlideshowImageManager() {
   const { toast } = useToast();
   const [editingImage, setEditingImage] = useState<SlideshowImage | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data: images = [], isLoading } = useQuery<SlideshowImage[]>({
     queryKey: ["/api/slideshow-images"],
@@ -116,12 +118,41 @@ export default function SlideshowImageManager() {
       if (!response.ok) throw new Error("Failed to delete slide");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/slideshow-images"] });
+      setSelectedIds(prev => prev.filter(id => id !== deletedId));
       toast({ title: "Slide deleted successfully" });
     },
     onError: () => {
       toast({ title: "Failed to delete slide", variant: "destructive" });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const validIds = ids.filter(id => images.some(img => img.id === id));
+      if (validIds.length === 0) throw new Error("No valid slides to delete");
+      
+      const results = await Promise.all(
+        validIds.map(id =>
+          fetch(`/api/slideshow-images/${id}`, { method: "DELETE" })
+        )
+      );
+      const failed = results.filter(r => !r.ok);
+      if (failed.length > 0) throw new Error(`Failed to delete ${failed.length} slide(s)`);
+      return { results, count: validIds.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/slideshow-images"] });
+      toast({ title: `Successfully deleted ${data.count} slide(s)` });
+      setSelectedIds([]);
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to delete selected slides", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
     },
   });
 
@@ -221,13 +252,29 @@ export default function SlideshowImageManager() {
             )}
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAdd} data-testid="button-add-slide">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Slide
+        <div className="flex gap-2">
+          {selectedIds.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.length} selected slide(s)?`)) {
+                  bulkDeleteMutation.mutate(selectedIds);
+                }
+              }}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-delete-selected"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({selectedIds.length})
             </Button>
-          </DialogTrigger>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleAdd} data-testid="button-add-slide">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Slide
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -435,6 +482,7 @@ export default function SlideshowImageManager() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -444,6 +492,17 @@ export default function SlideshowImageManager() {
             className="flex items-center gap-4 p-4 rounded-lg border hover-elevate"
             data-testid={`row-slide-${image.id}`}
           >
+            <Checkbox
+              checked={selectedIds.includes(image.id)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedIds([...selectedIds, image.id]);
+                } else {
+                  setSelectedIds(selectedIds.filter(id => id !== image.id));
+                }
+              }}
+              data-testid={`checkbox-select-${image.id}`}
+            />
             {image.imageUrl && (
               <img
                 src={image.imageUrl}

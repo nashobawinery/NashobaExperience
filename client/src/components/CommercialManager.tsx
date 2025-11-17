@@ -30,6 +30,7 @@ import { z } from "zod";
 import { Plus, Edit, Trash2, Eye, EyeOff, Image } from "lucide-react";
 import { useState } from "react";
 import type { Commercial, MediaLibrary } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,7 @@ export default function CommercialManager() {
   const { toast } = useToast();
   const [editingCommercial, setEditingCommercial] = useState<Commercial | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data: commercials = [], isLoading } = useQuery<Commercial[]>({
     queryKey: ["/api/commercials"],
@@ -114,12 +116,41 @@ export default function CommercialManager() {
       if (!response.ok) throw new Error("Failed to delete commercial");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/commercials"], exact: false });
+      setSelectedIds(prev => prev.filter(id => id !== deletedId));
       toast({ title: "Commercial deleted successfully" });
     },
     onError: () => {
       toast({ title: "Failed to delete commercial", variant: "destructive" });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const validIds = ids.filter(id => commercials.some(c => c.id === id));
+      if (validIds.length === 0) throw new Error("No valid commercials to delete");
+      
+      const results = await Promise.all(
+        validIds.map(id =>
+          fetch(`/api/commercials/${id}`, { method: "DELETE" })
+        )
+      );
+      const failed = results.filter(r => !r.ok);
+      if (failed.length > 0) throw new Error(`Failed to delete ${failed.length} commercial(s)`);
+      return { results, count: validIds.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/commercials"], exact: false });
+      toast({ title: `Successfully deleted ${data.count} commercial(s)` });
+      setSelectedIds([]);
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to delete selected commercials", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
     },
   });
 
@@ -205,13 +236,29 @@ export default function CommercialManager() {
             )}
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAdd} data-testid="button-add-commercial">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Commercial
+        <div className="flex gap-2">
+          {selectedIds.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.length} selected commercial(s)?`)) {
+                  bulkDeleteMutation.mutate(selectedIds);
+                }
+              }}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-delete-selected"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({selectedIds.length})
             </Button>
-          </DialogTrigger>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleAdd} data-testid="button-add-commercial">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Commercial
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -391,6 +438,7 @@ export default function CommercialManager() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -400,6 +448,17 @@ export default function CommercialManager() {
             className="flex items-center gap-4 p-4 rounded-lg border hover-elevate"
             data-testid={`row-commercial-${commercial.id}`}
           >
+            <Checkbox
+              checked={selectedIds.includes(commercial.id)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedIds([...selectedIds, commercial.id]);
+                } else {
+                  setSelectedIds(selectedIds.filter(id => id !== commercial.id));
+                }
+              }}
+              data-testid={`checkbox-select-${commercial.id}`}
+            />
             {commercial.imageUrl && (
               <img
                 src={commercial.imageUrl}

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Trash2, Copy, Image as ImageIcon, FileText, Edit } from "lucide-react";
 import type { MediaLibrary } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const CATEGORIES = [
   { value: 'all', label: 'All Files' },
@@ -33,6 +34,7 @@ export function MediaLibrary() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaLibrary | null>(null);
   const [editForm, setEditForm] = useState<Partial<MediaLibrary>>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['/api/media-library', selectedCategory],
@@ -93,8 +95,9 @@ export function MediaLibrary() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteMediaLibraryFile,
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ['/api/media-library'] });
+      setSelectedIds(prev => prev.filter(id => id !== deletedId));
       toast({
         title: "Success",
         description: "File deleted successfully",
@@ -104,6 +107,31 @@ export function MediaLibrary() {
       toast({
         title: "Delete failed",
         description: "Failed to delete file",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const validIds = ids.filter(id => files.some(f => f.id === id));
+      if (validIds.length === 0) throw new Error("No valid files to delete");
+      
+      const results = await Promise.all(validIds.map(id => deleteMediaLibraryFile(id)));
+      return { results, count: validIds.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/media-library'] });
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${data.count} file(s)`,
+      });
+      setSelectedIds([]);
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Failed to delete selected files",
         variant: "destructive",
       });
     },
@@ -231,11 +259,42 @@ export function MediaLibrary() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <p className="text-sm font-medium">{selectedIds.length} file(s) selected</p>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  if (confirm(`Delete ${selectedIds.length} selected file(s)?`)) {
+                    bulkDeleteMutation.mutate(selectedIds);
+                  }
+                }}
+                disabled={bulkDeleteMutation.isPending}
+                data-testid="button-delete-selected"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {files.map((file) => (
             <Card key={file.id} data-testid={`card-media-${file.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
+                  <Checkbox
+                    checked={selectedIds.includes(file.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedIds([...selectedIds, file.id]);
+                      } else {
+                        setSelectedIds(selectedIds.filter(id => id !== file.id));
+                      }
+                    }}
+                    data-testid={`checkbox-select-${file.id}`}
+                  />
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-sm truncate" title={file.originalFilename}>
                       {file.originalFilename}
@@ -302,7 +361,8 @@ export function MediaLibrary() {
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       <Dialog open={!!editingFile} onOpenChange={(open) => !open && setEditingFile(null)}>
