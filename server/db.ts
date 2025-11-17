@@ -31,6 +31,6 @@ function getDatabaseUrl(): string {
   return process.env.DATABASE_URL;
 }
 
-const databaseUrl = getDatabaseUrl();
+export const databaseUrl = getDatabaseUrl();
 export const pool = new Pool({ connectionString: databaseUrl });
 export const db = drizzle({ client: pool, schema });

@@ -10,8 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
-import logoUrl from "@assets/NVW logo no background_1762469370864.png";
-import wineryAerialUrl from "@assets/Winery-areal_1762431445607.webp";
 import {
   Dialog,
   DialogContent,
@@ -177,7 +175,7 @@ export default function B2BPricingPage() {
         {/* Background Image with Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
         <img 
-          src={wineryAerialUrl} 
+          src="/winery-aerial.webp" 
           alt="Nashoba Valley Winery Aerial View" 
           className="absolute inset-0 w-full h-full object-cover" 
         />
@@ -186,7 +184,7 @@ export default function B2BPricingPage() {
           {/* Logo */}
           <div className="mb-8 flex justify-center">
             <img 
-              src={logoUrl} 
+              src="/nvw-logo.png" 
               alt="Nashoba Valley Winery Logo" 
               className="w-48 h-auto object-contain drop-shadow-2xl"
               style={{ mixBlendMode: 'multiply' }}
@@ -355,7 +353,7 @@ export default function B2BPricingPage() {
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/90 via-primary/70 to-primary/50 z-10" />
         <img 
-          src={wineryAerialUrl} 
+          src="/winery-aerial.webp" 
           alt="Nashoba Valley Winery" 
           className="absolute inset-0 w-full h-full object-cover" 
         />
@@ -364,7 +362,7 @@ export default function B2BPricingPage() {
           <div className="text-center">
             <div className="mb-6 flex justify-center">
               <img 
-                src={logoUrl} 
+                src="/nvw-logo.png" 
                 alt="Nashoba Valley Winery Logo" 
                 className="w-32 md:w-40 h-auto object-contain drop-shadow-2xl"
                 style={{ mixBlendMode: 'multiply' }}
