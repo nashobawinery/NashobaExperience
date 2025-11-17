@@ -79,7 +79,10 @@ export function ImageSelectionDialog({
                       "relative border-2 rounded-md overflow-hidden cursor-pointer hover-elevate transition-all",
                       isSelected ? "border-primary ring-2 ring-primary" : "border-border"
                     )}
-                    onClick={() => setSelectedUrl(imageUrl)}
+                    onClick={() => {
+                      onSelect(imageUrl);
+                      onOpenChange(false);
+                    }}
                     data-testid={`image-option-${file.id}`}
                   >
                     <div className="aspect-square bg-muted">
