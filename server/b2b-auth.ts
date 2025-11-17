@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import { Request, Response, NextFunction } from 'express';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
-import { db } from './db';
+import { db, databaseUrl } from './db';
 import { storage } from './storage';
 
 const SALT_ROUNDS = 10;
@@ -31,7 +31,7 @@ const PgSession = connectPgSimple(session);
 export function createB2bSessionMiddleware() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
   const sessionStore = new PgSession({
-    conString: process.env.DATABASE_URL,
+    conString: databaseUrl,
     tableName: 'b2b_sessions',
     createTableIfMissing: false,
     ttl: sessionTtl,
