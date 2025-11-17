@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -24,6 +25,10 @@ import {
 import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown, ImageOff } from "lucide-react";
 import type { Product } from "@shared/schema";
 import { type ProductWithMedia, getPrimaryImageUrl } from "@/lib/productImageUtils";
+import { useMutation } from "@tanstack/react-query";
+import { deleteProduct } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type SortField = 'name' | 'category' | 'price' | 'stockQuantity';
 type SortDirection = 'asc' | 'desc' | null;
@@ -45,11 +50,13 @@ export default function AdminProductManager({
   onToggleStock,
   onToggleIgnoreInventory,
 }: AdminProductManagerProps) {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -96,6 +103,53 @@ export default function AdminProductManager({
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await deleteProduct(id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({
+        title: "Products deleted",
+        description: `Successfully deleted ${selectedIds.length} product(s)`,
+      });
+      setSelectedIds([]);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting products",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredProducts.map(p => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.length} product(s)? This action cannot be undone.`)) {
+      bulkDeleteMutation.mutate(selectedIds);
+    }
+  };
 
   const stats = {
     total: products.length,
@@ -152,10 +206,23 @@ export default function AdminProductManager({
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-serif text-2xl font-medium">Product Management</h2>
-          <Button onClick={onAddProduct} data-testid="button-add-product">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="flex gap-2">
+            {selectedIds.length > 0 && (
+              <Button 
+                variant="destructive" 
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Selected ({selectedIds.length})
+              </Button>
+            )}
+            <Button onClick={onAddProduct} data-testid="button-add-product">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
 
         <div className="mb-6">
@@ -176,6 +243,13 @@ export default function AdminProductManager({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedIds.length === filteredProducts.length && filteredProducts.length > 0}
+                    onCheckedChange={handleSelectAll}
+                    data-testid="checkbox-select-all"
+                  />
+                </TableHead>
                 <TableHead className="w-16">Image</TableHead>
                 <TableHead 
                   className="cursor-pointer hover-elevate select-none"
@@ -213,15 +287,23 @@ export default function AdminProductManager({
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredProducts.map((product) => {
                   const imageUrl = getPrimaryImageUrl(product);
+                  const isSelected = selectedIds.includes(product.id);
                   return (
                   <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => handleSelectOne(product.id, checked as boolean)}
+                        data-testid={`checkbox-product-${product.id}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="w-12 h-12 rounded overflow-hidden bg-muted flex items-center justify-center">
                         {imageUrl ? (
