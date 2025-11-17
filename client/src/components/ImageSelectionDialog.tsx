@@ -23,9 +23,6 @@ export function ImageSelectionDialog({
   title = "Select Product Image",
   description = "Choose an image from your product media library",
 }: ImageSelectionDialogProps) {
-  const [selectedUrl, setSelectedUrl] = useState<string>(currentValue || "");
-  const [selectedFilename, setSelectedFilename] = useState<string>("");
-
   const { data: productMediaFiles = [], isLoading } = useQuery<Array<{
     id: string;
     filename: string;
@@ -35,33 +32,6 @@ export function ImageSelectionDialog({
     queryKey: ['/api/product-media'],
     enabled: open,
   });
-
-  useEffect(() => {
-    if (open) {
-      setSelectedUrl(currentValue || "");
-    }
-  }, [open, currentValue]);
-
-  // Automatically derive filename whenever selectedUrl or productMediaFiles change
-  useEffect(() => {
-    if (selectedUrl && productMediaFiles.length > 0) {
-      const matchingFile = productMediaFiles.find(
-        (file) => `/api/media-library/${file.id}/file` === selectedUrl
-      );
-      if (matchingFile) {
-        setSelectedFilename(matchingFile.originalFilename);
-      }
-    } else if (!selectedUrl) {
-      setSelectedFilename("");
-    }
-  }, [selectedUrl, productMediaFiles]);
-
-  const handleSelect = () => {
-    if (selectedUrl && selectedFilename) {
-      onSelect(selectedUrl, selectedFilename);
-      onOpenChange(false);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,7 +55,7 @@ export function ImageSelectionDialog({
             <div className="grid grid-cols-3 gap-4">
               {productMediaFiles.map((file) => {
                 const imageUrl = `/api/media-library/${file.id}/file`;
-                const isSelected = selectedUrl === imageUrl;
+                const isSelected = currentValue === imageUrl;
 
                 return (
                   <div
@@ -95,20 +65,20 @@ export function ImageSelectionDialog({
                       isSelected ? "border-primary ring-2 ring-primary" : "border-border"
                     )}
                     onClick={() => {
-                      setSelectedUrl(imageUrl);
-                      setSelectedFilename(file.originalFilename);
-                    }}
-                    onDoubleClick={() => {
                       onSelect(imageUrl, file.originalFilename);
                       onOpenChange(false);
                     }}
                     data-testid={`image-option-${file.id}`}
                   >
-                    <div className="aspect-square bg-muted">
+                    <div className="aspect-square bg-muted w-full max-h-48">
                       <img
                         src={imageUrl}
                         alt={file.originalFilename}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width="192"
+                        height="192"
                       />
                     </div>
                     {isSelected && (
@@ -130,23 +100,6 @@ export function ImageSelectionDialog({
             </div>
           )}
         </ScrollArea>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancel-selection"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSelect}
-            disabled={!selectedUrl || !selectedFilename}
-            data-testid="button-confirm-selection"
-          >
-            Select Image
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
