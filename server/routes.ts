@@ -2029,6 +2029,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/product-media/associate", isAdmin, async (req, res) => {
+    try {
+      const { productId, mediaId, role, sortOrder } = req.body;
+      
+      if (!productId || !mediaId || !role) {
+        return res.status(400).json({ message: "Missing required fields: productId, mediaId, role" });
+      }
+
+      // First, delete any existing product_media entry for this product and role
+      await storage.deleteProductMediaByProductAndRole(productId, role);
+
+      // Create new product_media entry
+      const productMedia = await storage.createProductMedia({
+        productId,
+        mediaId,
+        role: role as "primary" | "label" | "lifestyle" | "gallery",
+        sortOrder: sortOrder || 0,
+      });
+
+      res.json({ success: true, productMedia });
+    } catch (error) {
+      console.error("Error associating product media:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Association failed" });
+    }
+  });
+
+  app.delete("/api/admin/product-media/by-role", isAdmin, async (req, res) => {
+    try {
+      const { productId, role } = req.query;
+      
+      if (!productId || !role) {
+        return res.status(400).json({ message: "Missing required query parameters: productId, role" });
+      }
+
+      const success = await storage.deleteProductMediaByProductAndRole(productId as string, role as string);
+      res.json({ success });
+    } catch (error) {
+      console.error("Error deleting product media by role:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Deletion failed" });
+    }
+  });
+
   // Videos Management
   app.get("/api/videos", async (req, res) => {
     const activeOnly = req.query.activeOnly === 'true';

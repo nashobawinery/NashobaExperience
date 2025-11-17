@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   getProducts, 
   createProduct, 
@@ -284,6 +284,41 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
     },
   });
 
+  // Helper to extract media ID from media library URL
+  const extractMediaIdFromUrl = (url: string | null): string | null => {
+    if (!url) return null;
+    const match = url.match(/\/api\/media-library\/([^/]+)\/file/);
+    return match ? match[1] : null;
+  };
+
+  // Helper to sync product_media entry for a specific role
+  const syncProductMediaEntry = async (productId: string, role: string, imageUrl: string | null) => {
+    const mediaId = extractMediaIdFromUrl(imageUrl);
+    
+    if (!mediaId) {
+      // If no media ID, delete any existing product_media entry for this role
+      try {
+        await apiRequest('DELETE', `/api/admin/product-media/by-role?productId=${productId}&role=${role}`);
+      } catch (error) {
+        // It's okay if deletion fails (entry might not exist)
+        console.log(`No product_media entry to delete for role ${role}`);
+      }
+      return;
+    }
+
+    // Create or update product_media entry
+    try {
+      await apiRequest('POST', '/api/admin/product-media/associate', {
+        productId,
+        mediaId,
+        role,
+        sortOrder: 0
+      });
+    } catch (error) {
+      console.error(`Failed to sync product_media for role ${role}:`, error);
+    }
+  };
+
   // Handler functions
   const handleAddProduct = () => {
     toast({ title: "Add Product", description: "Product form would open here" });
@@ -301,10 +336,20 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       } else {
         setSelectedCharacteristics([]);
       }
+      
+      // Set image modes based on existing product_media entries
+      const productWithMedia = product as any; // Type assertion to access media property
+      const hasPrimaryMedia = productWithMedia.media?.some((m: any) => m.role === 'primary');
+      const hasLabelMedia = productWithMedia.media?.some((m: any) => m.role === 'label');
+      const hasLifestyleMedia = productWithMedia.media?.some((m: any) => m.role === 'lifestyle');
+      
+      setMainImageMode(hasPrimaryMedia ? 'media' : 'url');
+      setLabelImageMode(hasLabelMedia ? 'media' : 'url');
+      setLifestyleImageMode(hasLifestyleMedia ? 'media' : 'url');
     }
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (editProductId && editProductData) {
       // Join selected characteristics into comma-separated string
       // Process tags: if it's a string, split by comma; if already array, keep as-is
@@ -327,10 +372,31 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         tags: processedTags
       };
       
-      updateProductMutation.mutate({ 
-        id: editProductId, 
-        data: updatedData 
-      });
+      try {
+        // Update the product first
+        await apiRequest('PATCH', `/api/products/${editProductId}`, updatedData);
+        
+        // Sync product_media entries based on mode selection
+        await Promise.all([
+          syncProductMediaEntry(editProductId, 'primary', mainImageMode === 'media' ? (editProductData.imageUrl || null) : null),
+          syncProductMediaEntry(editProductId, 'label', labelImageMode === 'media' ? (editProductData.labelImageUrl || null) : null),
+          syncProductMediaEntry(editProductId, 'lifestyle', lifestyleImageMode === 'media' ? (editProductData.lifestyleImageUrl || null) : null),
+        ]);
+        
+        // Invalidate queries and show success toast
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+        toast({ 
+          title: "Product Updated", 
+          description: "The product was successfully updated" 
+        });
+      } catch (error) {
+        toast({ 
+          title: "Error", 
+          description: "Failed to update product",
+          variant: "destructive"
+        });
+      }
+      
       setEditProductId(null);
       setEditProductData({});
       setSelectedCharacteristics([]);
@@ -1983,7 +2049,12 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       type="radio"
                       name="main-image-mode"
                       checked={mainImageMode === 'url'}
-                      onChange={() => setMainImageMode('url')}
+                      onChange={() => {
+                        setMainImageMode('url');
+                        if (mainImageMode === 'media') {
+                          setEditProductData({ ...editProductData, imageUrl: '' });
+                        }
+                      }}
                     />
                     <span className="text-sm">URL</span>
                   </label>
@@ -2034,7 +2105,12 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       type="radio"
                       name="label-image-mode"
                       checked={labelImageMode === 'url'}
-                      onChange={() => setLabelImageMode('url')}
+                      onChange={() => {
+                        setLabelImageMode('url');
+                        if (labelImageMode === 'media') {
+                          setEditProductData({ ...editProductData, labelImageUrl: '' });
+                        }
+                      }}
                     />
                     <span className="text-sm">URL</span>
                   </label>
@@ -2085,7 +2161,12 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       type="radio"
                       name="lifestyle-image-mode"
                       checked={lifestyleImageMode === 'url'}
-                      onChange={() => setLifestyleImageMode('url')}
+                      onChange={() => {
+                        setLifestyleImageMode('url');
+                        if (lifestyleImageMode === 'media') {
+                          setEditProductData({ ...editProductData, lifestyleImageUrl: '' });
+                        }
+                      }}
                     />
                     <span className="text-sm">URL</span>
                   </label>
