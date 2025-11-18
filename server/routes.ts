@@ -2320,12 +2320,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileList = await Promise.all(
         files.map(async (file) => {
           const [metadata] = await file.getMetadata();
+          
+          // Generate signed URL with 7-day expiration for viewing files
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+          });
+          
           return {
             name: file.name,
             size: parseInt(metadata.size || '0'),
             contentType: metadata.contentType || 'application/octet-stream',
             updated: metadata.updated,
-            publicUrl: `https://storage.googleapis.com/${bucketName}/${file.name}`,
+            publicUrl: signedUrl,
           };
         })
       );
