@@ -288,81 +288,86 @@ export default function ObjectStorageManager() {
               <div className="space-y-2">
                 {filteredFiles.map((file) => (
                   <Card key={file.name} className="hover-elevate">
-                    <CardContent className="flex items-center gap-4 p-4">
-                      <Checkbox
-                        checked={selectedFiles.has(file.name)}
-                        onCheckedChange={() => toggleFileSelection(file.name)}
-                        data-testid={`checkbox-${extractFileName(file.name)}`}
-                      />
-                      
-                      {file.contentType.startsWith("image/") ? (
-                        <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-muted">
-                          <img
-                            src={file.publicUrl}
-                            alt={extractFileName(file.name)}
-                            className="w-full h-full object-cover"
-                            data-testid={`thumbnail-${extractFileName(file.name)}`}
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedFiles.has(file.name)}
+                            onCheckedChange={() => toggleFileSelection(file.name)}
+                            data-testid={`checkbox-${extractFileName(file.name)}`}
+                            className="mt-1"
                           />
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 flex-shrink-0 rounded bg-muted flex items-center justify-center">
-                          {getFileIcon(file.contentType)}
-                        </div>
-                      )}
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate" title={file.name}>
-                          {extractFileName(file.name)}
-                        </div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
-                          <span>{formatBytes(file.size)}</span>
-                          <span>•</span>
-                          <span>{new Date(file.updated).toLocaleDateString()}</span>
-                          {file.contentType.startsWith("image/") && (
-                            <>
-                              <span>•</span>
-                              <Badge variant="secondary" className="text-xs">Image</Badge>
-                            </>
+                          
+                          {file.contentType.startsWith("image/") ? (
+                            <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-muted">
+                              <img
+                                src={file.publicUrl}
+                                alt={extractFileName(file.name)}
+                                className="w-full h-full object-cover"
+                                data-testid={`thumbnail-${extractFileName(file.name)}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 flex-shrink-0 rounded bg-muted flex items-center justify-center">
+                              {getFileIcon(file.contentType)}
+                            </div>
                           )}
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate" title={file.name}>
+                              {extractFileName(file.name)}
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                              <span>{formatBytes(file.size)}</span>
+                              <span>•</span>
+                              <span>{new Date(file.updated).toLocaleDateString()}</span>
+                              {file.contentType.startsWith("image/") && (
+                                <>
+                                  <span>•</span>
+                                  <Badge variant="secondary" className="text-xs">Image</Badge>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(file.publicUrl, file.name)}
-                          data-testid={`button-copy-${extractFileName(file.name)}`}
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy URL
-                        </Button>
-                        {file.contentType.startsWith("image/") && (
+                        
+                        <div className="flex items-center gap-2 flex-wrap pl-[52px]">
                           <Button
                             variant="outline"
                             size="sm"
-                            asChild
+                            onClick={() => copyToClipboard(file.publicUrl, file.name)}
+                            data-testid={`button-copy-${extractFileName(file.name)}`}
                           >
-                            <a
-                              href={file.publicUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              data-testid={`link-view-${extractFileName(file.name)}`}
-                            >
-                              <Image className="h-4 w-4 mr-2" />
-                              View
-                            </a>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Copy URL
                           </Button>
-                        )}
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => setSelectedForDelete(file)}
-                          data-testid={`button-delete-${extractFileName(file.name)}`}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </Button>
+                          {file.contentType.startsWith("image/") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                            >
+                              <a
+                                href={file.publicUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid={`link-view-${extractFileName(file.name)}`}
+                              >
+                                <Image className="h-4 w-4 mr-2" />
+                                View
+                              </a>
+                            </Button>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setSelectedForDelete(file)}
+                            data-testid={`button-delete-${extractFileName(file.name)}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
