@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Image, File, Search, Folder, X } from "lucide-react";
+import { Upload, Trash2, Image, File, Search, Folder, Copy, CheckSquare, Square } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface StorageFile {
   name: string;
@@ -39,6 +40,8 @@ export default function ObjectStorageManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedForDelete, setSelectedForDelete] = useState<StorageFile | null>(null);
   const [currentFolder, setCurrentFolder] = useState("public/");
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
   const { data, isLoading } = useQuery<StorageResponse>({
     queryKey: ["/api/admin/object-storage/files", currentFolder],
@@ -106,6 +109,35 @@ export default function ObjectStorageManager() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (files: StorageFile[]) => {
+      const bucketName = data?.bucketName;
+      if (!bucketName) throw new Error("Bucket name not available");
+      
+      await Promise.all(
+        files.map(file => 
+          apiRequest("DELETE", `/api/admin/object-storage/files/${bucketName}/${file.name}`)
+        )
+      );
+    },
+    onSuccess: (_, files) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/object-storage/files"] });
+      toast({ 
+        title: "Files Deleted", 
+        description: `${files.length} file${files.length > 1 ? 's' : ''} removed from storage` 
+      });
+      setSelectedFiles(new Set());
+      setShowBulkDeleteDialog(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Bulk Delete Failed",
+        description: error instanceof Error ? error.message : "Failed to delete files",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -141,12 +173,61 @@ export default function ObjectStorageManager() {
     return parts[parts.length - 1];
   };
 
+  const copyToClipboard = async (text: string, fileName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ 
+        title: "URL Copied", 
+        description: `URL for ${extractFileName(fileName)} copied to clipboard` 
+      });
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy URL to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleFileSelection = (fileName: string) => {
+    const newSelection = new Set(selectedFiles);
+    if (newSelection.has(fileName)) {
+      newSelection.delete(fileName);
+    } else {
+      newSelection.add(fileName);
+    }
+    setSelectedFiles(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(filteredFiles.map(f => f.name)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const filesToDelete = filteredFiles.filter(f => selectedFiles.has(f.name));
+    bulkDeleteMutation.mutate(filesToDelete);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
           <CardTitle>Object Storage Manager</CardTitle>
           <div className="flex items-center gap-2">
+            {selectedFiles.size > 0 && (
+              <Button
+                variant="destructive"
+                onClick={() => setShowBulkDeleteDialog(true)}
+                data-testid="button-delete-selected"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected ({selectedFiles.size})
+              </Button>
+            )}
             <Button
               onClick={() => setShowUploadDialog(true)}
               data-testid="button-upload-file"
@@ -170,14 +251,31 @@ export default function ObjectStorageManager() {
             </div>
           </div>
 
-          {data?.bucketName && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Folder className="h-4 w-4" />
-              <span>Bucket: {data.bucketName}</span>
-              <span className="mx-2">•</span>
-              <span>Folder: {currentFolder}</span>
-            </div>
-          )}
+          <div className="flex items-center justify-between gap-4">
+            {data?.bucketName && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Folder className="h-4 w-4" />
+                <span>Bucket: {data.bucketName}</span>
+                <span className="mx-2">•</span>
+                <span>Folder: {currentFolder}</span>
+              </div>
+            )}
+            {filteredFiles.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSelectAll}
+                data-testid="button-select-all"
+              >
+                {selectedFiles.size === filteredFiles.length ? (
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                ) : (
+                  <Square className="h-4 w-4 mr-2" />
+                )}
+                {selectedFiles.size === filteredFiles.length ? "Deselect All" : "Select All"}
+              </Button>
+            )}
+          </div>
 
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading files...</div>
@@ -190,27 +288,55 @@ export default function ObjectStorageManager() {
               <div className="space-y-2">
                 {filteredFiles.map((file) => (
                   <Card key={file.name} className="hover-elevate">
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {getFileIcon(file.contentType)}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate" title={file.name}>
-                            {extractFileName(file.name)}
-                          </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span>{formatBytes(file.size)}</span>
-                            <span>•</span>
-                            <span>{new Date(file.updated).toLocaleDateString()}</span>
-                            {file.contentType.startsWith("image/") && (
-                              <>
-                                <span>•</span>
-                                <Badge variant="secondary" className="text-xs">Image</Badge>
-                              </>
-                            )}
-                          </div>
+                    <CardContent className="flex items-center gap-4 p-4">
+                      <Checkbox
+                        checked={selectedFiles.has(file.name)}
+                        onCheckedChange={() => toggleFileSelection(file.name)}
+                        data-testid={`checkbox-${extractFileName(file.name)}`}
+                      />
+                      
+                      {file.contentType.startsWith("image/") ? (
+                        <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-muted">
+                          <img
+                            src={file.publicUrl}
+                            alt={extractFileName(file.name)}
+                            className="w-full h-full object-cover"
+                            data-testid={`thumbnail-${extractFileName(file.name)}`}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 flex-shrink-0 rounded bg-muted flex items-center justify-center">
+                          {getFileIcon(file.contentType)}
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate" title={file.name}>
+                          {extractFileName(file.name)}
+                        </div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                          <span>{formatBytes(file.size)}</span>
+                          <span>•</span>
+                          <span>{new Date(file.updated).toLocaleDateString()}</span>
+                          {file.contentType.startsWith("image/") && (
+                            <>
+                              <span>•</span>
+                              <Badge variant="secondary" className="text-xs">Image</Badge>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard(file.publicUrl, file.name)}
+                          data-testid={`button-copy-${extractFileName(file.name)}`}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy URL
+                        </Button>
                         {file.contentType.startsWith("image/") && (
                           <Button
                             variant="outline"
@@ -334,6 +460,49 @@ export default function ObjectStorageManager() {
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <DialogContent data-testid="dialog-bulk-delete">
+          <DialogHeader>
+            <DialogTitle>Delete Multiple Files</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedFiles.size} file{selectedFiles.size > 1 ? 's' : ''}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-2">
+                {filteredFiles
+                  .filter(f => selectedFiles.has(f.name))
+                  .map(file => (
+                    <div key={file.name} className="flex items-center gap-2 text-sm">
+                      <File className="h-4 w-4" />
+                      <span className="flex-1 truncate">{extractFileName(file.name)}</span>
+                      <span className="text-muted-foreground">{formatBytes(file.size)}</span>
+                    </div>
+                  ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkDeleteDialog(false)}
+              data-testid="button-cancel-bulk-delete"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteMutation.isPending ? "Deleting..." : `Delete ${selectedFiles.size} File${selectedFiles.size > 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
