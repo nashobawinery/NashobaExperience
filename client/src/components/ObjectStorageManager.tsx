@@ -212,23 +212,30 @@ export default function ObjectStorageManager() {
                       </div>
                       <div className="flex items-center gap-2">
                         {file.contentType.startsWith("image/") && (
-                          <a
-                            href={file.publicUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline"
-                            data-testid={`link-view-${extractFileName(file.name)}`}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            asChild
                           >
-                            View
-                          </a>
+                            <a
+                              href={file.publicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-testid={`link-view-${extractFileName(file.name)}`}
+                            >
+                              <Image className="h-4 w-4 mr-2" />
+                              View
+                            </a>
+                          </Button>
                         )}
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="destructive"
+                          size="sm"
                           onClick={() => setSelectedForDelete(file)}
                           data-testid={`button-delete-${extractFileName(file.name)}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
                         </Button>
                       </div>
                     </CardContent>
