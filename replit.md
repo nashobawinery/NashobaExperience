@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
 - **Storage**: Replit App Storage (Google Cloud Storage backend).
 - **Functionality**: Upload, organize, add metadata, copy public URLs, edit, and delete files. Files are served through Express proxy endpoints.
 - **Bulk Operations**: Checkbox-based selection for deleting multiple files simultaneously with automatic state synchronization to prevent stale selections.
+- **Object Storage Manager**: Direct access to the Google Cloud Storage bucket via the Admin Dashboard "Object Storage" tab. Allows administrators to browse all files in the bucket, upload new files to custom folders, delete files, and view file metadata (size, type, upload date). Files are organized by folder and searchable by filename.
 
 ### Authentication & Security
 - **Authentication**: Replit Auth (OpenID Connect) for secure user authentication in the tasting app. Separate email/password authentication for the B2B platform.
