@@ -2321,18 +2321,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         files.map(async (file) => {
           const [metadata] = await file.getMetadata();
           
-          // Generate signed URL with 7-day expiration for viewing files
-          const [signedUrl] = await file.getSignedUrl({
-            action: 'read',
-            expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-          });
+          // Use proxy URL instead of signed URL
+          const publicUrl = `/api/admin/object-storage/proxy/${encodeURIComponent(bucketName)}/${encodeURIComponent(file.name)}`;
           
           return {
             name: file.name,
             size: parseInt(metadata.size || '0'),
             contentType: metadata.contentType || 'application/octet-stream',
             updated: metadata.updated,
-            publicUrl: signedUrl,
+            publicUrl,
           };
         })
       );
@@ -2379,6 +2376,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error generating upload URL:', error);
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to generate upload URL" });
+    }
+  });
+
+  app.get("/api/admin/object-storage/proxy/:bucketName/:objectPath(*)", isAdmin, async (req, res) => {
+    try {
+      const { bucketName, objectPath } = req.params;
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(decodeURIComponent(objectPath));
+      
+      const [metadata] = await file.getMetadata();
+      const [fileContents] = await file.download();
+      
+      res.setHeader('Content-Type', metadata.contentType || 'application/octet-stream');
+      res.setHeader('Content-Length', metadata.size);
+      res.send(fileContents);
+    } catch (error) {
+      console.error('Error serving file:', error);
+      res.status(404).json({ message: 'File not found' });
     }
   });
 
