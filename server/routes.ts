@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
@@ -2298,6 +2299,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Object Storage Management (Admin only)
+  app.get("/api/admin/object-storage/files", isAdmin, async (req, res) => {
+    try {
+      const prefix = (req.query.prefix as string) || 'public/';
+      const objectStorageService = new ObjectStorageService();
+      const publicPaths = objectStorageService.getPublicObjectSearchPaths();
+      
+      if (publicPaths.length === 0) {
+        return res.json({ files: [], bucketName: null });
+      }
+
+      const firstPath = publicPaths[0];
+      const { bucketName, objectName: basePath } = parseObjectPath(firstPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      const fullPrefix = prefix.startsWith(basePath) ? prefix : `${basePath}/${prefix}`;
+      const [files] = await bucket.getFiles({ prefix: fullPrefix });
+      
+      const fileList = await Promise.all(
+        files.map(async (file) => {
+          const [metadata] = await file.getMetadata();
+          return {
+            name: file.name,
+            size: parseInt(metadata.size || '0'),
+            contentType: metadata.contentType || 'application/octet-stream',
+            updated: metadata.updated,
+            publicUrl: `https://storage.googleapis.com/${bucketName}/${file.name}`,
+          };
+        })
+      );
+
+      res.json({ files: fileList, bucketName });
+    } catch (error) {
+      console.error('Error listing files:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to list files" });
+    }
+  });
+
+  app.post("/api/admin/object-storage/upload", isAdmin, async (req, res) => {
+    try {
+      const { filename, folder } = req.body;
+      
+      if (!filename) {
+        return res.status(400).json({ message: "Filename is required" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const publicPaths = objectStorageService.getPublicObjectSearchPaths();
+      const publicObjectDir = publicPaths[0];
+      
+      const targetFolder = folder || 'products';
+      const objectId = randomUUID();
+      const fileExtension = filename.split('.').pop();
+      const fullPath = `${publicObjectDir}/${targetFolder}/${objectId}.${fileExtension}`;
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+
+      const signedUrl = await signObjectURL({
+        bucketName,
+        objectName,
+        method: "PUT",
+        ttlSec: 900,
+      });
+
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${objectName}`;
+
+      res.json({ 
+        signedUrl, 
+        publicUrl,
+        objectPath: objectName,
+      });
+    } catch (error) {
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to generate upload URL" });
+    }
+  });
+
+  app.delete("/api/admin/object-storage/files/:bucketName/:objectPath(*)", isAdmin, async (req, res) => {
+    try {
+      const { bucketName, objectPath } = req.params;
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectPath);
+      
+      await file.delete();
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to delete file" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+function parseObjectPath(path: string): {
+  bucketName: string;
+  objectName: string;
+} {
+  if (path.startsWith("https://storage.googleapis.com/")) {
+    const url = new URL(path);
+    const pathnameParts = url.pathname.split("/").filter(p => p);
+    if (pathnameParts.length < 2) {
+      throw new Error("Invalid storage URL: must contain bucket and object name");
+    }
+    return {
+      bucketName: pathnameParts[0],
+      objectName: pathnameParts.slice(1).join("/"),
+    };
+  }
+  
+  if (!path.startsWith("/")) {
+    path = `/${path}`;
+  }
+  const pathParts = path.split("/");
+  if (pathParts.length < 3) {
+    throw new Error("Invalid path: must contain at least a bucket name");
+  }
+
+  const bucketName = pathParts[1];
+  const objectName = pathParts.slice(2).join("/");
+
+  return {
+    bucketName,
+    objectName,
+  };
+}
+
+async function signObjectURL({
+  bucketName,
+  objectName,
+  method,
+  ttlSec,
+}: {
+  bucketName: string;
+  objectName: string;
+  method: "GET" | "PUT" | "DELETE" | "HEAD";
+  ttlSec: number;
+}): Promise<string> {
+  const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+  const request = {
+    bucket_name: bucketName,
+    object_name: objectName,
+    method,
+    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+  };
+  const response = await fetch(
+    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to sign object URL, errorcode: ${response.status}, ` +
+        `make sure you're running on Replit`
+    );
+  }
+
+  const { signed_url: signedURL } = await response.json();
+  return signedURL;
 }
