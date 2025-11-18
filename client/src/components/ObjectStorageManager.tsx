@@ -51,11 +51,12 @@ export default function ObjectStorageManager() {
 
   const uploadMutation = useMutation({
     mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
-      const uploadData = await apiRequest("/api/admin/object-storage/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, folder }),
+      const response = await apiRequest("POST", "/api/admin/object-storage/upload", {
+        filename: file.name,
+        folder,
       });
+
+      const uploadData = await response.json();
 
       const uploadResponse = await fetch(uploadData.signedUrl, {
         method: "PUT",
@@ -89,9 +90,7 @@ export default function ObjectStorageManager() {
       const bucketName = data?.bucketName;
       if (!bucketName) throw new Error("Bucket name not available");
       
-      await apiRequest(`/api/admin/object-storage/files/${bucketName}/${file.name}`, {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/admin/object-storage/files/${bucketName}/${file.name}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/object-storage/files"] });
