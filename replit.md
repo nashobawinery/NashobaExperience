@@ -55,7 +55,8 @@ Preferred communication style: Simple, everyday language.
 - **Tier Management**: Admins can edit tier details (discount percentage, description), toggle active/inactive status. Inactive tiers hidden from public pricing and approval workflows while existing customers retain their pricing.
 - **Customer Workflow**: Registration via "Set Up Account" button, admin approval, email notification, login, order placement.
 - **Case Pricing**: All orders calculated by case with tier-based discounts.
-- **Admin Dashboard**: Comprehensive 4-tab dashboard for managing customers, orders, sales reps, and account settings with full administrator management (create, edit, delete admins with security safeguards).
+- **Admin Dashboard**: Comprehensive 6-tab dashboard for managing customers, orders, tier commitments, sales reps, slideshow, and settings with full administrator management (create, edit, delete admins with security safeguards).
+- **Tier Commitment Tracking**: Monitors annual case commitments for Tier 3 (10 cases/year) and Tier 4 (30 cases/year) customers. Tracks cases purchased during each customer's fiscal year (starting from commitment start date), calculates remaining commitments, and provides 60-day renewal reminder email functionality. Admin interface displays commitment progress with status indicators (on track, behind schedule, completed) and allows updating commitment start dates.
 - **Password Management**: All B2B login pages feature password visibility toggle and "Forgot Password?" functionality. Self-service password reset via email with secure one-time tokens (1-hour expiration) for admins, sales reps, and customers.
 
 ### Database Synchronization

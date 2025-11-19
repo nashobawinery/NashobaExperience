@@ -1328,4 +1328,151 @@ router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Reque
   }
 });
 
+// Admin: Get tier commitment report
+router.get('/api/b2b/admin/tier-commitment-report', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const report = await storage.getTierCommitmentReport();
+    res.json(report);
+  } catch (error) {
+    console.error('Error fetching tier commitment report:', error);
+    res.status(500).json({ error: 'Failed to fetch tier commitment report' });
+  }
+});
+
+// Admin: Update customer commitment start date
+router.patch('/api/b2b/admin/customers/:id/commitment-start', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { commitmentStartDate } = req.body;
+
+    if (!commitmentStartDate) {
+      return res.status(400).json({ error: 'Commitment start date is required' });
+    }
+
+    const updated = await storage.updateCustomerCommitmentStartDate(id, new Date(commitmentStartDate));
+    
+    if (!updated) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating commitment start date:', error);
+    res.status(500).json({ error: 'Failed to update commitment start date' });
+  }
+});
+
+// Admin: Get customers needing renewal reminders
+router.get('/api/b2b/admin/renewal-reminders', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const daysBeforeRenewal = parseInt(req.query.days as string) || 60;
+    const customers = await storage.getCustomersNeedingRenewalReminders(daysBeforeRenewal);
+    res.json(customers);
+  } catch (error) {
+    console.error('Error fetching renewal reminders:', error);
+    res.status(500).json({ error: 'Failed to fetch renewal reminders' });
+  }
+});
+
+// Admin: Send renewal reminder emails
+router.post('/api/b2b/admin/send-renewal-reminders', requireB2bAdmin, async (req: Request, res: Response) => {
+  const sendReminderSchema = z.object({
+    customerIds: z.array(z.string()).min(1, 'At least one customer ID is required'),
+    daysBeforeRenewal: z.number().positive().optional(),
+  });
+
+  const parseResult = sendReminderSchema.safeParse(req.body);
+  
+  if (!parseResult.success) {
+    return res.status(400).json({ 
+      error: 'Invalid request body',
+      details: parseResult.error.errors,
+    });
+  }
+
+  const { customerIds, daysBeforeRenewal } = parseResult.data;
+  const days = daysBeforeRenewal ?? 60;
+
+  if (!process.env.SENDGRID_API_KEY || !process.env.SENDGRID_FROM_EMAIL) {
+    return res.status(500).json({ error: 'Email service not configured' });
+  }
+
+  try {
+    const allCustomers = await storage.getCustomersNeedingRenewalReminders(days);
+    const customersToEmail = allCustomers.filter(c => customerIds.includes(c.id));
+
+    if (customersToEmail.length === 0) {
+      return res.status(404).json({ error: 'No valid customers found for the provided IDs' });
+    }
+
+    const emailResults = await Promise.allSettled(
+      customersToEmail.map(async (customer) => {
+        const { generateTierRenewalEmail } = await import('./email');
+        const emailContent = generateTierRenewalEmail(
+          customer.accountName,
+          customer.tierName || 'Wholesale',
+          customer.casesPurchased,
+          customer.casesRemaining,
+          customer.commitmentCases || 0,
+          customer.daysUntilRenewal,
+          customer.commitmentEndDate
+        );
+
+        const { sendEmail } = await import('./email');
+        await sendEmail(
+          customer.emailAddress,
+          emailContent.subject,
+          emailContent.html,
+          emailContent.text
+        );
+
+        return {
+          customerId: customer.id,
+          customerName: customer.accountName,
+          email: customer.emailAddress,
+        };
+      })
+    );
+
+    const successful: { customerId: string; customerName: string; email: string }[] = [];
+    const failed: { customerId: string; customerName: string; email: string; error: string; errorDetails?: any }[] = [];
+
+    emailResults.forEach((result, index) => {
+      const customer = customersToEmail[index];
+      if (result.status === 'fulfilled') {
+        successful.push(result.value);
+      } else {
+        const errorInfo: any = {
+          customerId: customer.id,
+          customerName: customer.accountName,
+          email: customer.emailAddress,
+          error: result.reason?.message || String(result.reason) || 'Unknown error',
+        };
+        
+        if (result.reason && typeof result.reason === 'object') {
+          errorInfo.errorDetails = {
+            code: result.reason.code,
+            response: result.reason.response,
+            statusCode: result.reason.statusCode,
+          };
+        }
+        
+        failed.push(errorInfo);
+      }
+    });
+
+    res.json({
+      success: true,
+      daysBeforeRenewal: days,
+      totalSent: successful.length,
+      totalFailed: failed.length,
+      successful,
+      failed,
+    });
+  } catch (error) {
+    console.error('Error sending renewal reminders:', error);
+    res.status(500).json({ error: 'Failed to send renewal reminders' });
+  }
+});
+
 export default router;

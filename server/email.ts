@@ -360,6 +360,171 @@ Please provide them with the wholesale access code: WHOLESALE2025
   return { subject, html, text };
 }
 
+export function generateTierRenewalEmail(
+  customerName: string,
+  tierName: string,
+  casesPurchased: number,
+  casesRemaining: number,
+  commitmentCases: number,
+  daysUntilRenewal: number,
+  commitmentEndDate: Date
+): { subject: string; html: string; text: string } {
+  const subject = `Tier Commitment Renewal Reminder - ${tierName}`;
+  
+  const text = `
+Tier Commitment Renewal Reminder
+
+Dear ${customerName},
+
+We want to thank you for being a valued wholesale customer in our ${tierName} tier!
+
+Your annual commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString()}.
+
+Commitment Summary:
+- Tier: ${tierName}
+- Required Cases: ${commitmentCases} cases per year
+- Cases Purchased: ${casesPurchased} cases
+- Cases Remaining: ${casesRemaining} cases
+
+${casesRemaining > 0 
+  ? `To maintain your ${tierName} pricing, please order ${casesRemaining} more case${casesRemaining > 1 ? 's' : ''} before ${commitmentEndDate.toLocaleDateString()}.` 
+  : 'Congratulations! You have met your commitment requirement for this period.'}
+
+Your commitment will automatically renew for another year, and we look forward to continuing to serve you.
+
+If you have any questions about your commitment or would like to discuss your account, please don't hesitate to contact us.
+
+Thank you for your continued partnership!
+
+Best regards,
+Nashoba Valley Winery B2B Team
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+    .commitment-box { 
+      background-color: #F5F5F0; 
+      border-left: 4px solid #C9A961; 
+      padding: 20px; 
+      margin: 20px 0;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px 0;
+      padding: 8px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    .stat-label {
+      font-weight: bold;
+      color: #5C2535;
+    }
+    .stat-value {
+      color: #333;
+    }
+    .progress-bar {
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      height: 20px;
+      margin: 15px 0;
+      overflow: hidden;
+    }
+    .progress-fill {
+      background-color: ${casesRemaining === 0 ? '#22c55e' : '#C9A961'};
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .alert-box {
+      background-color: ${casesRemaining > 0 ? '#FEF3C7' : '#D1FAE5'};
+      border-left: 4px solid ${casesRemaining > 0 ? '#F59E0B' : '#22c55e'};
+      padding: 16px;
+      margin: 20px 0;
+    }
+    .footer { 
+      text-align: center; 
+      color: #666; 
+      font-size: 12px; 
+      margin-top: 30px; 
+      padding-top: 20px; 
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Tier Commitment Renewal Reminder</h1>
+  </div>
+  <div class="content">
+    <p>Dear ${customerName},</p>
+    
+    <p>We want to thank you for being a valued wholesale customer in our <strong>${tierName}</strong> tier!</p>
+    
+    <p>Your annual commitment period ends in <strong>${daysUntilRenewal} days</strong> on <strong>${commitmentEndDate.toLocaleDateString()}</strong>.</p>
+    
+    <div class="commitment-box">
+      <h3 style="margin-top: 0; color: #5C2535;">Commitment Summary</h3>
+      
+      <div class="stat-row">
+        <span class="stat-label">Tier:</span>
+        <span class="stat-value">${tierName}</span>
+      </div>
+      
+      <div class="stat-row">
+        <span class="stat-label">Required Cases:</span>
+        <span class="stat-value">${commitmentCases} cases per year</span>
+      </div>
+      
+      <div class="stat-row">
+        <span class="stat-label">Cases Purchased:</span>
+        <span class="stat-value">${casesPurchased} cases</span>
+      </div>
+      
+      <div class="stat-row" style="border-bottom: none;">
+        <span class="stat-label">Cases Remaining:</span>
+        <span class="stat-value" style="font-weight: bold; color: ${casesRemaining === 0 ? '#22c55e' : '#F59E0B'};">
+          ${casesRemaining} cases
+        </span>
+      </div>
+      
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${Math.min(100, (casesPurchased / commitmentCases) * 100)}%"></div>
+      </div>
+      <p style="text-align: center; font-size: 14px; margin: 5px 0; color: #666;">
+        ${Math.min(100, Math.round((casesPurchased / commitmentCases) * 100))}% Complete
+      </p>
+    </div>
+    
+    <div class="alert-box">
+      ${casesRemaining > 0 
+        ? `<strong>⏰ Action Required:</strong> To maintain your ${tierName} pricing, please order <strong>${casesRemaining} more case${casesRemaining > 1 ? 's' : ''}</strong> before ${commitmentEndDate.toLocaleDateString()}.`
+        : '<strong>✓ Congratulations!</strong> You have met your commitment requirement for this period.'}
+    </div>
+    
+    <p>Your commitment will automatically renew for another year, and we look forward to continuing to serve you.</p>
+    
+    <p>If you have any questions about your commitment or would like to discuss your account, please don't hesitate to contact us.</p>
+    
+    <p style="margin-top: 30px;">Thank you for your continued partnership!</p>
+    
+    <div class="footer">
+      <p><strong>Nashoba Valley Winery B2B Team</strong></p>
+      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+      <p>This is an automated reminder based on your tier commitment.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {

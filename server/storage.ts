@@ -327,6 +327,11 @@ export interface IStorage {
   getCustomerPreviousProducts(customerId: string): Promise<Product[]>;
   upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }>;
 
+  // B2B - Tier Commitments
+  getTierCommitmentReport(): Promise<any[]>;
+  getCustomersNeedingRenewalReminders(daysBeforeRenewal: number): Promise<any[]>;
+  updateCustomerCommitmentStartDate(customerId: string, startDate: Date): Promise<B2bCustomer | undefined>;
+
   // B2B - Settings
   getB2bSetting(key: string): Promise<B2bSetting | undefined>;
   setB2bSetting(key: string, value: string): Promise<B2bSetting>;
@@ -2369,6 +2374,183 @@ export class DatabaseStorage implements IStorage {
       
       return { slide: created, action: 'created' };
     }
+  }
+
+  // B2B - Tier Commitment tracking
+  async getTierCommitmentReport(): Promise<any[]> {
+    const customers = await db
+      .select({
+        id: b2bCustomers.id,
+        accountName: b2bCustomers.accountName,
+        emailAddress: b2bCustomers.emailAddress,
+        accountStatus: b2bCustomers.accountStatus,
+        commitmentStartDate: b2bCustomers.commitmentStartDate,
+        pricingTierId: b2bCustomers.pricingTierId,
+        tierName: tierPricing.tierName,
+        discountPercentage: tierPricing.discountPercentage,
+        commitmentCases: tierPricing.commitmentCases,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .where(eq(b2bCustomers.accountStatus, 'active'));
+
+    const report = await Promise.all(
+      customers.map(async (customer) => {
+        if (!customer.commitmentStartDate || !customer.commitmentCases || customer.commitmentCases === 0) {
+          return {
+            ...customer,
+            casesPurchased: 0,
+            casesRemaining: 0,
+            monthsLeft: null,
+            commitmentEndDate: null,
+            percentComplete: 0,
+          };
+        }
+
+        const startDate = new Date(customer.commitmentStartDate);
+        const endDate = new Date(startDate);
+        endDate.setFullYear(endDate.getFullYear() + 1);
+
+        const now = new Date();
+        const monthsLeft = Math.max(
+          0,
+          Math.round((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
+        );
+
+        const orderItems = await db
+          .select({
+            quantity: b2bOrderItems.quantity,
+            caseSize: products.caseSize,
+          })
+          .from(b2bOrderItems)
+          .innerJoin(b2bOrders, eq(b2bOrderItems.orderId, b2bOrders.id))
+          .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+          .where(
+            and(
+              eq(b2bOrders.customerId, customer.id),
+              sql`${b2bOrders.orderDate} >= ${startDate}`,
+              sql`${b2bOrders.orderDate} <= ${endDate}`
+            )
+          );
+
+        const casesPurchased = orderItems.reduce((total, item) => {
+          const cases = Math.floor(item.quantity / (item.caseSize || 12));
+          return total + cases;
+        }, 0);
+
+        const casesRemaining = Math.max(0, customer.commitmentCases - casesPurchased);
+        const percentComplete = customer.commitmentCases > 0 
+          ? Math.round((casesPurchased / customer.commitmentCases) * 100) 
+          : 0;
+
+        return {
+          ...customer,
+          casesPurchased,
+          casesRemaining,
+          monthsLeft,
+          commitmentEndDate: endDate,
+          percentComplete,
+        };
+      })
+    );
+
+    return report.sort((a, b) => {
+      if (a.tierName && b.tierName) {
+        return a.tierName.localeCompare(b.tierName);
+      }
+      return 0;
+    });
+  }
+
+  async getCustomersNeedingRenewalReminders(daysBeforeRenewal: number = 60): Promise<any[]> {
+    const customers = await db
+      .select({
+        id: b2bCustomers.id,
+        accountName: b2bCustomers.accountName,
+        emailAddress: b2bCustomers.emailAddress,
+        primaryContactName: b2bCustomers.primaryContactName,
+        commitmentStartDate: b2bCustomers.commitmentStartDate,
+        acceptsMarketing: b2bCustomers.acceptsMarketing,
+        tierName: tierPricing.tierName,
+        commitmentCases: tierPricing.commitmentCases,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .where(
+        and(
+          eq(b2bCustomers.accountStatus, 'active'),
+          sql`${b2bCustomers.commitmentStartDate} IS NOT NULL`,
+          sql`${tierPricing.commitmentCases} > 0`
+        )
+      );
+
+    const now = new Date();
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + daysBeforeRenewal);
+
+    const customersNeedingReminders = await Promise.all(
+      customers.map(async (customer) => {
+        if (!customer.commitmentStartDate) return null;
+
+        const startDate = new Date(customer.commitmentStartDate);
+        const endDate = new Date(startDate);
+        endDate.setFullYear(endDate.getFullYear() + 1);
+
+        const daysUntilRenewal = Math.round(
+          (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysUntilRenewal < 0 || daysUntilRenewal > daysBeforeRenewal) {
+          return null;
+        }
+
+        const orderItems = await db
+          .select({
+            quantity: b2bOrderItems.quantity,
+            caseSize: products.caseSize,
+          })
+          .from(b2bOrderItems)
+          .innerJoin(b2bOrders, eq(b2bOrderItems.orderId, b2bOrders.id))
+          .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+          .where(
+            and(
+              eq(b2bOrders.customerId, customer.id),
+              sql`${b2bOrders.orderDate} >= ${startDate}`,
+              sql`${b2bOrders.orderDate} <= ${endDate}`
+            )
+          );
+
+        const casesPurchased = orderItems.reduce((total, item) => {
+          const cases = Math.floor(item.quantity / (item.caseSize || 12));
+          return total + cases;
+        }, 0);
+
+        const casesRemaining = Math.max(0, (customer.commitmentCases || 0) - casesPurchased);
+
+        return {
+          ...customer,
+          casesPurchased,
+          casesRemaining,
+          daysUntilRenewal,
+          commitmentEndDate: endDate,
+        };
+      })
+    );
+
+    return customersNeedingReminders.filter((c) => c !== null);
+  }
+
+  async updateCustomerCommitmentStartDate(customerId: string, startDate: Date): Promise<B2bCustomer | undefined> {
+    const [updated] = await db
+      .update(b2bCustomers)
+      .set({
+        commitmentStartDate: startDate,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bCustomers.id, customerId))
+      .returning();
+    
+    return updated;
   }
 }
 

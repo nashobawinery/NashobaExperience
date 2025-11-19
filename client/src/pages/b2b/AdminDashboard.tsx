@@ -32,10 +32,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image } from "lucide-react";
+import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
+import TierCommitmentPage from "./TierCommitmentPage";
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -537,7 +538,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-5xl">
           <TabsTrigger value="customers" data-testid="tab-customers">
             <Users className="h-4 w-4 mr-2" />
             Customers
@@ -545,6 +546,10 @@ export default function AdminDashboard() {
           <TabsTrigger value="orders" data-testid="tab-orders">
             <ShoppingCart className="h-4 w-4 mr-2" />
             Orders
+          </TabsTrigger>
+          <TabsTrigger value="commitments" data-testid="tab-commitments">
+            <Calendar className="h-4 w-4 mr-2" />
+            Commitments
           </TabsTrigger>
           <TabsTrigger value="sales-reps" data-testid="tab-sales-reps">
             <UserCog className="h-4 w-4 mr-2" />
@@ -750,6 +755,11 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TIER COMMITMENTS TAB */}
+        <TabsContent value="commitments">
+          <TierCommitmentPage />
         </TabsContent>
 
         {/* SLIDESHOW TAB */}
