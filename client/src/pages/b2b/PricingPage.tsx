@@ -749,7 +749,17 @@ export default function B2BPricingPage() {
         </div>
 
         {/* Proceed to Pricing Sheet Button */}
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={() => setLocation("/b2b/where-to-buy")}
+            className="gap-2 text-lg px-12 py-6"
+            data-testid="button-where-to-buy"
+          >
+            <MapPin className="h-5 w-5" />
+            Where to Buy
+          </Button>
           <Button
             size="lg"
             onClick={() => setLocation("/b2b/pricing-sheet")}

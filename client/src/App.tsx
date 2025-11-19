@@ -29,6 +29,7 @@ import B2bCheckoutPage from "@/pages/b2b/CheckoutPage";
 import B2bOrdersPage from "@/pages/b2b/OrdersPage";
 import B2bReorderPage from "@/pages/b2b/ReorderPage";
 import B2bAdminDashboard from "@/pages/b2b/AdminDashboard";
+import B2bWhereToBuyPage from "@/pages/b2b/WhereToBuyPage";
 
 function AdminRoute() {
   const [, setLocation] = useLocation();
@@ -58,6 +59,7 @@ function B2bRoutes() {
           {/* Public B2B Routes */}
           <Route path="/b2b" component={B2bPricingPage} />
           <Route path="/b2b/pricing-sheet" component={B2bPricingSheetPage} />
+          <Route path="/b2b/where-to-buy" component={B2bWhereToBuyPage} />
           <Route path="/b2b/register" component={B2bRegistrationPage} />
           <Route path="/b2b/login/:role" component={B2bLoginPage} />
           <Route path="/b2b/forgot-password" component={B2bForgotPasswordPage} />

@@ -54,6 +54,17 @@ router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
   }
 });
 
+// Public route: Get where to buy locations (customers with recent purchases)
+router.get('/api/b2b/where-to-buy', async (req: Request, res: Response) => {
+  try {
+    const locations = await storage.getWhereToBuyLocations();
+    res.json(locations);
+  } catch (error) {
+    console.error('Error fetching where to buy locations:', error);
+    res.status(500).json({ error: 'Failed to fetch locations' });
+  }
+});
+
 // Public route: Request wholesale access code
 router.post('/api/b2b/request-access', async (req: Request, res: Response) => {
   try {

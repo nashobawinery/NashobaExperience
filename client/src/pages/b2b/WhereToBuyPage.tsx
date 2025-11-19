@@ -1,0 +1,198 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Search, MapPin, Phone, Package } from "lucide-react";
+
+interface Location {
+  id: string;
+  accountName: string;
+  shippingAddress: string | null;
+  shippingCity: string | null;
+  shippingState: string | null;
+  shippingZipCode: string | null;
+  phoneNumber: string | null;
+  products: Array<{
+    productName: string;
+    sku: string | null;
+  }>;
+}
+
+export default function WhereToBuyPage() {
+  const [searchZip, setSearchZip] = useState("");
+
+  const { data: locations = [], isLoading } = useQuery<Location[]>({
+    queryKey: ["/api/b2b/where-to-buy"],
+  });
+
+  const calculateZipDistance = (zip1: string, zip2: string): number => {
+    const cleanZip1 = zip1.replace(/\D/g, "").slice(0, 5);
+    const cleanZip2 = zip2.replace(/\D/g, "").slice(0, 5);
+    
+    if (!cleanZip1 || !cleanZip2) return Infinity;
+    
+    const diff = Math.abs(parseInt(cleanZip1) - parseInt(cleanZip2));
+    return diff;
+  };
+
+  const filteredAndSortedLocations = useMemo(() => {
+    if (!searchZip.trim()) {
+      return locations.sort((a, b) => 
+        (a.accountName || "").localeCompare(b.accountName || "")
+      );
+    }
+
+    return locations
+      .map((loc) => ({
+        ...loc,
+        distance: calculateZipDistance(searchZip, loc.shippingZipCode || ""),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 20);
+  }, [locations, searchZip]);
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-12 text-center">
+          <h1 className="text-4xl font-serif font-semibold mb-4" data-testid="page-title">
+            Where to Buy Our Wines
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="page-description">
+            Find retailers and establishments near you that carry Nashoba Valley Winery products
+          </p>
+        </div>
+
+        <div className="mb-8 max-w-md mx-auto">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Enter your ZIP code to find nearby locations"
+              value={searchZip}
+              onChange={(e) => setSearchZip(e.target.value)}
+              className="pl-10 pr-20"
+              data-testid="input-zip-search"
+              maxLength={10}
+            />
+            {searchZip && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchZip("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                data-testid="button-clear-search"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          {searchZip && (
+            <p className="text-sm text-muted-foreground mt-2 text-center">
+              Showing locations nearest to {searchZip}
+            </p>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <Skeleton className="h-32 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredAndSortedLocations.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No Locations Found</h3>
+              <p className="text-muted-foreground">
+                {searchZip 
+                  ? "Try a different ZIP code or clear your search" 
+                  : "No retailers have purchased from us in the past 12 months"}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredAndSortedLocations.map((location) => (
+              <Card key={location.id} className="hover-elevate" data-testid={`location-card-${location.id}`}>
+                <CardHeader>
+                  <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
+                    {location.accountName}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(location.shippingAddress || location.shippingCity) && (
+                    <div className="flex gap-2 text-sm">
+                      <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                      <div data-testid={`location-address-${location.id}`}>
+                        {location.shippingAddress && (
+                          <p>{location.shippingAddress}</p>
+                        )}
+                        {(location.shippingCity || location.shippingState || location.shippingZipCode) && (
+                          <p>
+                            {location.shippingCity}
+                            {location.shippingCity && location.shippingState && ", "}
+                            {location.shippingState} {location.shippingZipCode}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {location.phoneNumber && (
+                    <div className="flex gap-2 items-center text-sm">
+                      <Phone className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <a
+                        href={`tel:${location.phoneNumber}`}
+                        className="hover:underline"
+                        data-testid={`location-phone-${location.id}`}
+                      >
+                        {location.phoneNumber}
+                      </a>
+                    </div>
+                  )}
+
+                  {location.products.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Products Carried:</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1" data-testid={`location-products-${location.id}`}>
+                        {location.products.slice(0, 5).map((product, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {product.productName}
+                          </Badge>
+                        ))}
+                        {location.products.length > 5 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{location.products.length - 5} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && filteredAndSortedLocations.length > 0 && (
+          <p className="text-center text-sm text-muted-foreground mt-8">
+            Showing {filteredAndSortedLocations.length} location{filteredAndSortedLocations.length !== 1 ? 's' : ''}
+            {searchZip && " (sorted by proximity)"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
