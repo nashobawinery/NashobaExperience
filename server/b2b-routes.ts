@@ -27,6 +27,9 @@ import {
   products,
   tierPricing,
   b2bSlideshowSlides,
+  b2bOrders,
+  b2bOrderItems,
+  b2bCommissions,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
@@ -1335,10 +1338,11 @@ router.post('/api/b2b/admin/customers/:id/reject', requireB2bAdmin, async (req: 
   }
 });
 
-// Admin: Get all tier pricing
+// Admin: Get all tier pricing (optionally filtered by category)
 router.get('/api/b2b/admin/tiers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
-    const tiers = await storage.getAllTierPricing();
+    const category = req.query.category as string | undefined;
+    const tiers = await storage.getAllTierPricing(category);
     res.json(tiers);
   } catch (error) {
     console.error('Error fetching tiers:', error);
@@ -1624,8 +1628,8 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
 
     // Fetch tier information separately
     let discountPercentage = 0;
-    if (customer.tierId) {
-      const tierData = await db.select().from(tierPricing).where(eq(tierPricing.id, customer.tierId));
+    if (customer.pricingTierId) {
+      const tierData = await db.select().from(tierPricing).where(eq(tierPricing.id, customer.pricingTierId));
       if (tierData.length > 0) {
         discountPercentage = parseFloat(tierData[0].discountPercentage);
       }
@@ -1671,7 +1675,6 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
     const order = await storage.createB2bOrder({
       customerId,
       orderNumber,
-      orderDate: new Date(),
       status: 'pending_approval',
       subtotal: (subtotal + totalDiscount).toFixed(2),
       tax: '0',
@@ -1817,7 +1820,15 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
 
     // Calculate order totals
     let subtotal = 0;
-    const orderItems = [];
+    const orderItems: Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      quantity: number;
+      unitPrice: string;
+      retailPrice: string;
+      lineTotal: string;
+    }> = [];
 
     for (const item of items) {
       const product = await storage.getProduct(item.productId);

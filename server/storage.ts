@@ -280,9 +280,9 @@ export interface IStorage {
   setProductCharacteristics(productId: string, characteristicNames: string[], category?: string): Promise<void>;
 
   // B2B - Tier Pricing
-  getAllTierPricing(): Promise<TierPricing[]>;
+  getAllTierPricing(category?: string): Promise<TierPricing[]>;
   getTierPricing(id: string): Promise<TierPricing | undefined>;
-  getTierPricingByNameNormalized(tierName: string): Promise<TierPricing | undefined>;
+  getTierPricingByNameNormalized(tierName: string, category?: string): Promise<TierPricing | undefined>;
   createTierPricing(data: InsertTierPricing): Promise<TierPricing>;
   updateTierPricing(id: string, data: Partial<InsertTierPricing>): Promise<TierPricing | undefined>;
   toggleTierActive(id: string, active: boolean): Promise<TierPricing | undefined>;
@@ -1760,7 +1760,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // B2B - Tier Pricing implementations
-  async getAllTierPricing(): Promise<TierPricing[]> {
+  async getAllTierPricing(category?: string): Promise<TierPricing[]> {
+    if (category) {
+      return db.select().from(tierPricing)
+        .where(eq(tierPricing.category, category as any))
+        .orderBy(tierPricing.sortOrder);
+    }
     return db.select().from(tierPricing).orderBy(tierPricing.sortOrder);
   }
 
@@ -1769,11 +1774,17 @@ export class DatabaseStorage implements IStorage {
     return tier;
   }
 
-  async getTierPricingByNameNormalized(tierName: string): Promise<TierPricing | undefined> {
+  async getTierPricingByNameNormalized(tierName: string, category?: string): Promise<TierPricing | undefined> {
     const normalized = tierName?.trim();
     if (!normalized) return undefined;
+    
+    const conditions = [buildLowerTrimEquals(tierPricing.tierName, normalized)];
+    if (category) {
+      conditions.push(eq(tierPricing.category, category as any));
+    }
+    
     const result = await db.select().from(tierPricing)
-      .where(buildLowerTrimEquals(tierPricing.tierName, normalized));
+      .where(and(...conditions));
     return result[0];
   }
 
