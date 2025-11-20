@@ -615,7 +615,7 @@ router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, re
 
     const allProducts = await storage.getProducts();
     const allTiers = await storage.getAllTierPricing();
-    const customerTierName = customer.tier;
+    const customerTierName = customer.tier.tierName; // Extract tier name from tier object
     
     // Calculate tier pricing for each product based on customer's tier and product category
     const productsWithTierPricing = allProducts.map(product => {
@@ -639,7 +639,7 @@ router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, re
       return product;
     });
     
-    res.json({ products: productsWithTierPricing, tier: customer.tier });
+    res.json({ products: productsWithTierPricing, tier: customerTierName }); // Send tier name, not tier object
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -667,7 +667,7 @@ router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Re
     }
     
     const allTiers = await storage.getAllTierPricing();
-    const customerTierName = customer.tier;
+    const customerTierName = customer.tier.tierName; // Extract tier name from tier object
     
     // Calculate tier pricing for previously ordered products
     const productsWithTierPricing = previousProducts.map(product => {
@@ -689,7 +689,7 @@ router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Re
       return product;
     });
     
-    res.json({ products: productsWithTierPricing, tier: customer.tier });
+    res.json({ products: productsWithTierPricing, tier: customerTierName }); // Send tier name, not tier object
   } catch (error) {
     console.error('Error fetching previous products:', error);
     res.status(500).json({ error: 'Failed to fetch previous products' });
