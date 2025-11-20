@@ -29,7 +29,14 @@ export function ProtectedRoute({
 
     // Check if authentication is required but user is not logged in
     if (requireAuth && !user) {
-      setLocation("/b2b/login/customer");
+      // Redirect to the appropriate login page based on required role
+      if (requireAdmin) {
+        setLocation("/b2b/login/admin");
+      } else if (requireSalesRep) {
+        setLocation("/b2b/login/sales-rep");
+      } else {
+        setLocation("/b2b/login/customer");
+      }
       return;
     }
 
