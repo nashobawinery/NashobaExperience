@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
@@ -125,6 +125,11 @@ export default function AdminDashboard() {
   const { data: admins, isLoading: loadingAdmins } = useB2bAdmins();
   const { data: adminTiers, isLoading: loadingAdminTiers } = useB2bAdminTiers(); // All tiers for Settings tab
   const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
+  
+  // Filter out Tier 2 (auto-cart-upgrade only) from manual assignment
+  const manuallyAssignableTiers = useMemo(() => {
+    return activeTiers?.filter(tier => tier.tierName !== 'Tier 2') || [];
+  }, [activeTiers]);
   const { data: adminProducts, isLoading: loadingProducts } = useB2bAdminProducts(); // Products for manual orders
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
@@ -1407,10 +1412,10 @@ export default function AdminDashboard() {
                 <SelectContent>
                   {loadingActiveTiers ? (
                     <div className="p-2 text-sm text-muted-foreground">Loading tiers...</div>
-                  ) : !activeTiers || activeTiers.length === 0 ? (
+                  ) : !manuallyAssignableTiers || manuallyAssignableTiers.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground">No active tiers available</div>
                   ) : (
-                    activeTiers.map((tier) => (
+                    manuallyAssignableTiers.map((tier) => (
                       <SelectItem key={tier.id} value={tier.id}>
                         {tier.tierName} ({tier.discountPercentage}% off)
                       </SelectItem>
@@ -1418,6 +1423,9 @@ export default function AdminDashboard() {
                   )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground italic">
+                Note: Tier 2 is automatically assigned when cart reaches 5+ cases
+              </p>
             </div>
 
             <p className="text-sm text-muted-foreground">
@@ -1891,13 +1899,16 @@ export default function AdminDashboard() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {activeTiers?.map((tier) => (
+                        {manuallyAssignableTiers?.map((tier) => (
                           <SelectItem key={tier.id} value={tier.id}>
                             {tier.tierName} ({tier.discountPercentage}% off)
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground italic mt-1">
+                      Note: Tier 2 is automatically assigned when cart reaches 5+ cases
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -2247,13 +2258,16 @@ export default function AdminDashboard() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {activeTiers?.map((tier) => (
+                        {manuallyAssignableTiers?.map((tier) => (
                           <SelectItem key={tier.id} value={tier.id}>
                             {tier.tierName} ({tier.discountPercentage}% off)
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground italic mt-1">
+                      Note: Tier 2 is automatically assigned when cart reaches 5+ cases
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

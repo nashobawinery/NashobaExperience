@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useB2bProducts } from "@/hooks/useB2bProducts";
+import { useB2bPublicTiers } from "@/hooks/useB2bTiers";
 import { useB2bCheckout } from "@/hooks/useB2bOrders";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, CheckCircle2, Package, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, CheckCircle2, Package, Loader2, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function getCart(): Record<string, number> {
@@ -26,29 +28,49 @@ export default function CheckoutPage() {
   const [, setLocation] = useLocation();
   const { user } = useB2bAuth();
   const { data, isLoading, isError } = useB2bProducts();
+  const { data: tiers } = useB2bPublicTiers();
   const { mutateAsync: placeOrder, isPending } = useB2bCheckout();
   const { toast } = useToast();
   const [cart] = useState<Record<string, number>>(getCart());
 
   const products = data?.products || [];
+  const currentTier = data?.tier;
+  
+  // Get Tier 2 for auto-upgrade at 5+ cases
+  const tier2 = tiers?.find(t => t.tierName === 'Tier 2');
+  
+  // Calculate total cases first to determine if Tier 2 upgrade applies
+  const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const qualifiesForTier2 = totalCases >= 5;
+  const tier2Discount = tier2 ? parseFloat(tier2.discountPercentage) / 100 : 0;
+  
+  // Determine effective tier - upgrade to Tier 2 if cart >= 5 cases
+  const effectiveTier = qualifiesForTier2 && tier2 ? tier2.tierName : currentTier;
 
-  // Get cart items with product details
+  // Get cart items with product details and apply tier-based pricing
   const cartItems = Object.entries(cart)
     .map(([productId, quantity]) => {
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
+      
+      // Apply Tier 2 discount if qualified, otherwise use product's tier price
+      let effectivePrice = product.tierPrice || product.price;
+      if (qualifiesForTier2 && tier2) {
+        // Apply Tier 2 discount to base price
+        effectivePrice = product.price * (1 - tier2Discount);
+      }
+      
       return {
         productId,
         product,
         quantity,
-        bottlePrice: product.tierPrice || product.price,
-        casePrice: (product.tierPrice || product.price) * product.caseSize,
-        subtotal: (product.tierPrice || product.price) * product.caseSize * quantity,
+        bottlePrice: effectivePrice,
+        casePrice: effectivePrice * product.caseSize,
+        subtotal: effectivePrice * product.caseSize * quantity,
       };
     })
     .filter(Boolean);
 
-  const totalCases = cartItems.reduce((sum, item) => sum + (item?.quantity || 0), 0);
   const totalBottles = cartItems.reduce((sum, item) => sum + (item ? item.quantity * item.product.caseSize : 0), 0);
   const totalAmount = cartItems.reduce((sum, item) => sum + (item?.subtotal || 0), 0);
 
@@ -198,6 +220,35 @@ export default function CheckoutPage() {
               <CardTitle className="font-serif">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {qualifiesForTier2 && tier2 && (
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm text-primary">Tier 2 Upgrade Applied!</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Your order of {totalCases} cases qualifies for {tier2.discountPercentage}% wholesale pricing.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Pricing Tier:</span>
+                  <Badge variant={qualifiesForTier2 ? "default" : "secondary"} data-testid="text-checkout-tier">
+                    {effectiveTier}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Cases:</span>
+                  <span className="font-medium">{totalCases}</span>
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal:</span>

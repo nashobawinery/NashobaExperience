@@ -43,6 +43,23 @@ if (process.env.SENDGRID_API_KEY) {
 // Apply B2B session middleware to all B2B routes
 router.use(createB2bSessionMiddleware());
 
+// Helper function to prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+// Returns an error message if tierId is Tier 2, otherwise returns null
+// 
+// Note: This validation should be used in all manual tier assignment endpoints.
+// The automatic cart-upgrade logic (Task 9) will bypass this validation by calling
+// storage.updateB2bCustomer() directly with the Tier 2 ID when cart reaches 5+ cases.
+async function validateTierAssignment(tierId: string | undefined): Promise<string | null> {
+  if (!tierId) return null;
+  
+  const tier = await db.select().from(tierPricing).where(eq(tierPricing.id, tierId)).limit(1);
+  if (tier.length > 0 && tier[0].tierName === 'Tier 2') {
+    return 'Tier 2 cannot be manually assigned. It is automatically applied when cart reaches 5+ cases.';
+  }
+  
+  return null;
+}
+
 // Public route: Check pricing page access code
 router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
   const { code } = req.body;
@@ -651,6 +668,20 @@ router.post('/api/b2b/customer/orders', requireB2bCustomer, async (req: Request,
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }
 
+    // Calculate total cases to check for Tier 2 auto-upgrade (5+ cases)
+    const totalCases = items.reduce((sum, item) => sum + item.quantity, 0);
+    const qualifiesForTier2 = totalCases >= 5;
+    
+    // Get Tier 2 for auto-upgrade if qualified
+    let effectiveTier = customer.tier;
+    if (qualifiesForTier2) {
+      const allTiers = await storage.getAllB2bTiers();
+      const tier2 = allTiers.find(t => t.tierName === 'Tier 2' && t.active);
+      if (tier2) {
+        effectiveTier = tier2;
+      }
+    }
+
     // Calculate order totals
     let subtotal = 0;
     const orderItems = [];
@@ -661,7 +692,7 @@ router.post('/api/b2b/customer/orders', requireB2bCustomer, async (req: Request,
         return res.status(400).json({ error: `Product not found: ${item.productId}` });
       }
 
-      const tierDiscount = parseFloat(customer.tier.discountPercentage) / 100;
+      const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
       const unitPrice = parseFloat(product.price) * (1 - tierDiscount);
       const lineTotal = unitPrice * item.quantity;
       
@@ -913,6 +944,12 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
     
     // If auto-approve is requested and tier is provided, approve immediately
     if (autoApprove && tierId) {
+      // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+      const tierError = await validateTierAssignment(tierId);
+      if (tierError) {
+        return res.status(400).json({ error: tierError });
+      }
+
       // Determine password - use custom if provided, otherwise auto-generate
       let tempPassword: string;
       if (autoGeneratePassword || !customPassword) {
@@ -1030,6 +1067,12 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
       }
     }
 
+    // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+    const tierError = await validateTierAssignment(updateData.tierId);
+    if (tierError) {
+      return res.status(400).json({ error: tierError });
+    }
+
     // Update customer
     const updatedCustomer = await storage.updateB2bCustomer(id, updateData);
 
@@ -1121,6 +1164,12 @@ router.post('/api/b2b/admin/customers/:id/approve', requireB2bAdmin, async (req:
 
     if (!tierId) {
       return res.status(400).json({ error: 'Tier ID is required' });
+    }
+
+    // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+    const tierError = await validateTierAssignment(tierId);
+    if (tierError) {
+      return res.status(400).json({ error: tierError });
     }
 
     // Get customer to generate password from phone
