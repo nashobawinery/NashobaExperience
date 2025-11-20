@@ -69,10 +69,10 @@ export default function CartPage() {
       if (!product) return null;
       
       // Apply Tier 2 discount if qualified, otherwise use product's tier price
-      let effectivePrice = product.tierPrice || product.price;
+      let effectivePrice = product.tierPrice ? Number(product.tierPrice) : Number(product.price);
       if (qualifiesForTier2 && tier2) {
         // Apply Tier 2 discount to base price
-        effectivePrice = product.price * (1 - tier2Discount);
+        effectivePrice = Number(product.price) * (1 - tier2Discount);
       }
       
       return {
