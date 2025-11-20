@@ -25,7 +25,22 @@ export function useB2bOrders() {
   return useQuery<B2bOrder[]>({
     queryKey: ["b2b", "orders"],
     queryFn: async () => {
-      const response = await fetch("/api/b2b/customer/orders");
+      // Check for admin impersonation
+      const impersonationData = localStorage.getItem('admin_impersonating');
+      let url = "/api/b2b/customer/orders";
+      
+      if (impersonationData) {
+        try {
+          const { customerId } = JSON.parse(impersonationData);
+          if (customerId) {
+            url += `?customerId=${encodeURIComponent(customerId)}`;
+          }
+        } catch {
+          // Invalid impersonation data, ignore
+        }
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch orders");
       }

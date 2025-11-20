@@ -595,10 +595,20 @@ router.get('/api/b2b/me', requireB2bAuth, async (req: Request, res: Response) =>
   }
 });
 
-// Customer routes - require customer authentication
-router.get('/api/b2b/customer/products', requireB2bCustomer, async (req: Request, res: Response) => {
+// Customer routes - support both customer login and admin impersonation
+router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    const customer = await storage.getB2bCustomer(req.session.b2bUserId!);
+    // Support admin impersonation via customerId query parameter
+    let customerId = req.session.b2bUserId!;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    
+    if (isAdmin && req.query.customerId) {
+      customerId = req.query.customerId as string;
+    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const customer = await storage.getB2bCustomer(customerId);
     if (!customer || !customer.tier) {
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }
@@ -636,11 +646,21 @@ router.get('/api/b2b/customer/products', requireB2bCustomer, async (req: Request
   }
 });
 
-// Get customer's previous products (for reorder page)
-router.get('/api/b2b/customer/previous-products', requireB2bCustomer, async (req: Request, res: Response) => {
+// Get customer's previous products (for reorder page) - support admin impersonation
+router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    const previousProducts = await storage.getCustomerPreviousProducts(req.session.b2bUserId!);
-    const customer = await storage.getB2bCustomer(req.session.b2bUserId!);
+    // Support admin impersonation via customerId query parameter
+    let customerId = req.session.b2bUserId!;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    
+    if (isAdmin && req.query.customerId) {
+      customerId = req.query.customerId as string;
+    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const previousProducts = await storage.getCustomerPreviousProducts(customerId);
+    const customer = await storage.getB2bCustomer(customerId);
     
     if (!customer || !customer.tier) {
       return res.json({ products: previousProducts, tier: null });
@@ -676,10 +696,20 @@ router.get('/api/b2b/customer/previous-products', requireB2bCustomer, async (req
   }
 });
 
-// Get customer order history
-router.get('/api/b2b/customer/orders', requireB2bCustomer, async (req: Request, res: Response) => {
+// Get customer order history - support admin impersonation
+router.get('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    const orders = await storage.getB2bOrders(req.session.b2bUserId!);
+    // Support admin impersonation via customerId query parameter
+    let customerId = req.session.b2bUserId!;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    
+    if (isAdmin && req.query.customerId) {
+      customerId = req.query.customerId as string;
+    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const orders = await storage.getB2bOrders(customerId);
     res.json(orders);
   } catch (error) {
     console.error('Error fetching orders:', error);

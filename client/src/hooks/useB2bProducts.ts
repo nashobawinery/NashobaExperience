@@ -17,7 +17,22 @@ export function useB2bProducts() {
   return useQuery<{ products: B2bProduct[]; tier: string }>({
     queryKey: ["b2b", "products"],
     queryFn: async () => {
-      const response = await fetch("/api/b2b/customer/products");
+      // Check for admin impersonation
+      const impersonationData = localStorage.getItem('admin_impersonating');
+      let url = "/api/b2b/customer/products";
+      
+      if (impersonationData) {
+        try {
+          const { customerId } = JSON.parse(impersonationData);
+          if (customerId) {
+            url += `?customerId=${encodeURIComponent(customerId)}`;
+          }
+        } catch {
+          // Invalid impersonation data, ignore
+        }
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch products");
       }
@@ -30,7 +45,22 @@ export function useB2bPreviousProducts() {
   return useQuery<{ products: B2bProduct[]; tier: string }>({
     queryKey: ["b2b", "previous-products"],
     queryFn: async () => {
-      const response = await fetch("/api/b2b/customer/previous-products");
+      // Check for admin impersonation
+      const impersonationData = localStorage.getItem('admin_impersonating');
+      let url = "/api/b2b/customer/previous-products";
+      
+      if (impersonationData) {
+        try {
+          const { customerId } = JSON.parse(impersonationData);
+          if (customerId) {
+            url += `?customerId=${encodeURIComponent(customerId)}`;
+          }
+        } catch {
+          // Invalid impersonation data, ignore
+        }
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch previous products");
       }
