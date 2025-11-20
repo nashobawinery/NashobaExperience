@@ -2195,6 +2195,24 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
+  async updateB2bOrderStatus(id: string, status: string): Promise<B2bOrder | undefined> {
+    const updateData: any = { status, updatedAt: new Date() };
+    
+    if (status === 'awaiting_payment') {
+      updateData.deliveredAt = new Date();
+    } else if (status === 'completed') {
+      updateData.paidAt = new Date();
+      updateData.completedAt = new Date();
+    }
+
+    const [order] = await db
+      .update(b2bOrders)
+      .set(updateData)
+      .where(eq(b2bOrders.id, id))
+      .returning();
+    return order;
+  }
+
   async deleteB2bOrder(id: string): Promise<boolean> {
     const result = await db.delete(b2bOrders).where(eq(b2bOrders.id, id));
     return result.rowCount !== null && result.rowCount > 0;
@@ -2645,6 +2663,13 @@ export class DatabaseStorage implements IStorage {
         customer: r.customer,
       },
     }));
+  }
+
+  async getCommissionsByOrderId(orderId: string): Promise<B2bCommission[]> {
+    return await db
+      .select()
+      .from(b2bCommissions)
+      .where(eq(b2bCommissions.orderId, orderId));
   }
 
   async createCommission(data: InsertB2bCommission): Promise<B2bCommission> {

@@ -443,7 +443,7 @@ export const b2bOrders = pgTable("b2b_orders", {
   customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id),
   orderNumber: varchar("order_number").notNull().unique(),
   orderDate: timestamp("order_date").notNull().defaultNow(),
-  status: varchar("status").notNull().default("pending"),
+  status: varchar("status").notNull().default("pending_approval"),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   tax: decimal("tax", { precision: 10, scale: 2 }).default('0'),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
@@ -452,6 +452,9 @@ export const b2bOrders = pgTable("b2b_orders", {
   shippingCity: varchar("shipping_city"),
   shippingState: varchar("shipping_state"),
   shippingZipCode: varchar("shipping_zip_code"),
+  deliveredAt: timestamp("delivered_at"),
+  paidAt: timestamp("paid_at"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

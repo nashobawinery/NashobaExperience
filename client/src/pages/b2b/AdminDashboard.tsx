@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
 import TierCommitmentPage from "./TierCommitmentPage";
+import TasksPage from "./TasksPage";
 
 const createCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
@@ -935,7 +936,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 max-w-5xl">
+        <TabsList className="grid w-full grid-cols-7 max-w-6xl">
           <TabsTrigger value="customers" data-testid="tab-customers">
             <Users className="h-4 w-4 mr-2" />
             Customers
@@ -943,6 +944,10 @@ export default function AdminDashboard() {
           <TabsTrigger value="orders" data-testid="tab-orders">
             <ShoppingCart className="h-4 w-4 mr-2" />
             Orders
+          </TabsTrigger>
+          <TabsTrigger value="tasks" data-testid="tab-tasks">
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            Tasks
           </TabsTrigger>
           <TabsTrigger value="commitments" data-testid="tab-commitments">
             <Calendar className="h-4 w-4 mr-2" />
@@ -1105,6 +1110,11 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TASKS TAB */}
+        <TabsContent value="tasks">
+          <TasksPage />
         </TabsContent>
 
         {/* SALES REPS TAB */}

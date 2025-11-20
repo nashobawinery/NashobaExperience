@@ -1709,6 +1709,42 @@ router.get('/api/b2b/admin/orders', requireB2bAdminOrSalesRep, async (req: Reque
   }
 });
 
+// Admin: Update order status
+router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const validStatuses = ['pending_approval', 'awaiting_delivery', 'awaiting_payment', 'completed'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const order = await storage.updateB2bOrderStatus(id, status);
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // If order is marked as completed/paid, update related commission status
+    if (status === 'completed') {
+      const commissions = await storage.getCommissionsByOrderId(id);
+      for (const commission of commissions) {
+        await storage.updateCommissionStatus(commission.id, 'earned');
+      }
+    }
+
+    res.json(order);
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
 // Admin: Get B2B settings
 router.get('/api/b2b/admin/settings', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
