@@ -51,15 +51,9 @@ export default function CartPage() {
     window.location.href = '/b2b/admin';
   };
   
-  // Calculate cases per category for Tier 2 auto-upgrade
-  const casesByCategory: Record<string, number> = {};
-  Object.entries(cart).forEach(([productId, quantity]) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) {
-      const category = product.category || 'unknown';
-      casesByCategory[category] = (casesByCategory[category] || 0) + quantity;
-    }
-  });
+  // Calculate total cases across ALL categories for Tier 2 qualification
+  const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const qualifiesForTier2 = totalCases >= 5;
   
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
@@ -68,12 +62,8 @@ export default function CartPage() {
       if (!product) return null;
       
       const productCategory = product.category || 'unknown';
-      const casesInCategory = casesByCategory[productCategory] || 0;
       
-      // Check if this category qualifies for Tier 2 (5+ cases in this specific category)
-      const qualifiesForTier2InCategory = casesInCategory >= 5;
-      
-      // Find Tier 2 for this specific category
+      // Find Tier 2 for this specific product's category
       const tier2ForCategory = tiers?.find(
         t => t.tierName === 'Tier 2' && t.category === productCategory && t.active
       );
@@ -82,8 +72,8 @@ export default function CartPage() {
       let effectivePrice: number;
       let appliedTier: string;
       
-      if (qualifiesForTier2InCategory && tier2ForCategory) {
-        // Apply Tier 2 discount for this category
+      if (qualifiesForTier2 && tier2ForCategory) {
+        // Cart has 5+ total cases - apply Tier 2 discount for this product's category
         const tier2Discount = parseFloat(tier2ForCategory.discountPercentage) / 100;
         effectivePrice = Number(product.price) * (1 - tier2Discount);
         appliedTier = 'Tier 2';
@@ -102,14 +92,6 @@ export default function CartPage() {
       };
     })
     .filter(Boolean);
-  
-  // Calculate total cases across all categories
-  const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
-  
-  // Check if any category has Tier 2 upgrade
-  const categoriesWithTier2 = Object.entries(casesByCategory)
-    .filter(([, cases]) => cases >= 5)
-    .map(([category]) => category);
 
   const updateQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -310,14 +292,14 @@ export default function CartPage() {
               <CardTitle className="font-serif">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {categoriesWithTier2.length > 0 && (
+              {qualifiesForTier2 && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm text-primary">Tier 2 Upgrade Applied!</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Your order of {totalCases} cases qualifies for Tier 2 wholesale pricing on {categoriesWithTier2.join(', ')} (upgraded from {currentTier} pricing).
+                        Your order of {totalCases} cases qualifies for Tier 2 wholesale pricing across all categories (upgraded from {currentTier} pricing).
                       </p>
                     </div>
                   </div>
@@ -326,9 +308,9 @@ export default function CartPage() {
 
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Base Pricing Tier:</span>
-                  <Badge variant="secondary" data-testid="text-tier">
-                    {currentTier || 'Retail'}
+                  <span className="text-muted-foreground">Pricing Tier:</span>
+                  <Badge variant={qualifiesForTier2 ? "default" : "secondary"} data-testid="text-tier">
+                    {qualifiesForTier2 ? 'Tier 2' : (currentTier || 'Retail')}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">
