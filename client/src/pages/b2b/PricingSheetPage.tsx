@@ -68,6 +68,8 @@ type TierPricing = {
 export default function PricingSheetPage() {
   const [, setLocation] = useLocation();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductTab, setSelectedProductTab] = useState<string>("wine");
+  const [selectedTierTab, setSelectedTierTab] = useState<string>("wine");
 
   const { data: products = [], isLoading: loadingProducts } = useQuery<Product[]>({
     queryKey: ["/api/b2b/pricing/products"],
@@ -80,7 +82,10 @@ export default function PricingSheetPage() {
   // Group products by category
   const wines = products.filter(p => p.category === "wine");
   const spirits = products.filter(p => p.category === "spirits");
-  const canned = products.filter(p => p.category === "canned_cocktail" || p.category === "canned_wine");
+  const beer = products.filter(p => p.category === "beer");
+  const cocktails = products.filter(p => p.category === "canned_cocktail");
+  const cannedWine = products.filter(p => p.category === "canned_wine");
+  const cider = products.filter(p => p.category === "cider");
 
   const calculatePrice = (retailPrice: string, discountPercentage: string) => {
     const retail = parseFloat(retailPrice);
@@ -369,43 +374,57 @@ export default function PricingSheetPage() {
               </span>
             </div>
             
-            {tiers.map(tier => {
-              const tierPrice = calculatePrice(product.price, tier.discountPercentage);
-              const profit = calculateProfit(product.price, tierPrice);
-              const profitMargin = calculateProfitMargin(product.price, tierPrice);
+            {/* Filter tiers to only show those matching the product's exact category */}
+            {(() => {
+              const productTiers = tiers.filter(tier => tier.category === product.category);
               
-              return (
-                <div key={tier.id} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-semibold">{tier.tierName}</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        ({tier.discountPercentage}% off)
+              if (productTiers.length === 0) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="mb-2">No wholesale pricing tiers configured for {product.category} products.</p>
+                    <p className="text-sm">Please contact an administrator to set up tier pricing for this category.</p>
+                  </div>
+                );
+              }
+              
+              return productTiers.map(tier => {
+                const tierPrice = calculatePrice(product.price, tier.discountPercentage);
+                const profit = calculateProfit(product.price, tierPrice);
+                const profitMargin = calculateProfitMargin(product.price, tierPrice);
+                
+                return (
+                  <div key={tier.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-semibold">{tier.tierName}</span>
+                        <span className="text-sm text-muted-foreground ml-2">
+                          ({tier.discountPercentage}% off)
+                        </span>
+                      </div>
+                      <span className="text-lg font-semibold text-primary">
+                        ${tierPrice}
                       </span>
                     </div>
-                    <span className="text-lg font-semibold text-primary">
-                      ${tierPrice}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                      <div>
-                        <div className="text-muted-foreground">Profit</div>
-                        <div className="font-medium text-green-600">${profit}</div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <div>
+                          <div className="text-muted-foreground">Profit</div>
+                          <div className="font-medium text-green-600">${profit}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-blue-600" />
-                      <div>
-                        <div className="text-muted-foreground">Profit Margin</div>
-                        <div className="font-medium text-blue-600">{profitMargin}%</div>
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-blue-600" />
+                        <div>
+                          <div className="text-muted-foreground">Profit Margin</div>
+                          <div className="font-medium text-blue-600">{profitMargin}%</div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
@@ -437,23 +456,39 @@ export default function PricingSheetPage() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <Tabs defaultValue="wines" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="wines" className="gap-2" data-testid="tab-wines">
+        <Tabs value={selectedProductTab} onValueChange={(value) => {
+          setSelectedProductTab(value);
+          // Sync tier tab with product tab (1:1 mapping now)
+          setSelectedTierTab(value);
+        }} className="space-y-6">
+          <TabsList className="flex flex-wrap w-full h-auto gap-2 p-2">
+            <TabsTrigger value="wine" className="flex-1 min-w-[100px] gap-2" data-testid="tab-wine">
               <Wine className="h-4 w-4" />
-              Wines ({wines.length})
+              Wine ({wines.length})
             </TabsTrigger>
-            <TabsTrigger value="spirits" className="gap-2" data-testid="tab-spirits">
+            <TabsTrigger value="spirits" className="flex-1 min-w-[100px] gap-2" data-testid="tab-spirits">
               <Martini className="h-4 w-4" />
               Spirits ({spirits.length})
             </TabsTrigger>
-            <TabsTrigger value="canned" className="gap-2" data-testid="tab-canned">
+            <TabsTrigger value="beer" className="flex-1 min-w-[100px] gap-2" data-testid="tab-beer">
+              <Wine className="h-4 w-4" />
+              Beer ({beer.length})
+            </TabsTrigger>
+            <TabsTrigger value="canned_cocktail" className="flex-1 min-w-[100px] gap-2" data-testid="tab-cocktails">
               <Package className="h-4 w-4" />
-              Canned ({canned.length})
+              Cocktails ({cocktails.length})
+            </TabsTrigger>
+            <TabsTrigger value="canned_wine" className="flex-1 min-w-[100px] gap-2" data-testid="tab-canned-wine">
+              <Package className="h-4 w-4" />
+              Canned Wine ({cannedWine.length})
+            </TabsTrigger>
+            <TabsTrigger value="cider" className="flex-1 min-w-[100px] gap-2" data-testid="tab-cider">
+              <Wine className="h-4 w-4" />
+              Cider ({cider.length})
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="wines">
+          <TabsContent value="wine">
             <Card>
               <CardHeader>
                 <CardTitle className="font-serif flex items-center gap-2">
@@ -487,19 +522,70 @@ export default function PricingSheetPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="canned">
+          <TabsContent value="beer">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-serif flex items-center gap-2">
+                  <Wine className="h-5 w-5" />
+                  Beer Products
+                </CardTitle>
+                <CardDescription>
+                  All beer products with tier pricing and profit margins
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderProductTable(beer, "Beer", ["beer"])}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="canned_cocktail">
             <Card>
               <CardHeader>
                 <CardTitle className="font-serif flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Canned Products
+                  Canned Cocktail Products
                 </CardTitle>
                 <CardDescription>
-                  All canned products with tier pricing and profit margins
+                  All canned cocktail products with tier pricing and profit margins
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderProductTable(canned, "Canned", ["canned_cocktail", "canned_wine"])}
+                {renderProductTable(cocktails, "Cocktails", ["canned_cocktail"])}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="canned_wine">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-serif flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Canned Wine Products
+                </CardTitle>
+                <CardDescription>
+                  All canned wine products with tier pricing and profit margins
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderProductTable(cannedWine, "Canned Wine", ["canned_wine"])}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="cider">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-serif flex items-center gap-2">
+                  <Wine className="h-5 w-5" />
+                  Cider Products
+                </CardTitle>
+                <CardDescription>
+                  All cider products with tier pricing and profit margins
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderProductTable(cider, "Cider", ["cider"])}
               </CardContent>
             </Card>
           </TabsContent>
@@ -511,31 +597,92 @@ export default function PricingSheetPage() {
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Wholesale Pricing Tiers
+                Wholesale Pricing Tiers by Category
               </CardTitle>
               <CardDescription>
-                Our tier-based discount structure for wholesale partners
+                Category-specific tier-based discount structure for wholesale partners
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {tiers.map((tier) => (
-                  <Card key={tier.id} className="border-2" data-testid={`tier-card-${tier.tierName.toLowerCase().replace(/\s+/g, '-')}`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg font-serif">{tier.tierName}</CardTitle>
-                        <Badge variant="secondary" className="text-base font-semibold">
-                          {tier.discountPercentage}% Off
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        {tier.description || `Save ${tier.discountPercentage}% on all wholesale orders`}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
+              <Tabs value={selectedTierTab} onValueChange={setSelectedTierTab} className="w-full">
+                <TabsList className="flex flex-wrap w-full h-auto gap-2 p-2">
+                  <TabsTrigger value="wine" className="flex-1 min-w-[100px]" data-testid="tab-wine-tiers">
+                    Wine
+                  </TabsTrigger>
+                  <TabsTrigger value="spirits" className="flex-1 min-w-[100px]" data-testid="tab-spirits-tiers">
+                    Spirits
+                  </TabsTrigger>
+                  <TabsTrigger value="beer" className="flex-1 min-w-[100px]" data-testid="tab-beer-tiers">
+                    Beer
+                  </TabsTrigger>
+                  <TabsTrigger value="canned_cocktail" className="flex-1 min-w-[100px]" data-testid="tab-cocktails-tiers">
+                    Cocktails
+                  </TabsTrigger>
+                  <TabsTrigger value="canned_wine" className="flex-1 min-w-[100px]" data-testid="tab-canned-wine-tiers">
+                    Canned Wine
+                  </TabsTrigger>
+                  <TabsTrigger value="cider" className="flex-1 min-w-[100px]" data-testid="tab-cider-tiers">
+                    Cider
+                  </TabsTrigger>
+                </TabsList>
+
+                {["wine", "spirits", "beer", "canned_cocktail", "canned_wine", "cider"].map((category) => {
+                  const categoryTiers = tiers.filter(t => t.category === category);
+                  const categoryLabel = {
+                    "wine": "Wine",
+                    "spirits": "Spirits",
+                    "beer": "Beer",
+                    "canned_cocktail": "Cocktails",
+                    "canned_wine": "Canned Wine",
+                    "cider": "Cider"
+                  }[category];
+
+                  return (
+                    <TabsContent key={category} value={category} className="mt-4">
+                      {categoryTiers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-8 text-center">
+                          No active pricing tiers for {categoryLabel}
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {categoryTiers.map((tier) => (
+                            <div
+                              key={tier.id}
+                              className="flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate"
+                              data-testid={`tier-${category}-${tier.tierName.toLowerCase().replace(/\s+/g, '-')}`}
+                            >
+                              <div>
+                                <p className="font-semibold text-lg">
+                                  {tier.tierName}
+                                  <span className="ml-2 text-xs text-muted-foreground">({categoryLabel})</span>
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {tier.description || `Wholesale pricing for ${categoryLabel}`}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-primary">{tier.discountPercentage}%</p>
+                                <p className="text-sm text-muted-foreground">off retail</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+
+              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Package className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="font-medium mb-1">Case Quantities</p>
+                    <p className="text-sm text-muted-foreground">
+                      All orders are calculated by case (12 bottles per case). Each beverage category has its own independent tier pricing structure.
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
