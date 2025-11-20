@@ -53,6 +53,7 @@ export function B2bAuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["b2b", "me"], null);
       queryClient.clear();
       sessionStorage.removeItem("b2b_verified");
+      localStorage.removeItem("admin_impersonating"); // Clear impersonation flag
       window.location.href = "/b2b";
     } catch (error) {
       console.error("Logout failed:", error);

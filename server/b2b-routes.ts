@@ -717,17 +717,27 @@ router.get('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res:
   }
 });
 
-// Get specific order details
-router.get('/api/b2b/customer/orders/:id', requireB2bCustomer, async (req: Request, res: Response) => {
+// Get specific order details - support admin impersonation
+router.get('/api/b2b/customer/orders/:id', requireB2bAuth, async (req: Request, res: Response) => {
   try {
+    // Support admin impersonation via customerId query parameter
+    let customerId = req.session.b2bUserId!;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    
+    if (isAdmin && req.query.customerId) {
+      customerId = req.query.customerId as string;
+    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     const order = await storage.getB2bOrder(req.params.id);
     
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Verify order belongs to customer
-    if (order.customerId !== req.session.b2bUserId) {
+    // Verify order belongs to customer (or admin is accessing it)
+    if (order.customerId !== customerId && !isAdmin) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
