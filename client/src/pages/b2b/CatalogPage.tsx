@@ -120,7 +120,7 @@ export default function CatalogPage() {
         <div>
           <h1 className="text-3xl font-serif font-semibold mb-2">Wholesale Catalog</h1>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{tier || "No Tier"} Pricing</Badge>
+            <Badge variant="secondary">{tier?.tierName || "No Tier"} Pricing</Badge>
             <span className="text-sm text-muted-foreground">
               {products.length} Products Available
             </span>
