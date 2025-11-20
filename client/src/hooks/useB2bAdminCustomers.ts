@@ -78,3 +78,34 @@ export function useB2bRejectCustomer() {
     },
   });
 }
+
+export function useCreateB2bCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      accountName: string;
+      primaryContactName: string;
+      emailAddress: string;
+      phoneNumber: string;
+      billingAddress?: string;
+      billingCity?: string;
+      billingState?: string;
+      billingZipCode?: string;
+      shippingAddress?: string;
+      shippingCity?: string;
+      shippingState?: string;
+      shippingZipCode?: string;
+      taxId?: string;
+      tierId?: string;
+      salesRepId?: string;
+      autoApprove?: boolean;
+      notes?: string;
+    }) => {
+      return apiRequest("POST", "/api/b2b/admin/customers", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+    },
+  });
+}
