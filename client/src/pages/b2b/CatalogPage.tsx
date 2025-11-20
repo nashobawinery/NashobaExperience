@@ -186,14 +186,14 @@ export default function CatalogPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Retail Price:</span>
-                  <span className="line-through">${product.price.toFixed(2)}</span>
+                  <span className="line-through">${Number(product.price).toFixed(2)}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Your Price:</span>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-primary">
-                      ${product.tierPrice?.toFixed(2) || product.price.toFixed(2)}
+                      ${product.tierPrice ? Number(product.tierPrice).toFixed(2) : Number(product.price).toFixed(2)}
                     </p>
                     <p className="text-xs text-muted-foreground">per bottle</p>
                   </div>
@@ -207,7 +207,7 @@ export default function CatalogPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign className="h-4 w-4" />
                   <span>
-                    ${((product.tierPrice || product.price) * product.caseSize).toFixed(2)} per case
+                    ${((product.tierPrice ? Number(product.tierPrice) : Number(product.price)) * product.caseSize).toFixed(2)} per case
                   </span>
                 </div>
 

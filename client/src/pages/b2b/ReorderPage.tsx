@@ -105,7 +105,7 @@ export default function ReorderPage() {
                     <span className="font-medium">Your Price:</span>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        ${product.tierPrice?.toFixed(2) || product.price.toFixed(2)}
+                        ${product.tierPrice ? Number(product.tierPrice).toFixed(2) : Number(product.price).toFixed(2)}
                       </p>
                       <p className="text-xs text-muted-foreground">per bottle</p>
                     </div>
@@ -113,7 +113,7 @@ export default function ReorderPage() {
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Package className="h-4 w-4" />
-                    <span>${((product.tierPrice || product.price) * product.caseSize).toFixed(2)} per case</span>
+                    <span>${((product.tierPrice ? Number(product.tierPrice) : Number(product.price)) * product.caseSize).toFixed(2)} per case</span>
                   </div>
 
                   <div className="pt-2 border-t space-y-2">
