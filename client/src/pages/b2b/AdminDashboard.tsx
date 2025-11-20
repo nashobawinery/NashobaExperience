@@ -36,7 +36,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, XCircle, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -537,6 +537,7 @@ export default function AdminDashboard() {
         await updateSalesRep({
           id: salesRepDialog.salesRep.id,
           ...salesRepForm,
+          commissionPercentage: salesRepForm.commissionPercentage ? parseFloat(salesRepForm.commissionPercentage) : 0,
           password: salesRepForm.password || undefined,
         });
         
@@ -555,7 +556,10 @@ export default function AdminDashboard() {
           return;
         }
 
-        await createSalesRep(salesRepForm);
+        await createSalesRep({
+          ...salesRepForm,
+          commissionPercentage: salesRepForm.commissionPercentage ? parseFloat(salesRepForm.commissionPercentage) : 0,
+        });
         
         toast({
           title: "Sales Rep Created",
@@ -891,7 +895,7 @@ export default function AdminDashboard() {
                   className="flex-1"
                   data-testid={`button-reject-${customer.id}`}
                 >
-                  <XCircle2 className="h-4 w-4 mr-2" />
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
                   Reject
                 </Button>
               </>

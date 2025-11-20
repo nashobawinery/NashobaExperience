@@ -34,6 +34,7 @@ export interface SalesRep {
   email: string;
   phoneNumber?: string;
   territory?: string;
+  commissionPercentage?: number;
   active: boolean;
 }
 
@@ -123,6 +124,7 @@ export function useCreateSalesRep() {
       email: string;
       phoneNumber?: string;
       territory?: string;
+      commissionPercentage?: number;
       password: string;
     }) => {
       return apiRequest("POST", "/api/b2b/admin/sales-reps", data);
@@ -148,6 +150,7 @@ export function useUpdateSalesRep() {
       email?: string;
       phoneNumber?: string;
       territory?: string;
+      commissionPercentage?: number;
       password?: string;
       active?: boolean;
     }) => {
