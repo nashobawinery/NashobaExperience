@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer } from "@/hooks/useB2bAdminCustomers";
+import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
@@ -50,6 +50,7 @@ export default function AdminDashboard() {
   const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
+  const { mutateAsync: createCustomer, isPending: isCreatingCustomer } = useCreateB2bCustomer();
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
   const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
   const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
@@ -110,6 +111,28 @@ export default function AdminDashboard() {
   const [deleteAdminDialog, setDeleteAdminDialog] = useState<{ isOpen: boolean; admin: any | null }>({
     isOpen: false,
     admin: null,
+  });
+
+  // Create customer dialog state
+  const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
+  const [createCustomerForm, setCreateCustomerForm] = useState({
+    accountName: "",
+    primaryContactName: "",
+    emailAddress: "",
+    phoneNumber: "",
+    billingAddress: "",
+    billingCity: "",
+    billingState: "",
+    billingZipCode: "",
+    shippingAddress: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingZipCode: "",
+    taxId: "",
+    tierId: "",
+    salesRepId: "",
+    autoApprove: true,
+    notes: "",
   });
 
   const handleApprove = async () => {
@@ -449,6 +472,69 @@ export default function AdminDashboard() {
     setSalesRepDialog({ isOpen: true, salesRep: salesRep || null });
   };
 
+  const handleCreateCustomerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate required fields
+    if (!createCustomerForm.accountName || !createCustomerForm.primaryContactName || 
+        !createCustomerForm.emailAddress || !createCustomerForm.phoneNumber) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (createCustomerForm.autoApprove && !createCustomerForm.tierId) {
+      toast({
+        title: "Missing Tier",
+        description: "Please select a pricing tier to auto-approve the customer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const result = await createCustomer(createCustomerForm);
+      
+      toast({
+        title: "Customer Created",
+        description: createCustomerForm.autoApprove 
+          ? `${createCustomerForm.accountName} has been created and approved. Login credentials have been sent via email.`
+          : `${createCustomerForm.accountName} has been created and is pending approval.`,
+      });
+
+      // Reset form and close dialog
+      setCreateCustomerDialog(false);
+      setCreateCustomerForm({
+        accountName: "",
+        primaryContactName: "",
+        emailAddress: "",
+        phoneNumber: "",
+        billingAddress: "",
+        billingCity: "",
+        billingState: "",
+        billingZipCode: "",
+        shippingAddress: "",
+        shippingCity: "",
+        shippingState: "",
+        shippingZipCode: "",
+        taxId: "",
+        tierId: "",
+        salesRepId: "",
+        autoApprove: true,
+        notes: "",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to Create Customer",
+        description: error.message || "An error occurred while creating the customer",
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderCustomerCard = (customer: any, isPending: boolean) => (
     <Card key={customer.id} data-testid={`customer-card-${customer.id}`}>
       <CardHeader>
@@ -567,6 +653,16 @@ export default function AdminDashboard() {
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
+          <div className="flex justify-end">
+            <Button
+              onClick={() => setCreateCustomerDialog(true)}
+              data-testid="button-create-customer"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Customer
+            </Button>
+          </div>
+          
           <Tabs defaultValue="pending" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2 max-w-md">
               <TabsTrigger value="pending" data-testid="tab-pending">
@@ -1359,6 +1455,209 @@ export default function AdminDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Customer Dialog */}
+      <Dialog open={createCustomerDialog} onOpenChange={setCreateCustomerDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-create-customer">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Create New Customer</DialogTitle>
+            <DialogDescription>
+              Manually create a new wholesale customer account
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateCustomerSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-account-name">Business Name *</Label>
+                <Input
+                  id="create-account-name"
+                  value={createCustomerForm.accountName}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, accountName: e.target.value })}
+                  data-testid="input-create-account-name"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-contact-name">Contact Name *</Label>
+                <Input
+                  id="create-contact-name"
+                  value={createCustomerForm.primaryContactName}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, primaryContactName: e.target.value })}
+                  data-testid="input-create-contact-name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-email">Email Address *</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  value={createCustomerForm.emailAddress}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, emailAddress: e.target.value })}
+                  data-testid="input-create-email"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-phone">Phone Number *</Label>
+                <Input
+                  id="create-phone"
+                  type="tel"
+                  value={createCustomerForm.phoneNumber}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, phoneNumber: e.target.value })}
+                  data-testid="input-create-phone"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-billing-address">Billing Address</Label>
+              <Input
+                id="create-billing-address"
+                value={createCustomerForm.billingAddress}
+                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingAddress: e.target.value })}
+                data-testid="input-create-billing-address"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-billing-city">City</Label>
+                <Input
+                  id="create-billing-city"
+                  value={createCustomerForm.billingCity}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingCity: e.target.value })}
+                  data-testid="input-create-billing-city"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-billing-state">State</Label>
+                <Input
+                  id="create-billing-state"
+                  value={createCustomerForm.billingState}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingState: e.target.value })}
+                  data-testid="input-create-billing-state"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-billing-zip">ZIP Code</Label>
+                <Input
+                  id="create-billing-zip"
+                  value={createCustomerForm.billingZipCode}
+                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingZipCode: e.target.value })}
+                  data-testid="input-create-billing-zip"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-tax-id">Tax ID (Optional)</Label>
+              <Input
+                id="create-tax-id"
+                value={createCustomerForm.taxId}
+                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, taxId: e.target.value })}
+                data-testid="input-create-tax-id"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-tier">Pricing Tier</Label>
+                <Select
+                  value={createCustomerForm.tierId}
+                  onValueChange={(value) => setCreateCustomerForm({ ...createCustomerForm, tierId: value })}
+                >
+                  <SelectTrigger id="create-tier" data-testid="select-create-tier">
+                    <SelectValue placeholder="Select tier..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeTiers?.map((tier) => (
+                      <SelectItem key={tier.id} value={tier.id}>
+                        {tier.tierName} ({tier.discountPercentage}% off)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-sales-rep">Sales Rep (Optional)</Label>
+                <Select
+                  value={createCustomerForm.salesRepId}
+                  onValueChange={(value) => setCreateCustomerForm({ ...createCustomerForm, salesRepId: value })}
+                >
+                  <SelectTrigger id="create-sales-rep" data-testid="select-create-sales-rep">
+                    <SelectValue placeholder="Select sales rep..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesReps?.filter(rep => rep.active).map((rep) => (
+                      <SelectItem key={rep.id} value={rep.id}>
+                        {rep.firstName} {rep.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-notes">Notes (Optional)</Label>
+              <Textarea
+                id="create-notes"
+                value={createCustomerForm.notes}
+                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, notes: e.target.value })}
+                data-testid="input-create-notes"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 p-4 bg-muted rounded-md">
+              <Switch
+                id="create-auto-approve"
+                checked={createCustomerForm.autoApprove}
+                onCheckedChange={(checked) => setCreateCustomerForm({ ...createCustomerForm, autoApprove: checked })}
+                data-testid="switch-auto-approve"
+              />
+              <Label htmlFor="create-auto-approve" className="cursor-pointer">
+                Auto-approve and send login credentials via email
+              </Label>
+            </div>
+
+            {createCustomerForm.autoApprove && !createCustomerForm.tierId && (
+              <p className="text-sm text-destructive">
+                A pricing tier must be selected to auto-approve the customer
+              </p>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateCustomerDialog(false)}
+                data-testid="button-cancel-create-customer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingCustomer}
+                data-testid="button-submit-create-customer"
+              >
+                {isCreatingCustomer ? "Creating..." : "Create Customer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
