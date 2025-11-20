@@ -167,6 +167,7 @@ export default function AdminDashboard() {
     email: "",
     phoneNumber: "",
     territory: "",
+    commissionPercentage: "",
     password: "",
   });
 
@@ -568,6 +569,7 @@ export default function AdminDashboard() {
         email: "",
         phoneNumber: "",
         territory: "",
+        commissionPercentage: "",
         password: "",
       });
     } catch (error: any) {
@@ -587,6 +589,7 @@ export default function AdminDashboard() {
         email: salesRep.email,
         phoneNumber: salesRep.phoneNumber || "",
         territory: salesRep.territory || "",
+        commissionPercentage: salesRep.commissionPercentage || "",
         password: "",
       });
     } else {
@@ -596,6 +599,7 @@ export default function AdminDashboard() {
         email: "",
         phoneNumber: "",
         territory: "",
+        commissionPercentage: "",
         password: "",
       });
     }
@@ -1150,9 +1154,14 @@ export default function AdminDashboard() {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">{rep.email}</p>
-                        {rep.territory && (
-                          <p className="text-xs text-muted-foreground">Territory: {rep.territory}</p>
-                        )}
+                        <div className="flex items-center gap-4 mt-1">
+                          {rep.territory && (
+                            <p className="text-xs text-muted-foreground">Territory: {rep.territory}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Commission: <span className="font-semibold">{rep.commissionPercentage}%</span>
+                          </p>
+                        </div>
                       </div>
                       <Button
                         variant="outline"
@@ -1554,6 +1563,24 @@ export default function AdminDashboard() {
                 onChange={(e) => setSalesRepForm({ ...salesRepForm, territory: e.target.value })}
                 data-testid="input-territory"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="commissionPercentage">Commission Percentage (%) *</Label>
+              <Input
+                id="commissionPercentage"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={salesRepForm.commissionPercentage}
+                onChange={(e) => setSalesRepForm({ ...salesRepForm, commissionPercentage: e.target.value })}
+                data-testid="input-commission-percentage"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Percentage of order total earned as commission (e.g., 5 for 5%)
+              </p>
             </div>
 
             <div className="space-y-2">

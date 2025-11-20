@@ -79,6 +79,7 @@ import {
   b2bCustomers,
   b2bOrders,
   b2bOrderItems,
+  b2bCommissions,
   b2bSettings,
   b2bSlideshowSlides,
   productMedia,
@@ -94,6 +95,8 @@ import {
   type B2bOrder,
   type InsertB2bOrderItem,
   type B2bOrderItem,
+  type InsertB2bCommission,
+  type B2bCommission,
   type InsertB2bSetting,
   type B2bSetting,
   type InsertB2bSlideshowSlide,
@@ -326,6 +329,11 @@ export interface IStorage {
   deleteB2bOrder(id: string): Promise<boolean>;
   getCustomerPreviousProducts(customerId: string): Promise<Product[]>;
   upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }>;
+
+  // B2B - Commissions
+  getCommissionsBySalesRep(salesRepId: string): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer } })[]>;
+  createCommission(data: InsertB2bCommission): Promise<B2bCommission>;
+  updateCommissionStatus(commissionId: string, status: string): Promise<B2bCommission | undefined>;
 
   // B2B - Tier Commitments
   getTierCommitmentReport(): Promise<any[]>;
@@ -2614,6 +2622,43 @@ export class DatabaseStorage implements IStorage {
     );
 
     return locationsWithProducts;
+  }
+
+  // B2B - Commissions
+  async getCommissionsBySalesRep(salesRepId: string): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer } })[]> {
+    const results = await db
+      .select({
+        commission: b2bCommissions,
+        order: b2bOrders,
+        customer: b2bCustomers,
+      })
+      .from(b2bCommissions)
+      .innerJoin(b2bOrders, eq(b2bCommissions.orderId, b2bOrders.id))
+      .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .where(eq(b2bCommissions.salesRepId, salesRepId))
+      .orderBy(desc(b2bCommissions.createdAt));
+
+    return results.map(r => ({
+      ...r.commission,
+      order: {
+        ...r.order,
+        customer: r.customer,
+      },
+    }));
+  }
+
+  async createCommission(data: InsertB2bCommission): Promise<B2bCommission> {
+    const [commission] = await db.insert(b2bCommissions).values(data).returning();
+    return commission;
+  }
+
+  async updateCommissionStatus(commissionId: string, status: string): Promise<B2bCommission | undefined> {
+    const [updated] = await db
+      .update(b2bCommissions)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(b2bCommissions.id, commissionId))
+      .returning();
+    return updated;
   }
 }
 

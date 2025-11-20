@@ -375,6 +375,7 @@ export const salesReps = pgTable("sales_reps", {
   email: varchar("email").notNull().unique(),
   passwordHash: varchar("password_hash").notNull(),
   phoneNumber: varchar("phone_number"),
+  commissionPercentage: decimal("commission_percentage", { precision: 5, scale: 2 }).notNull().default('0'),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -468,6 +469,18 @@ export const b2bOrderItems = pgTable("b2b_order_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const b2bCommissions = pgTable("b2b_commissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => b2bOrders.id, { onDelete: 'cascade' }),
+  salesRepId: varchar("sales_rep_id").notNull().references(() => salesReps.id),
+  orderTotal: decimal("order_total", { precision: 10, scale: 2 }).notNull(),
+  commissionPercentage: decimal("commission_percentage", { precision: 5, scale: 2 }).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const b2bSettings = pgTable("b2b_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   settingKey: varchar("setting_key").notNull().unique(),
@@ -527,6 +540,7 @@ export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: tru
 export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
+export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
 export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
 
@@ -633,6 +647,9 @@ export type B2bOrder = typeof b2bOrders.$inferSelect;
 
 export type InsertB2bOrderItem = z.infer<typeof insertB2bOrderItemSchema>;
 export type B2bOrderItem = typeof b2bOrderItems.$inferSelect;
+
+export type InsertB2bCommission = z.infer<typeof insertB2bCommissionSchema>;
+export type B2bCommission = typeof b2bCommissions.$inferSelect;
 
 export type InsertB2bSetting = z.infer<typeof insertB2bSettingSchema>;
 export type B2bSetting = typeof b2bSettings.$inferSelect;

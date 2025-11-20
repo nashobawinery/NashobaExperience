@@ -725,7 +725,7 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     const orderNumber = `B2B-${Date.now()}`;
 
     const orderData = {
-      customerId: req.session.b2bUserId!,
+      customerId: targetCustomerId,
       orderNumber,
       status: 'pending',
       subtotal: subtotal.toFixed(2),
@@ -739,6 +739,28 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     };
 
     const order = await storage.createB2bOrder(orderData as any, orderItems as any);
+
+    // Create commission record if customer has a sales rep
+    if (customer.salesRepId) {
+      try {
+        const salesRep = await storage.getSalesRep(customer.salesRepId);
+        if (salesRep) {
+          const commissionPercentage = parseFloat(salesRep.commissionPercentage);
+          const commissionAmount = (subtotal * commissionPercentage) / 100;
+          
+          await storage.createCommission({
+            orderId: order.id,
+            salesRepId: customer.salesRepId,
+            orderTotal: subtotal.toFixed(2),
+            commissionPercentage: commissionPercentage.toFixed(2),
+            commissionAmount: commissionAmount.toFixed(2),
+            status: 'pending',
+          });
+        }
+      } catch (commissionError) {
+        console.error('Failed to create commission record:', commissionError);
+      }
+    }
 
     // Send order notifications
     try {
@@ -780,6 +802,27 @@ router.get('/api/b2b/sales-rep/orders', requireB2bSalesRep, async (req: Request,
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const commissions = await storage.getCommissionsBySalesRep(req.session.b2bUserId!);
+    res.json(commissions);
+  } catch (error) {
+    console.error('Error fetching commissions:', error);
+    res.status(500).json({ error: 'Failed to fetch commissions' });
+  }
+});
+
+router.get('/api/b2b/admin/sales-reps/:id/commissions', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const commissions = await storage.getCommissionsBySalesRep(id);
+    res.json(commissions);
+  } catch (error) {
+    console.error('Error fetching commissions:', error);
+    res.status(500).json({ error: 'Failed to fetch commissions' });
   }
 });
 
