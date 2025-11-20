@@ -55,28 +55,36 @@ export default function CheckoutPage() {
     window.location.href = '/b2b/admin';
   };
   
-  // Get Tier 2 for auto-upgrade at 5+ cases
-  const tier2 = tiers?.find(t => t.tierName === 'Tier 2');
-  
-  // Calculate total cases first to determine if Tier 2 upgrade applies
+  // Calculate total cases across ALL categories for Tier 2 qualification
   const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   const qualifiesForTier2 = totalCases >= 5;
-  const tier2Discount = tier2 ? parseFloat(tier2.discountPercentage) / 100 : 0;
   
   // Determine effective tier - upgrade to Tier 2 if cart >= 5 cases
-  const effectiveTier = qualifiesForTier2 && tier2 ? tier2.tierName : currentTier;
+  const effectiveTier = qualifiesForTier2 ? 'Tier 2' : currentTier;
 
-  // Get cart items with product details and apply tier-based pricing
+  // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
     .map(([productId, quantity]) => {
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
       
-      // Apply Tier 2 discount if qualified, otherwise use product's tier price
-      let effectivePrice = product.tierPrice || product.price;
-      if (qualifiesForTier2 && tier2) {
-        // Apply Tier 2 discount to base price
-        effectivePrice = product.price * (1 - tier2Discount);
+      const productCategory = product.category || 'unknown';
+      
+      // Find Tier 2 for this specific product's category
+      const tier2ForCategory = tiers?.find(
+        t => t.tierName === 'Tier 2' && t.category === productCategory && t.active
+      );
+      
+      // Determine effective price
+      let effectivePrice: number;
+      
+      if (qualifiesForTier2 && tier2ForCategory) {
+        // Cart has 5+ total cases - apply Tier 2 discount for this product's category
+        const tier2Discount = parseFloat(tier2ForCategory.discountPercentage) / 100;
+        effectivePrice = Number(product.price) * (1 - tier2Discount);
+      } else {
+        // Use customer's base tier price (already calculated by backend per category)
+        effectivePrice = product.tierPrice ? Number(product.tierPrice) : Number(product.price);
       }
       
       return {
@@ -277,14 +285,14 @@ export default function CheckoutPage() {
               <CardTitle className="font-serif">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {qualifiesForTier2 && tier2 && currentTier && (
+              {qualifiesForTier2 && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm text-primary">Tier 2 Upgrade Applied!</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Your order of {totalCases} cases qualifies for {tier2.discountPercentage}% wholesale pricing (upgraded from {currentTier} pricing).
+                        Your order of {totalCases} cases qualifies for Tier 2 wholesale pricing across all categories{currentTier && ` (upgraded from ${currentTier} pricing)`}.
                       </p>
                     </div>
                   </div>
