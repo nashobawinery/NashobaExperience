@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useB2bProducts } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, ShoppingCart, Package, DollarSign } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Search, ShoppingCart, Package, DollarSign, UserCog, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Cart state stored in localStorage
@@ -29,9 +30,28 @@ export default function CatalogPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<Record<string, number>>(getCart());
   const { toast } = useToast();
+  const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
 
   const products = data?.products || [];
   const tier = data?.tier;
+
+  // Check for admin impersonation on mount
+  useEffect(() => {
+    const impersonationData = localStorage.getItem('admin_impersonating');
+    if (impersonationData) {
+      try {
+        setAdminImpersonating(JSON.parse(impersonationData));
+      } catch {
+        localStorage.removeItem('admin_impersonating');
+      }
+    }
+  }, []);
+
+  const handleReturnToAdmin = () => {
+    localStorage.removeItem('admin_impersonating');
+    localStorage.removeItem('b2b_cart'); // Clear cart when returning
+    window.location.href = '/b2b/admin';
+  };
 
   // Filter products by search
   const filteredProducts = products.filter((p) =>
@@ -71,6 +91,30 @@ export default function CatalogPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Admin Impersonation Banner */}
+      {adminImpersonating && (
+        <Alert className="mb-6 bg-primary/10 border-primary">
+          <UserCog className="h-5 w-5" />
+          <AlertDescription className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Placing Order For: {adminImpersonating.customerName}</p>
+              <p className="text-sm text-muted-foreground">
+                Admin mode - You are browsing the catalog as this customer
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReturnToAdmin}
+              data-testid="button-return-to-admin"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Return to Admin
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header with search and cart */}
       <div className="mb-8 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div>

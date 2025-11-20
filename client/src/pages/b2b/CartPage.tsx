@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, Loader2, TrendingUp } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, Loader2, TrendingUp, UserCog } from "lucide-react";
 
 function getCart(): Record<string, number> {
   try {
@@ -27,9 +28,28 @@ export default function CartPage() {
   const { data, isLoading, isError } = useB2bProducts();
   const { data: tiers } = useB2bPublicTiers();
   const [cart, setCart] = useState<Record<string, number>>(getCart());
+  const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
 
   const products = data?.products || [];
   const currentTier = data?.tier;
+  
+  // Check for admin impersonation on mount
+  useEffect(() => {
+    const impersonationData = localStorage.getItem('admin_impersonating');
+    if (impersonationData) {
+      try {
+        setAdminImpersonating(JSON.parse(impersonationData));
+      } catch {
+        localStorage.removeItem('admin_impersonating');
+      }
+    }
+  }, []);
+
+  const handleReturnToAdmin = () => {
+    localStorage.removeItem('admin_impersonating');
+    localStorage.removeItem('b2b_cart');
+    window.location.href = '/b2b/admin';
+  };
   
   // Get Tier 2 for auto-upgrade at 5+ cases
   const tier2 = tiers?.find(t => t.tierName === 'Tier 2');
@@ -128,6 +148,30 @@ export default function CartPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Admin Impersonation Banner */}
+      {adminImpersonating && (
+        <Alert className="mb-6 bg-primary/10 border-primary">
+          <UserCog className="h-5 w-5" />
+          <AlertDescription className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Placing Order For: {adminImpersonating.customerName}</p>
+              <p className="text-sm text-muted-foreground">
+                Admin mode - You are managing the cart for this customer
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReturnToAdmin}
+              data-testid="button-return-to-admin"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Return to Admin
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Button
         variant="ghost"
         onClick={() => setLocation("/b2b/catalog")}
@@ -239,14 +283,14 @@ export default function CartPage() {
               <CardTitle className="font-serif">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {qualifiesForTier2 && tier2 && (
+              {qualifiesForTier2 && tier2 && currentTier && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm text-primary">Tier 2 Upgrade Applied!</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Your order of {totalCases} cases qualifies for {tier2.discountPercentage}% wholesale pricing.
+                        Your order of {totalCases} cases qualifies for {tier2.discountPercentage}% wholesale pricing (upgraded from {currentTier} pricing).
                       </p>
                     </div>
                   </div>

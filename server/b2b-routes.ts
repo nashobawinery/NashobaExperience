@@ -654,16 +654,28 @@ router.get('/api/b2b/customer/orders/:id', requireB2bCustomer, async (req: Reque
   }
 });
 
-// Place order
-router.post('/api/b2b/customer/orders', requireB2bCustomer, async (req: Request, res: Response) => {
+// Place order (supports admin impersonation via customerId parameter)
+router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    const { items, notes, shippingAddress } = req.body;
+    const { items, notes, shippingAddress, customerId } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Order must contain at least one item' });
     }
 
-    const customer = await storage.getB2bCustomer(req.session.b2bUserId!);
+    // Determine which customer to place order for (admin can specify customerId)
+    let targetCustomerId = req.session.b2bUserId!;
+    
+    // If customerId is provided, verify user is admin
+    if (customerId) {
+      const currentUser = await storage.getB2bUser(req.session.b2bUserId!);
+      if (currentUser?.type !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can place orders for other customers' });
+      }
+      targetCustomerId = customerId;
+    }
+
+    const customer = await storage.getB2bCustomer(targetCustomerId);
     if (!customer || !customer.tier) {
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }

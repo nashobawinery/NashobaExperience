@@ -625,6 +625,28 @@ export default function AdminDashboard() {
     }
   };
 
+  const handlePlaceOrderForCustomer = (customer: any) => {
+    // Only admins can place orders for customers
+    if (currentUser?.type !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can place orders for customers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Store admin impersonation info in localStorage
+    localStorage.setItem('admin_impersonating', JSON.stringify({
+      customerId: customer.id,
+      customerName: customer.accountName,
+      customerEmail: customer.emailAddress,
+    }));
+
+    // Navigate to customer catalog
+    window.location.href = `/b2b/catalog`;
+  };
+
   const handleEditCustomer = (customer: any) => {
     // Only admins can edit customers
     if (currentUser?.type !== 'admin') {
@@ -864,22 +886,36 @@ export default function AdminDashboard() {
                   className="flex-1"
                   data-testid={`button-reject-${customer.id}`}
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
+                  <XCircle2 className="h-4 w-4 mr-2" />
                   Reject
                 </Button>
               </>
             )}
             {currentUser?.type === 'admin' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleEditCustomer(customer)}
-                className={isPending ? "flex-shrink-0" : "flex-1"}
-                data-testid={`button-edit-${customer.id}`}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
+              <>
+                {!isPending && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => handlePlaceOrderForCustomer(customer)}
+                    className="flex-1"
+                    data-testid={`button-place-order-${customer.id}`}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    Place Order
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleEditCustomer(customer)}
+                  className={isPending ? "flex-shrink-0" : "flex-1"}
+                  data-testid={`button-edit-${customer.id}`}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </>
             )}
           </div>
         </div>
