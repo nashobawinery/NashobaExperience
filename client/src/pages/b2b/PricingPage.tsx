@@ -634,36 +634,39 @@ export default function B2BPricingPage() {
                       ))}
                     </TabsList>
                     
-                    {categories.map((category) => (
-                      <TabsContent key={category} value={category} className="mt-4">
-                        {categoryTiers.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-4 text-center">
-                            No active pricing tiers for {categoryLabels[category]}
-                          </p>
-                        ) : (
-                          <div className="space-y-3">
-                            {categoryTiers.map((tier) => (
-                              <div
-                                key={tier.id}
-                                className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
-                                data-testid={`tier-${tier.tierName}`}
-                              >
-                                <div>
-                                  <p className="font-semibold">{tier.tierName}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {tier.description || "Wholesale pricing"}
-                                  </p>
+                    {categories.map((category) => {
+                      const tiersForCategory = tiersByCategory[category] || [];
+                      return (
+                        <TabsContent key={category} value={category} className="mt-4">
+                          {tiersForCategory.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-4 text-center">
+                              No active pricing tiers for {categoryLabels[category]}
+                            </p>
+                          ) : (
+                            <div className="space-y-3">
+                              {tiersForCategory.map((tier) => (
+                                <div
+                                  key={tier.id}
+                                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
+                                  data-testid={`tier-${tier.tierName}`}
+                                >
+                                  <div>
+                                    <p className="font-semibold">{tier.tierName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {tier.description || "Wholesale pricing"}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xl font-bold text-primary">{tier.discountPercentage}%</p>
+                                    <p className="text-xs text-muted-foreground">off retail</p>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-xl font-bold text-primary">{tier.discountPercentage}%</p>
-                                  <p className="text-xs text-muted-foreground">off retail</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </TabsContent>
-                    ))}
+                              ))}
+                            </div>
+                          )}
+                        </TabsContent>
+                      );
+                    })}
                   </Tabs>
                 )}
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg">

@@ -1303,21 +1303,23 @@ export default function AdminDashboard() {
                   ))}
                 </TabsList>
                 
-                {categories.map((category) => (
-                  <TabsContent key={category} value={category} className="mt-4">
-                    {loadingAdminTiers ? (
-                      <div className="space-y-3">
-                        {[...Array(3)].map((_, i) => (
-                          <Skeleton key={i} className="h-16 w-full" />
-                        ))}
-                      </div>
-                    ) : !categoryTiers || categoryTiers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
-                        No pricing tiers configured for {categoryLabels[category]}
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {categoryTiers.map((tier) => (
+                {categories.map((category) => {
+                  const tiersForCategory = adminTiers?.filter(tier => tier.category === category) || [];
+                  return (
+                    <TabsContent key={category} value={category} className="mt-4">
+                      {loadingAdminTiers ? (
+                        <div className="space-y-3">
+                          {[...Array(3)].map((_, i) => (
+                            <Skeleton key={i} className="h-16 w-full" />
+                          ))}
+                        </div>
+                      ) : !tiersForCategory || tiersForCategory.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 text-center">
+                          No pricing tiers configured for {categoryLabels[category]}
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {tiersForCategory.map((tier) => (
                           <div
                             key={`${tier.id}-${tier.active}`}
                             className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
@@ -1370,7 +1372,8 @@ export default function AdminDashboard() {
                       </div>
                     )}
                   </TabsContent>
-                ))}
+                  );
+                })}
               </Tabs>
             </CardContent>
           </Card>
