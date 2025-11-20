@@ -628,9 +628,9 @@ export default function B2BPricingPage() {
                   </p>
                 ) : (
                   <Tabs value={selectedTierCategory} onValueChange={setSelectedTierCategory} className="mt-4">
-                    <TabsList className="grid w-full grid-cols-6">
+                    <TabsList className="flex flex-wrap w-full h-auto gap-2 p-2">
                       {categories.map((cat) => (
-                        <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-pricing`}>
+                        <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-pricing`} className="flex-1 min-w-[100px]">
                           {categoryLabels[cat]}
                         </TabsTrigger>
                       ))}

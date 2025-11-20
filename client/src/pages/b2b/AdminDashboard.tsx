@@ -1295,9 +1295,9 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <Tabs value={selectedTierCategory} onValueChange={setSelectedTierCategory}>
-                <TabsList className="grid w-full grid-cols-6">
+                <TabsList className="flex flex-wrap w-full h-auto gap-2 p-2">
                   {categories.map((cat) => (
-                    <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-tiers`}>
+                    <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-tiers`} className="flex-1 min-w-[100px]">
                       {categoryLabels[cat]}
                     </TabsTrigger>
                   ))}
