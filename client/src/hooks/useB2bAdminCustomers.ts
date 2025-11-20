@@ -109,3 +109,41 @@ export function useCreateB2bCustomer() {
     },
   });
 }
+
+export function useUpdateB2bCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      customerId,
+      data,
+    }: {
+      customerId: string;
+      data: {
+        accountName?: string;
+        primaryContactName?: string;
+        emailAddress?: string;
+        phoneNumber?: string;
+        billingAddress?: string;
+        billingCity?: string;
+        billingState?: string;
+        billingZipCode?: string;
+        shippingAddress?: string;
+        shippingCity?: string;
+        shippingState?: string;
+        shippingZipCode?: string;
+        taxId?: string;
+        tierId?: string;
+        salesRepId?: string;
+        accountStatus?: string;
+        notes?: string;
+      };
+    }) => {
+      return apiRequest("PUT", `/api/b2b/admin/customers/${customerId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tier-commitments"] });
+    },
+  });
+}

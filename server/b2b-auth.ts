@@ -81,6 +81,13 @@ export function requireB2bAdmin(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+export function requireB2bAdminOrSalesRep(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.b2bUserId || (req.session.b2bUserType !== 'admin' && req.session.b2bUserType !== 'sales_rep')) {
+    return res.status(403).json({ error: 'Admin or Sales Rep access required' });
+  }
+  next();
+}
+
 // Admin authentication
 export async function authenticateB2bAdmin(email: string, password: string) {
   const admin = await storage.getB2bAdminByEmail(email);

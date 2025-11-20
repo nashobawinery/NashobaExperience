@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
+import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
@@ -72,6 +72,28 @@ const createCustomerSchema = z.object({
 
 type CreateCustomerFormData = z.infer<typeof createCustomerSchema>;
 
+const editCustomerSchema = z.object({
+  accountName: z.string().min(1, "Business name is required"),
+  primaryContactName: z.string().min(1, "Contact name is required"),
+  emailAddress: z.string().email("Invalid email address"),
+  phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
+  billingAddress: z.string().optional(),
+  billingCity: z.string().optional(),
+  billingState: z.string().optional(),
+  billingZipCode: z.string().optional(),
+  shippingAddress: z.string().optional(),
+  shippingCity: z.string().optional(),
+  shippingState: z.string().optional(),
+  shippingZipCode: z.string().optional(),
+  taxId: z.string().optional(),
+  tierId: z.string().optional(),
+  salesRepId: z.string().optional(),
+  accountStatus: z.enum(["pending_approval", "active", "inactive"]),
+  notes: z.string().optional(),
+});
+
+type EditCustomerFormData = z.infer<typeof editCustomerSchema>;
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
@@ -85,6 +107,7 @@ export default function AdminDashboard() {
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
   const { mutateAsync: createCustomer, isPending: isCreatingCustomer } = useCreateB2bCustomer();
+  const { mutateAsync: updateCustomer, isPending: isUpdatingCustomer } = useUpdateB2bCustomer();
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeAdminPassword();
   const { mutateAsync: createSalesRep, isPending: isCreatingSalesRep } = useCreateSalesRep();
   const { mutateAsync: updateSalesRep, isPending: isUpdatingSalesRep } = useUpdateSalesRep();
@@ -168,6 +191,34 @@ export default function AdminDashboard() {
       tierId: "",
       salesRepId: "",
       autoApprove: true,
+      notes: "",
+    },
+  });
+
+  // Edit customer dialog state
+  const [editCustomerDialog, setEditCustomerDialog] = useState<{ isOpen: boolean; customer: any | null }>({
+    isOpen: false,
+    customer: null,
+  });
+  const editCustomerForm = useForm<EditCustomerFormData>({
+    resolver: zodResolver(editCustomerSchema),
+    defaultValues: {
+      accountName: "",
+      primaryContactName: "",
+      emailAddress: "",
+      phoneNumber: "",
+      billingAddress: "",
+      billingCity: "",
+      billingState: "",
+      billingZipCode: "",
+      shippingAddress: "",
+      shippingCity: "",
+      shippingState: "",
+      shippingZipCode: "",
+      taxId: "",
+      tierId: "",
+      salesRepId: "",
+      accountStatus: "active",
       notes: "",
     },
   });
@@ -532,6 +583,94 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEditCustomer = (customer: any) => {
+    // Only admins can edit customers
+    if (currentUser?.type !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can edit customers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditCustomerDialog({ isOpen: true, customer });
+    editCustomerForm.reset({
+      accountName: customer.accountName || "",
+      primaryContactName: customer.primaryContactName || "",
+      emailAddress: customer.emailAddress || "",
+      phoneNumber: customer.phoneNumber || "",
+      billingAddress: customer.billingAddress || "",
+      billingCity: customer.billingCity || "",
+      billingState: customer.billingState || "",
+      billingZipCode: customer.billingZipCode || "",
+      shippingAddress: customer.shippingAddress || "",
+      shippingCity: customer.shippingCity || "",
+      shippingState: customer.shippingState || "",
+      shippingZipCode: customer.shippingZipCode || "",
+      taxId: customer.taxId || "",
+      tierId: customer.tier?.id || "",
+      salesRepId: customer.salesRep?.id || "",
+      accountStatus: customer.accountStatus || "active",
+      notes: customer.notes || "",
+    });
+  };
+
+  const handleEditCustomerSubmit = async (data: EditCustomerFormData) => {
+    if (!editCustomerDialog.customer) return;
+
+    // Only admins can edit customers
+    if (currentUser?.type !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can edit customers",
+        variant: "destructive",
+      });
+      setEditCustomerDialog({ isOpen: false, customer: null });
+      return;
+    }
+
+    try {
+      await updateCustomer({
+        customerId: editCustomerDialog.customer.id,
+        data: {
+          accountName: data.accountName,
+          primaryContactName: data.primaryContactName,
+          emailAddress: data.emailAddress,
+          phoneNumber: data.phoneNumber,
+          billingAddress: data.billingAddress,
+          billingCity: data.billingCity,
+          billingState: data.billingState,
+          billingZipCode: data.billingZipCode,
+          shippingAddress: data.shippingAddress,
+          shippingCity: data.shippingCity,
+          shippingState: data.shippingState,
+          shippingZipCode: data.shippingZipCode,
+          taxId: data.taxId,
+          tierId: data.tierId,
+          salesRepId: data.salesRepId,
+          accountStatus: data.accountStatus,
+          notes: data.notes,
+        },
+      });
+
+      toast({
+        title: "Customer Updated Successfully",
+        description: `${data.accountName} has been updated.`,
+      });
+
+      // Reset form and close dialog
+      editCustomerForm.reset();
+      setEditCustomerDialog({ isOpen: false, customer: null });
+    } catch (error: any) {
+      toast({
+        title: "Failed to Update Customer",
+        description: error.message || "An error occurred while updating the customer",
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderCustomerCard = (customer: any, isPending: boolean) => (
     <Card key={customer.id} data-testid={`customer-card-${customer.id}`}>
       <CardHeader>
@@ -585,29 +724,43 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {isPending && (
-            <div className="pt-3 border-t flex gap-2">
+          <div className="pt-3 border-t flex gap-2">
+            {isPending && currentUser?.type === 'admin' && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => setApproveDialog({ isOpen: true, customer })}
+                  className="flex-1"
+                  data-testid={`button-approve-${customer.id}`}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleReject(customer.id, customer.accountName)}
+                  className="flex-1"
+                  data-testid={`button-reject-${customer.id}`}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Reject
+                </Button>
+              </>
+            )}
+            {currentUser?.type === 'admin' && (
               <Button
                 size="sm"
-                onClick={() => setApproveDialog({ isOpen: true, customer })}
-                className="flex-1"
-                data-testid={`button-approve-${customer.id}`}
+                variant="outline"
+                onClick={() => handleEditCustomer(customer)}
+                className={isPending ? "flex-shrink-0" : "flex-1"}
+                data-testid={`button-edit-${customer.id}`}
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Approve
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
               </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => handleReject(customer.id, customer.accountName)}
-                className="flex-1"
-                data-testid={`button-reject-${customer.id}`}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -650,15 +803,17 @@ export default function AdminDashboard() {
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => setCreateCustomerDialog(true)}
-              data-testid="button-create-customer"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Customer
-            </Button>
-          </div>
+          {currentUser?.type === 'admin' && (
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setCreateCustomerDialog(true)}
+                data-testid="button-create-customer"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Customer
+              </Button>
+            </div>
+          )}
           
           <Tabs defaultValue="active" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2 max-w-md">
@@ -1697,6 +1852,325 @@ export default function AdminDashboard() {
                 data-testid="button-submit-create-customer"
               >
                 {isCreatingCustomer ? "Creating..." : "Create Customer"}
+              </Button>
+            </DialogFooter>
+          </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editCustomerDialog.isOpen} onOpenChange={(open) => setEditCustomerDialog({ isOpen: open, customer: null })}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-customer">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Edit Customer</DialogTitle>
+            <DialogDescription>
+              Update customer information and pricing tier
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editCustomerForm}>
+          <form onSubmit={editCustomerForm.handleSubmit(handleEditCustomerSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={editCustomerForm.control}
+                name="accountName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-account-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editCustomerForm.control}
+                name="primaryContactName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contact Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-contact-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={editCustomerForm.control}
+                name="emailAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address *</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} data-testid="input-edit-email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editCustomerForm.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-phone" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-medium">Billing Address</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editCustomerForm.control}
+                  name="billingAddress"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Street Address</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-billing-address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="billingCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-billing-city" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="billingState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-billing-state" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="billingZipCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-billing-zip" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-medium">Shipping Address</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editCustomerForm.control}
+                  name="shippingAddress"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Street Address</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-shipping-address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="shippingCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-shipping-city" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="shippingState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-shipping-state" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editCustomerForm.control}
+                  name="shippingZipCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-edit-shipping-zip" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <FormField
+              control={editCustomerForm.control}
+              name="taxId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax ID (Optional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-edit-tax-id" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={editCustomerForm.control}
+                name="tierId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pricing Tier</FormLabel>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-tier">
+                          <SelectValue placeholder="Select tier" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {activeTiers?.map((tier) => (
+                          <SelectItem key={tier.id} value={tier.id}>
+                            {tier.tierName} ({tier.discountPercentage}% off)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editCustomerForm.control}
+                name="salesRepId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sales Rep (Optional)</FormLabel>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-sales-rep">
+                          <SelectValue placeholder="Select sales rep" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {salesReps?.map((rep) => (
+                          <SelectItem key={rep.id} value={rep.id}>
+                            {rep.firstName} {rep.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={editCustomerForm.control}
+              name="accountStatus"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-edit-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={editCustomerForm.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} data-testid="input-edit-notes" rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditCustomerDialog({ isOpen: false, customer: null })}
+                data-testid="button-cancel-edit-customer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isUpdatingCustomer}
+                data-testid="button-submit-edit-customer"
+              >
+                {isUpdatingCustomer ? "Updating..." : "Update Customer"}
               </Button>
             </DialogFooter>
           </form>

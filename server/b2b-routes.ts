@@ -8,6 +8,7 @@ import {
   requireB2bCustomer,
   requireB2bSalesRep,
   requireB2bAdmin,
+  requireB2bAdminOrSalesRep,
   authenticateB2bCustomer,
   authenticateB2bSalesRep,
   authenticateB2bAdmin,
@@ -881,8 +882,8 @@ router.get('/api/b2b/admin/customers/pending', requireB2bAdmin, async (req: Requ
   }
 });
 
-// Admin: Get all customers (any status)
-router.get('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, res: Response) => {
+// Admin/Sales Rep: Get all customers (any status)
+router.get('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const { status } = req.query;
     const customers = await storage.getAllB2bCustomers(status as string);
@@ -1004,6 +1005,43 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
   }
 });
 
+// Admin: Update customer
+router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Get existing customer
+    const existingCustomer = await storage.getB2bCustomer(id);
+    if (!existingCustomer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // If email is being changed, check if new email is already in use
+    if (updateData.emailAddress && updateData.emailAddress !== existingCustomer.emailAddress) {
+      const emailExists = await storage.getB2bCustomerByEmail(updateData.emailAddress);
+      if (emailExists) {
+        return res.status(400).json({ error: 'Email address already in use' });
+      }
+    }
+
+    // Update customer
+    const updatedCustomer = await storage.updateB2bCustomer(id, updateData);
+
+    if (!updatedCustomer) {
+      return res.status(500).json({ error: 'Failed to update customer' });
+    }
+
+    res.json({ success: true, customer: updatedCustomer });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid customer data', details: error.errors });
+    }
+    console.error('Update customer error:', error);
+    res.status(500).json({ error: 'Failed to update customer' });
+  }
+});
+
 // Admin: Approve customer registration
 router.post('/api/b2b/admin/customers/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
@@ -1121,7 +1159,7 @@ router.post('/api/b2b/admin/customers/:id/reject', requireB2bAdmin, async (req: 
 });
 
 // Admin: Get all tier pricing
-router.get('/api/b2b/admin/tiers', requireB2bAdmin, async (req: Request, res: Response) => {
+router.get('/api/b2b/admin/tiers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const tiers = await storage.getAllTierPricing();
     res.json(tiers);
@@ -1207,7 +1245,7 @@ router.delete('/api/b2b/admin/tiers/:id', requireB2bAdmin, async (req: Request, 
 });
 
 // Admin: Get all sales reps
-router.get('/api/b2b/admin/sales-reps', requireB2bAdmin, async (req: Request, res: Response) => {
+router.get('/api/b2b/admin/sales-reps', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const salesReps = await storage.getAllSalesReps();
     res.json(salesReps);
@@ -1374,7 +1412,7 @@ router.delete('/api/b2b/admin/admins/:id', requireB2bAdmin, async (req: Request,
 });
 
 // Admin: Get all orders
-router.get('/api/b2b/admin/orders', requireB2bAdmin, async (req: Request, res: Response) => {
+router.get('/api/b2b/admin/orders', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const orders = await storage.getAllB2bOrders();
     res.json(orders);
@@ -1451,7 +1489,7 @@ router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Reque
 });
 
 // Admin: Get tier commitment report
-router.get('/api/b2b/admin/tier-commitment-report', requireB2bAdmin, async (req: Request, res: Response) => {
+router.get('/api/b2b/admin/tier-commitment-report', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const report = await storage.getTierCommitmentReport();
     res.json(report);
