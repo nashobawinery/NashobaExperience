@@ -668,8 +668,8 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     
     // If customerId is provided, verify user is admin
     if (customerId) {
-      const currentUser = await storage.getB2bUser(req.session.b2bUserId!);
-      if (currentUser?.type !== 'admin') {
+      const currentAdmin = await storage.getB2bAdmin(req.session.b2bUserId!);
+      if (!currentAdmin) {
         return res.status(403).json({ error: 'Only admins can place orders for other customers' });
       }
       targetCustomerId = customerId;
@@ -687,8 +687,8 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     // Get Tier 2 for auto-upgrade if qualified
     let effectiveTier = customer.tier;
     if (qualifiesForTier2) {
-      const allTiers = await storage.getAllB2bTiers();
-      const tier2 = allTiers.find(t => t.tierName === 'Tier 2' && t.active);
+      const allTiers = await storage.getAllTierPricing();
+      const tier2 = allTiers.find((t: any) => t.tierName === 'Tier 2' && t.active);
       if (tier2) {
         effectiveTier = tier2;
       }

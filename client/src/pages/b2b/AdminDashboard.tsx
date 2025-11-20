@@ -1159,7 +1159,7 @@ export default function AdminDashboard() {
                             <p className="text-xs text-muted-foreground">Territory: {rep.territory}</p>
                           )}
                           <p className="text-xs text-muted-foreground">
-                            Commission: <span className="font-semibold">{rep.commissionPercentage}%</span>
+                            Commission: <span className="font-semibold">{(rep as any).commissionPercentage || 0}%</span>
                           </p>
                         </div>
                       </div>
