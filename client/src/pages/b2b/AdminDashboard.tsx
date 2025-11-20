@@ -708,6 +708,44 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleResetPassword = async (customerId: string | undefined, customerEmail: string | undefined) => {
+    if (!customerId || !customerEmail) return;
+
+    // Only admins can reset passwords
+    if (currentUser?.type !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can reset passwords",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/b2b/admin/customers/${customerId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reset password');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Password Reset Successfully",
+        description: `New password has been generated and sent to ${customerEmail}. Temporary password: ${result.tempPassword}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to Reset Password",
+        description: error.message || "An error occurred while resetting the password",
+        variant: "destructive",
+      });
+    }
+  };
+
   const addOrderItem = () => {
     const items = manualOrderForm.getValues("items");
     manualOrderForm.setValue("items", [...items, { productId: "", quantity: 1 }]);
@@ -2283,6 +2321,24 @@ export default function AdminDashboard() {
                 </FormItem>
               )}
             />
+
+            <div className="p-4 bg-muted rounded-md space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Password Management</h4>
+                  <p className="text-sm text-muted-foreground">Reset customer's password and send credentials email</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleResetPassword(editCustomerDialog.customer?.id, editCustomerDialog.customer?.emailAddress)}
+                  data-testid="button-reset-password"
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Reset Password
+                </Button>
+              </div>
+            </div>
 
             <DialogFooter>
               <Button

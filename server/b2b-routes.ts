@@ -1047,6 +1047,72 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
   }
 });
 
+// Admin: Reset customer password
+router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Get customer
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Generate new password from phone number
+    const tempPassword = generatePasswordFromPhone(customer.phoneNumber);
+    const passwordHash = await hashPassword(tempPassword);
+
+    // Update customer password
+    const updatedCustomer = await storage.updateB2bCustomer(id, { passwordHash });
+
+    if (!updatedCustomer) {
+      return res.status(500).json({ error: 'Failed to reset password' });
+    }
+
+    // Send email with new credentials
+    try {
+      if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+        const emailHtml = `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <h2 style="color: #2c3e50;">Password Reset - Nashoba B2B</h2>
+              <p>Dear ${customer.primaryContactName},</p>
+              <p>Your B2B account password has been reset by an administrator.</p>
+              
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">New Login Credentials</h3>
+                <p><strong>Email:</strong> ${customer.emailAddress}</p>
+                <p><strong>New Password:</strong> ${tempPassword}</p>
+                <p style="margin-bottom: 0;"><em>Please change your password after logging in.</em></p>
+              </div>
+              
+              <p>To access your account, visit our B2B portal and log in with these credentials.</p>
+              
+              <p>If you did not request this password reset, please contact us immediately.</p>
+              
+              <p>Best regards,<br>Nashoba Valley Winery Team</p>
+            </body>
+          </html>
+        `;
+
+        await sendgrid.send({
+          to: customer.emailAddress,
+          from: process.env.RESEND_FROM_EMAIL,
+          subject: 'Your Nashoba B2B Password Has Been Reset',
+          html: emailHtml,
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+    }
+
+    res.json({ success: true, tempPassword });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 // Admin: Approve customer registration
 router.post('/api/b2b/admin/customers/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
