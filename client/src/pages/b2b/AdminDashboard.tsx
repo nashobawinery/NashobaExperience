@@ -660,7 +660,7 @@ export default function AdminDashboard() {
             </Button>
           </div>
           
-          <Tabs defaultValue="pending" className="space-y-4">
+          <Tabs defaultValue="active" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2 max-w-md">
               <TabsTrigger value="pending" data-testid="tab-pending">
                 Pending ({pendingCustomers?.length || 0})

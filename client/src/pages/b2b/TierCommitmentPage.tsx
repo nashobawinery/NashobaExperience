@@ -270,12 +270,19 @@ export default function TierCommitmentPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {commitmentData.map((customer) => {
-                const hasCommitment = customer.commitmentCases && customer.commitmentCases > 0;
-                const isSelected = selectedForEmail.has(customer.id);
+              {tiersWithCommitments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No customers with tier commitments found. Tier 3 and Tier 4 customers will appear here.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                tiersWithCommitments.map((customer) => {
+                  const hasCommitment = customer.commitmentCases && customer.commitmentCases > 0;
+                  const isSelected = selectedForEmail.has(customer.id);
 
-                return (
-                  <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
+                  return (
+                    <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
                     <TableCell>
                       {hasCommitment && (
                         <input
@@ -377,13 +384,7 @@ export default function TierCommitmentPage() {
                     </TableCell>
                   </TableRow>
                 );
-              })}
-              {commitmentData.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground" data-testid="text-no-data">
-                    No customers found
-                  </TableCell>
-                </TableRow>
+              })
               )}
             </TableBody>
           </Table>
