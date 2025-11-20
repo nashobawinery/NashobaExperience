@@ -1158,14 +1158,16 @@ router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, asyn
 
     // Generate new password from phone number
     const tempPassword = generatePasswordFromPhone(customer.phoneNumber);
-    const passwordHash = await hashPassword(tempPassword);
+    const newPasswordHash = await hashPassword(tempPassword);
 
-    // Update customer password
-    const updatedCustomer = await storage.updateB2bCustomer(id, { passwordHash });
-
-    if (!updatedCustomer) {
-      return res.status(500).json({ error: 'Failed to reset password' });
+    // Update customer password directly in database (passwordHash not in updateB2bCustomer type)
+    const result = await db.update(b2bCustomers).set({ passwordHash: newPasswordHash, updatedAt: new Date() }).where(eq(b2bCustomers.id, id)).returning();
+    
+    if (!result || result.length === 0) {
+      return res.status(500).json({ error: 'Failed to reset password - customer may have been deleted' });
     }
+    
+    const updatedCustomer = result[0];
 
     // Send email with new credentials
     try {
@@ -1596,7 +1598,6 @@ router.get('/api/b2b/admin/products', requireB2bAdminOrSalesRep, async (req: Req
       category: products.category,
       price: products.price,
       caseSize: products.caseSize,
-      currentStock: products.currentStock,
     }).from(products).where(eq(products.available, true));
     res.json(allProducts);
   } catch (error) {
@@ -1616,7 +1617,7 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
     }
 
     // Fetch customer
-    const customer = await storage.getB2bCustomerById(customerId);
+    const customer = await storage.getB2bCustomer(customerId);
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -1665,15 +1666,14 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       });
     }
 
-    // Create order
+    // Create order with items using createB2bOrder which handles both
     const orderNumber = `MO-${Date.now()}`;
     const order = await storage.createB2bOrder({
       customerId,
       orderNumber,
       orderDate: new Date(),
-      status: 'pending',
+      status: 'pending_approval',
       subtotal: (subtotal + totalDiscount).toFixed(2),
-      discount: totalDiscount.toFixed(2),
       tax: '0',
       total: subtotal.toFixed(2),
       notes: notes || '',
@@ -1681,14 +1681,32 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       shippingCity: customer.shippingCity || '',
       shippingState: customer.shippingState || '',
       shippingZipCode: customer.shippingZipCode || '',
-    });
+    }, orderItems.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.productSku,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      retailPrice: item.retailPrice,
+      lineTotal: item.totalPrice,
+    })));
 
-    // Create order items
-    for (const item of orderItems) {
-      await storage.createB2bOrderItem({
-        orderId: order.id,
-        ...item,
-      });
+    // Create commission record if customer has sales rep
+    if (customer.salesRepId) {
+      const salesRep = await storage.getSalesRep(customer.salesRepId);
+      if (salesRep && salesRep.commissionPercentage) {
+        const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
+        const commissionAmount = (subtotal * commissionPercentage) / 100;
+        
+        await storage.createCommission({
+          orderId: order.id,
+          salesRepId: customer.salesRepId,
+          orderTotal: subtotal.toFixed(2),
+          commissionPercentage: commissionPercentage.toString(),
+          commissionAmount: commissionAmount.toFixed(2),
+          status: 'pending',
+        });
+      }
     }
 
     res.json({ success: true, orderId: order.id });
@@ -1828,47 +1846,79 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
     const tax = 0;
     const total = subtotal + tax;
 
-    // Update order using upsert (which handles items properly)
-    const updatedOrder = await storage.upsertB2bOrder({
-      id,
-      customerId: existingOrder.customerId,
-      orderNumber: existingOrder.orderNumber,
-      orderDate: existingOrder.orderDate,
-      status: existingOrder.status,
-      subtotal: subtotal.toFixed(2),
-      tax: tax.toFixed(2),
-      total: total.toFixed(2),
-      notes: notes || existingOrder.notes,
-      shippingAddress: existingOrder.shippingAddress,
-      shippingCity: existingOrder.shippingCity,
-      shippingState: existingOrder.shippingState,
-      shippingZipCode: existingOrder.shippingZipCode,
-    }, orderItems);
+    // Update order with transactional item updates
+    await db.transaction(async (tx) => {
+      // 1. Delete existing items
+      await tx.delete(b2bOrderItems).where(eq(b2bOrderItems.orderId, id));
+      
+      // 2. Insert new items
+      if (orderItems.length > 0) {
+        await tx.insert(b2bOrderItems).values(
+          orderItems.map(item => ({
+            orderId: id,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            retailPrice: item.retailPrice,
+            lineTotal: item.lineTotal,
+          }))
+        );
+      }
+      
+      // 3. Update order totals
+      await tx.update(b2bOrders)
+        .set({
+          subtotal: subtotal.toFixed(2),
+          tax: tax.toFixed(2),
+          total: total.toFixed(2),
+          notes: notes || existingOrder.notes,
+          updatedAt: new Date(),
+        })
+        .where(eq(b2bOrders.id, id));
+    });
 
-    // Update commissions if order total changed
+    // 4. Recalculate commissions if customer has sales rep
     const oldTotal = parseFloat(existingOrder.total);
     const newTotal = total;
     
-    if (oldTotal !== newTotal && customer.salesRepId) {
+    if (customer.salesRepId) {
       const salesRep = await storage.getSalesRep(customer.salesRepId);
-      if (salesRep) {
+      if (salesRep && salesRep.commissionPercentage) {
+        const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
+        const newCommissionAmount = (newTotal * commissionPercentage) / 100;
+        
         // Get existing commission records
         const commissions = await storage.getCommissionsByOrderId(id);
         
-        // Update or create commission record
         if (commissions.length > 0) {
+          // Update existing commission
           const commission = commissions[0];
-          const commissionPercentage = parseFloat(salesRep.commissionPercentage?.toString() || '0');
-          const commissionAmount = (newTotal * commissionPercentage) / 100;
-          
-          await storage.updateCommissionStatus(commission.id, commission.status);
-          // Note: We'd need an updateCommission method to change the amount, for now just log
-          console.log(`Commission amount changed from ${commission.commissionAmount} to ${commissionAmount.toFixed(2)}`);
+          await db.update(b2bCommissions)
+            .set({
+              orderTotal: total.toFixed(2),
+              commissionAmount: newCommissionAmount.toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(b2bCommissions.id, commission.id));
+        } else {
+          // Create new commission if none exists
+          await storage.createCommission({
+            orderId: id,
+            salesRepId: customer.salesRepId,
+            orderTotal: total.toFixed(2),
+            commissionPercentage: commissionPercentage.toString(),
+            commissionAmount: newCommissionAmount.toFixed(2),
+            status: 'pending',
+          });
         }
       }
     }
 
-    res.json(updatedOrder.order);
+    // 5. Fetch updated order
+    const updatedOrder = await storage.getB2bOrder(id);
+    res.json(updatedOrder);
   } catch (error) {
     console.error('Error updating order:', error);
     res.status(500).json({ error: 'Failed to update order' });

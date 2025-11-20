@@ -58,7 +58,7 @@ const createCustomerSchema = z.object({
   shippingZipCode: z.string().optional(),
   taxId: z.string().optional(),
   tierId: z.string().optional(),
-  salesRepId: z.string().optional(),
+  salesRepId: z.string().min(1, "Sales representative assignment is required"),
   autoApprove: z.boolean(),
   autoGeneratePassword: z.boolean().default(true),
   customPassword: z.string().optional(),
@@ -98,7 +98,7 @@ const editCustomerSchema = z.object({
   shippingZipCode: z.string().optional(),
   taxId: z.string().optional(),
   tierId: z.string().optional(),
-  salesRepId: z.string().optional(),
+  salesRepId: z.string().min(1, "Sales representative assignment is required"),
   accountStatus: z.enum(["pending_approval", "active", "inactive"]),
   notes: z.string().optional(),
 });
