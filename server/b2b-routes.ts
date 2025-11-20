@@ -893,6 +893,117 @@ router.get('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, res
   }
 });
 
+// Admin: Create new customer
+router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { tierId, salesRepId, autoApprove, ...customerData } = req.body;
+    
+    // Validate customer data
+    const validatedData = insertB2bCustomerSchema.parse(customerData);
+    
+    // Check if email already exists
+    const existing = await storage.getB2bCustomerByEmail(validatedData.emailAddress);
+    if (existing) {
+      return res.status(400).json({ error: 'Email address already registered' });
+    }
+
+    // Create customer with pending_approval status initially
+    const customer = await storage.createB2bCustomer(validatedData);
+    
+    // If auto-approve is requested and tier is provided, approve immediately
+    if (autoApprove && tierId) {
+      // Generate password from last 6 digits of phone
+      const tempPassword = generatePasswordFromPhone(customer.phoneNumber);
+      const passwordHash = await hashPassword(tempPassword);
+      
+      const adminId = (req.session as any).b2bUserId;
+      
+      // Update customer with sales rep if provided
+      if (salesRepId) {
+        await storage.updateB2bCustomer(customer.id, { salesRepId });
+      }
+      
+      // Approve customer
+      const approvedCustomer = await storage.approveB2bCustomer(
+        customer.id,
+        tierId,
+        passwordHash,
+        adminId
+      );
+      
+      if (!approvedCustomer) {
+        return res.status(500).json({ error: 'Customer created but approval failed' });
+      }
+      
+      // Send approval email with login credentials
+      try {
+        if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+          const tier = await storage.getTierPricing(tierId);
+          const emailHtml = `
+            <html>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #2c3e50;">Welcome to Nashoba B2B</h2>
+                <p>Dear ${customer.primaryContactName},</p>
+                <p>Your B2B account has been created and approved! You can now log in and start placing orders.</p>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                  <h3 style="margin-top: 0;">Login Credentials</h3>
+                  <p><strong>Email:</strong> ${customer.emailAddress}</p>
+                  <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+                  <p style="margin-bottom: 0;"><em>Please change your password after your first login.</em></p>
+                </div>
+                
+                <div style="background-color: #e8f4f8; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                  <h3 style="margin-top: 0;">Your Pricing Tier</h3>
+                  <p><strong>${tier?.tierName || 'Tier'}</strong></p>
+                  <p>${tier?.description || ''}</p>
+                  <p><strong>Discount:</strong> ${tier?.discountPercentage}% off retail prices</p>
+                </div>
+                
+                <p>To access your account, visit our B2B portal and log in with the credentials above.</p>
+                
+                <p>If you have any questions, please don't hesitate to contact us.</p>
+                
+                <p>Best regards,<br>Nashoba Valley Winery Team</p>
+              </body>
+            </html>
+          `;
+
+          await sendgrid.send({
+            to: customer.emailAddress,
+            from: process.env.RESEND_FROM_EMAIL,
+            subject: 'Your Nashoba B2B Account is Ready',
+            html: emailHtml,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send approval email:', emailError);
+      }
+      
+      res.json({ 
+        success: true,
+        customer: approvedCustomer,
+        approved: true,
+        tempPassword
+      });
+    } else {
+      // Customer created but not auto-approved
+      res.json({ 
+        success: true,
+        customer,
+        approved: false,
+        message: 'Customer created. Approval required before they can log in.'
+      });
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid customer data', details: error.errors });
+    }
+    console.error('Create customer error:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
 // Admin: Approve customer registration
 router.post('/api/b2b/admin/customers/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
