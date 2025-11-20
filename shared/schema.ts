@@ -358,7 +358,8 @@ export const productCharacteristics = pgTable("product_characteristics", {
 // B2B Platform Tables
 export const tierPricing = pgTable("tier_pricing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tierName: text("tier_name").notNull().unique(),
+  tierName: text("tier_name").notNull(),
+  category: categoryEnum("category").notNull().default("wine"),
   description: text("description"),
   discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).notNull(),
   commitmentCases: integer("commitment_cases").default(0),
@@ -366,7 +367,9 @@ export const tierPricing = pgTable("tier_pricing", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  uniqueTierNameCategory: unique().on(table.tierName, table.category),
+}));
 
 export const salesReps = pgTable("sales_reps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
