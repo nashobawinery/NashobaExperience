@@ -45,12 +45,12 @@ export default function B2BPricingPage() {
     queryKey: ["/api/b2b/slideshow/slides"],
   });
 
-  // Category labels mapping
+  // Category labels mapping (short labels for tabs)
   const categoryLabels: Record<string, string> = {
     "wine": "Wine",
     "spirits": "Spirits",
     "beer": "Beer",
-    "canned_cocktail": "Canned Cocktails",
+    "canned_cocktail": "Cocktails",
     "canned_wine": "Canned Wine",
     "cider": "Cider"
   };
@@ -609,10 +609,12 @@ export default function B2BPricingPage() {
 
               {/* Pricing Tiers */}
               <div className="pt-6 border-t">
-                <div className="flex items-center gap-2 mb-4">
-                  <TrendingDown className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold text-lg">Wholesale Pricing Tiers</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Category-specific pricing for different beverage types</p>
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold text-lg">Wholesale Pricing Tiers</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Category-specific pricing for different beverage types</p>
                 </div>
                 {loadingTiers ? (
                   <div className="space-y-3">
