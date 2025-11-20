@@ -30,7 +30,7 @@ import {
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
 const router = Router();
@@ -1408,6 +1408,118 @@ router.delete('/api/b2b/admin/admins/:id', requireB2bAdmin, async (req: Request,
   } catch (error) {
     console.error('Error deleting admin:', error);
     res.status(500).json({ error: 'Failed to delete admin' });
+  }
+});
+
+// Admin/Sales Rep: Get all products for manual order entry
+router.get('/api/b2b/admin/products', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const allProducts = await db.select({
+      id: products.id,
+      sku: products.sku,
+      name: products.name,
+      category: products.category,
+      price: products.price,
+      caseSize: products.caseSize,
+      currentStock: products.currentStock,
+    }).from(products).where(eq(products.available, true));
+    res.json(allProducts);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// Admin/Sales Rep: Create manual order
+router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId, items, notes } = req.body;
+
+    // Validate input
+    if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Customer and at least one item are required' });
+    }
+
+    // Fetch customer
+    const customer = await storage.getB2bCustomerById(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Fetch tier information separately
+    let discountPercentage = 0;
+    if (customer.tierId) {
+      const tierData = await db.select().from(tierPricing).where(eq(tierPricing.id, customer.tierId));
+      if (tierData.length > 0) {
+        discountPercentage = parseFloat(tierData[0].discountPercentage);
+      }
+    }
+
+    // Fetch products for pricing
+    const productIds = items.map((item: any) => item.productId);
+    const productsData = await db.select().from(products).where(inArray(products.id, productIds));
+
+    // Calculate totals
+    let subtotal = 0;
+    let totalDiscount = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = productsData.find((p: any) => p.id === item.productId);
+      if (!product) {
+        return res.status(404).json({ error: `Product ${item.productId} not found` });
+      }
+
+      const retailPrice = parseFloat(product.price);
+      const unitPrice = retailPrice * (1 - discountPercentage / 100);
+      const lineTotal = unitPrice * item.quantity;
+      const lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      
+      subtotal += lineTotal;
+      totalDiscount += lineDiscount;
+
+      orderItems.push({
+        productId: product.id,
+        productName: product.name,
+        productSku: product.sku || '',
+        quantity: item.quantity,
+        caseSize: product.caseSize || 12,
+        unitPrice: unitPrice.toFixed(2),
+        retailPrice: retailPrice.toFixed(2),
+        totalPrice: lineTotal.toFixed(2),
+      });
+    }
+
+    // Create order
+    const orderNumber = `MO-${Date.now()}`;
+    const order = await storage.createB2bOrder({
+      customerId,
+      orderNumber,
+      orderDate: new Date(),
+      status: 'pending',
+      subtotal: (subtotal + totalDiscount).toFixed(2),
+      discount: totalDiscount.toFixed(2),
+      tax: '0',
+      total: subtotal.toFixed(2),
+      notes: notes || '',
+      shippingAddress: customer.shippingAddress || '',
+      shippingCity: customer.shippingCity || '',
+      shippingState: customer.shippingState || '',
+      shippingZipCode: customer.shippingZipCode || '',
+    });
+
+    // Create order items
+    for (const item of orderItems) {
+      await storage.createB2bOrderItem({
+        orderId: order.id,
+        ...item,
+      });
+    }
+
+    res.json({ success: true, orderId: order.id });
+  } catch (error) {
+    console.error('Error creating manual order:', error);
+    res.status(500).json({ error: 'Failed to create manual order' });
   }
 });
 

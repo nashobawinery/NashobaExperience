@@ -263,3 +263,45 @@ export function useUpdateTier() {
     },
   });
 }
+
+// Fetch all products for manual order entry
+export interface B2bAdminProduct {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: string;
+  caseSize: number;
+  currentStock: number;
+}
+
+export function useB2bAdminProducts() {
+  return useQuery<B2bAdminProduct[]>({
+    queryKey: ["b2b", "admin", "products"],
+    queryFn: async () => {
+      const response = await fetch("/api/b2b/admin/products");
+      if (!response.ok) {
+        throw new Error("Failed to fetch products");
+      }
+      return response.json();
+    },
+  });
+}
+
+// Create manual order
+export function useCreateManualOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { 
+      customerId: string; 
+      items: Array<{ productId: string; quantity: number }>; 
+      notes?: string;
+    }) => {
+      return apiRequest("POST", "/api/b2b/admin/orders/manual", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+    },
+  });
+}

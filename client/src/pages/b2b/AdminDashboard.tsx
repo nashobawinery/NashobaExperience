@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +94,17 @@ const editCustomerSchema = z.object({
 
 type EditCustomerFormData = z.infer<typeof editCustomerSchema>;
 
+const manualOrderSchema = z.object({
+  customerId: z.string().min(1, "Customer is required"),
+  notes: z.string().optional(),
+  items: z.array(z.object({
+    productId: z.string().min(1, "Product is required"),
+    quantity: z.number().min(1, "Quantity must be at least 1"),
+  })).min(1, "At least one product is required"),
+});
+
+type ManualOrderFormData = z.infer<typeof manualOrderSchema>;
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
@@ -104,6 +115,7 @@ export default function AdminDashboard() {
   const { data: admins, isLoading: loadingAdmins } = useB2bAdmins();
   const { data: adminTiers, isLoading: loadingAdminTiers } = useB2bAdminTiers(); // All tiers for Settings tab
   const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
+  const { data: adminProducts, isLoading: loadingProducts } = useB2bAdminProducts(); // Products for manual orders
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
   const { mutateAsync: createCustomer, isPending: isCreatingCustomer } = useCreateB2bCustomer();
@@ -116,6 +128,7 @@ export default function AdminDashboard() {
   const { mutateAsync: deleteAdmin, isPending: isDeletingAdmin } = useDeleteAdmin();
   const { mutateAsync: toggleTierActive, isPending: isTogglingTier } = useToggleTierActive();
   const { mutateAsync: updateTier, isPending: isUpdatingTier } = useUpdateTier();
+  const { mutateAsync: createManualOrder, isPending: isCreatingManualOrder } = useCreateManualOrder();
 
   const [approveDialog, setApproveDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
@@ -172,6 +185,9 @@ export default function AdminDashboard() {
 
   // Create customer dialog state
   const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
+  const [manualOrderDialog, setManualOrderDialog] = useState(false);
+  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number }>>([{ productId: "", quantity: 1 }]);
+
   const createCustomerForm = useForm<CreateCustomerFormData>({
     resolver: zodResolver(createCustomerSchema),
     defaultValues: {
@@ -220,6 +236,15 @@ export default function AdminDashboard() {
       salesRepId: "",
       accountStatus: "active",
       notes: "",
+    },
+  });
+
+  const manualOrderForm = useForm<ManualOrderFormData>({
+    resolver: zodResolver(manualOrderSchema),
+    defaultValues: {
+      customerId: "",
+      notes: "",
+      items: [{ productId: "", quantity: 1 }],
     },
   });
 
@@ -671,6 +696,47 @@ export default function AdminDashboard() {
     }
   };
 
+  const addOrderItem = () => {
+    const items = manualOrderForm.getValues("items");
+    manualOrderForm.setValue("items", [...items, { productId: "", quantity: 1 }]);
+    setOrderItems([...orderItems, { productId: "", quantity: 1 }]);
+  };
+
+  const removeOrderItem = (index: number) => {
+    const items = manualOrderForm.getValues("items");
+    if (items.length > 1) {
+      const newItems = items.filter((_, i) => i !== index);
+      manualOrderForm.setValue("items", newItems);
+      setOrderItems(newItems);
+    }
+  };
+
+  const handleManualOrderSubmit = async (data: ManualOrderFormData) => {
+    try {
+      await createManualOrder({
+        customerId: data.customerId,
+        items: data.items,
+        notes: data.notes,
+      });
+      
+      toast({
+        title: "Manual Order Created",
+        description: "The order has been created successfully.",
+      });
+
+      // Reset form and close dialog
+      manualOrderForm.reset();
+      setOrderItems([{ productId: "", quantity: 1 }]);
+      setManualOrderDialog(false);
+    } catch (error: any) {
+      toast({
+        title: "Failed to Create Order",
+        description: error.message || "An error occurred while creating the order",
+        variant: "destructive",
+      });
+    }
+  };
+
   const renderCustomerCard = (customer: any, isPending: boolean) => (
     <Card key={customer.id} data-testid={`customer-card-${customer.id}`}>
       <CardHeader>
@@ -885,6 +951,15 @@ export default function AdminDashboard() {
 
         {/* ORDERS TAB */}
         <TabsContent value="orders" className="space-y-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={() => setManualOrderDialog(true)}
+              data-testid="button-create-manual-order"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Manual Order
+            </Button>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="font-serif">All Orders</CardTitle>
@@ -2174,6 +2249,158 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Order Entry Dialog */}
+      <Dialog open={manualOrderDialog} onOpenChange={setManualOrderDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-manual-order">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Create Manual Order</DialogTitle>
+            <DialogDescription>
+              Create an order on behalf of a customer
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...manualOrderForm}>
+            <form onSubmit={manualOrderForm.handleSubmit(handleManualOrderSubmit)} className="space-y-4">
+              <FormField
+                control={manualOrderForm.control}
+                name="customerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-manual-order-customer">
+                          <SelectValue placeholder="Select customer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {activeCustomers?.map((customer: any) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.accountName} - {customer.tier?.tierName || "No tier"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">Order Items *</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={addOrderItem}
+                    data-testid="button-add-order-item"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Item
+                  </Button>
+                </div>
+
+                {orderItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-start border p-3 rounded-md">
+                    <div className="flex-1 space-y-3">
+                      <FormField
+                        control={manualOrderForm.control}
+                        name={`items.${index}.productId`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Product</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid={`select-product-${index}`}>
+                                  <SelectValue placeholder="Select product" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {adminProducts?.map((product) => (
+                                  <SelectItem key={product.id} value={product.id}>
+                                    {product.name} - ${product.price}/case ({product.caseSize} bottles)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={manualOrderForm.control}
+                        name={`items.${index}.quantity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quantity (cases)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                data-testid={`input-quantity-${index}`}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {orderItems.length > 1 && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeOrderItem(index)}
+                        className="mt-8"
+                        data-testid={`button-remove-item-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <FormField
+                control={manualOrderForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Order Notes (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} data-testid="input-manual-order-notes" rows={3} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setManualOrderDialog(false)}
+                  data-testid="button-cancel-manual-order"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  data-testid="button-submit-manual-order"
+                >
+                  Create Order
+                </Button>
+              </DialogFooter>
+            </form>
           </Form>
         </DialogContent>
       </Dialog>
