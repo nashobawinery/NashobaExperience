@@ -603,9 +603,33 @@ router.get('/api/b2b/customer/products', requireB2bCustomer, async (req: Request
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }
 
-    const products = await storage.getProducts();
+    const allProducts = await storage.getProducts();
+    const allTiers = await storage.getAllTierPricing();
+    const customerTierName = customer.tier;
     
-    res.json({ products, tier: customer.tier });
+    // Calculate tier pricing for each product based on customer's tier and product category
+    const productsWithTierPricing = allProducts.map(product => {
+      // Find the tier that matches both the customer's tier name AND the product's category
+      const effectiveTier = allTiers.find(t => 
+        t.tierName === customerTierName && 
+        t.category === product.category &&
+        t.active
+      );
+      
+      if (effectiveTier) {
+        const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
+        const tierPrice = parseFloat(product.price) * (1 - tierDiscount);
+        return {
+          ...product,
+          tierPrice: tierPrice.toFixed(2)
+        };
+      }
+      
+      // No tier pricing found for this category - return retail price
+      return product;
+    });
+    
+    res.json({ products: productsWithTierPricing, tier: customer.tier });
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -615,10 +639,37 @@ router.get('/api/b2b/customer/products', requireB2bCustomer, async (req: Request
 // Get customer's previous products (for reorder page)
 router.get('/api/b2b/customer/previous-products', requireB2bCustomer, async (req: Request, res: Response) => {
   try {
-    const products = await storage.getCustomerPreviousProducts(req.session.b2bUserId!);
+    const previousProducts = await storage.getCustomerPreviousProducts(req.session.b2bUserId!);
     const customer = await storage.getB2bCustomer(req.session.b2bUserId!);
     
-    res.json({ products, tier: customer?.tier });
+    if (!customer || !customer.tier) {
+      return res.json({ products: previousProducts, tier: null });
+    }
+    
+    const allTiers = await storage.getAllTierPricing();
+    const customerTierName = customer.tier;
+    
+    // Calculate tier pricing for previously ordered products
+    const productsWithTierPricing = previousProducts.map(product => {
+      const effectiveTier = allTiers.find(t => 
+        t.tierName === customerTierName && 
+        t.category === product.category &&
+        t.active
+      );
+      
+      if (effectiveTier) {
+        const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
+        const tierPrice = parseFloat(product.price) * (1 - tierDiscount);
+        return {
+          ...product,
+          tierPrice: tierPrice.toFixed(2)
+        };
+      }
+      
+      return product;
+    });
+    
+    res.json({ products: productsWithTierPricing, tier: customer.tier });
   } catch (error) {
     console.error('Error fetching previous products:', error);
     res.status(500).json({ error: 'Failed to fetch previous products' });
