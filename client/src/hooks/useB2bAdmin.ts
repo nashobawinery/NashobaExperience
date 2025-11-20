@@ -55,6 +55,7 @@ export interface TierPricing {
   discountPercentage: string;
   active: boolean;
   minOrderQuantity?: number;
+  category?: string;
 }
 
 // Fetch all orders
@@ -100,11 +101,14 @@ export function useB2bAdmins() {
 }
 
 // Fetch all tiers (admin - shows all tiers including inactive for management)
-export function useB2bAdminTiers() {
+export function useB2bAdminTiers(category?: string) {
   return useQuery<TierPricing[]>({
-    queryKey: ["b2b", "admin", "tiers"],
+    queryKey: category ? ["b2b", "admin", "tiers", category] : ["b2b", "admin", "tiers"],
     queryFn: async () => {
-      const response = await fetch("/api/b2b/admin/tiers");
+      const url = category 
+        ? `/api/b2b/admin/tiers?category=${encodeURIComponent(category)}`
+        : "/api/b2b/admin/tiers";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch tiers");
       }

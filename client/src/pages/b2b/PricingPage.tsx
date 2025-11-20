@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail, Heart, Star, GlassWater, MapPin, Boxes } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
@@ -37,11 +38,39 @@ export default function B2BPricingPage() {
     email: "",
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [selectedTierCategory, setSelectedTierCategory] = useState<string>("wine");
   const { toast } = useToast();
   const { data: activeTiers, isLoading: loadingTiers } = useB2bPublicTiers();
   const { data: slides = [], isLoading: loadingSlides } = useQuery<B2bSlideshowSlideWithMedia[]>({
     queryKey: ["/api/b2b/slideshow/slides"],
   });
+
+  // Category labels mapping
+  const categoryLabels: Record<string, string> = {
+    "wine": "Wine",
+    "spirits": "Spirits",
+    "beer": "Beer",
+    "canned_cocktail": "Canned Cocktails",
+    "canned_wine": "Canned Wine",
+    "cider": "Cider"
+  };
+  const categories = Object.keys(categoryLabels);
+
+  // Group tiers by category
+  const tiersByCategory = useMemo(() => {
+    if (!activeTiers) return {};
+    const grouped: Record<string, typeof activeTiers> = {};
+    for (const tier of activeTiers) {
+      const category = tier.category || "wine";
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(tier);
+    }
+    return grouped;
+  }, [activeTiers]);
+
+  const categoryTiers = tiersByCategory[selectedTierCategory] || [];
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -583,6 +612,7 @@ export default function B2BPricingPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingDown className="h-5 w-5 text-primary" />
                   <h3 className="font-semibold text-lg">Wholesale Pricing Tiers</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Category-specific pricing for different beverage types</p>
                 </div>
                 {loadingTiers ? (
                   <div className="space-y-3">
@@ -595,26 +625,46 @@ export default function B2BPricingPage() {
                     No active pricing tiers available at this time
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {activeTiers.map((tier) => (
-                      <div
-                        key={tier.id}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
-                        data-testid={`tier-${tier.tierName}`}
-                      >
-                        <div>
-                          <p className="font-semibold">{tier.tierName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {tier.description || "Wholesale pricing"}
+                  <Tabs value={selectedTierCategory} onValueChange={setSelectedTierCategory} className="mt-4">
+                    <TabsList className="grid w-full grid-cols-6">
+                      {categories.map((cat) => (
+                        <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-pricing`}>
+                          {categoryLabels[cat]}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    
+                    {categories.map((category) => (
+                      <TabsContent key={category} value={category} className="mt-4">
+                        {categoryTiers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-4 text-center">
+                            No active pricing tiers for {categoryLabels[category]}
                           </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xl font-bold text-primary">{tier.discountPercentage}%</p>
-                          <p className="text-xs text-muted-foreground">off retail</p>
-                        </div>
-                      </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {categoryTiers.map((tier) => (
+                              <div
+                                key={tier.id}
+                                className="flex items-center justify-between p-3 rounded-lg border bg-card hover-elevate"
+                                data-testid={`tier-${tier.tierName}`}
+                              >
+                                <div>
+                                  <p className="font-semibold">{tier.tierName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {tier.description || "Wholesale pricing"}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xl font-bold text-primary">{tier.discountPercentage}%</p>
+                                  <p className="text-xs text-muted-foreground">off retail</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </TabsContent>
                     ))}
-                  </div>
+                  </Tabs>
                 )}
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-start gap-3">

@@ -683,28 +683,61 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }
 
-    // Calculate total cases to check for Tier 2 auto-upgrade (5+ cases)
-    const totalCases = items.reduce((sum, item) => sum + item.quantity, 0);
-    const qualifiesForTier2 = totalCases >= 5;
+    // Get customer's tier name for category-specific matching
+    const customerTierName = customer.tier.tierName;
     
-    // Get Tier 2 for auto-upgrade if qualified
-    let effectiveTier = customer.tier;
-    if (qualifiesForTier2) {
-      const allTiers = await storage.getAllTierPricing();
-      const tier2 = allTiers.find((t: any) => t.tierName === 'Tier 2' && t.active);
-      if (tier2) {
-        effectiveTier = tier2;
-      }
-    }
-
-    // Calculate order totals
-    let subtotal = 0;
-    const orderItems = [];
-
+    // Fetch all tiers for category-specific lookups
+    const allTiers = await storage.getAllTierPricing();
+    
+    // Group products by category to check Tier 2 qualification per category
+    const categoryCases: Record<string, number> = {};
+    const productDetails: Record<string, any> = {};
+    
     for (const item of items) {
       const product = await storage.getProduct(item.productId);
       if (!product) {
         return res.status(400).json({ error: `Product not found: ${item.productId}` });
+      }
+      productDetails[item.productId] = product;
+      categoryCases[product.category] = (categoryCases[product.category] || 0) + item.quantity;
+    }
+
+    // Calculate order totals with category-specific tier pricing
+    let subtotal = 0;
+    const orderItems: Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      quantity: number;
+      unitPrice: string;
+      retailPrice: string;
+      lineTotal: string;
+    }> = [];
+
+    for (const item of items) {
+      const product = productDetails[item.productId];
+      const productCategory = product.category;
+      const totalCasesInCategory = categoryCases[productCategory];
+      
+      // Determine effective tier for this product's category
+      let effectiveTier = customer.tier;
+      
+      // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
+      if (totalCasesInCategory >= 5) {
+        const tier2ForCategory = allTiers.find(
+          (t: any) => t.tierName === 'Tier 2' && t.category === productCategory && t.active
+        );
+        if (tier2ForCategory) {
+          effectiveTier = tier2ForCategory;
+        }
+      } else {
+        // Use customer's tier name to find the matching tier for this product's category
+        const tierForCategory = allTiers.find(
+          (t: any) => t.tierName === customerTierName && t.category === productCategory && t.active
+        );
+        if (tierForCategory) {
+          effectiveTier = tierForCategory;
+        }
       }
 
       const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
@@ -716,7 +749,7 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
       orderItems.push({
         productId: product.id,
         productName: product.name,
-        sku: product.sku,
+        sku: product.sku || '',
         quantity: item.quantity,
         unitPrice: unitPrice.toFixed(2),
         retailPrice: product.price,
@@ -1804,21 +1837,26 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
       return res.status(400).json({ error: 'Customer tier not assigned' });
     }
 
-    // Calculate total cases to check for Tier 2 auto-upgrade (5+ cases)
-    const totalCases = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
-    const qualifiesForTier2 = totalCases >= 5;
+    // Get customer's tier name for category-specific matching
+    const customerTierName = customer.tier.tierName;
     
-    // Get Tier 2 for auto-upgrade if qualified
-    let effectiveTier = customer.tier;
-    if (qualifiesForTier2) {
-      const allTiers = await storage.getAllTierPricing();
-      const tier2 = allTiers.find((t: any) => t.tierName === 'Tier 2' && t.active);
-      if (tier2) {
-        effectiveTier = tier2;
+    // Fetch all tiers for category-specific lookups
+    const allTiers = await storage.getAllTierPricing();
+    
+    // Group products by category to check Tier 2 qualification per category
+    const categoryCases: Record<string, number> = {};
+    const productDetails: Record<string, any> = {};
+    
+    for (const item of items) {
+      const product = await storage.getProduct(item.productId);
+      if (!product) {
+        return res.status(400).json({ error: `Product not found: ${item.productId}` });
       }
+      productDetails[item.productId] = product;
+      categoryCases[product.category] = (categoryCases[product.category] || 0) + item.quantity;
     }
 
-    // Calculate order totals
+    // Calculate order totals with category-specific tier pricing
     let subtotal = 0;
     const orderItems: Array<{
       productId: string;
@@ -1831,9 +1869,29 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
     }> = [];
 
     for (const item of items) {
-      const product = await storage.getProduct(item.productId);
-      if (!product) {
-        return res.status(400).json({ error: `Product not found: ${item.productId}` });
+      const product = productDetails[item.productId];
+      const productCategory = product.category;
+      const totalCasesInCategory = categoryCases[productCategory];
+      
+      // Determine effective tier for this product's category
+      let effectiveTier = customer.tier;
+      
+      // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
+      if (totalCasesInCategory >= 5) {
+        const tier2ForCategory = allTiers.find(
+          (t: any) => t.tierName === 'Tier 2' && t.category === productCategory && t.active
+        );
+        if (tier2ForCategory) {
+          effectiveTier = tier2ForCategory;
+        }
+      } else {
+        // Use customer's tier name to find the matching tier for this product's category
+        const tierForCategory = allTiers.find(
+          (t: any) => t.tierName === customerTierName && t.category === productCategory && t.active
+        );
+        if (tierForCategory) {
+          effectiveTier = tierForCategory;
+        }
       }
 
       const retailPrice = parseFloat(product.price);

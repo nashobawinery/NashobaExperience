@@ -152,6 +152,21 @@ export default function AdminDashboard() {
   });
   const [selectedTier, setSelectedTier] = useState("");
   
+  // Category-specific tier management state
+  const [selectedTierCategory, setSelectedTierCategory] = useState<string>("wine");
+  const categoryLabels: Record<string, string> = {
+    "wine": "Wine",
+    "spirits": "Spirits",
+    "beer": "Beer",
+    "canned_cocktail": "Canned Cocktails",
+    "canned_wine": "Canned Wine",
+    "cider": "Cider"
+  };
+  const categories = Object.keys(categoryLabels);
+  const categoryTiers = useMemo(() => {
+    return adminTiers?.filter(tier => tier.category === selectedTierCategory) || [];
+  }, [adminTiers, selectedTierCategory]);
+  
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -1275,74 +1290,88 @@ export default function AdminDashboard() {
                 Pricing Tiers
               </CardTitle>
               <CardDescription>
-                Manage which pricing tiers are active for new customers
+                Manage category-specific pricing tiers for different beverage types
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingAdminTiers ? (
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
+              <Tabs value={selectedTierCategory} onValueChange={setSelectedTierCategory}>
+                <TabsList className="grid w-full grid-cols-6">
+                  {categories.map((cat) => (
+                    <TabsTrigger key={cat} value={cat} data-testid={`tab-${cat}-tiers`}>
+                      {categoryLabels[cat]}
+                    </TabsTrigger>
                   ))}
-                </div>
-              ) : !adminTiers || adminTiers.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  No pricing tiers configured
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {adminTiers.map((tier) => (
-                    <div
-                      key={`${tier.id}-${tier.active}`}
-                      className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
-                      data-testid={`tier-${tier.id}`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold">{tier.tierName}</p>
-                          <Badge variant={tier.active ? 'default' : 'secondary'}>
-                            {tier.active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {tier.discountPercentage}% wholesale discount
+                </TabsList>
+                
+                {categories.map((category) => (
+                  <TabsContent key={category} value={category} className="mt-4">
+                    {loadingAdminTiers ? (
+                      <div className="space-y-3">
+                        {[...Array(3)].map((_, i) => (
+                          <Skeleton key={i} className="h-16 w-full" />
+                        ))}
+                      </div>
+                    ) : !categoryTiers || categoryTiers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4 text-center">
+                        No pricing tiers configured for {categoryLabels[category]}
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {categoryTiers.map((tier) => (
+                          <div
+                            key={`${tier.id}-${tier.active}`}
+                            className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
+                            data-testid={`tier-${tier.id}`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold">{tier.tierName}</p>
+                                <Badge variant={tier.active ? 'default' : 'secondary'}>
+                                  {tier.active ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {tier.discountPercentage}% wholesale discount
+                              </p>
+                              {tier.description && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {tier.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenEditTier(tier)}
+                                data-testid={`button-edit-tier-${tier.id}`}
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor={`tier-${tier.id}-switch`} className="text-sm cursor-pointer">
+                                  {tier.active ? 'Active' : 'Inactive'}
+                                </Label>
+                                <Switch
+                                  id={`tier-${tier.id}-switch`}
+                                  checked={tier.active}
+                                  onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
+                                  data-testid={`switch-tier-${tier.id}`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+                          Note: Inactive tiers will not appear on the public pricing page or in the customer approval dropdown. 
+                          Existing customers assigned to inactive tiers will retain their pricing.
                         </p>
-                        {tier.description && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {tier.description}
-                          </p>
-                        )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenEditTier(tier)}
-                          data-testid={`button-edit-tier-${tier.id}`}
-                        >
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor={`tier-${tier.id}-switch`} className="text-sm cursor-pointer">
-                            {tier.active ? 'Active' : 'Inactive'}
-                          </Label>
-                          <Switch
-                            id={`tier-${tier.id}-switch`}
-                            checked={tier.active}
-                            onCheckedChange={() => handleToggleTier(tier.id, tier.active)}
-                            data-testid={`switch-tier-${tier.id}`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
-                    Note: Inactive tiers will not appear on the public pricing page or in the customer approval dropdown. 
-                    Existing customers assigned to inactive tiers will retain their pricing.
-                  </p>
-                </div>
-              )}
+                    )}
+                  </TabsContent>
+                ))}
+              </Tabs>
             </CardContent>
           </Card>
 
@@ -1646,6 +1675,20 @@ export default function AdminDashboard() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="tier-category">Category</Label>
+              <Input
+                id="tier-category"
+                value={editTierDialog.tier?.category || "Wine"}
+                disabled
+                className="bg-muted"
+                data-testid="input-tier-category"
+              />
+              <p className="text-xs text-muted-foreground">
+                Category cannot be changed after creation
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="discount-percentage">Discount Percentage (%) *</Label>
               <Input

@@ -46,6 +46,7 @@ export interface TierPricing {
   discountPercentage: string;
   active: boolean;
   minOrderQuantity?: number;
+  category?: string;
 }
 
 // Fetch active tiers only (public - for pricing page and approval dialog)
