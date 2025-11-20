@@ -11,6 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +41,36 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
 import TierCommitmentPage from "./TierCommitmentPage";
+
+const createCustomerSchema = z.object({
+  accountName: z.string().min(1, "Business name is required"),
+  primaryContactName: z.string().min(1, "Contact name is required"),
+  emailAddress: z.string().email("Invalid email address"),
+  phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
+  billingAddress: z.string().optional(),
+  billingCity: z.string().optional(),
+  billingState: z.string().optional(),
+  billingZipCode: z.string().optional(),
+  shippingAddress: z.string().optional(),
+  shippingCity: z.string().optional(),
+  shippingState: z.string().optional(),
+  shippingZipCode: z.string().optional(),
+  taxId: z.string().optional(),
+  tierId: z.string().optional(),
+  salesRepId: z.string().optional(),
+  autoApprove: z.boolean(),
+  notes: z.string().optional(),
+}).refine((data) => {
+  if (data.autoApprove && !data.tierId) {
+    return false;
+  }
+  return true;
+}, {
+  message: "A pricing tier must be selected when auto-approving",
+  path: ["tierId"],
+});
+
+type CreateCustomerFormData = z.infer<typeof createCustomerSchema>;
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -115,24 +149,27 @@ export default function AdminDashboard() {
 
   // Create customer dialog state
   const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
-  const [createCustomerForm, setCreateCustomerForm] = useState({
-    accountName: "",
-    primaryContactName: "",
-    emailAddress: "",
-    phoneNumber: "",
-    billingAddress: "",
-    billingCity: "",
-    billingState: "",
-    billingZipCode: "",
-    shippingAddress: "",
-    shippingCity: "",
-    shippingState: "",
-    shippingZipCode: "",
-    taxId: "",
-    tierId: "",
-    salesRepId: "",
-    autoApprove: true,
-    notes: "",
+  const createCustomerForm = useForm<CreateCustomerFormData>({
+    resolver: zodResolver(createCustomerSchema),
+    defaultValues: {
+      accountName: "",
+      primaryContactName: "",
+      emailAddress: "",
+      phoneNumber: "",
+      billingAddress: "",
+      billingCity: "",
+      billingState: "",
+      billingZipCode: "",
+      shippingAddress: "",
+      shippingCity: "",
+      shippingState: "",
+      shippingZipCode: "",
+      taxId: "",
+      tierId: "",
+      salesRepId: "",
+      autoApprove: true,
+      notes: "",
+    },
   });
 
   const handleApprove = async () => {
@@ -472,60 +509,20 @@ export default function AdminDashboard() {
     setSalesRepDialog({ isOpen: true, salesRep: salesRep || null });
   };
 
-  const handleCreateCustomerSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate required fields
-    if (!createCustomerForm.accountName || !createCustomerForm.primaryContactName || 
-        !createCustomerForm.emailAddress || !createCustomerForm.phoneNumber) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (createCustomerForm.autoApprove && !createCustomerForm.tierId) {
-      toast({
-        title: "Missing Tier",
-        description: "Please select a pricing tier to auto-approve the customer",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleCreateCustomerSubmit = async (data: CreateCustomerFormData) => {
     try {
-      const result = await createCustomer(createCustomerForm);
+      const result = await createCustomer(data);
       
       toast({
-        title: "Customer Created",
-        description: createCustomerForm.autoApprove 
-          ? `${createCustomerForm.accountName} has been created and approved. Login credentials have been sent via email.`
-          : `${createCustomerForm.accountName} has been created and is pending approval.`,
+        title: "Customer Created Successfully",
+        description: data.autoApprove 
+          ? `${data.accountName} has been created and approved. Login credentials have been sent to ${data.emailAddress}. The password is the last 6 digits of their phone number.`
+          : `${data.accountName} has been created and is pending approval.`,
       });
 
       // Reset form and close dialog
+      createCustomerForm.reset();
       setCreateCustomerDialog(false);
-      setCreateCustomerForm({
-        accountName: "",
-        primaryContactName: "",
-        emailAddress: "",
-        phoneNumber: "",
-        billingAddress: "",
-        billingCity: "",
-        billingState: "",
-        billingZipCode: "",
-        shippingAddress: "",
-        shippingCity: "",
-        shippingState: "",
-        shippingZipCode: "",
-        taxId: "",
-        tierId: "",
-        salesRepId: "",
-        autoApprove: true,
-        notes: "",
-      });
     } catch (error: any) {
       toast({
         title: "Failed to Create Customer",
@@ -1466,177 +1463,224 @@ export default function AdminDashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateCustomerSubmit} className="space-y-4">
+          <Form {...createCustomerForm}>
+            <form onSubmit={createCustomerForm.handleSubmit(handleCreateCustomerSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="create-account-name">Business Name *</Label>
-                <Input
-                  id="create-account-name"
-                  value={createCustomerForm.accountName}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, accountName: e.target.value })}
-                  data-testid="input-create-account-name"
-                  required
-                />
-              </div>
+              <FormField
+                control={createCustomerForm.control}
+                name="accountName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-account-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="create-contact-name">Contact Name *</Label>
-                <Input
-                  id="create-contact-name"
-                  value={createCustomerForm.primaryContactName}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, primaryContactName: e.target.value })}
-                  data-testid="input-create-contact-name"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="create-email">Email Address *</Label>
-                <Input
-                  id="create-email"
-                  type="email"
-                  value={createCustomerForm.emailAddress}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, emailAddress: e.target.value })}
-                  data-testid="input-create-email"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="create-phone">Phone Number *</Label>
-                <Input
-                  id="create-phone"
-                  type="tel"
-                  value={createCustomerForm.phoneNumber}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, phoneNumber: e.target.value })}
-                  data-testid="input-create-phone"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="create-billing-address">Billing Address</Label>
-              <Input
-                id="create-billing-address"
-                value={createCustomerForm.billingAddress}
-                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingAddress: e.target.value })}
-                data-testid="input-create-billing-address"
+              <FormField
+                control={createCustomerForm.control}
+                name="primaryContactName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contact Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-contact-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={createCustomerForm.control}
+                name="emailAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address *</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} data-testid="input-create-email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createCustomerForm.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number *</FormLabel>
+                    <FormControl>
+                      <Input type="tel" {...field} data-testid="input-create-phone" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={createCustomerForm.control}
+              name="billingAddress"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Billing Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-create-billing-address" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="create-billing-city">City</Label>
-                <Input
-                  id="create-billing-city"
-                  value={createCustomerForm.billingCity}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingCity: e.target.value })}
-                  data-testid="input-create-billing-city"
-                />
-              </div>
+              <FormField
+                control={createCustomerForm.control}
+                name="billingCity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-billing-city" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="create-billing-state">State</Label>
-                <Input
-                  id="create-billing-state"
-                  value={createCustomerForm.billingState}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingState: e.target.value })}
-                  data-testid="input-create-billing-state"
-                />
-              </div>
+              <FormField
+                control={createCustomerForm.control}
+                name="billingState"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-billing-state" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="create-billing-zip">ZIP Code</Label>
-                <Input
-                  id="create-billing-zip"
-                  value={createCustomerForm.billingZipCode}
-                  onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, billingZipCode: e.target.value })}
-                  data-testid="input-create-billing-zip"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="create-tax-id">Tax ID (Optional)</Label>
-              <Input
-                id="create-tax-id"
-                value={createCustomerForm.taxId}
-                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, taxId: e.target.value })}
-                data-testid="input-create-tax-id"
+              <FormField
+                control={createCustomerForm.control}
+                name="billingZipCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ZIP Code</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-billing-zip" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
+
+            <FormField
+              control={createCustomerForm.control}
+              name="taxId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax ID (Optional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-create-tax-id" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="create-tier">Pricing Tier</Label>
-                <Select
-                  value={createCustomerForm.tierId}
-                  onValueChange={(value) => setCreateCustomerForm({ ...createCustomerForm, tierId: value })}
-                >
-                  <SelectTrigger id="create-tier" data-testid="select-create-tier">
-                    <SelectValue placeholder="Select tier..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeTiers?.map((tier) => (
-                      <SelectItem key={tier.id} value={tier.id}>
-                        {tier.tierName} ({tier.discountPercentage}% off)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField
+                control={createCustomerForm.control}
+                name="tierId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pricing Tier</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-create-tier">
+                          <SelectValue placeholder="Select tier..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {activeTiers?.map((tier) => (
+                          <SelectItem key={tier.id} value={tier.id}>
+                            {tier.tierName} ({tier.discountPercentage}% off)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="create-sales-rep">Sales Rep (Optional)</Label>
-                <Select
-                  value={createCustomerForm.salesRepId}
-                  onValueChange={(value) => setCreateCustomerForm({ ...createCustomerForm, salesRepId: value })}
-                >
-                  <SelectTrigger id="create-sales-rep" data-testid="select-create-sales-rep">
-                    <SelectValue placeholder="Select sales rep..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {salesReps?.filter(rep => rep.active).map((rep) => (
-                      <SelectItem key={rep.id} value={rep.id}>
-                        {rep.firstName} {rep.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="create-notes">Notes (Optional)</Label>
-              <Textarea
-                id="create-notes"
-                value={createCustomerForm.notes}
-                onChange={(e) => setCreateCustomerForm({ ...createCustomerForm, notes: e.target.value })}
-                data-testid="input-create-notes"
-                rows={3}
+              <FormField
+                control={createCustomerForm.control}
+                name="salesRepId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sales Rep (Optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-create-sales-rep">
+                          <SelectValue placeholder="Select sales rep..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {salesReps?.filter(rep => rep.active).map((rep) => (
+                          <SelectItem key={rep.id} value={rep.id}>
+                            {rep.firstName} {rep.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
 
-            <div className="flex items-center space-x-2 p-4 bg-muted rounded-md">
-              <Switch
-                id="create-auto-approve"
-                checked={createCustomerForm.autoApprove}
-                onCheckedChange={(checked) => setCreateCustomerForm({ ...createCustomerForm, autoApprove: checked })}
-                data-testid="switch-auto-approve"
-              />
-              <Label htmlFor="create-auto-approve" className="cursor-pointer">
-                Auto-approve and send login credentials via email
-              </Label>
-            </div>
+            <FormField
+              control={createCustomerForm.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} data-testid="input-create-notes" rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            {createCustomerForm.autoApprove && !createCustomerForm.tierId && (
-              <p className="text-sm text-destructive">
-                A pricing tier must be selected to auto-approve the customer
-              </p>
-            )}
+            <FormField
+              control={createCustomerForm.control}
+              name="autoApprove"
+              render={({ field }) => (
+                <FormItem className="flex items-center space-x-2 p-4 bg-muted rounded-md">
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="switch-auto-approve"
+                    />
+                  </FormControl>
+                  <FormLabel className="cursor-pointer">
+                    Auto-approve and send login credentials via email
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button
@@ -1656,6 +1700,7 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
