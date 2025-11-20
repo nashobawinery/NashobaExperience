@@ -1745,6 +1745,23 @@ router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Re
   }
 });
 
+// Admin: Delete order
+router.delete('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await storage.deleteB2bOrder(id);
+    
+    if (!deleted) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
 // Admin: Get B2B settings
 router.get('/api/b2b/admin/settings', requireB2bAdmin, async (req: Request, res: Response) => {
   try {

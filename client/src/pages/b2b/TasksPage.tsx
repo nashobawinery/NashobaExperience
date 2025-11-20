@@ -5,8 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Package, DollarSign, CheckCircle2, Truck, CreditCard, ArrowRight } from "lucide-react";
+import { Calendar, Package, DollarSign, CheckCircle2, Truck, CreditCard, ArrowRight, Trash2, Edit } from "lucide-react";
 import { format } from "date-fns";
 
 type B2bOrder = {
@@ -31,6 +41,8 @@ type B2bOrder = {
 export default function TasksPage() {
   const { toast } = useToast();
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<B2bOrder | null>(null);
 
   const { data: orders, isLoading } = useQuery<B2bOrder[]>({
     queryKey: ['/api/b2b/admin/orders'],
@@ -55,6 +67,39 @@ export default function TasksPage() {
       });
     },
   });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return await apiRequest("DELETE", `/api/b2b/admin/orders/${orderId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/orders'] });
+      toast({
+        title: "Success",
+        description: "Order deleted successfully",
+      });
+      setDeleteOrderId(null);
+      setOrderToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete order",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = (order: B2bOrder) => {
+    setOrderToDelete(order);
+    setDeleteOrderId(order.id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteOrderId) {
+      deleteOrderMutation.mutate(deleteOrderId);
+    }
+  };
 
   const toggleOrderExpanded = (orderId: string) => {
     const newExpanded = new Set(expandedOrders);
@@ -205,6 +250,14 @@ export default function TasksPage() {
                           {getStatusLabel(order.status)}
                         </Badge>
                         {getNextStatusButton(order)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteClick(order)}
+                          data-testid={`button-delete-order-${order.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -257,6 +310,14 @@ export default function TasksPage() {
                           {getStatusLabel(order.status)}
                         </Badge>
                         {getNextStatusButton(order)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteClick(order)}
+                          data-testid={`button-delete-order-${order.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -315,6 +376,14 @@ export default function TasksPage() {
                           {getStatusLabel(order.status)}
                         </Badge>
                         {getNextStatusButton(order)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteClick(order)}
+                          data-testid={`button-delete-order-${order.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -386,6 +455,32 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteOrderId} onOpenChange={(open) => !open && setDeleteOrderId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete order{' '}
+              <span className="font-semibold">#{orderToDelete?.orderNumber}</span>?
+              <br />
+              <br />
+              This action cannot be undone. All order items and related data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              Delete Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
