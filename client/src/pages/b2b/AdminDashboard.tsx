@@ -59,6 +59,8 @@ const createCustomerSchema = z.object({
   tierId: z.string().optional(),
   salesRepId: z.string().optional(),
   autoApprove: z.boolean(),
+  autoGeneratePassword: z.boolean().default(true),
+  customPassword: z.string().optional(),
   notes: z.string().optional(),
 }).refine((data) => {
   if (data.autoApprove && !data.tierId) {
@@ -68,6 +70,14 @@ const createCustomerSchema = z.object({
 }, {
   message: "A pricing tier must be selected when auto-approving",
   path: ["tierId"],
+}).refine((data) => {
+  if (!data.autoGeneratePassword && (!data.customPassword || data.customPassword.length < 6)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Custom password must be at least 6 characters",
+  path: ["customPassword"],
 });
 
 type CreateCustomerFormData = z.infer<typeof createCustomerSchema>;
@@ -207,6 +217,8 @@ export default function AdminDashboard() {
       tierId: "",
       salesRepId: "",
       autoApprove: true,
+      autoGeneratePassword: true,
+      customPassword: "",
       notes: "",
     },
   });
@@ -1892,6 +1904,48 @@ export default function AdminDashboard() {
                 </FormItem>
               )}
             />
+
+            <div className="space-y-4 p-4 bg-muted rounded-md">
+              <FormField
+                control={createCustomerForm.control}
+                name="autoGeneratePassword"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-auto-generate-password"
+                      />
+                    </FormControl>
+                    <FormLabel className="cursor-pointer">
+                      Auto-generate password from phone number (last 6 digits)
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {!createCustomerForm.watch("autoGeneratePassword") && (
+                <FormField
+                  control={createCustomerForm.control}
+                  name="customPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Custom Password *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="password" 
+                          {...field} 
+                          placeholder="Enter custom password (min 6 characters)"
+                          data-testid="input-custom-password"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
 
             <FormField
               control={createCustomerForm.control}

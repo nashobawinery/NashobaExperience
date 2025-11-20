@@ -897,7 +897,7 @@ router.get('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Re
 // Admin: Create new customer
 router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const { tierId, salesRepId, autoApprove, ...customerData } = req.body;
+    const { tierId, salesRepId, autoApprove, autoGeneratePassword = true, customPassword, ...customerData } = req.body;
     
     // Validate customer data
     const validatedData = insertB2bCustomerSchema.parse(customerData);
@@ -913,8 +913,13 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
     
     // If auto-approve is requested and tier is provided, approve immediately
     if (autoApprove && tierId) {
-      // Generate password from last 6 digits of phone
-      const tempPassword = generatePasswordFromPhone(customer.phoneNumber);
+      // Determine password - use custom if provided, otherwise auto-generate
+      let tempPassword: string;
+      if (autoGeneratePassword || !customPassword) {
+        tempPassword = generatePasswordFromPhone(customer.phoneNumber);
+      } else {
+        tempPassword = customPassword;
+      }
       const passwordHash = await hashPassword(tempPassword);
       
       const adminId = (req.session as any).b2bUserId;

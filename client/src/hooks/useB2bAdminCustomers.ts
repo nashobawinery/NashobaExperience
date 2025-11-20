@@ -100,6 +100,8 @@ export function useCreateB2bCustomer() {
       tierId?: string;
       salesRepId?: string;
       autoApprove?: boolean;
+      autoGeneratePassword?: boolean;
+      customPassword?: string;
       notes?: string;
     }) => {
       return apiRequest("POST", "/api/b2b/admin/customers", data);
