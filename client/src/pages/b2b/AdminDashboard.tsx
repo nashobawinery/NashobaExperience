@@ -158,7 +158,7 @@ export default function AdminDashboard() {
     "wine": "Wine",
     "spirits": "Spirits",
     "beer": "Beer",
-    "canned_cocktail": "Cocktails",
+    "canned_cocktail": "Canned Cocktails",
     "canned_wine": "Canned Wine",
     "cider": "Cider"
   };

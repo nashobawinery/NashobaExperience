@@ -50,7 +50,7 @@ export default function B2BPricingPage() {
     "wine": "Wine",
     "spirits": "Spirits",
     "beer": "Beer",
-    "canned_cocktail": "Cocktails",
+    "canned_cocktail": "Canned Cocktails",
     "canned_wine": "Canned Wine",
     "cider": "Cider"
   };

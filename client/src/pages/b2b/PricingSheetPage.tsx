@@ -476,7 +476,7 @@ export default function PricingSheetPage() {
             </TabsTrigger>
             <TabsTrigger value="canned_cocktail" className="flex-1 min-w-[100px] gap-2" data-testid="tab-cocktails">
               <Package className="h-4 w-4" />
-              Cocktails ({cocktails.length})
+              Canned Cocktails ({cocktails.length})
             </TabsTrigger>
             <TabsTrigger value="canned_wine" className="flex-1 min-w-[100px] gap-2" data-testid="tab-canned-wine">
               <Package className="h-4 w-4" />
@@ -551,7 +551,7 @@ export default function PricingSheetPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderProductTable(cocktails, "Cocktails", ["canned_cocktail"])}
+                {renderProductTable(cocktails, "Canned Cocktails", ["canned_cocktail"])}
               </CardContent>
             </Card>
           </TabsContent>
@@ -616,7 +616,7 @@ export default function PricingSheetPage() {
                     Beer
                   </TabsTrigger>
                   <TabsTrigger value="canned_cocktail" className="flex-1 min-w-[100px]" data-testid="tab-cocktails-tiers">
-                    Cocktails
+                    Canned Cocktails
                   </TabsTrigger>
                   <TabsTrigger value="canned_wine" className="flex-1 min-w-[100px]" data-testid="tab-canned-wine-tiers">
                     Canned Wine
@@ -632,7 +632,7 @@ export default function PricingSheetPage() {
                     "wine": "Wine",
                     "spirits": "Spirits",
                     "beer": "Beer",
-                    "canned_cocktail": "Cocktails",
+                    "canned_cocktail": "Canned Cocktails",
                     "canned_wine": "Canned Wine",
                     "cider": "Cider"
                   }[category];
