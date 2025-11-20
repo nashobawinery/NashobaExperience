@@ -720,7 +720,7 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
       const totalCasesInCategory = categoryCases[productCategory];
       
       // Determine effective tier for this product's category
-      let effectiveTier = customer.tier;
+      let effectiveTier = null;
       
       // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
       if (totalCasesInCategory >= 5) {
@@ -730,8 +730,10 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         if (tier2ForCategory) {
           effectiveTier = tier2ForCategory;
         }
-      } else {
-        // Use customer's tier name to find the matching tier for this product's category
+      }
+      
+      // If no Tier 2 upgrade, use customer's tier name to find the matching tier for this product's category
+      if (!effectiveTier) {
         const tierForCategory = allTiers.find(
           (t: any) => t.tierName === customerTierName && t.category === productCategory && t.active
         );
@@ -740,7 +742,11 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         }
       }
 
-      const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
+      // Calculate price: use tier discount if found, otherwise use retail price (no discount)
+      if (!effectiveTier) {
+        console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using retail price.`);
+      }
+      const tierDiscount = effectiveTier ? parseFloat(effectiveTier.discountPercentage) / 100 : 0;
       const unitPrice = parseFloat(product.price) * (1 - tierDiscount);
       const lineTotal = unitPrice * item.quantity;
       
@@ -1874,7 +1880,7 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
       const totalCasesInCategory = categoryCases[productCategory];
       
       // Determine effective tier for this product's category
-      let effectiveTier = customer.tier;
+      let effectiveTier = null;
       
       // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
       if (totalCasesInCategory >= 5) {
@@ -1884,8 +1890,10 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
         if (tier2ForCategory) {
           effectiveTier = tier2ForCategory;
         }
-      } else {
-        // Use customer's tier name to find the matching tier for this product's category
+      }
+      
+      // If no Tier 2 upgrade, use customer's tier name to find the matching tier for this product's category
+      if (!effectiveTier) {
         const tierForCategory = allTiers.find(
           (t: any) => t.tierName === customerTierName && t.category === productCategory && t.active
         );
@@ -1895,7 +1903,11 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
       }
 
       const retailPrice = parseFloat(product.price);
-      const discountDecimal = parseFloat(effectiveTier.discountPercentage) / 100;
+      // Calculate price: use tier discount if found, otherwise use retail price (no discount)
+      if (!effectiveTier) {
+        console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using retail price.`);
+      }
+      const discountDecimal = effectiveTier ? parseFloat(effectiveTier.discountPercentage) / 100 : 0;
       const unitPrice = retailPrice * (1 - discountDecimal);
       const lineTotal = unitPrice * item.quantity;
 
