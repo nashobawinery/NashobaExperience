@@ -59,6 +59,7 @@ type Product = {
 type TierPricing = {
   id: string;
   tierName: string;
+  category?: string;
   discountPercentage: string;
   description?: string;
   active: boolean;
@@ -97,7 +98,7 @@ export default function PricingSheetPage() {
     return tierPriceNum > 0 ? ((profit / tierPriceNum) * 100).toFixed(1) : "0.0";
   };
 
-  const renderProductTable = (categoryProducts: Product[], categoryName: string) => {
+  const renderProductTable = (categoryProducts: Product[], categoryName: string, categoryFilter?: string[]) => {
     if (loadingProducts || loadingTiers) {
       return (
         <div className="space-y-2">
@@ -116,6 +117,11 @@ export default function PricingSheetPage() {
       );
     }
 
+    // Filter tiers to only show those matching the product category
+    const categoryTiers = categoryFilter 
+      ? tiers.filter(tier => categoryFilter.includes(tier.category || ''))
+      : tiers;
+
     return (
       <div className="overflow-x-auto">
         <Table>
@@ -124,7 +130,7 @@ export default function PricingSheetPage() {
               <TableHead className="min-w-[200px]">Product</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead className="text-right">Retail Price</TableHead>
-              {tiers.map(tier => (
+              {categoryTiers.map(tier => (
                 <TableHead key={tier.id} className="text-right">
                   {tier.tierName}
                   <br />
@@ -154,7 +160,7 @@ export default function PricingSheetPage() {
                 <TableCell className="text-right font-semibold">
                   ${parseFloat(product.price).toFixed(2)}
                 </TableCell>
-                {tiers.map(tier => {
+                {categoryTiers.map(tier => {
                   const tierPrice = calculatePrice(product.price, tier.discountPercentage);
                   return (
                     <TableCell key={tier.id} className="text-right">
@@ -459,7 +465,7 @@ export default function PricingSheetPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderProductTable(wines, "Wines")}
+                {renderProductTable(wines, "Wines", ["wine"])}
               </CardContent>
             </Card>
           </TabsContent>
@@ -476,7 +482,7 @@ export default function PricingSheetPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderProductTable(spirits, "Spirits")}
+                {renderProductTable(spirits, "Spirits", ["spirits"])}
               </CardContent>
             </Card>
           </TabsContent>
@@ -493,7 +499,7 @@ export default function PricingSheetPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderProductTable(canned, "Canned")}
+                {renderProductTable(canned, "Canned", ["canned_cocktail", "canned_wine"])}
               </CardContent>
             </Card>
           </TabsContent>
