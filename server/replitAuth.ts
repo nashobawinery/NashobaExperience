@@ -27,6 +27,12 @@ export function getSession() {
     createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
+    errorLog: (error: Error) => {
+      // Suppress benign "terminating connection" errors from pg connection pool
+      if (!error.message.includes('terminating connection due to administrator command')) {
+        console.error('Session store error:', error);
+      }
+    },
   });
   return session({
     secret: process.env.SESSION_SECRET!,

@@ -35,6 +35,12 @@ export function createB2bSessionMiddleware() {
     tableName: 'b2b_sessions',
     createTableIfMissing: false,
     ttl: sessionTtl,
+    errorLog: (error: Error) => {
+      // Suppress benign "terminating connection" errors from pg connection pool
+      if (!error.message.includes('terminating connection due to administrator command')) {
+        console.error('Session store error:', error);
+      }
+    },
   });
 
   return session({
