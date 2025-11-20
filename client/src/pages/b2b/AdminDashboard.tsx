@@ -2147,11 +2147,11 @@ export default function AdminDashboard() {
                 name="tierId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Pricing Tier</FormLabel>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <FormLabel>Pricing Tier (Optional)</FormLabel>
+                    <Select value={field.value || undefined} onValueChange={(value) => field.onChange(value || undefined)}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-tier">
-                          <SelectValue placeholder="Select tier" />
+                          <SelectValue placeholder="No tier assigned" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -2173,14 +2173,13 @@ export default function AdminDashboard() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sales Rep (Optional)</FormLabel>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <Select value={field.value || undefined} onValueChange={(value) => field.onChange(value || undefined)}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-sales-rep">
-                          <SelectValue placeholder="Select sales rep" />
+                          <SelectValue placeholder="No sales rep assigned" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {salesReps?.map((rep) => (
                           <SelectItem key={rep.id} value={rep.id}>
                             {rep.firstName} {rep.lastName}
