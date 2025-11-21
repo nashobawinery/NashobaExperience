@@ -16,6 +16,7 @@ import VideoManager from "@/components/VideoManager";
 import CommercialManager from "@/components/CommercialManager";
 import ShopifyImportComponent from "@/components/ShopifyImport";
 import ObjectStorageManager from "@/components/ObjectStorageManager";
+import NotesManager from "@/components/NotesManager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -862,6 +863,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
                     <SettingsIcon className="w-4 h-4" />
                     <span>Settings</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="notes" data-testid="tab-notes" className="flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Notes</span>
                   </TabsTrigger>
                 </TabsList>
               </div>

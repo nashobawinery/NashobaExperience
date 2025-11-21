@@ -2412,6 +2412,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Improvement Notes API
+  app.get("/api/admin/improvement-notes", isAdmin, async (req, res) => {
+    try {
+      const { appType, status } = req.query;
+      const notes = await storage.getImprovementNotes(appType as string | undefined, status as string | undefined);
+      res.json(notes);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      res.status(500).json({ message: 'Failed to fetch notes' });
+    }
+  });
+
+  app.post("/api/admin/improvement-notes", isAdmin, async (req, res) => {
+    try {
+      const { title, description, pageReference, appType, priority } = req.body;
+      const nextNumber = await storage.getNextNoteNumber();
+      
+      const note = await storage.createImprovementNote({
+        noteNumber: nextNumber,
+        title,
+        description,
+        pageReference,
+        appType,
+        priority: priority || 'medium',
+        createdBy: (req as any).user?.claims?.sub || 'unknown',
+      });
+      
+      res.json(note);
+    } catch (error) {
+      console.error('Error creating note:', error);
+      res.status(500).json({ message: 'Failed to create note' });
+    }
+  });
+
+  app.patch("/api/admin/improvement-notes/:id", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, pageReference, priority } = req.body;
+      
+      const note = await storage.updateImprovementNote(id, {
+        title,
+        description,
+        pageReference,
+        priority,
+      });
+      
+      if (!note) {
+        return res.status(404).json({ message: 'Note not found' });
+      }
+      
+      res.json(note);
+    } catch (error) {
+      console.error('Error updating note:', error);
+      res.status(500).json({ message: 'Failed to update note' });
+    }
+  });
+
+  app.patch("/api/admin/improvement-notes/:id/complete", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const note = await storage.markNoteComplete(id);
+      
+      if (!note) {
+        return res.status(404).json({ message: 'Note not found' });
+      }
+      
+      res.json(note);
+    } catch (error) {
+      console.error('Error completing note:', error);
+      res.status(500).json({ message: 'Failed to complete note' });
+    }
+  });
+
+  app.delete("/api/admin/improvement-notes/:id", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteImprovementNote(id);
+      
+      if (!success) {
+        return res.status(404).json({ message: 'Note not found' });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      res.status(500).json({ message: 'Failed to delete note' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
