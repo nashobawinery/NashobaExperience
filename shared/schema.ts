@@ -534,6 +534,21 @@ export const b2bEmailAutomationLogs = pgTable("b2b_email_automation_logs", {
   errorMessage: text("error_message"),
 });
 
+export const improvementNotes = pgTable("improvement_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  noteNumber: integer("note_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  pageReference: text("page_reference").notNull(),
+  appType: varchar("app_type").notNull(), // 'base' or 'b2b'
+  status: varchar("status").notNull().default("active"), // 'active' or 'completed'
+  priority: varchar("priority").default("medium"), // 'low', 'medium', 'high'
+  createdBy: varchar("created_by"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -581,6 +596,7 @@ export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id:
 export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
 export const insertB2bEmailTemplateSchema = createInsertSchema(b2bEmailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bEmailAutomationLogSchema = createInsertSchema(b2bEmailAutomationLogs).omit({ id: true, sentAt: true });
+export const insertImprovementNoteSchema = createInsertSchema(improvementNotes).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -700,3 +716,6 @@ export type B2bEmailTemplate = typeof b2bEmailTemplates.$inferSelect;
 
 export type InsertB2bEmailAutomationLog = z.infer<typeof insertB2bEmailAutomationLogSchema>;
 export type B2bEmailAutomationLog = typeof b2bEmailAutomationLogs.$inferSelect;
+
+export type InsertImprovementNote = z.infer<typeof insertImprovementNoteSchema>;
+export type ImprovementNote = typeof improvementNotes.$inferSelect;
