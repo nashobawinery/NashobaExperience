@@ -1677,6 +1677,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               </Card>
             </div>
           </TabsContent>
+
+          <TabsContent value="notes">
+            <NotesManager appType="base" />
+          </TabsContent>
         </Tabs>
       </main>
 
