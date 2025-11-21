@@ -36,10 +36,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
+import { EmailTemplateManager } from "@/components/b2b/EmailTemplateManager";
 import TierCommitmentPage from "./TierCommitmentPage";
 import TasksPage from "./TasksPage";
 
@@ -955,7 +956,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7 max-w-6xl">
+        <TabsList className="grid w-full grid-cols-8 max-w-7xl">
           <TabsTrigger value="customers" data-testid="tab-customers">
             <Users className="h-4 w-4 mr-2" />
             Customers
@@ -967,6 +968,10 @@ export default function AdminDashboard() {
           <TabsTrigger value="tasks" data-testid="tab-tasks">
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Tasks
+          </TabsTrigger>
+          <TabsTrigger value="marketing" data-testid="tab-marketing">
+            <Send className="h-4 w-4 mr-2" />
+            Marketing
           </TabsTrigger>
           <TabsTrigger value="commitments" data-testid="tab-commitments">
             <Calendar className="h-4 w-4 mr-2" />
@@ -1134,6 +1139,11 @@ export default function AdminDashboard() {
         {/* TASKS TAB */}
         <TabsContent value="tasks">
           <TasksPage />
+        </TabsContent>
+
+        {/* MARKETING TAB */}
+        <TabsContent value="marketing">
+          <EmailTemplateManager />
         </TabsContent>
 
         {/* SALES REPS TAB */}

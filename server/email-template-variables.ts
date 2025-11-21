@@ -11,15 +11,32 @@ export interface EmailTemplateData {
 export async function calculateSavingsVsTier1(customer: B2bCustomer): Promise<number> {
   const orders = await storage.getB2bOrders(customer.id);
   
+  const allProducts = await storage.getB2bProductsForCatalog();
+  const productMap = new Map(allProducts.map(p => [p.id, p]));
+  
+  const allTierPricing = await storage.getAllTierPricing();
+  const tier1ByCategory = new Map<string, number>();
+  for (const tier of allTierPricing) {
+    if (tier.tierName === 'Tier 1' && tier.productCategory) {
+      tier1ByCategory.set(tier.productCategory, Number(tier.discountPercentage) / 100);
+    }
+  }
+  
   let totalSavings = 0;
   
   for (const order of orders) {
     for (const item of order.items) {
+      const product = productMap.get(item.productId);
+      if (!product) continue;
+      
+      const tier1DiscountPercent = tier1ByCategory.get(product.category);
+      if (tier1DiscountPercent === undefined) continue;
+      
       const retailPrice = Number(item.retailPrice);
       const paidPrice = Number(item.unitPrice);
       const quantity = item.quantity;
       
-      const tier1Price = retailPrice * 0.80;
+      const tier1Price = retailPrice * (1 - tier1DiscountPercent);
       const savingsPerBottle = tier1Price - paidPrice;
       totalSavings += savingsPerBottle * quantity;
     }

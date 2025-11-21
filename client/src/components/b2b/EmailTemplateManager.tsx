@@ -8,10 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, Copy, Eye, FileText, Mail } from "lucide-react";
+import { Plus, Edit2, Trash2, Copy, Eye, FileText, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { B2bEmailTemplate } from "@shared/schema";
+import { format } from "date-fns";
+import type { B2bEmailTemplate, B2bEmailAutomationLog } from "@shared/schema";
 
 const availableVariables = [
   { key: '{{customerName}}', description: 'Full business/account name' },
@@ -33,8 +35,8 @@ const availableVariables = [
 
 const triggerTypes = [
   { value: 'first_order', label: 'First Order Welcome' },
-  { value: 'overdue_payment', label: 'Overdue Payment Reminder' },
-  { value: 'tier_renewal', label: 'Tier Commitment Renewal' },
+  { value: 'payment_reminder', label: 'Payment Reminder' },
+  { value: 'commitment_renewal', label: 'Tier Commitment Renewal' },
   { value: 'manual', label: 'Manual Send' },
 ];
 
@@ -72,6 +74,10 @@ export function EmailTemplateManager() {
 
   const { data: templates = [], isLoading } = useQuery<B2bEmailTemplate[]>({
     queryKey: ['/api/b2b/admin/email-templates'],
+  });
+
+  const { data: automationLogs = [], isLoading: loadingLogs } = useQuery<B2bEmailAutomationLog[]>({
+    queryKey: ['/api/b2b/admin/email-automation-logs'],
   });
 
   const createMutation = useMutation({
@@ -248,6 +254,73 @@ export function EmailTemplateManager() {
         </div>
       )}
 
+      {/* Email Automation Logs */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Email Automation History
+          </CardTitle>
+          <CardDescription>Recent automated and manual email sends</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingLogs ? (
+            <div className="text-center py-8 text-muted-foreground">Loading logs...</div>
+          ) : automationLogs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No email history yet
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {automationLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-start gap-4 p-4 border rounded-lg"
+                  data-testid={`log-${log.id}`}
+                >
+                  <div className="flex-shrink-0">
+                    {log.success ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" data-testid={`icon-success-${log.id}`} />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600" data-testid={`icon-error-${log.id}`} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold truncate" data-testid={`log-subject-${log.id}`}>
+                        {log.subject}
+                      </p>
+                      <Badge variant={log.success ? 'default' : 'destructive'} data-testid={`log-status-${log.id}`}>
+                        {log.success ? 'Sent' : 'Failed'}
+                      </Badge>
+                      <Badge variant="outline" data-testid={`log-trigger-${log.id}`}>
+                        {triggerTypes.find(t => t.value === log.triggerType)?.label || log.triggerType}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground" data-testid={`log-recipient-${log.id}`}>
+                      To: {log.recipientEmail}
+                    </p>
+                    {!log.success && log.errorMessage && (
+                      <p className="text-sm text-red-600 mt-1" data-testid={`log-error-${log.id}`}>
+                        Error: {log.errorMessage}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right text-sm text-muted-foreground whitespace-nowrap">
+                    <p data-testid={`log-date-${log.id}`}>
+                      {format(new Date(log.sentAt), "MMM d, yyyy")}
+                    </p>
+                    <p data-testid={`log-time-${log.id}`}>
+                      {format(new Date(log.sentAt), "h:mm a")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         if (!open) resetForm();
         setIsDialogOpen(open);
@@ -306,7 +379,7 @@ export function EmailTemplateManager() {
               />
             </div>
 
-            {formData.triggerType === 'tier_renewal' && (
+            {formData.triggerType === 'commitment_renewal' && (
               <div className="space-y-2">
                 <Label htmlFor="daysBeforeEvent">Days Before Renewal</Label>
                 <Input
