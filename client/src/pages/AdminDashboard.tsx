@@ -757,7 +757,19 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               )}
               <Button 
                 variant="outline" 
-                onClick={() => window.location.href = '/b2b/login/admin'} 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/b2b/bridge-login', { method: 'POST' });
+                    if (response.ok) {
+                      window.location.href = '/b2b/admin';
+                    } else {
+                      const error = await response.json();
+                      alert(error.error || 'Failed to switch to B2B dashboard');
+                    }
+                  } catch (error) {
+                    alert('Error switching to B2B dashboard');
+                  }
+                }}
                 data-testid="button-switch-to-b2b"
               >
                 <Building className="w-4 h-4 mr-2" />
