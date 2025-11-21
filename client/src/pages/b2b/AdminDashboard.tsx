@@ -36,7 +36,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -951,9 +951,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-serif font-semibold mb-2">B2B Admin Dashboard</h1>
-        <p className="text-muted-foreground">Manage wholesale operations</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-serif font-semibold mb-2">B2B Admin Dashboard</h1>
+          <p className="text-muted-foreground">Manage wholesale operations</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/admin'} 
+            data-testid="button-switch-to-base-app"
+          >
+            <Wine className="w-4 h-4 mr-2" />
+            Base App Admin
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              localStorage.removeItem('admin_impersonating');
+              localStorage.removeItem('b2b_cart');
+              window.location.href = '/b2b/login/admin';
+            }} 
+            data-testid="button-sign-out"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">

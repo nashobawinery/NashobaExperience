@@ -29,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -755,6 +755,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   Guest View
                 </Button>
               )}
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '/b2b/login/admin'} 
+                data-testid="button-switch-to-b2b"
+              >
+                <Building className="w-4 h-4 mr-2" />
+                B2B Dashboard
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={() => window.location.href = '/api/logout'} 
