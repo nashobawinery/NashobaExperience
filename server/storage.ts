@@ -85,6 +85,7 @@ import {
   b2bEmailTemplates,
   b2bEmailAutomationLogs,
   productMedia,
+  improvementNotes,
   type InsertTierPricing,
   type TierPricing,
   type InsertSalesRep,
@@ -109,6 +110,8 @@ import {
   type B2bEmailAutomationLog,
   type InsertProductMedia,
   type ProductMedia,
+  type InsertImprovementNote,
+  type ImprovementNote,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -355,6 +358,15 @@ export interface IStorage {
   getAllB2bSlideshowSlides(): Promise<B2bSlideshowSlide[]>;
   getB2bSlideshowSlideByTitle(title: string): Promise<B2bSlideshowSlide | undefined>;
   upsertB2bSlideshowSlide(data: InsertB2bSlideshowSlide): Promise<{ slide: B2bSlideshowSlide; action: 'created' | 'updated' }>;
+
+  // Improvement Notes (shared between Base App and B2B Admin)
+  getImprovementNotes(appType?: string, status?: string): Promise<ImprovementNote[]>;
+  getImprovementNote(id: string): Promise<ImprovementNote | undefined>;
+  getNextNoteNumber(): Promise<number>;
+  createImprovementNote(data: InsertImprovementNote): Promise<ImprovementNote>;
+  updateImprovementNote(id: string, data: Partial<InsertImprovementNote>): Promise<ImprovementNote | undefined>;
+  markNoteComplete(id: string): Promise<ImprovementNote | undefined>;
+  deleteImprovementNote(id: string): Promise<boolean>;
 }
 
 export interface ProductFilters {
@@ -2756,6 +2768,69 @@ export class DatabaseStorage implements IStorage {
   async logEmailAutomation(data: InsertB2bEmailAutomationLog): Promise<B2bEmailAutomationLog> {
     const [log] = await db.insert(b2bEmailAutomationLogs).values(data).returning();
     return log;
+  }
+
+  // Improvement Notes (shared between Base App and B2B Admin)
+  async getImprovementNotes(appType?: string, status?: string): Promise<ImprovementNote[]> {
+    let query = db.select().from(improvementNotes).orderBy(desc(improvementNotes.noteNumber));
+    
+    const conditions: SQL<unknown>[] = [];
+    if (appType) {
+      conditions.push(eq(improvementNotes.appType, appType));
+    }
+    if (status) {
+      conditions.push(eq(improvementNotes.status, status));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query;
+  }
+
+  async getImprovementNote(id: string): Promise<ImprovementNote | undefined> {
+    const [note] = await db.select().from(improvementNotes).where(eq(improvementNotes.id, id));
+    return note;
+  }
+
+  async getNextNoteNumber(): Promise<number> {
+    const [result] = await db
+      .select({ maxNumber: sql<number>`COALESCE(MAX(${improvementNotes.noteNumber}), 0)` })
+      .from(improvementNotes);
+    return (result?.maxNumber || 0) + 1;
+  }
+
+  async createImprovementNote(data: InsertImprovementNote): Promise<ImprovementNote> {
+    const [note] = await db.insert(improvementNotes).values(data).returning();
+    return note;
+  }
+
+  async updateImprovementNote(id: string, data: Partial<InsertImprovementNote>): Promise<ImprovementNote | undefined> {
+    const [updated] = await db
+      .update(improvementNotes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(improvementNotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markNoteComplete(id: string): Promise<ImprovementNote | undefined> {
+    const [updated] = await db
+      .update(improvementNotes)
+      .set({ 
+        status: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(improvementNotes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteImprovementNote(id: string): Promise<boolean> {
+    const result = await db.delete(improvementNotes).where(eq(improvementNotes.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 
