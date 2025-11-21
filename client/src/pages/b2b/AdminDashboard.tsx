@@ -44,6 +44,8 @@ import { EmailTemplateManager } from "@/components/b2b/EmailTemplateManager";
 import B2bQRCodes from "@/components/b2b/B2bQRCodes";
 import TierCommitmentPage from "./TierCommitmentPage";
 import TasksPage from "./TasksPage";
+import NotesManager from "@/components/NotesManager";
+import { BookOpen } from "lucide-react";
 
 const createCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
