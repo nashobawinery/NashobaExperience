@@ -957,44 +957,67 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9 max-w-7xl">
-          <TabsTrigger value="customers" data-testid="tab-customers">
-            <Users className="h-4 w-4 mr-2" />
-            Customers
-          </TabsTrigger>
-          <TabsTrigger value="orders" data-testid="tab-orders">
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Orders
-          </TabsTrigger>
-          <TabsTrigger value="tasks" data-testid="tab-tasks">
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Tasks
-          </TabsTrigger>
-          <TabsTrigger value="marketing" data-testid="tab-marketing">
-            <Send className="h-4 w-4 mr-2" />
-            Marketing
-          </TabsTrigger>
-          <TabsTrigger value="commitments" data-testid="tab-commitments">
-            <Calendar className="h-4 w-4 mr-2" />
-            Commitments
-          </TabsTrigger>
-          <TabsTrigger value="sales-reps" data-testid="tab-sales-reps">
-            <UserCog className="h-4 w-4 mr-2" />
-            Sales Reps
-          </TabsTrigger>
-          <TabsTrigger value="qr-codes" data-testid="tab-qr-codes">
-            <QrCode className="h-4 w-4 mr-2" />
-            QR Codes
-          </TabsTrigger>
-          <TabsTrigger value="slideshow" data-testid="tab-slideshow">
-            <Image className="h-4 w-4 mr-2" />
-            Slideshow
-          </TabsTrigger>
-          <TabsTrigger value="settings" data-testid="tab-settings">
-            <SettingsIcon className="h-4 w-4 mr-2" />
-            Settings
-          </TabsTrigger>
-        </TabsList>
+        <div className="space-y-4">
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Customer & Order Management</h3>
+              <TabsList className="grid w-full grid-cols-3 h-auto">
+                <TabsTrigger value="customers" data-testid="tab-customers" className="flex items-center justify-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span>Customers</span>
+                </TabsTrigger>
+                <TabsTrigger value="orders" data-testid="tab-orders" className="flex items-center justify-center gap-2">
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>Orders</span>
+                </TabsTrigger>
+                <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Tasks</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Marketing & Communications</h3>
+              <TabsList className="grid w-full grid-cols-3 h-auto">
+                <TabsTrigger value="marketing" data-testid="tab-marketing" className="flex items-center justify-center gap-2">
+                  <Send className="w-4 h-4" />
+                  <span>Marketing</span>
+                </TabsTrigger>
+                <TabsTrigger value="commitments" data-testid="tab-commitments" className="flex items-center justify-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>Commitments</span>
+                </TabsTrigger>
+                <TabsTrigger value="qr-codes" data-testid="tab-qr-codes" className="flex items-center justify-center gap-2">
+                  <QrCode className="w-4 h-4" />
+                  <span>QR Codes</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Content & Configuration</h3>
+              <TabsList className="grid w-full grid-cols-3 h-auto">
+                <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="flex items-center justify-center gap-2">
+                  <Image className="w-4 h-4" />
+                  <span>Slideshow</span>
+                </TabsTrigger>
+                <TabsTrigger value="sales-reps" data-testid="tab-sales-reps" className="flex items-center justify-center gap-2">
+                  <UserCog className="w-4 h-4" />
+                  <span>Sales Reps</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
+                  <SettingsIcon className="w-4 h-4" />
+                  <span>Settings</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
+        </div>
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
