@@ -82,6 +82,8 @@ import {
   b2bCommissions,
   b2bSettings,
   b2bSlideshowSlides,
+  b2bEmailTemplates,
+  b2bEmailAutomationLogs,
   productMedia,
   type InsertTierPricing,
   type TierPricing,
@@ -101,6 +103,10 @@ import {
   type B2bSetting,
   type InsertB2bSlideshowSlide,
   type B2bSlideshowSlide,
+  type InsertB2bEmailTemplate,
+  type B2bEmailTemplate,
+  type InsertB2bEmailAutomationLog,
+  type B2bEmailAutomationLog,
   type InsertProductMedia,
   type ProductMedia,
 } from "@shared/schema";
@@ -2695,6 +2701,61 @@ export class DatabaseStorage implements IStorage {
       .where(eq(b2bCommissions.id, commissionId))
       .returning();
     return updated;
+  }
+
+  // B2B - Email Templates
+  async getEmailTemplates(activeOnly = false): Promise<B2bEmailTemplate[]> {
+    const query = db.select().from(b2bEmailTemplates).orderBy(desc(b2bEmailTemplates.createdAt));
+    if (activeOnly) {
+      return await query.where(eq(b2bEmailTemplates.active, true));
+    }
+    return await query;
+  }
+
+  async getEmailTemplate(id: string): Promise<B2bEmailTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(b2bEmailTemplates)
+      .where(eq(b2bEmailTemplates.id, id));
+    return template;
+  }
+
+  async createEmailTemplate(data: InsertB2bEmailTemplate): Promise<B2bEmailTemplate> {
+    const [template] = await db.insert(b2bEmailTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateEmailTemplate(id: string, data: Partial<InsertB2bEmailTemplate>): Promise<B2bEmailTemplate | undefined> {
+    const [updated] = await db
+      .update(b2bEmailTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bEmailTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmailTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(b2bEmailTemplates).where(eq(b2bEmailTemplates.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // B2B - Email Automation Logs
+  async getEmailAutomationLogs(customerId?: string, limit = 100): Promise<B2bEmailAutomationLog[]> {
+    const query = db
+      .select()
+      .from(b2bEmailAutomationLogs)
+      .orderBy(desc(b2bEmailAutomationLogs.sentAt))
+      .limit(limit);
+    
+    if (customerId) {
+      return await query.where(eq(b2bEmailAutomationLogs.customerId, customerId));
+    }
+    return await query;
+  }
+
+  async logEmailAutomation(data: InsertB2bEmailAutomationLog): Promise<B2bEmailAutomationLog> {
+    const [log] = await db.insert(b2bEmailAutomationLogs).values(data).returning();
+    return log;
   }
 }
 
