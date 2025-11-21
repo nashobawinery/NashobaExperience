@@ -506,6 +506,34 @@ export const b2bPasswordResetTokens = pgTable("b2b_password_reset_tokens", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const b2bEmailTemplates = pgTable("b2b_email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  triggerType: varchar("trigger_type").notNull(), // 'first_order', 'overdue_payment', 'tier_renewal', 'manual'
+  tierFilter: text("tier_filter"), // JSON array of tier names: ["Tier 3", "Tier 4"] or null for all
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html").notNull(),
+  bodyText: text("body_text").notNull(),
+  daysBeforeEvent: integer("days_before_event"), // For renewal reminders (e.g., 30 days before)
+  active: boolean("active").notNull().default(true),
+  createdByAdminId: varchar("created_by_admin_id").references(() => b2bAdmins.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const b2bEmailAutomationLogs = pgTable("b2b_email_automation_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").references(() => b2bEmailTemplates.id, { onDelete: 'set null' }),
+  customerId: varchar("customer_id").references(() => b2bCustomers.id, { onDelete: 'cascade' }),
+  recipientEmail: varchar("recipient_email").notNull(),
+  subject: text("subject").notNull(),
+  triggerType: varchar("trigger_type").notNull(),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("error_message"),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -551,6 +579,8 @@ export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
 export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
+export const insertB2bEmailTemplateSchema = createInsertSchema(b2bEmailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertB2bEmailAutomationLogSchema = createInsertSchema(b2bEmailAutomationLogs).omit({ id: true, sentAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -664,3 +694,9 @@ export type B2bSetting = typeof b2bSettings.$inferSelect;
 
 export type InsertB2bPasswordResetToken = z.infer<typeof insertB2bPasswordResetTokenSchema>;
 export type B2bPasswordResetToken = typeof b2bPasswordResetTokens.$inferSelect;
+
+export type InsertB2bEmailTemplate = z.infer<typeof insertB2bEmailTemplateSchema>;
+export type B2bEmailTemplate = typeof b2bEmailTemplates.$inferSelect;
+
+export type InsertB2bEmailAutomationLog = z.infer<typeof insertB2bEmailAutomationLogSchema>;
+export type B2bEmailAutomationLog = typeof b2bEmailAutomationLogs.$inferSelect;
