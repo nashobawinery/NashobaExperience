@@ -1082,12 +1082,21 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
 // Bridge login for base app admins - auto-login to B2B without password
 router.post('/api/b2b/bridge-login', async (req: Request, res: Response) => {
   try {
-    // Get email from authenticated base app session
+    // Get email from base app authenticated session
+    // req.user is set by Replit Auth passport middleware
     const userEmail = (req as any).user?.claims?.email;
     
     if (!userEmail) {
+      console.log('Bridge login failed: No user authenticated in base app', {
+        hasUser: !!(req as any).user,
+        hasClaims: !!(req as any).user?.claims,
+        hasEmail: !!(req as any).user?.claims?.email,
+        userKeys: (req as any).user ? Object.keys((req as any).user) : [],
+      });
       return res.status(401).json({ error: 'Not authenticated in base app' });
     }
+
+    console.log('Bridge login: Looking up B2B admin for email:', userEmail);
 
     // Look up B2B admin by email
     const admin = await storage.getB2bAdminByEmail(userEmail);
