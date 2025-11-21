@@ -1078,53 +1078,6 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
 
 // ===== ADMIN ROUTES =====
 
-// Admin login
-// Bridge login for base app admins - auto-login to B2B without password
-router.post('/api/b2b/bridge-login', async (req: Request, res: Response) => {
-  try {
-    // Get email from base app authenticated session
-    // req.user is set by Replit Auth passport middleware
-    const userEmail = (req as any).user?.claims?.email;
-    
-    if (!userEmail) {
-      console.log('Bridge login failed: No user authenticated in base app', {
-        hasUser: !!(req as any).user,
-        hasClaims: !!(req as any).user?.claims,
-        hasEmail: !!(req as any).user?.claims?.email,
-        userKeys: (req as any).user ? Object.keys((req as any).user) : [],
-      });
-      return res.status(401).json({ error: 'Not authenticated in base app' });
-    }
-
-    console.log('Bridge login: Looking up B2B admin for email:', userEmail);
-
-    // Look up B2B admin by email
-    const admin = await storage.getB2bAdminByEmail(userEmail);
-
-    if (!admin) {
-      return res.status(403).json({ error: 'No B2B admin account found for this email' });
-    }
-
-    // Create B2B session
-    req.session.b2bUserId = admin.id;
-    req.session.b2bUserType = 'admin';
-    req.session.b2bUserEmail = admin.email;
-
-    res.json({
-      success: true,
-      user: {
-        id: admin.id,
-        name: `${admin.firstName} ${admin.lastName}`,
-        email: admin.email,
-        type: 'admin',
-      },
-    });
-  } catch (error: any) {
-    console.error('Bridge login error:', error);
-    res.status(500).json({ error: error.message || 'Bridge login failed' });
-  }
-});
-
 // Admin login with email/password
 router.post('/api/b2b/login/admin', async (req: Request, res: Response) => {
   try {

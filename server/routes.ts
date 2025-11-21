@@ -52,6 +52,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+  // Bridge login for base app admins - auto-login to B2B without password
+  app.post('/api/b2b/bridge-login', isAuthenticated, async (req: any, res) => {
+    try {
+      // Get email from authenticated base app session
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ error: 'Not authenticated in base app' });
+      }
+
+      // Look up B2B admin by email
+      const admin = await storage.getB2bAdminByEmail(userEmail);
+
+      if (!admin) {
+        return res.status(403).json({ error: 'No B2B admin account found for this email' });
+      }
+
+      // Create B2B session
+      req.session.b2bUserId = admin.id;
+      req.session.b2bUserType = 'admin';
+      req.session.b2bUserEmail = admin.email;
+
+      res.json({
+        success: true,
+        user: {
+          id: admin.id,
+          name: `${admin.firstName} ${admin.lastName}`,
+          email: admin.email,
+          type: 'admin',
+        },
+      });
+    } catch (error: any) {
+      console.error('Bridge login error:', error);
+      res.status(500).json({ error: error.message || 'Bridge login failed' });
+    }
+  });
   
   // Guest Session Management
   app.post("/api/sessions", async (req, res) => {
