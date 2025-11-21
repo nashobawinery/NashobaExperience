@@ -14,13 +14,7 @@ export async function calculateSavingsVsTier1(customer: B2bCustomer): Promise<nu
   let totalSavings = 0;
   
   for (const order of orders) {
-    const orderItems = await storage.getB2bOrderItems(order.id);
-    const products = await storage.getProducts();
-    
-    for (const item of orderItems) {
-      const product = products.find(p => p.id === item.productId);
-      if (!product) continue;
-      
+    for (const item of order.items) {
       const retailPrice = Number(item.retailPrice);
       const paidPrice = Number(item.unitPrice);
       const quantity = item.quantity;
@@ -40,8 +34,19 @@ export async function calculateCommitmentProgress(customer: B2bCustomer): Promis
   commitmentAmount: number;
   daysUntilRenewal: number;
   renewalDate: Date | null;
+  tierName: string;
 }> {
-  const commitmentAmount = customer.tierName === 'Tier 3' ? 10 : customer.tierName === 'Tier 4' ? 30 : 0;
+  let tierName = '';
+  let commitmentAmount = 0;
+  
+  if (customer.pricingTierId) {
+    const tier = await storage.getTierPricing(customer.pricingTierId);
+    if (tier) {
+      tierName = tier.tierName;
+      if (tier.tierName === 'Tier 3') commitmentAmount = 10;
+      if (tier.tierName === 'Tier 4') commitmentAmount = 30;
+    }
+  }
   
   if (commitmentAmount === 0 || !customer.commitmentStartDate) {
     return {
@@ -50,6 +55,7 @@ export async function calculateCommitmentProgress(customer: B2bCustomer): Promis
       commitmentAmount: 0,
       daysUntilRenewal: 0,
       renewalDate: null,
+      tierName,
     };
   }
   
@@ -68,8 +74,7 @@ export async function calculateCommitmentProgress(customer: B2bCustomer): Promis
   
   let casesOrdered = 0;
   for (const order of ordersInCommitmentPeriod) {
-    const orderItems = await storage.getB2bOrderItems(order.id);
-    for (const item of orderItems) {
+    for (const item of order.items) {
       const caseSize = 12;
       casesOrdered += Math.ceil(item.quantity / caseSize);
     }
@@ -83,6 +88,7 @@ export async function calculateCommitmentProgress(customer: B2bCustomer): Promis
     commitmentAmount,
     daysUntilRenewal,
     renewalDate,
+    tierName,
   };
 }
 
@@ -95,10 +101,10 @@ export async function substituteVariables(template: string, data: EmailTemplateD
   const variables: Record<string, string> = {
     customerName: customer.accountName,
     firstName: customer.accountName.split(' ')[0],
-    contactName: customer.contactName || customer.accountName,
-    email: customer.email,
+    contactName: customer.primaryContactName || customer.accountName,
+    email: customer.emailAddress,
     phoneNumber: customer.phoneNumber || '',
-    tierName: customer.tierName,
+    tierName: commitment.tierName,
     
     savingsTotal: `$${savingsVsTier1.toFixed(2)}`,
     savingsTotalRounded: `$${Math.round(savingsVsTier1)}`,
@@ -110,7 +116,7 @@ export async function substituteVariables(template: string, data: EmailTemplateD
     renewalDate: commitment.renewalDate ? commitment.renewalDate.toLocaleDateString() : '',
     
     orderNumber: order?.orderNumber || '',
-    orderTotal: order ? `$${Number(order.totalAmount).toFixed(2)}` : '',
+    orderTotal: order ? `$${Number(order.total).toFixed(2)}` : '',
     orderDate: order ? new Date(order.orderDate).toLocaleDateString() : '',
     orderStatus: order?.status || '',
     

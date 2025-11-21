@@ -20,6 +20,7 @@ import {
   insertB2bOrderSchema,
   insertB2bOrderItemSchema,
   insertB2bSlideshowSlideSchema,
+  insertB2bEmailTemplateSchema,
   b2bPasswordResetTokens,
   b2bAdmins,
   b2bCustomers,
@@ -33,6 +34,7 @@ import {
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
+import { substituteVariables, calculateSavingsVsTier1, calculateCommitmentProgress } from './email-template-variables';
 import { eq, and, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
@@ -2346,6 +2348,207 @@ router.post('/api/b2b/admin/send-renewal-reminders', requireB2bAdmin, async (req
   } catch (error) {
     console.error('Error sending renewal reminders:', error);
     res.status(500).json({ error: 'Failed to send renewal reminders' });
+  }
+});
+
+// Email Template Management Routes
+
+// Admin: Get all email templates
+router.get('/api/b2b/admin/email-templates', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { active } = req.query;
+    const templates = await storage.getEmailTemplates(active === 'true');
+    res.json(templates);
+  } catch (error) {
+    console.error('Error fetching email templates:', error);
+    res.status(500).json({ error: 'Failed to fetch email templates' });
+  }
+});
+
+// Admin: Get single email template
+router.get('/api/b2b/admin/email-templates/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const template = await storage.getEmailTemplate(req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    res.json(template);
+  } catch (error) {
+    console.error('Error fetching email template:', error);
+    res.status(500).json({ error: 'Failed to fetch email template' });
+  }
+});
+
+// Admin: Create email template
+router.post('/api/b2b/admin/email-templates', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = insertB2bEmailTemplateSchema.parse({
+      ...req.body,
+      createdByAdminId: (req.session as any).b2bUserId,
+    });
+    
+    const template = await storage.createEmailTemplate(validatedData);
+    res.json(template);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    console.error('Error creating email template:', error);
+    res.status(500).json({ error: 'Failed to create email template' });
+  }
+});
+
+// Admin: Update email template
+router.patch('/api/b2b/admin/email-templates/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = insertB2bEmailTemplateSchema.partial().parse(req.body);
+    const template = await storage.updateEmailTemplate(req.params.id, validatedData);
+    
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json(template);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    console.error('Error updating email template:', error);
+    res.status(500).json({ error: 'Failed to update email template' });
+  }
+});
+
+// Admin: Delete email template
+router.delete('/api/b2b/admin/email-templates/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const deleted = await storage.deleteEmailTemplate(req.params.id);
+    
+    if (!deleted) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting email template:', error);
+    res.status(500).json({ error: 'Failed to delete email template' });
+  }
+});
+
+// Admin: Preview email template with sample customer data
+router.post('/api/b2b/admin/email-templates/:id/preview', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const template = await storage.getEmailTemplate(req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    const { customerId } = req.body;
+    
+    if (!customerId) {
+      return res.status(400).json({ error: 'Customer ID is required for preview' });
+    }
+    
+    const customer = await storage.getB2bCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    const subject = await substituteVariables(template.subject, { customer });
+    const bodyHtml = await substituteVariables(template.bodyHtml, { customer });
+    const bodyText = await substituteVariables(template.bodyText, { customer });
+    
+    res.json({
+      subject,
+      bodyHtml,
+      bodyText,
+    });
+  } catch (error) {
+    console.error('Error previewing email template:', error);
+    res.status(500).json({ error: 'Failed to preview email template' });
+  }
+});
+
+// Admin: Send email manually using template
+router.post('/api/b2b/admin/email-templates/:id/send', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const template = await storage.getEmailTemplate(req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    const { customerIds } = req.body;
+    
+    if (!Array.isArray(customerIds) || customerIds.length === 0) {
+      return res.status(400).json({ error: 'At least one customer ID is required' });
+    }
+    
+    if (!process.env.SENDGRID_API_KEY || !process.env.SENDGRID_FROM_EMAIL) {
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+    
+    const results = await Promise.allSettled(
+      customerIds.map(async (customerId: string) => {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer) {
+          throw new Error(`Customer ${customerId} not found`);
+        }
+        
+        const subject = await substituteVariables(template.subject, { customer });
+        const bodyHtml = await substituteVariables(template.bodyHtml, { customer });
+        const bodyText = await substituteVariables(template.bodyText, { customer });
+        
+        await sendEmail(customer.emailAddress, subject, bodyHtml, bodyText);
+        
+        await storage.logEmailAutomation({
+          templateId: template.id,
+          customerId: customer.id,
+          recipientEmail: customer.emailAddress,
+          subject,
+          triggerType: 'manual',
+          success: true,
+          errorMessage: null,
+        });
+        
+        return {
+          customerId: customer.id,
+          email: customer.emailAddress,
+          success: true,
+        };
+      })
+    );
+    
+    const successful = results.filter(r => r.status === 'fulfilled').map(r => (r as PromiseFulfilledResult<any>).value);
+    const failed = results
+      .filter(r => r.status === 'rejected')
+      .map(r => ({
+        error: (r as PromiseRejectedResult).reason?.message || 'Unknown error',
+      }));
+    
+    res.json({
+      success: true,
+      totalSent: successful.length,
+      totalFailed: failed.length,
+      successful,
+      failed,
+    });
+  } catch (error) {
+    console.error('Error sending email:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// Admin: Get email automation logs
+router.get('/api/b2b/admin/email-automation-logs', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { customerId, limit } = req.query;
+    const logs = await storage.getEmailAutomationLogs(
+      customerId as string | undefined,
+      limit ? parseInt(limit as string) : 100
+    );
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching email automation logs:', error);
+    res.status(500).json({ error: 'Failed to fetch email automation logs' });
   }
 });
 
