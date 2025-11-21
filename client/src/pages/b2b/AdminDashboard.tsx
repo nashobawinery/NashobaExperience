@@ -150,6 +150,27 @@ export default function AdminDashboard() {
   const { mutateAsync: updateTier, isPending: isUpdatingTier } = useUpdateTier();
   const { mutateAsync: createManualOrder, isPending: isCreatingManualOrder } = useCreateManualOrder();
 
+  const markCommissionPaidMutation = useMutation({
+    mutationFn: async (commissionId: string) => {
+      const res = await apiRequest('PATCH', `/api/b2b/admin/commissions/${commissionId}/paid`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/sales-reps', commissionDialog.salesRep?.id, 'commissions'] });
+      toast({
+        title: 'Success',
+        description: 'Commission marked as paid',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to mark commission as paid',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const [approveDialog, setApproveDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
     customer: null,
@@ -189,6 +210,16 @@ export default function AdminDashboard() {
     territory: "",
     commissionPercentage: "",
     password: "",
+  });
+
+  // Commission history dialog state
+  const [commissionDialog, setCommissionDialog] = useState<{ isOpen: boolean; salesRep: any | null }>({
+    isOpen: false,
+    salesRep: null,
+  });
+  const { data: commissions, isLoading: loadingCommissions } = useQuery<any[]>({
+    queryKey: ['/api/b2b/admin/sales-reps', commissionDialog.salesRep?.id, 'commissions'],
+    enabled: !!commissionDialog.salesRep?.id,
   });
 
   // Edit tier dialog state

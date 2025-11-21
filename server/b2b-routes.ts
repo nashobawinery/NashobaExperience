@@ -963,6 +963,23 @@ router.get('/api/b2b/admin/sales-reps/:id/commissions', requireB2bAdmin, async (
   }
 });
 
+// Admin: Mark commission as paid to sales rep
+router.patch('/api/b2b/admin/commissions/:id/paid', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const commission = await storage.markCommissionAsPaid(id);
+    
+    if (!commission) {
+      return res.status(404).json({ error: 'Commission not found' });
+    }
+
+    res.json(commission);
+  } catch (error) {
+    console.error('Error marking commission as paid:', error);
+    res.status(500).json({ error: 'Failed to mark commission as paid' });
+  }
+});
+
 // Helper function to send order notifications
 async function sendOrderNotifications(order: any, customer: any, items: any[]) {
   if (!process.env.SENDGRID_API_KEY) {

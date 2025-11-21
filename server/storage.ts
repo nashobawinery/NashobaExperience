@@ -2715,6 +2715,19 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async markCommissionAsPaid(commissionId: string): Promise<B2bCommission | undefined> {
+    const [updated] = await db
+      .update(b2bCommissions)
+      .set({ 
+        paidToSalesRep: true, 
+        paidToSalesRepAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(b2bCommissions.id, commissionId))
+      .returning();
+    return updated;
+  }
+
   // B2B - Email Templates
   async getEmailTemplates(activeOnly = false): Promise<B2bEmailTemplate[]> {
     const query = db.select().from(b2bEmailTemplates).orderBy(desc(b2bEmailTemplates.createdAt));

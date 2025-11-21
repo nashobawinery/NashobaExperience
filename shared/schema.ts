@@ -485,6 +485,8 @@ export const b2bCommissions = pgTable("b2b_commissions", {
   commissionPercentage: decimal("commission_percentage", { precision: 5, scale: 2 }).notNull(),
   commissionAmount: decimal("commission_amount", { precision: 10, scale: 2 }).notNull(),
   status: varchar("status").notNull().default("pending"),
+  paidToSalesRep: boolean("paid_to_sales_rep").notNull().default(false),
+  paidToSalesRepAt: timestamp("paid_to_sales_rep_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
