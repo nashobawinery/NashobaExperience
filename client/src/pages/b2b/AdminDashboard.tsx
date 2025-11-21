@@ -36,11 +36,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
 import { EmailTemplateManager } from "@/components/b2b/EmailTemplateManager";
+import B2bQRCodes from "@/components/b2b/B2bQRCodes";
 import TierCommitmentPage from "./TierCommitmentPage";
 import TasksPage from "./TasksPage";
 
@@ -956,7 +957,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8 max-w-7xl">
+        <TabsList className="grid w-full grid-cols-9 max-w-7xl">
           <TabsTrigger value="customers" data-testid="tab-customers">
             <Users className="h-4 w-4 mr-2" />
             Customers
@@ -980,6 +981,10 @@ export default function AdminDashboard() {
           <TabsTrigger value="sales-reps" data-testid="tab-sales-reps">
             <UserCog className="h-4 w-4 mr-2" />
             Sales Reps
+          </TabsTrigger>
+          <TabsTrigger value="qr-codes" data-testid="tab-qr-codes">
+            <QrCode className="h-4 w-4 mr-2" />
+            QR Codes
           </TabsTrigger>
           <TabsTrigger value="slideshow" data-testid="tab-slideshow">
             <Image className="h-4 w-4 mr-2" />
@@ -1222,6 +1227,11 @@ export default function AdminDashboard() {
         {/* TIER COMMITMENTS TAB */}
         <TabsContent value="commitments">
           <TierCommitmentPage />
+        </TabsContent>
+
+        {/* QR CODES TAB */}
+        <TabsContent value="qr-codes">
+          <B2bQRCodes />
         </TabsContent>
 
         {/* SLIDESHOW TAB */}
