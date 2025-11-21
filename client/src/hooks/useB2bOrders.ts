@@ -53,10 +53,10 @@ export function useB2bCheckout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (orderData: { items: { productId: string; quantity: number }[] }) => {
+    mutationFn: async (orderData: { items: { productId: string; quantity: number }[], customerId?: string }) => {
       return apiRequest(
         "POST",
-        "/api/b2b/customer/checkout",
+        "/api/b2b/customer/orders",
         orderData
       );
     },

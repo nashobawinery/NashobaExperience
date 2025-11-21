@@ -780,9 +780,9 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     // Fetch all tiers for category-specific lookups
     const allTiers = await storage.getAllTierPricing();
     
-    // Group products by category to check Tier 2 qualification per category
-    const categoryCases: Record<string, number> = {};
+    // Fetch product details and calculate total cases across ALL categories
     const productDetails: Record<string, any> = {};
+    let totalCases = 0;
     
     for (const item of items) {
       const product = await storage.getProduct(item.productId);
@@ -790,8 +790,11 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         return res.status(400).json({ error: `Product not found: ${item.productId}` });
       }
       productDetails[item.productId] = product;
-      categoryCases[product.category] = (categoryCases[product.category] || 0) + item.quantity;
+      totalCases += item.quantity;
     }
+    
+    // Check if cart qualifies for Tier 2 (5+ cases across ALL categories)
+    const qualifiesForTier2 = totalCases >= 5;
 
     // Calculate order totals with category-specific tier pricing
     let subtotal = 0;
@@ -808,13 +811,12 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     for (const item of items) {
       const product = productDetails[item.productId];
       const productCategory = product.category;
-      const totalCasesInCategory = categoryCases[productCategory];
       
       // Determine effective tier for this product's category
       let effectiveTier = null;
       
-      // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
-      if (totalCasesInCategory >= 5) {
+      // Check if cart qualifies for Tier 2 auto-upgrade (5+ total cases across all categories)
+      if (qualifiesForTier2) {
         const tier2ForCategory = allTiers.find(
           (t: any) => t.tierName === 'Tier 2' && t.category === productCategory && t.active
         );
@@ -961,10 +963,12 @@ router.get('/api/b2b/admin/sales-reps/:id/commissions', requireB2bAdmin, async (
 
 // Helper function to send order notifications
 async function sendOrderNotifications(order: any, customer: any, items: any[]) {
-  if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+  if (!process.env.SENDGRID_API_KEY) {
     console.warn('SendGrid not configured, skipping order notifications');
     return;
   }
+
+  const { sendEmail } = await import('./email');
 
   const itemsHtml = items.map(item => `
     <tr>
@@ -1020,6 +1024,22 @@ async function sendOrderNotifications(order: any, customer: any, items: any[]) {
     </html>
   `;
 
+  const emailText = `
+New B2B Order Received
+
+Order Number: ${order.orderNumber}
+Customer: ${customer.accountName}
+Contact: ${customer.primaryContactName} (${customer.emailAddress})
+
+Order Details:
+${items.map(item => `${item.productName} - Qty: ${item.quantity} × $${item.unitPrice} = $${item.lineTotal}`).join('\n')}
+
+Order Total: $${order.total}
+
+${order.shippingAddress ? `Shipping Address:\n${order.shippingAddress}\n${order.shippingCity}, ${order.shippingState} ${order.shippingZipCode}\n` : ''}
+${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
+  `.trim();
+
   // Get notification recipients from settings
   const recipients = [];
   
@@ -1031,27 +1051,27 @@ async function sendOrderNotifications(order: any, customer: any, items: any[]) {
   // Add additional recipients from settings
   const settingValue = await storage.getB2bSetting('order_notification_emails');
   if (settingValue?.settingValue) {
-    const additionalEmails = settingValue.settingValue.split(',').map(e => e.trim());
+    const additionalEmails = settingValue.settingValue.split(',').map((e: string) => e.trim());
     recipients.push(...additionalEmails);
   }
 
   // Send to all recipients
-  const messages = recipients.map(email => ({
-    to: email,
-    from: process.env.RESEND_FROM_EMAIL!,
-    subject: `New B2B Order: ${order.orderNumber}`,
-    html: emailHtml,
-  }));
+  for (const recipient of recipients) {
+    await sendEmail(
+      recipient,
+      `New B2B Order: ${order.orderNumber}`,
+      emailHtml,
+      emailText
+    );
+  }
 
   // Also send confirmation to customer
-  messages.push({
-    to: customer.emailAddress,
-    from: process.env.RESEND_FROM_EMAIL!,
-    subject: `Order Confirmation: ${order.orderNumber}`,
-    html: emailHtml.replace('New B2B Order Received', 'Order Confirmation'),
-  });
-
-  await sendgrid.send(messages);
+  await sendEmail(
+    customer.emailAddress,
+    `Order Confirmation: ${order.orderNumber}`,
+    emailHtml.replace('New B2B Order Received', 'Order Confirmation'),
+    emailText.replace('New B2B Order Received', 'Order Confirmation')
+  );
 }
 
 // ===== ADMIN ROUTES =====
@@ -1940,9 +1960,9 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
     // Fetch all tiers for category-specific lookups
     const allTiers = await storage.getAllTierPricing();
     
-    // Group products by category to check Tier 2 qualification per category
-    const categoryCases: Record<string, number> = {};
+    // Fetch product details and calculate total cases across ALL categories
     const productDetails: Record<string, any> = {};
+    let totalCases = 0;
     
     for (const item of items) {
       const product = await storage.getProduct(item.productId);
@@ -1950,8 +1970,11 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
         return res.status(400).json({ error: `Product not found: ${item.productId}` });
       }
       productDetails[item.productId] = product;
-      categoryCases[product.category] = (categoryCases[product.category] || 0) + item.quantity;
+      totalCases += item.quantity;
     }
+    
+    // Check if cart qualifies for Tier 2 (5+ cases across ALL categories)
+    const qualifiesForTier2 = totalCases >= 5;
 
     // Calculate order totals with category-specific tier pricing
     let subtotal = 0;
@@ -1968,13 +1991,12 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
     for (const item of items) {
       const product = productDetails[item.productId];
       const productCategory = product.category;
-      const totalCasesInCategory = categoryCases[productCategory];
       
       // Determine effective tier for this product's category
       let effectiveTier = null;
       
-      // Check if this category qualifies for Tier 2 auto-upgrade (5+ cases in category)
-      if (totalCasesInCategory >= 5) {
+      // Check if cart qualifies for Tier 2 auto-upgrade (5+ total cases across all categories)
+      if (qualifiesForTier2) {
         const tier2ForCategory = allTiers.find(
           (t: any) => t.tierName === 'Tier 2' && t.category === productCategory && t.active
         );
