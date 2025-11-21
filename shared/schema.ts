@@ -392,6 +392,7 @@ export const b2bAdmins = pgTable("b2b_admins", {
   email: varchar("email").notNull().unique(),
   passwordHash: varchar("password_hash").notNull(),
   active: boolean("active").notNull().default(true),
+  receiveOrderEmails: boolean("receive_order_emails").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
