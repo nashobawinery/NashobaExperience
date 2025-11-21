@@ -952,6 +952,50 @@ router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Req
   }
 });
 
+// Customer: Get past order items (items previously ordered by customer)
+router.get('/api/b2b/customer/past-orders', requireB2bCustomer, async (req: Request, res: Response) => {
+  try {
+    const customerId = req.session.b2bUserId;
+    if (!customerId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const pastOrderItems = await db
+      .select({
+        productId: b2bOrderItems.productId,
+        productName: b2bOrderItems.productName,
+        sku: b2bOrderItems.sku,
+        quantity: b2bOrderItems.quantity,
+        unitPrice: b2bOrderItems.unitPrice,
+        lineTotal: b2bOrderItems.lineTotal,
+        caseSize: products.caseSize,
+        price: products.price,
+        imageUrl: products.imageUrl,
+        category: products.category,
+      })
+      .from(b2bOrderItems)
+      .innerJoin(b2bOrders, eq(b2bOrderItems.orderId, b2bOrders.id))
+      .innerJoin(products, eq(b2bOrderItems.productId, products.id))
+      .where(
+        and(
+          eq(b2bOrders.customerId, customerId),
+          eq(b2bOrders.status, 'completed')
+        )
+      )
+      .orderBy(desc(b2bOrders.orderDate));
+
+    // Group by product ID to get unique items with their details
+    const uniqueItems = Array.from(
+      new Map(pastOrderItems.map(item => [item.productId, item])).values()
+    );
+
+    res.json(uniqueItems);
+  } catch (error) {
+    console.error('Error fetching past orders:', error);
+    res.status(500).json({ error: 'Failed to fetch past orders' });
+  }
+});
+
 router.get('/api/b2b/admin/sales-reps/:id/commissions', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
