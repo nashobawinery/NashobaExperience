@@ -1319,15 +1319,26 @@ export default function AdminDashboard() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openSalesRepDialog(rep)}
-                        data-testid={`button-edit-rep-${rep.id}`}
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCommissionDialog({ isOpen: true, salesRep: rep })}
+                          data-testid={`button-view-commissions-${rep.id}`}
+                        >
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          Commissions
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openSalesRepDialog(rep)}
+                          data-testid={`button-edit-rep-${rep.id}`}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1669,6 +1680,113 @@ export default function AdminDashboard() {
               data-testid="button-confirm-approve"
             >
               {isApproving ? "Approving..." : "Approve & Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Commission History Dialog */}
+      <Dialog open={commissionDialog.isOpen} onOpenChange={(open) => setCommissionDialog({ isOpen: open, salesRep: commissionDialog.salesRep })}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="dialog-commissions">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">
+              Commission History - {commissionDialog.salesRep?.firstName} {commissionDialog.salesRep?.lastName}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDialog.salesRep?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingCommissions ? (
+            <div className="space-y-3 py-6">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : !commissions || commissions.length === 0 ? (
+            <div className="py-12 text-center">
+              <DollarSign className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No Commissions Yet</h3>
+              <p className="text-muted-foreground">This sales representative has not earned any commissions</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {commissions.map((commission) => (
+                <Card key={commission.id} data-testid={`commission-${commission.id}`}>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <CardTitle className="font-serif text-lg mb-2">
+                          Order #{commission.orderNumber || commission.orderId}
+                        </CardTitle>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {commission.createdAt ? format(new Date(commission.createdAt), "MMM d, yyyy") : "N/A"}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            ${Number(commission.commissionAmount).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 items-start">
+                        <Badge variant={commission.paidToSalesRep ? "default" : "secondary"}>
+                          {commission.paidToSalesRep ? "Paid" : "Pending"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Order Total</p>
+                          <p className="font-semibold">${Number(commission.orderTotal).toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Commission %</p>
+                          <p className="font-semibold">{Number(commission.commissionPercentage).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Status</p>
+                          <p className="font-semibold capitalize">{commission.status}</p>
+                        </div>
+                        {commission.paidToSalesRepAt && (
+                          <div>
+                            <p className="text-muted-foreground">Paid Date</p>
+                            <p className="font-semibold">{format(new Date(commission.paidToSalesRepAt), "MMM d, yyyy")}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {!commission.paidToSalesRep && commission.status === "completed" && (
+                        <div className="pt-3 border-t">
+                          <Button
+                            size="sm"
+                            onClick={() => markCommissionPaidMutation.mutate(commission.id)}
+                            disabled={markCommissionPaidMutation.isPending}
+                            data-testid={`button-mark-paid-${commission.id}`}
+                          >
+                            {markCommissionPaidMutation.isPending ? "Marking as Paid..." : "Mark as Paid in Payroll"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCommissionDialog({ isOpen: false, salesRep: null })}
+              data-testid="button-close-commissions"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
