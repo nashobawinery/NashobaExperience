@@ -287,6 +287,24 @@ export default function AdminDashboard() {
     isOpen: false,
     customer: null,
   });
+
+  // Order history dialog state
+  const [orderHistoryDialog, setOrderHistoryDialog] = useState<{ isOpen: boolean; customer: any | null }>({
+    isOpen: false,
+    customer: null,
+  });
+  const { data: customerOrderHistory, isLoading: loadingOrderHistory } = useQuery<any[]>({
+    queryKey: ['/api/b2b/customer/orders', orderHistoryDialog.customer?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2b/customer/orders?customerId=${orderHistoryDialog.customer?.id}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch orders');
+      return res.json();
+    },
+    enabled: !!orderHistoryDialog.customer?.id,
+  });
+
   const editCustomerForm = useForm<EditCustomerFormData>({
     resolver: zodResolver(editCustomerSchema),
     defaultValues: {
@@ -966,11 +984,23 @@ export default function AdminDashboard() {
                     Place Order
                   </Button>
                 )}
+                {!isPending && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setOrderHistoryDialog({ isOpen: true, customer })}
+                    className="flex-1"
+                    data-testid={`button-view-orders-${customer.id}`}
+                  >
+                    <Package className="h-4 w-4 mr-2" />
+                    View Orders
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => handleEditCustomer(customer)}
-                  className={isPending ? "flex-shrink-0" : "flex-1"}
+                  className={isPending ? "flex-shrink-0" : (activeCustomers?.length || 0 > 2 ? "hidden sm:flex flex-1" : "flex-1")}
                   data-testid={`button-edit-${customer.id}`}
                 >
                   <Edit className="h-4 w-4 mr-2" />
