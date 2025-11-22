@@ -796,7 +796,9 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     }
     
     // Check if cart qualifies for Tier 2 (5+ cases across ALL categories)
-    const qualifiesForTier2 = totalCases >= 5;
+    // NOTE: Tier 2 auto-upgrade only applies to Tier 1 customers!
+    // Tier 3 and Tier 4 customers always use their annual commitment tier, regardless of cart size
+    const qualifiesForTier2 = totalCases >= 5 && customerTierName === 'Tier 1';
 
     // Calculate order totals with category-specific tier pricing
     let subtotal = 0;
@@ -2038,7 +2040,9 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
     }
     
     // Check if cart qualifies for Tier 2 (5+ cases across ALL categories)
-    const qualifiesForTier2 = totalCases >= 5;
+    // NOTE: Tier 2 auto-upgrade only applies to Tier 1 customers!
+    // Tier 3 and Tier 4 customers always use their annual commitment tier, regardless of cart size
+    const qualifiesForTier2 = totalCases >= 5 && customerTierName === 'Tier 1';
 
     // Calculate order totals with category-specific tier pricing
     let subtotal = 0;
