@@ -3007,11 +3007,11 @@ export default function AdminDashboard() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Package className="h-4 w-4" />
-                            {order.totalCases} case(s)
+                            {order.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0} case(s)
                           </div>
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
-                            ${Number(order.totalAmount).toFixed(2)}
+                            ${Number(order.total).toFixed(2)}
                           </div>
                         </div>
                       </div>
