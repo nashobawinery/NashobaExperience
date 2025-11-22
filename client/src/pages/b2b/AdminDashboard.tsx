@@ -38,7 +38,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -2780,6 +2780,97 @@ export default function AdminDashboard() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order History Dialog */}
+      <Dialog open={orderHistoryDialog.isOpen} onOpenChange={(open) => setOrderHistoryDialog({ isOpen: open, customer: orderHistoryDialog.customer })}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="dialog-order-history">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">
+              Order History - {orderHistoryDialog.customer?.accountName}
+            </DialogTitle>
+            <DialogDescription>
+              {orderHistoryDialog.customer?.emailAddress}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingOrderHistory ? (
+            <div className="space-y-3 py-6">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : !customerOrderHistory || customerOrderHistory.length === 0 ? (
+            <div className="py-12 text-center">
+              <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No Orders Yet</h3>
+              <p className="text-muted-foreground">This customer has not placed any orders</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {customerOrderHistory.map((order) => (
+                <Card key={order.id} data-testid={`admin-order-${order.id}`}>
+                  <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <CardTitle className="font-serif text-lg mb-2">
+                          Order #{order.orderNumber}
+                        </CardTitle>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {format(new Date(order.orderDate), "MMM d, yyyy")}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Package className="h-4 w-4" />
+                            {order.totalCases} case(s)
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            ${Number(order.totalAmount).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant={order.status === "completed" ? "default" : "secondary"}>
+                        {order.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm mb-3">Order Items:</h4>
+                      {order.items?.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center text-sm py-2 border-b last:border-0">
+                          <div>
+                            <p className="font-medium">{item.productName}</p>
+                            <p className="text-muted-foreground text-xs">SKU: {item.sku}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">${Number(item.lineTotal).toFixed(2)}</p>
+                            <p className="text-muted-foreground text-xs">
+                              {item.quantity} case(s) @ ${Number(item.unitPrice).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOrderHistoryDialog({ isOpen: false, customer: null })}
+              data-testid="button-close-order-history"
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
