@@ -2489,8 +2489,8 @@ export class DatabaseStorage implements IStorage {
           );
 
         const casesPurchased = orderItems.reduce((total, item) => {
-          const cases = Math.floor(item.quantity / (item.caseSize || 12));
-          return total + cases;
+          // quantity already represents cases in B2B orders
+          return total + item.quantity;
         }, 0);
 
         const casesRemaining = Math.max(0, customer.commitmentCases - casesPurchased);
@@ -2576,8 +2576,8 @@ export class DatabaseStorage implements IStorage {
           );
 
         const casesPurchased = orderItems.reduce((total, item) => {
-          const cases = Math.floor(item.quantity / (item.caseSize || 12));
-          return total + cases;
+          // quantity already represents cases in B2B orders
+          return total + item.quantity;
         }, 0);
 
         const casesRemaining = Math.max(0, (customer.commitmentCases || 0) - casesPurchased);
