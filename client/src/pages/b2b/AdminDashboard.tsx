@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder, useDeleteB2bOrder } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -151,6 +151,7 @@ export default function AdminDashboard() {
   const { mutateAsync: toggleTierActive, isPending: isTogglingTier } = useToggleTierActive();
   const { mutateAsync: updateTier, isPending: isUpdatingTier } = useUpdateTier();
   const { mutateAsync: createManualOrder, isPending: isCreatingManualOrder } = useCreateManualOrder();
+  const { mutateAsync: deleteOrder, isPending: isDeletingOrder } = useDeleteB2bOrder();
 
   const markCommissionPaidMutation = useMutation({
     mutationFn: async (commissionId: string) => {
@@ -237,6 +238,12 @@ export default function AdminDashboard() {
     territory: "",
     commissionPercentage: "",
     password: "",
+  });
+
+  // Delete order dialog state
+  const [deleteOrderDialog, setDeleteOrderDialog] = useState<{ isOpen: boolean; order: any | null }>({
+    isOpen: false,
+    order: null,
   });
 
   // Commission history dialog state
@@ -1264,12 +1271,20 @@ export default function AdminDashboard() {
                         <p className="text-sm text-muted-foreground">{order.customerName}</p>
                         <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right mr-4">
                         <p className="font-semibold text-lg">${order.total}</p>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(order.orderDate), "MMM d, yyyy")}
                         </p>
                       </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDeleteOrderDialog({ isOpen: true, order })}
+                        data-testid={`button-delete-order-${order.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -3041,6 +3056,44 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Order Confirmation Dialog */}
+      <AlertDialog open={deleteOrderDialog.isOpen} onOpenChange={(open) => setDeleteOrderDialog({ isOpen: open, order: deleteOrderDialog.order })}>
+        <AlertDialogContent data-testid="dialog-delete-order-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete order <span className="font-semibold">{deleteOrderDialog.order?.orderNumber}</span>? This will also delete all associated commissions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-order">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await deleteOrder(deleteOrderDialog.order.id);
+                  toast({
+                    title: "Success",
+                    description: "Order deleted successfully",
+                  });
+                  setDeleteOrderDialog({ isOpen: false, order: null });
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to delete order",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={isDeletingOrder}
+              data-testid="button-confirm-delete-order"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingOrder ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

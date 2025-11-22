@@ -1998,6 +1998,31 @@ router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Re
   }
 });
 
+// Admin: Delete order (cascades to commissions)
+router.delete('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Verify order exists first
+    const order = await storage.getB2bOrder(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Delete order (will cascade delete commissions due to schema)
+    const success = await storage.deleteB2bOrder(id);
+    
+    if (success) {
+      res.json({ success: true, message: 'Order and associated commissions deleted' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete order' });
+    }
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
 // Admin: Update order with items
 router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, res: Response) => {
   try {

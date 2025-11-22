@@ -312,3 +312,17 @@ export function useCreateManualOrder() {
     },
   });
 }
+
+// Delete order (cascades to commissions)
+export function useDeleteB2bOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      return apiRequest("DELETE", `/api/b2b/admin/orders/${orderId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+    },
+  });
+}

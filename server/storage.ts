@@ -2709,7 +2709,7 @@ export class DatabaseStorage implements IStorage {
   async updateCommissionStatus(commissionId: string, status: string): Promise<B2bCommission | undefined> {
     const [updated] = await db
       .update(b2bCommissions)
-      .set({ status, updatedAt: new Date() })
+      .set({ status })
       .where(eq(b2bCommissions.id, commissionId))
       .returning();
     return updated;
@@ -2720,8 +2720,7 @@ export class DatabaseStorage implements IStorage {
       .update(b2bCommissions)
       .set({ 
         paidToSalesRep: true, 
-        paidToSalesRepAt: new Date(),
-        updatedAt: new Date() 
+        paidToSalesRepAt: new Date()
       })
       .where(eq(b2bCommissions.id, commissionId))
       .returning();
