@@ -865,7 +865,7 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
     const orderData = {
       customerId: targetCustomerId,
       orderNumber,
-      status: 'pending',
+      status: 'pending_approval',
       subtotal: subtotal.toFixed(2),
       tax: '0.00',
       total: subtotal.toFixed(2),
