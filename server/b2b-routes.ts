@@ -2614,4 +2614,60 @@ router.get('/api/b2b/admin/email-automation-logs', requireB2bAdmin, async (req: 
   }
 });
 
+// Admin: Backfill missing commissions for existing orders
+router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const allOrders = await storage.getAllB2bOrders();
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const order of allOrders) {
+      // Skip if order doesn't have completed/payment status or has no customer
+      if (!order.customerId || !order.customer) continue;
+
+      // Check if commission already exists
+      const existingCommissions = await storage.getCommissionsByOrderId(order.id);
+      if (existingCommissions.length > 0) {
+        skippedCount++;
+        continue;
+      }
+
+      // Get customer and verify they have a sales rep
+      const customer = await storage.getB2bCustomer(order.customerId);
+      if (!customer || !customer.salesRepId) continue;
+
+      // Get sales rep commission percentage
+      const salesRep = await storage.getSalesRep(customer.salesRepId);
+      if (!salesRep) continue;
+
+      // Calculate commission amount
+      const subtotal = parseFloat(order.subtotal);
+      const commissionPercentage = parseFloat(salesRep.commissionPercentage);
+      const commissionAmount = (subtotal * commissionPercentage) / 100;
+
+      // Create commission
+      await storage.createCommission({
+        orderId: order.id,
+        salesRepId: customer.salesRepId,
+        orderTotal: order.subtotal,
+        commissionPercentage: commissionPercentage.toFixed(2),
+        commissionAmount: commissionAmount.toFixed(2),
+        status: order.status === 'completed' ? 'earned' : 'pending',
+      });
+
+      createdCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Backfill complete. Created ${createdCount} commissions, skipped ${skippedCount} (already had commissions)`,
+      created: createdCount,
+      skipped: skippedCount,
+    });
+  } catch (error) {
+    console.error('Error backfilling commissions:', error);
+    res.status(500).json({ error: 'Failed to backfill commissions' });
+  }
+});
+
 export default router;

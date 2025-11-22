@@ -199,6 +199,31 @@ export default function AdminDashboard() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Commission backfill state
+  const [isBackfillingCommissions, setIsBackfillingCommissions] = useState(false);
+
+  const handleBackfillCommissions = async () => {
+    setIsBackfillingCommissions(true);
+    try {
+      const res = await apiRequest('POST', '/api/b2b/admin/backfill-commissions', {});
+      const data = await res.json();
+      toast({
+        title: 'Success',
+        description: `Created ${data.created} commissions. Skipped ${data.skipped} orders that already had commissions.`,
+      });
+      // Refresh the commission queries
+      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/sales-reps'] });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to backfill commissions',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBackfillingCommissions(false);
+    }
+  };
+
   // Sales rep dialog state
   const [salesRepDialog, setSalesRepDialog] = useState<{ isOpen: boolean; salesRep: any | null }>({
     isOpen: false,
@@ -1422,6 +1447,31 @@ export default function AdminDashboard() {
                   {isChangingPassword ? "Changing Password..." : "Change Password"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Commission Backfill Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Commission Management
+              </CardTitle>
+              <CardDescription>
+                Backfill missing commissions for existing orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                If commissions are missing for existing orders, click the button below to generate them retroactively.
+              </p>
+              <Button
+                onClick={handleBackfillCommissions}
+                disabled={isBackfillingCommissions}
+                data-testid="button-backfill-commissions"
+              >
+                {isBackfillingCommissions ? "Backfilling Commissions..." : "Backfill Missing Commissions"}
+              </Button>
             </CardContent>
           </Card>
 
