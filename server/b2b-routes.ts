@@ -842,7 +842,8 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using retail price.`);
       }
       const tierDiscount = effectiveTier ? parseFloat(effectiveTier.discountPercentage) / 100 : 0;
-      const unitPrice = parseFloat(product.price) * (1 - tierDiscount);
+      // unitPrice is per case: retail bottle price × case size × (1 - tier discount)
+      const unitPrice = parseFloat(product.price) * product.caseSize * (1 - tierDiscount);
       const lineTotal = unitPrice * item.quantity;
       
       subtotal += lineTotal;
