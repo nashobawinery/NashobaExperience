@@ -488,7 +488,6 @@ export const b2bCommissions = pgTable("b2b_commissions", {
   paidToSalesRep: boolean("paid_to_sales_rep").notNull().default(false),
   paidToSalesRepAt: timestamp("paid_to_sales_rep_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const b2bSettings = pgTable("b2b_settings", {
