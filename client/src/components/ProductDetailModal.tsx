@@ -326,6 +326,7 @@ export default function ProductDetailModal({
                           size="sm"
                           onClick={handleAddBottles}
                           disabled={!product.ignoreInventory && product.stockQuantity! < 1 || bottleQuantity === 0}
+                          className="bg-green-100 text-green-900 hover:bg-green-200 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid="button-add-bottles-detail"
                         >
                           Bottles
@@ -349,6 +350,7 @@ export default function ProductDetailModal({
                           size="sm"
                           onClick={handleAddCases}
                           disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
+                          className="bg-green-100 text-green-900 hover:bg-green-200 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid="button-add-cases-detail"
                         >
                           Cases
@@ -374,6 +376,7 @@ export default function ProductDetailModal({
                         size="sm"
                         onClick={handleAddCases}
                         disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
+                        className="bg-green-100 text-green-900 hover:bg-green-200 disabled:bg-muted disabled:text-muted-foreground"
                         data-testid="button-add-cases-qty-detail"
                       >
                         Add
