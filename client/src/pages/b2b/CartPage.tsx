@@ -12,6 +12,7 @@ import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, Loader2, TrendingUp, UserC
 interface CartItem {
   quantity: number;
   unit: 'bottle' | 'case';
+  productId?: string;
 }
 
 function getCart(): Record<string, CartItem | number> {
@@ -64,7 +65,18 @@ export default function CartPage() {
   };
   
   // Calculate total cases across ALL categories for Tier 2 qualification
-  const totalCases = Object.entries(cart).reduce((sum, [productId, item]) => {
+  const totalCases = Object.entries(cart).reduce((sum, [cartKey, item]) => {
+    // Extract productId from cartKey
+    let productId: string;
+    if (typeof item === 'object' && item.productId) {
+      productId = item.productId;
+    } else if (typeof item === 'object' && item.unit) {
+      const parts = cartKey.split('-');
+      productId = parts.slice(0, -1).join('-');
+    } else {
+      productId = cartKey;
+    }
+    
     const product = products.find((p) => p.id === productId);
     return sum + getCartQuantityInCases(item, product);
   }, 0);
@@ -72,19 +84,38 @@ export default function CartPage() {
   
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
-    .map(([productId, cartItem]) => {
+    .map(([cartKey, cartItem]) => {
+      // Extract productId from cartKey (format: "productId-unit" or legacy productId)
+      let productId: string;
+      let unit: 'bottle' | 'case' = 'case';
+      
+      if (typeof cartItem === 'object' && cartItem.productId) {
+        // New format with composite key
+        productId = cartItem.productId;
+        unit = cartItem.unit;
+      } else if (typeof cartItem === 'object' && cartItem.unit) {
+        // New format with composite key but need to extract productId from cartKey
+        const parts = cartKey.split('-');
+        unit = (parts[parts.length - 1] as 'bottle' | 'case');
+        productId = parts.slice(0, -1).join('-');
+      } else {
+        // Legacy format: just productId as key
+        productId = cartKey;
+        if (typeof cartItem === 'object') {
+          unit = cartItem.unit;
+        }
+      }
+      
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
       
       // Normalize cart item to standard format
       let quantity: number;
-      let unit: 'bottle' | 'case' = 'case';
       if (typeof cartItem === 'number') {
         quantity = cartItem;
         unit = 'case';
       } else {
         quantity = cartItem.quantity;
-        unit = cartItem.unit;
       }
       
       const quantityInCases = getCartQuantityInCases(cartItem, product);
@@ -116,6 +147,8 @@ export default function CartPage() {
         : effectivePrice * quantity;
       
       return {
+        productId,
+        cartKey,
         product,
         quantity,
         quantityInCases,
@@ -127,28 +160,28 @@ export default function CartPage() {
     })
     .filter(Boolean);
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
+  const updateQuantity = (cartKey: string, newQuantity: number) => {
     if (newQuantity <= 0) {
       const newCart = { ...cart };
-      delete newCart[productId];
+      delete newCart[cartKey];
       setCart(newCart);
       saveCart(newCart);
     } else {
       const newCart = { ...cart };
-      const cartItem = newCart[productId];
+      const cartItem = newCart[cartKey];
       if (cartItem && typeof cartItem === 'object') {
         cartItem.quantity = newQuantity;
       } else {
-        newCart[productId] = newQuantity;
+        newCart[cartKey] = newQuantity;
       }
       setCart(newCart);
       saveCart(newCart);
     }
   };
 
-  const removeItem = (productId: string) => {
+  const removeItem = (cartKey: string) => {
     const newCart = { ...cart };
-    delete newCart[productId];
+    delete newCart[cartKey];
     setCart(newCart);
     saveCart(newCart);
   };
@@ -238,10 +271,10 @@ export default function CartPage() {
         <div className="lg:col-span-2 space-y-4">
           {cartItems.map((item) => {
             if (!item) return null;
-            const { product, quantity, effectivePrice, subtotal } = item;
+            const { product, quantity, cartKey, effectivePrice, subtotal } = item;
 
             return (
-              <Card key={product.id} data-testid={`cart-item-${product.id}`}>
+              <Card key={cartKey} data-testid={`cart-item-${product.id}`}>
                 <CardContent className="p-6">
                   <div className="flex gap-4">
                     {product.imageUrl && (
@@ -279,7 +312,7 @@ export default function CartPage() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => updateQuantity(product.id, quantity - 1)}
+                            onClick={() => updateQuantity(cartKey, quantity - 1)}
                             data-testid={`button-decrease-${product.id}`}
                           >
                             <Minus className="h-4 w-4" />
@@ -288,14 +321,14 @@ export default function CartPage() {
                             type="number"
                             min="1"
                             value={quantity}
-                            onChange={(e) => updateQuantity(product.id, parseInt(e.target.value) || 0)}
+                            onChange={(e) => updateQuantity(cartKey, parseInt(e.target.value) || 0)}
                             className="w-20 text-center"
                             data-testid={`input-quantity-${product.id}`}
                           />
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => updateQuantity(product.id, quantity + 1)}
+                            onClick={() => updateQuantity(cartKey, quantity + 1)}
                             data-testid={`button-increase-${product.id}`}
                           >
                             <Plus className="h-4 w-4" />
@@ -306,7 +339,7 @@ export default function CartPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeItem(product.id)}
+                          onClick={() => removeItem(cartKey)}
                           className="text-destructive"
                           data-testid={`button-remove-${product.id}`}
                         >
