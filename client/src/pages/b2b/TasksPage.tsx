@@ -58,6 +58,10 @@ export default function TasksPage() {
         title: "Success",
         description: "Order status updated successfully",
       });
+      // Auto-refresh page to show updated order workflow
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({

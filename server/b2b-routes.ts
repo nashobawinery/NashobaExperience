@@ -2004,9 +2004,19 @@ router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Re
 
     // If order is marked as completed/paid, update related commission status
     if (status === 'completed') {
-      const commissions = await storage.getCommissionsByOrderId(id);
-      for (const commission of commissions) {
-        await storage.updateCommissionStatus(commission.id, 'earned');
+      try {
+        const commissions = await storage.getCommissionsByOrderId(id);
+        for (const commission of commissions) {
+          try {
+            await storage.updateCommissionStatus(commission.id, 'earned');
+          } catch (commissionError) {
+            console.error(`Error updating commission ${commission.id}:`, commissionError);
+            // Continue updating other commissions even if one fails
+          }
+        }
+      } catch (commissionsError) {
+        console.error(`Error getting commissions for order ${id}:`, commissionsError);
+        // Don't fail the order status update if commission operations fail
       }
     }
 
