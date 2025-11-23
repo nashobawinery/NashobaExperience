@@ -487,6 +487,7 @@ export const b2bCommissions = pgTable("b2b_commissions", {
   status: varchar("status").notNull().default("pending"),
   paidToSalesRep: boolean("paid_to_sales_rep").notNull().default(false),
   paidToSalesRepAt: timestamp("paid_to_sales_rep_at"),
+  payPeriod: varchar("pay_period"), // e.g., "2024-01", "Jan 2024"
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

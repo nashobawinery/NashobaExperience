@@ -2728,6 +2728,40 @@ router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: 
   }
 });
 
+// Admin: Get earned commissions not yet paid
+router.get('/api/b2b/admin/payroll/commissions', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const commissions = await storage.getEarnedCommissionsNotPaid();
+    res.json(commissions);
+  } catch (error) {
+    console.error('Error fetching payroll commissions:', error);
+    res.status(500).json({ error: 'Failed to fetch commissions' });
+  }
+});
+
+// Admin: Mark commission as paid with pay period
+router.patch('/api/b2b/admin/payroll/commissions/:id/pay', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { payPeriod } = req.body;
+    
+    if (!payPeriod) {
+      return res.status(400).json({ error: 'Pay period is required' });
+    }
+
+    const commission = await storage.updateCommissionPayPeriod(id, payPeriod);
+    
+    if (!commission) {
+      return res.status(404).json({ error: 'Commission not found' });
+    }
+
+    res.json(commission);
+  } catch (error) {
+    console.error('Error updating commission:', error);
+    res.status(500).json({ error: 'Failed to update commission' });
+  }
+});
+
 // Customer: Get customer info (account name) - supports admin impersonation and regular customers
 router.get('/api/b2b/customer/info', async (req: Request, res: Response) => {
   try {

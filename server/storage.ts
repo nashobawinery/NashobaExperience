@@ -341,8 +341,12 @@ export interface IStorage {
 
   // B2B - Commissions
   getCommissionsBySalesRep(salesRepId: string): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer } })[]>;
+  getCommissionsByOrderId(orderId: string): Promise<B2bCommission[]>;
   createCommission(data: InsertB2bCommission): Promise<B2bCommission>;
   updateCommissionStatus(commissionId: string, status: string): Promise<B2bCommission | undefined>;
+  markCommissionAsPaid(commissionId: string): Promise<B2bCommission | undefined>;
+  getEarnedCommissionsNotPaid(): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer }; salesRep: SalesRep })[]>;
+  updateCommissionPayPeriod(commissionId: string, payPeriod: string): Promise<B2bCommission | undefined>;
 
   // B2B - Tier Commitments
   getTierCommitmentReport(): Promise<any[]>;
@@ -2720,6 +2724,47 @@ export class DatabaseStorage implements IStorage {
       .update(b2bCommissions)
       .set({ 
         paidToSalesRep: true, 
+        paidToSalesRepAt: new Date()
+      })
+      .where(eq(b2bCommissions.id, commissionId))
+      .returning();
+    return updated;
+  }
+
+  async getEarnedCommissionsNotPaid(): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer }; salesRep: SalesRep })[]> {
+    const results = await db
+      .select({
+        commission: b2bCommissions,
+        order: b2bOrders,
+        customer: b2bCustomers,
+        salesRep: salesReps,
+      })
+      .from(b2bCommissions)
+      .innerJoin(b2bOrders, eq(b2bCommissions.orderId, b2bOrders.id))
+      .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .innerJoin(salesReps, eq(b2bCommissions.salesRepId, salesReps.id))
+      .where(and(
+        eq(b2bCommissions.status, 'earned'),
+        eq(b2bCommissions.paidToSalesRep, false)
+      ))
+      .orderBy(desc(b2bCommissions.createdAt));
+
+    return results.map(r => ({
+      ...r.commission,
+      order: {
+        ...r.order,
+        customer: r.customer,
+      },
+      salesRep: r.salesRep,
+    }));
+  }
+
+  async updateCommissionPayPeriod(commissionId: string, payPeriod: string): Promise<B2bCommission | undefined> {
+    const [updated] = await db
+      .update(b2bCommissions)
+      .set({ 
+        payPeriod,
+        paidToSalesRep: true,
         paidToSalesRepAt: new Date()
       })
       .where(eq(b2bCommissions.id, commissionId))

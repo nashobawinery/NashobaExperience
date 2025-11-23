@@ -284,6 +284,48 @@ export default function AdminDashboard() {
     enabled: !!commissionDialog.salesRep?.id,
   });
 
+  // Payroll dialog state
+  const [payrollPayPeriod, setPayrollPayPeriod] = useState<string>("");
+  const [payrollCommissionId, setPayrollCommissionId] = useState<string | null>(null);
+  
+  // Get earned commissions not yet paid
+  const { data: payrollCommissions, isLoading: loadingPayrollCommissions, refetch: refetchPayroll } = useQuery<any[]>({
+    queryKey: ["b2b", "admin", "payroll", "commissions"],
+    queryFn: async () => {
+      const response = await fetch("/api/b2b/admin/payroll/commissions");
+      if (!response.ok) throw new Error("Failed to fetch payroll commissions");
+      return response.json();
+    },
+  });
+
+  // Mutation to update commission pay period
+  const updateCommissionPayPeriod = useMutation({
+    mutationFn: async (data: { commissionId: string; payPeriod: string }) => {
+      const response = await apiRequest(
+        `PATCH`,
+        `/api/b2b/admin/payroll/commissions/${data.commissionId}/pay`,
+        { payPeriod: data.payPeriod }
+      );
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Commission added to payroll",
+      });
+      refetchPayroll();
+      setPayrollCommissionId(null);
+      setPayrollPayPeriod("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update commission",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Edit tier dialog state
   const [editTierDialog, setEditTierDialog] = useState<{ isOpen: boolean; tier: any | null }>({
     isOpen: false,
@@ -1194,6 +1236,22 @@ export default function AdminDashboard() {
 
           <Card className="p-4">
             <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Finance & Payroll</h3>
+              <TabsList className="grid w-full grid-cols-2 h-auto">
+                <TabsTrigger value="payroll" data-testid="tab-payroll" className="flex items-center justify-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Payroll</span>
+                </TabsTrigger>
+                <TabsTrigger value="commissions" data-testid="tab-commissions" className="flex items-center justify-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Commissions</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Improvements</h3>
               <TabsList className="w-full h-auto">
                 <TabsTrigger value="notes" data-testid="tab-notes" className="flex items-center justify-center gap-2 flex-1">
@@ -1470,6 +1528,143 @@ export default function AdminDashboard() {
         {/* NOTES TAB */}
         <TabsContent value="notes">
           <NotesManager appType="b2b" />
+        </TabsContent>
+
+        {/* PAYROLL TAB */}
+        <TabsContent value="payroll" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Payroll Management
+              </CardTitle>
+              <CardDescription>
+                Review earned commissions and assign them to pay periods
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingPayrollCommissions ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              ) : !payrollCommissions || payrollCommissions.length === 0 ? (
+                <div className="text-center py-8">
+                  <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No earned commissions awaiting payroll</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {payrollCommissions.map((commission) => (
+                    <Card key={commission.id} className="border" data-testid={`payroll-commission-${commission.id}`}>
+                      <CardContent className="pt-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Sales Rep</p>
+                            <p className="font-medium">{commission.salesRep?.firstName} {commission.salesRep?.lastName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Order</p>
+                            <p className="font-medium">#{commission.order?.orderNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Amount</p>
+                            <p className="font-medium">${Number(commission.commissionAmount).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <Badge variant="secondary" className="mt-1">{commission.status}</Badge>
+                          </div>
+                        </div>
+                        {payrollCommissionId === commission.id ? (
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Label htmlFor={`payperiod-${commission.id}`} className="text-xs mb-1 block">Pay Period (e.g., "Jan 2024" or "2024-01")</Label>
+                              <Input
+                                id={`payperiod-${commission.id}`}
+                                placeholder="Jan 2024"
+                                value={payrollPayPeriod}
+                                onChange={(e) => setPayrollPayPeriod(e.target.value)}
+                                data-testid={`input-pay-period-${commission.id}`}
+                              />
+                            </div>
+                            <Button
+                              onClick={() => updateCommissionPayPeriod.mutate({ commissionId: commission.id, payPeriod: payrollPayPeriod })}
+                              disabled={updateCommissionPayPeriod.isPending || !payrollPayPeriod}
+                              size="sm"
+                              data-testid={`button-confirm-pay-period-${commission.id}`}
+                            >
+                              {updateCommissionPayPeriod.isPending ? "Saving..." : "Mark Paid"}
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setPayrollCommissionId(null);
+                                setPayrollPayPeriod("");
+                              }}
+                              variant="outline"
+                              size="sm"
+                              data-testid={`button-cancel-pay-period-${commission.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              setPayrollCommissionId(commission.id);
+                              setPayrollPayPeriod("");
+                            }}
+                            size="sm"
+                            data-testid={`button-assign-pay-period-${commission.id}`}
+                          >
+                            Assign to Pay Period
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* COMMISSIONS TAB */}
+        <TabsContent value="commissions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Commission History by Sales Rep
+              </CardTitle>
+              <CardDescription>
+                View earned and paid commissions for each sales representative
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {!salesReps || salesReps.length === 0 ? (
+                  <p className="text-muted-foreground">No sales representatives found</p>
+                ) : (
+                  salesReps.map((rep) => (
+                    <Button
+                      key={rep.id}
+                      onClick={() => setCommissionDialog({ isOpen: true, salesRep: rep })}
+                      variant="outline"
+                      className="h-auto p-4 justify-start"
+                      data-testid={`button-view-commissions-${rep.id}`}
+                    >
+                      <div className="text-left">
+                        <p className="font-medium">{rep.firstName} {rep.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{rep.email}</p>
+                      </div>
+                    </Button>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* SETTINGS TAB */}
