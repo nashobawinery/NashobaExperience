@@ -1342,12 +1342,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
           const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
           
-          const repData = {
-            ...rep,
-            passwordHash,
+          const repData: any = {
+            email: rep.email,
+            firstName: rep.firstName,
+            lastName: rep.lastName,
+            phoneNumber: rep.phoneNumber || null,
+            active: rep.active !== undefined ? rep.active : true,
+            passwordHash: passwordHash,
           };
           
-          const { salesRep: upserted } = await storage.upsertSalesRep(repData as any);
+          console.error('DEBUG: Importing rep', rep.email, 'with hash length:', passwordHash?.length, 'repData keys:', Object.keys(repData));
+          
+          const { salesRep: upserted } = await storage.upsertSalesRep(repData);
           salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
           results.salesReps.success++;
         } catch (error) {
