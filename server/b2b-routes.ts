@@ -2718,10 +2718,16 @@ router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: 
   }
 });
 
-// Customer: Get customer info (account name)
+// Customer: Get customer info (account name) - supports admin impersonation
 router.get('/api/b2b/customer/info', requireB2bCustomer, async (req: Request, res: Response) => {
   try {
-    const customerId = (req.session as any).b2bCustomerId;
+    let customerId = (req.session as any).b2bCustomerId;
+    
+    // Support admin impersonation via customerId query parameter
+    if (req.query.customerId) {
+      customerId = req.query.customerId as string;
+    }
+
     const customer = await storage.getB2bCustomer(customerId);
     
     if (!customer) {

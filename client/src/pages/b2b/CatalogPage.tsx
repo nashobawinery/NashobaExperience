@@ -54,6 +54,28 @@ export default function CatalogPage() {
 
   const { data: customerData } = useQuery<{ accountName: string }>({
     queryKey: ['b2b', 'customer', 'info'],
+    queryFn: async () => {
+      // Check for admin impersonation
+      const impersonationData = localStorage.getItem('admin_impersonating');
+      let url = "/api/b2b/customer/info";
+      
+      if (impersonationData) {
+        try {
+          const { customerId } = JSON.parse(impersonationData);
+          if (customerId) {
+            url += `?customerId=${encodeURIComponent(customerId)}`;
+          }
+        } catch {
+          // Invalid impersonation data, ignore
+        }
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch customer info");
+      }
+      return response.json();
+    },
   });
 
   const { data: welcomeSettings } = useQuery<{ welcomeStatement: string }>({
