@@ -2762,6 +2762,45 @@ router.patch('/api/b2b/admin/payroll/commissions/:id/pay', requireB2bAdmin, asyn
   }
 });
 
+// Admin: Get payroll settings
+router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const payday = await storage.getB2bSetting('payroll_payday');
+    const frequency = await storage.getB2bSetting('payroll_frequency');
+    
+    res.json({
+      payday: payday ? parseInt(payday.settingValue) : 15,
+      frequency: frequency ? frequency.settingValue : 'monthly',
+    });
+  } catch (error) {
+    console.error('Error fetching payroll settings:', error);
+    res.status(500).json({ error: 'Failed to fetch payroll settings' });
+  }
+});
+
+// Admin: Save payroll settings
+router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { payday, frequency } = req.body;
+    
+    if (payday === undefined || !frequency) {
+      return res.status(400).json({ error: 'Payday and frequency are required' });
+    }
+
+    await storage.setB2bSetting('payroll_payday', payday.toString());
+    await storage.setB2bSetting('payroll_frequency', frequency);
+
+    res.json({
+      success: true,
+      payday,
+      frequency,
+    });
+  } catch (error) {
+    console.error('Error saving payroll settings:', error);
+    res.status(500).json({ error: 'Failed to save payroll settings' });
+  }
+});
+
 // Customer: Get customer info (account name) - supports admin impersonation and regular customers
 router.get('/api/b2b/customer/info', async (req: Request, res: Response) => {
   try {

@@ -209,21 +209,57 @@ export default function AdminDashboard() {
   const [welcomeStatement, setWelcomeStatement] = useState("Great Pricing With Supporting Local Agriculture - Thank you");
   const [isSavingWelcomeStatement, setIsSavingWelcomeStatement] = useState(false);
 
-  // Load welcome statement on mount
+  // Payroll settings state
+  const [payrollPayday, setPayrollPayday] = useState<number>(15); // Day of month
+  const [payrollFrequency, setPayrollFrequency] = useState<string>("monthly"); // weekly, bi-weekly, monthly
+  const [isSavingPayrollSettings, setIsSavingPayrollSettings] = useState(false);
+
+  // Load welcome statement and payroll settings on mount
   useEffect(() => {
-    const loadWelcomeStatement = async () => {
+    const loadSettings = async () => {
       try {
         const res = await fetch('/api/b2b/settings/welcome');
         const data = await res.json();
         if (data.welcomeStatement) {
           setWelcomeStatement(data.welcomeStatement);
         }
+
+        // Load payroll settings
+        const payrollRes = await fetch('/api/b2b/admin/payroll/settings');
+        if (payrollRes.ok) {
+          const payrollData = await payrollRes.json();
+          setPayrollPayday(payrollData.payday || 15);
+          setPayrollFrequency(payrollData.frequency || 'monthly');
+        }
       } catch (error) {
-        console.error('Failed to load welcome statement:', error);
+        console.error('Failed to load settings:', error);
       }
     };
-    loadWelcomeStatement();
+    loadSettings();
   }, []);
+
+  const handleSavePayrollSettings = async () => {
+    setIsSavingPayrollSettings(true);
+    try {
+      const res = await apiRequest('POST', '/api/b2b/admin/payroll/settings', {
+        payday: payrollPayday,
+        frequency: payrollFrequency,
+      });
+      toast({
+        title: 'Success',
+        description: 'Payroll settings updated successfully',
+      });
+      refetchPayroll();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save payroll settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingPayrollSettings(false);
+    }
+  };
 
   const handleBackfillCommissions = async () => {
     setIsBackfillingCommissions(true);
@@ -287,6 +323,7 @@ export default function AdminDashboard() {
   // Payroll dialog state
   const [payrollPayPeriod, setPayrollPayPeriod] = useState<string>("");
   const [payrollCommissionId, setPayrollCommissionId] = useState<string | null>(null);
+  const [nextPayrollDate, setNextPayrollDate] = useState<string>("");
   
   // Get earned commissions not yet paid
   const { data: payrollCommissions, isLoading: loadingPayrollCommissions, refetch: refetchPayroll } = useQuery<any[]>({
@@ -297,6 +334,34 @@ export default function AdminDashboard() {
       return response.json();
     },
   });
+
+  // Calculate next payroll date based on settings
+  useEffect(() => {
+    const calculateNextPayrollDate = () => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+
+      if (payrollFrequency === 'monthly') {
+        // Calculate next payroll date as the payday (day of month)
+        let payrollDate = new Date(year, month, payrollPayday);
+        if (payrollDate <= today) {
+          payrollDate = new Date(year, month + 1, payrollPayday);
+        }
+        setNextPayrollDate(format(payrollDate, 'MMM d, yyyy'));
+      } else if (payrollFrequency === 'bi-weekly') {
+        const nextDate = new Date(today);
+        nextDate.setDate(nextDate.getDate() + payrollPayday + 1); // +1 to get next occurrence
+        setNextPayrollDate(format(nextDate, 'MMM d, yyyy'));
+      } else {
+        // weekly
+        const nextDate = new Date(today);
+        nextDate.setDate(nextDate.getDate() + payrollPayday + 1);
+        setNextPayrollDate(format(nextDate, 'MMM d, yyyy'));
+      }
+    };
+    calculateNextPayrollDate();
+  }, [payrollFrequency, payrollPayday]);
 
   // Mutation to update commission pay period
   const updateCommissionPayPeriod = useMutation({
@@ -1539,7 +1604,7 @@ export default function AdminDashboard() {
                 Payroll Management
               </CardTitle>
               <CardDescription>
-                Review earned commissions and assign them to pay periods
+                Review earned commissions and assign them to pay periods (Next payroll: {nextPayrollDate})
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1583,8 +1648,8 @@ export default function AdminDashboard() {
                               <Label htmlFor={`payperiod-${commission.id}`} className="text-xs mb-1 block">Pay Period (e.g., "Jan 2024" or "2024-01")</Label>
                               <Input
                                 id={`payperiod-${commission.id}`}
-                                placeholder="Jan 2024"
-                                value={payrollPayPeriod}
+                                placeholder={nextPayrollDate}
+                                value={payrollPayPeriod || nextPayrollDate}
                                 onChange={(e) => setPayrollPayPeriod(e.target.value)}
                                 data-testid={`input-pay-period-${commission.id}`}
                               />
@@ -1727,6 +1792,58 @@ export default function AdminDashboard() {
                   {isChangingPassword ? "Changing Password..." : "Change Password"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Payroll Settings Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Payroll Settings
+              </CardTitle>
+              <CardDescription>
+                Configure payroll schedule and auto-assignment of commissions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-frequency">Pay Frequency</Label>
+                  <Select value={payrollFrequency} onValueChange={setPayrollFrequency}>
+                    <SelectTrigger id="payroll-frequency" data-testid="select-payroll-frequency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-payday">Pay Day{payrollFrequency === "monthly" ? " (day of month)" : ""}</Label>
+                  <Input
+                    id="payroll-payday"
+                    type="number"
+                    min={payrollFrequency === "monthly" ? 1 : 0}
+                    max={payrollFrequency === "monthly" ? 31 : 6}
+                    value={payrollPayday}
+                    onChange={(e) => setPayrollPayday(parseInt(e.target.value))}
+                    data-testid="input-payroll-payday"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {payrollFrequency === "monthly" ? "Day of the month (1-31)" : payrollFrequency === "bi-weekly" ? "Days from now (0-13)" : "Days from now (0-6)"}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSavePayrollSettings}
+                  disabled={isSavingPayrollSettings}
+                  data-testid="button-save-payroll-settings"
+                >
+                  {isSavingPayrollSettings ? "Saving..." : "Save Payroll Settings"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
