@@ -1514,8 +1514,8 @@ export default function AdminDashboard() {
                             {getOrderStatusLabel(order.status)}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{order.customerName || 'Unknown Customer'}</p>
-                        <p className="text-xs text-muted-foreground">{order.customerEmail || 'No email'}</p>
+                        <p className="text-sm text-muted-foreground">{order.customer?.accountName || 'Unknown Customer'}</p>
+                        <p className="text-xs text-muted-foreground">{order.customer?.emailAddress || 'No email'}</p>
                       </div>
                       <div className="text-right mr-4">
                         <p className="font-semibold text-lg">${order.total}</p>
