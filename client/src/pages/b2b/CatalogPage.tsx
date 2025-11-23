@@ -108,6 +108,18 @@ export default function CatalogPage() {
     return sum + item.quantity;
   }, 0);
 
+  // Calculate discount percentage for a product
+  const getDiscountInfo = (product: any) => {
+    if (!product.tierPrice) return null;
+    const regularPrice = Number(product.price);
+    const tierPrice = Number(product.tierPrice);
+    const discountPercent = Math.round(((regularPrice - tierPrice) / regularPrice) * 100);
+    return {
+      discountPercent,
+      savings: (regularPrice - tierPrice).toFixed(2)
+    };
+  };
+
   const renderDetailedView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredProducts.map((product) => (
@@ -118,7 +130,17 @@ export default function CatalogPage() {
                 <CardTitle className="font-serif text-xl mb-1">{product.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
               </div>
-              <Badge variant="outline">{product.category}</Badge>
+              <div className="flex flex-col gap-1 items-end">
+                <Badge variant="outline">{product.category}</Badge>
+                <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-${product.id}`}>
+                  {tier?.tierName || "Standard"}
+                </Badge>
+                {getDiscountInfo(product) && (
+                  <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-${product.id}`}>
+                    {getDiscountInfo(product)!.discountPercent}% off
+                  </Badge>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -311,7 +333,17 @@ export default function CatalogPage() {
               )}
               <div className="flex-1 flex items-center justify-between">
                 <div className="flex-1">
-                  <h3 className="font-serif text-lg font-semibold mb-1">{product.name}</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-serif text-lg font-semibold">{product.name}</h3>
+                    <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-listing-${product.id}`}>
+                      {tier?.tierName || "Standard"}
+                    </Badge>
+                    {getDiscountInfo(product) && (
+                      <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-listing-${product.id}`}>
+                        {getDiscountInfo(product)!.discountPercent}% off
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground mb-2">SKU: {product.sku}</p>
                   <div className="flex gap-4 text-sm">
                     <div>
@@ -465,7 +497,17 @@ export default function CatalogPage() {
                   )}
                   <div className="flex-1 flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-serif text-lg font-semibold mb-1">{product.name}</h3>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-serif text-lg font-semibold">{product.name}</h3>
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-past-${product.id}`}>
+                          {tier?.tierName || "Standard"}
+                        </Badge>
+                        {getDiscountInfo(product) && (
+                          <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-past-${product.id}`}>
+                            {getDiscountInfo(product)!.discountPercent}% off
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground mb-2">SKU: {product.sku}</p>
                       <div className="flex gap-4 text-sm">
                         <div>
