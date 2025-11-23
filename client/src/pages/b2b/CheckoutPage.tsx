@@ -200,8 +200,20 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     try {
       const orderData: any = {
-        items: Object.entries(cart).map(([productId, cartItem]) => {
+        items: Object.entries(cart).map(([cartKey, cartItem]) => {
+          // Extract productId from cartKey (format: "productId-unit" or legacy productId)
+          let productId: string;
+          if (typeof cartItem === 'object' && cartItem.productId) {
+            productId = cartItem.productId;
+          } else if (typeof cartItem === 'object' && cartItem.unit) {
+            const parts = cartKey.split('-');
+            productId = parts.slice(0, -1).join('-');
+          } else {
+            productId = cartKey;
+          }
+          
           const product = products.find((p) => p.id === productId);
+          if (!product) return null;
           
           // Normalize cart item and convert bottles to cases
           let quantity: number;
@@ -223,7 +235,7 @@ export default function CheckoutPage() {
             productId,
             quantity: Math.ceil(quantityInCases), // Round up to nearest case
           };
-        }),
+        }).filter(Boolean),
       };
 
       // If admin is impersonating, include customerId for backend validation
