@@ -254,6 +254,8 @@ export default function CatalogPage() {
                                 }
                               }}
                               disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                              style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                              className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-bottles-${product.id}`}
                             >
                               Bottles
@@ -289,6 +291,8 @@ export default function CatalogPage() {
                                 }
                               }}
                               disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                              style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                              className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                               data-testid={`button-add-cases-${product.id}`}
                             >
                               Cases
@@ -436,6 +440,8 @@ export default function CatalogPage() {
                             }
                           }}
                           disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                          style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                          className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid={`button-add-bottles-listing-${product.id}`}
                         >
                           Bottles
@@ -468,6 +474,8 @@ export default function CatalogPage() {
                             }
                           }}
                           disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                          style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                          className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid={`button-add-cases-listing-${product.id}`}
                         >
                           Cases
@@ -502,6 +510,8 @@ export default function CatalogPage() {
                           }
                         }}
                         disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                        style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                        className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                         data-testid={`button-add-cases-listing-qty-${product.id}`}
                       >
                         Add
