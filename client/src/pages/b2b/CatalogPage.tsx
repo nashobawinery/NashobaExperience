@@ -133,7 +133,7 @@ export default function CatalogPage() {
               <div className="flex flex-col gap-1 items-end">
                 <Badge variant="outline">{product.category}</Badge>
                 <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-${product.id}`}>
-                  {tier?.tierName || "Standard"}
+                  {tier || "Standard"}
                 </Badge>
                 {getDiscountInfo(product) && (
                   <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-${product.id}`}>
@@ -336,7 +336,7 @@ export default function CatalogPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-serif text-lg font-semibold">{product.name}</h3>
                     <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-listing-${product.id}`}>
-                      {tier?.tierName || "Standard"}
+                      {tier || "Standard"}
                     </Badge>
                     {getDiscountInfo(product) && (
                       <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-listing-${product.id}`}>
@@ -500,7 +500,7 @@ export default function CatalogPage() {
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-serif text-lg font-semibold">{product.name}</h3>
                         <Badge variant="secondary" className="text-xs" data-testid={`badge-tier-past-${product.id}`}>
-                          {tier?.tierName || "Standard"}
+                          {tier || "Standard"}
                         </Badge>
                         {getDiscountInfo(product) && (
                           <Badge variant="default" className="bg-green-600 text-xs" data-testid={`badge-discount-past-${product.id}`}>
