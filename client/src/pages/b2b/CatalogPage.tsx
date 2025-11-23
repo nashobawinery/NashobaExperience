@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ShoppingCart, Package, DollarSign, UserCog, ArrowLeft, Grid3X3, List } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ProductDetailModal from "@/components/ProductDetailModal";
 
 // Cart state stored in localStorage
 interface CartItem {
@@ -43,6 +44,8 @@ export default function CatalogPage() {
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
   const [viewType, setViewType] = useState<ViewType>("listing");
   const [quantityInputs, setQuantityInputs] = useState<Record<string, number>>({});
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
   const { data: pastOrderItems = [] } = useQuery<any[]>({
     queryKey: ['/api/b2b/customer/past-orders'],
@@ -123,7 +126,10 @@ export default function CatalogPage() {
   const renderDetailedView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredProducts.map((product) => (
-        <Card key={product.id} className="hover-elevate" data-testid={`product-card-${product.id}`}>
+        <Card key={product.id} className="hover-elevate cursor-pointer" onClick={() => {
+          setSelectedProduct(product);
+          setIsDetailModalOpen(true);
+        }} data-testid={`product-card-${product.id}`}>
           <CardHeader>
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex-1">
@@ -319,7 +325,10 @@ export default function CatalogPage() {
   const renderListingView = () => (
     <div className="space-y-3">
       {filteredProducts.map((product) => (
-        <Card key={product.id} className="hover-elevate" data-testid={`product-listing-${product.id}`}>
+        <Card key={product.id} className="hover-elevate cursor-pointer" onClick={() => {
+          setSelectedProduct(product);
+          setIsDetailModalOpen(true);
+        }} data-testid={`product-listing-${product.id}`}>
           <CardContent className="p-4">
             <div className="flex gap-4">
               {product.imageUrl && (
@@ -483,7 +492,10 @@ export default function CatalogPage() {
         filteredProducts
           .filter((p) => pastOrderItems.some((item) => item.productId === p.id))
           .map((product) => (
-            <Card key={product.id} className="hover-elevate" data-testid={`past-order-listing-${product.id}`}>
+            <Card key={product.id} className="hover-elevate cursor-pointer" onClick={() => {
+              setSelectedProduct(product);
+              setIsDetailModalOpen(true);
+            }} data-testid={`past-order-listing-${product.id}`}>
               <CardContent className="p-4">
                 <div className="flex gap-4">
                   {product.imageUrl && (
@@ -767,6 +779,16 @@ export default function CatalogPage() {
           <p className="text-muted-foreground">Try adjusting your search query</p>
         </div>
       )}
+
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedProduct(null);
+        }}
+      />
     </div>
   );
 }
