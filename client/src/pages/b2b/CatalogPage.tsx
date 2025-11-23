@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -154,30 +155,81 @@ export default function CatalogPage() {
                   ${((product.tierPrice ? Number(product.tierPrice) : Number(product.price)) * product.caseSize).toFixed(2)} per case
                 </span>
               </div>
-              <div className="pt-2 border-t space-y-2">
-                {(product.category === 'wine' || product.category === 'spirits') ? (
+              <div className="pt-2 border-t space-y-3">
+                {(product.category === 'wine' || product.category === 'spirits' || product.category === 'beer') ? (
                   <>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addToCart(product.id, 1, 'bottle')}
-                        disabled={!product.ignoreInventory && product.stockQuantity < 1}
-                        className="flex-1"
-                        data-testid={`button-add-1-bottle-${product.id}`}
-                      >
-                        Add 1 Bottle
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => addToCart(product.id, 1, 'case')}
-                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
-                        className="flex-1"
-                        data-testid={`button-add-1-case-${product.id}`}
-                      >
-                        Add 1 Case
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Label htmlFor={`bottles-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Bottles</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id={`bottles-${product.id}`}
+                              type="number"
+                              min="0"
+                              value={quantityInputs[`${product.id}-bottle`] || 0}
+                              onChange={(e) =>
+                                setQuantityInputs({
+                                  ...quantityInputs,
+                                  [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
+                                })
+                              }
+                              className="h-8"
+                              data-testid={`input-bottles-${product.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const qty = quantityInputs[`${product.id}-bottle`] || 0;
+                                if (qty > 0) {
+                                  addToCart(product.id, qty, 'bottle');
+                                  setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
+                                }
+                              }}
+                              disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                              data-testid={`button-add-bottles-${product.id}`}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Label htmlFor={`cases-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id={`cases-${product.id}`}
+                              type="number"
+                              min="0"
+                              value={quantityInputs[`${product.id}-case`] || 0}
+                              onChange={(e) =>
+                                setQuantityInputs({
+                                  ...quantityInputs,
+                                  [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
+                                })
+                              }
+                              className="h-8"
+                              data-testid={`input-cases-${product.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const qty = quantityInputs[`${product.id}-case`] || 0;
+                                if (qty > 0) {
+                                  addToCart(product.id, qty, 'case');
+                                  setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
+                                }
+                              }}
+                              disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                              data-testid={`button-add-cases-${product.id}`}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
                       {product.ignoreInventory ? (
@@ -192,26 +244,39 @@ export default function CatalogPage() {
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addToCart(product.id, 1)}
-                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
-                        className="flex-1"
-                        data-testid={`button-add-1-case-${product.id}`}
-                      >
-                        Add 1 Case
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => addToCart(product.id, 3)}
-                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize * 3}
-                        className="flex-1"
-                        data-testid={`button-add-3-cases-${product.id}`}
-                      >
-                        Add 3 Cases
-                      </Button>
+                      <div className="flex-1">
+                        <Label htmlFor={`cases-qty-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id={`cases-qty-${product.id}`}
+                            type="number"
+                            min="0"
+                            value={quantityInputs[product.id] || 0}
+                            onChange={(e) =>
+                              setQuantityInputs({
+                                ...quantityInputs,
+                                [product.id]: Math.max(0, parseInt(e.target.value) || 0),
+                              })
+                            }
+                            className="h-8"
+                            data-testid={`input-cases-qty-${product.id}`}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const qty = quantityInputs[product.id] || 0;
+                              if (qty > 0) {
+                                addToCart(product.id, qty);
+                                setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
+                              }
+                            }}
+                            disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                            data-testid={`button-add-cases-qty-${product.id}`}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
                       {product.ignoreInventory ? (
