@@ -124,6 +124,30 @@ const manualOrderSchema = z.object({
 
 type ManualOrderFormData = z.infer<typeof manualOrderSchema>;
 
+const getOrderStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
+    'pending_approval': 'Awaiting Approval',
+    'awaiting_delivery': 'Awaiting Delivery',
+    'awaiting_payment': 'Awaiting Payment',
+    'completed': 'Paid',
+  };
+  return labels[status] || status;
+};
+
+const getOrderStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destructive' => {
+  switch (status) {
+    case 'pending_approval':
+      return 'secondary';
+    case 'awaiting_delivery':
+    case 'awaiting_payment':
+      return 'default';
+    case 'completed':
+      return 'default';
+    default:
+      return 'secondary';
+  }
+};
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
@@ -171,6 +195,27 @@ export default function AdminDashboard() {
       toast({
         title: 'Error',
         description: 'Failed to mark commission as paid',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const updateOrderStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const res = await apiRequest('PATCH', `/api/b2b/admin/orders/${orderId}/status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      toast({
+        title: 'Success',
+        description: 'Order status updated and commissions updated',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update order status',
         variant: 'destructive',
       });
     },
@@ -1465,12 +1510,12 @@ export default function AdminDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <p className="font-semibold">{order.orderNumber}</p>
-                          <Badge variant={order.status === 'completed' ? 'default' : 'secondary'}>
-                            {order.status}
+                          <Badge variant={getOrderStatusBadgeVariant(order.status)}>
+                            {getOrderStatusLabel(order.status)}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{order.customerName}</p>
-                        <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                        <p className="text-sm text-muted-foreground">{order.customerName || 'Unknown Customer'}</p>
+                        <p className="text-xs text-muted-foreground">{order.customerEmail || 'No email'}</p>
                       </div>
                       <div className="text-right mr-4">
                         <p className="font-semibold text-lg">${order.total}</p>
@@ -1478,6 +1523,17 @@ export default function AdminDashboard() {
                           {format(new Date(order.orderDate), "MMM d, yyyy")}
                         </p>
                       </div>
+                      <Select value={order.status} onValueChange={(newStatus) => updateOrderStatusMutation.mutate({ orderId: order.id, status: newStatus })}>
+                        <SelectTrigger className="w-40" data-testid={`select-order-status-${order.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending_approval">Awaiting Approval</SelectItem>
+                          <SelectItem value="awaiting_delivery">Awaiting Delivery</SelectItem>
+                          <SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
+                          <SelectItem value="completed">Paid</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -3518,8 +3574,8 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </div>
-                      <Badge variant={order.status === "completed" ? "default" : "secondary"}>
-                        {order.status}
+                      <Badge variant={getOrderStatusBadgeVariant(order.status)}>
+                        {getOrderStatusLabel(order.status)}
                       </Badge>
                     </div>
                   </CardHeader>
