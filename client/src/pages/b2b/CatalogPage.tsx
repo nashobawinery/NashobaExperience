@@ -70,7 +70,7 @@ export default function CatalogPage() {
         }
       }
       
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) {
         throw new Error("Failed to fetch customer info");
       }
@@ -80,6 +80,13 @@ export default function CatalogPage() {
 
   const { data: welcomeSettings } = useQuery<{ welcomeStatement: string }>({
     queryKey: ['b2b', 'settings', 'welcome'],
+    queryFn: async () => {
+      const response = await fetch('/api/b2b/settings/welcome', { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error("Failed to fetch welcome statement");
+      }
+      return response.json();
+    },
   });
 
   const products = data?.products || [];
