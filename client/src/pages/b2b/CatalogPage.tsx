@@ -829,9 +829,15 @@ export default function CatalogPage() {
       <ProductDetailModal
         product={selectedProduct}
         isOpen={isDetailModalOpen}
+        tier={typeof tier === 'string' ? tier : tier?.tierName}
         onClose={() => {
           setIsDetailModalOpen(false);
           setSelectedProduct(null);
+        }}
+        onAddToCart={(quantity: number, unit: 'bottle' | 'case') => {
+          if (selectedProduct) {
+            addToCart(selectedProduct.id, quantity, unit);
+          }
         }}
       />
     </div>

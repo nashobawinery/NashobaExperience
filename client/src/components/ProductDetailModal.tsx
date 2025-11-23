@@ -6,7 +6,9 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Heart, ShoppingCart, Wine } from "lucide-react";
+import { Heart, Wine } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Characteristic } from "@shared/schema";
 
@@ -20,6 +22,10 @@ interface ProductDetailModalProps {
     vintageYear?: string | null;
     region?: string | null;
     price: string;
+    tierPrice?: string;
+    caseSize?: number;
+    stockQuantity?: number;
+    ignoreInventory?: boolean;
     description: string;
     tastingNotes?: string | null;
     foodPairings?: string | null;
@@ -44,9 +50,10 @@ interface ProductDetailModalProps {
   isOpen: boolean;
   isFavorite?: boolean;
   note?: string;
+  tier?: string;
   onClose: () => void;
   onFavoriteToggle?: () => void;
-  onAddToCart?: () => void;
+  onAddToCart?: (quantity: number, unit: 'bottle' | 'case') => void;
   onUpdateNote?: (note: string) => void;
 }
 
@@ -55,13 +62,15 @@ export default function ProductDetailModal({
   isOpen,
   isFavorite = false,
   note = "",
+  tier,
   onClose,
   onFavoriteToggle,
   onAddToCart,
   onUpdateNote,
 }: ProductDetailModalProps) {
   const [localNote, setLocalNote] = useState(note);
-  const [quantity, setQuantity] = useState(1);
+  const [bottleQuantity, setBottleQuantity] = useState(0);
+  const [caseQuantity, setCaseQuantity] = useState(0);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedNoteRef = useRef<string>(note);
 
@@ -130,10 +139,30 @@ export default function ProductDetailModal({
     onClose();
   };
 
-  const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      onAddToCart?.();
+  const handleAddBottles = () => {
+    if (bottleQuantity > 0) {
+      onAddToCart?.(bottleQuantity, 'bottle');
+      setBottleQuantity(0);
     }
+  };
+
+  const handleAddCases = () => {
+    if (caseQuantity > 0) {
+      onAddToCart?.(caseQuantity, 'case');
+      setCaseQuantity(0);
+    }
+  };
+
+  const getDiscountInfo = (product: any) => {
+    if (!product.tierPrice) return null;
+    const regularPrice = Number(product.price);
+    const tierPrice = Number(product.tierPrice);
+    const discountPercent = Math.round(((regularPrice - tierPrice) / regularPrice) * 100);
+    return {
+      discountPercent,
+      savings: (regularPrice - tierPrice).toFixed(2),
+      tierPrice: tierPrice.toFixed(2)
+    };
   };
 
   if (!product) return null;
@@ -240,38 +269,118 @@ export default function ProductDetailModal({
                 </p>
               )}
 
-              {/* Quantity & Price */}
+              {/* Tier & Pricing */}
               <div className="space-y-4 pt-4">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <label className="text-sm text-muted-foreground block mb-2">Quantity</label>
-                    <select
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                      className="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      data-testid="select-quantity"
-                    >
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
-                        <option key={num} value={num}>{num}</option>
-                      ))}
-                    </select>
+                {tier && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Pricing Tier:</span>
+                    <Badge variant="secondary">{tier}</Badge>
                   </div>
+                )}
+                
+                <div className="space-y-2">
+                  <span className="text-sm text-muted-foreground">Retail Price:</span>
+                  <p className="text-lg line-through text-muted-foreground">${parseFloat(product.price).toFixed(2)} per bottle</p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-3xl font-semibold text-primary" data-testid="text-product-price">
-                    ${parseFloat(product.price).toFixed(2)}
+                {getDiscountInfo(product) && (
+                  <div className="space-y-1 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Your Price:</span>
+                      <span className="text-2xl font-bold text-primary">${getDiscountInfo(product)!.tierPrice} per bottle</span>
+                    </div>
+                    <p className="text-sm text-green-600">
+                      Save ${getDiscountInfo(product)!.savings} per bottle ({getDiscountInfo(product)!.discountPercent}% off)
+                    </p>
                   </div>
-                  <Button
-                    size="lg"
-                    className="gap-2 px-8"
-                    onClick={handleAddToCart}
-                    data-testid="button-add-to-cart-detail"
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    Add to Cart
-                  </Button>
-                </div>
+                )}
+
+                {!getDiscountInfo(product) && (
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Price:</span>
+                    <span className="text-2xl font-bold text-primary" data-testid="text-product-price">
+                      ${parseFloat(product.price).toFixed(2)} per bottle
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Order Section */}
+              <div className="space-y-4">
+                {(product.category === 'wine' || product.category === 'spirits') ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="detail-bottles" className="text-sm">Bottles</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="detail-bottles"
+                          type="number"
+                          min="0"
+                          value={bottleQuantity}
+                          onChange={(e) => setBottleQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="h-8"
+                          placeholder="0"
+                          data-testid="input-bottles-detail"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleAddBottles}
+                          disabled={!product.ignoreInventory && product.stockQuantity! < 1 || bottleQuantity === 0}
+                          data-testid="button-add-bottles-detail"
+                        >
+                          Bottles
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="detail-cases" className="text-sm">Cases</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="detail-cases"
+                          type="number"
+                          min="0"
+                          value={caseQuantity}
+                          onChange={(e) => setCaseQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="h-8"
+                          placeholder="0"
+                          data-testid="input-cases-detail"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleAddCases}
+                          disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
+                          data-testid="button-add-cases-detail"
+                        >
+                          Cases
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="detail-cases-qty" className="text-sm">Cases</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="detail-cases-qty"
+                        type="number"
+                        min="0"
+                        value={caseQuantity}
+                        onChange={(e) => setCaseQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="h-8"
+                        placeholder="0"
+                        data-testid="input-cases-qty-detail"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleAddCases}
+                        disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
+                        data-testid="button-add-cases-qty-detail"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Separator />
