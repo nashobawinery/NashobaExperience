@@ -211,7 +211,7 @@ export default function CatalogPage() {
                               disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                               data-testid={`button-add-bottles-${product.id}`}
                             >
-                              Add
+                              Bottles
                             </Button>
                           </div>
                         </div>
@@ -246,7 +246,7 @@ export default function CatalogPage() {
                               disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                               data-testid={`button-add-cases-${product.id}`}
                             >
-                              Add
+                              Cases
                             </Button>
                           </div>
                         </div>
@@ -373,7 +373,7 @@ export default function CatalogPage() {
                                 [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
                               })
                             }
-                            placeholder="B"
+                            placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-bottles-listing-${product.id}`}
                           />
@@ -390,7 +390,7 @@ export default function CatalogPage() {
                           disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                           data-testid={`button-add-bottles-listing-${product.id}`}
                         >
-                          Add B
+                          Bottles
                         </Button>
                       </div>
                       <div className="flex gap-2 items-center">
@@ -405,7 +405,7 @@ export default function CatalogPage() {
                                 [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
                               })
                             }
-                            placeholder="C"
+                            placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-cases-listing-${product.id}`}
                           />
@@ -422,7 +422,7 @@ export default function CatalogPage() {
                           disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                           data-testid={`button-add-cases-listing-${product.id}`}
                         >
-                          Add C
+                          Cases
                         </Button>
                       </div>
                     </>
@@ -534,7 +534,7 @@ export default function CatalogPage() {
                                     [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
                                   })
                                 }
-                                placeholder="B"
+                                placeholder="0"
                                 className="h-8 text-center text-xs"
                                 data-testid={`input-bottles-past-${product.id}`}
                               />
@@ -551,7 +551,7 @@ export default function CatalogPage() {
                               disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
                               data-testid={`button-add-bottles-past-${product.id}`}
                             >
-                              Add B
+                              Bottles
                             </Button>
                           </div>
                           <div className="flex gap-2 items-center">
@@ -566,7 +566,7 @@ export default function CatalogPage() {
                                     [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
                                   })
                                 }
-                                placeholder="C"
+                                placeholder="0"
                                 className="h-8 text-center text-xs"
                                 data-testid={`input-cases-past-${product.id}`}
                               />
@@ -583,7 +583,7 @@ export default function CatalogPage() {
                               disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
                               data-testid={`button-add-cases-past-${product.id}`}
                             >
-                              Add C
+                              Cases
                             </Button>
                           </div>
                         </>
@@ -600,7 +600,7 @@ export default function CatalogPage() {
                                   [product.id]: Math.max(0, parseInt(e.target.value) || 0),
                                 })
                               }
-                              placeholder="Cases"
+                              placeholder="0"
                               className="h-8 text-center text-xs"
                               data-testid={`input-quantity-past-${product.id}`}
                             />
@@ -617,7 +617,7 @@ export default function CatalogPage() {
                             disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
                             data-testid={`button-add-past-order-${product.id}`}
                           >
-                            Add
+                            Cases
                           </Button>
                         </div>
                       )}
