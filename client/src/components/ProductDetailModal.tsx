@@ -326,7 +326,7 @@ export default function ProductDetailModal({
                           size="sm"
                           onClick={handleAddBottles}
                           disabled={!product.ignoreInventory && product.stockQuantity! < 1 || bottleQuantity === 0}
-                          style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                          style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                           className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid="button-add-bottles-detail"
                         >
@@ -351,7 +351,7 @@ export default function ProductDetailModal({
                           size="sm"
                           onClick={handleAddCases}
                           disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
-                          style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                          style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                           className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                           data-testid="button-add-cases-detail"
                         >
@@ -378,7 +378,7 @@ export default function ProductDetailModal({
                         size="sm"
                         onClick={handleAddCases}
                         disabled={!product.ignoreInventory && product.stockQuantity! < product.caseSize! || caseQuantity === 0}
-                        style={{ backgroundColor: '#dcfce7', color: '#166534' }}
+                        style={{ backgroundColor: '#dcfce7', color: '#000000' }}
                         className="hover:brightness-95 disabled:bg-muted disabled:text-muted-foreground"
                         data-testid="button-add-cases-qty-detail"
                       >
