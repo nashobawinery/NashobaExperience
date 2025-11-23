@@ -7,20 +7,23 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 Preferred communication style: Simple, everyday language.
 
 ## Recent Fixes (November 23, 2025)
-**B2B Order Status & Commission Display Cache Issues**
-- Fixed cache key mismatch in TasksPage: Changed query key from `['/api/b2b/admin/orders']` to `["b2b", "admin", "orders"]` to match AdminDashboard query key
-- Fixed cache invalidation in TasksPage order status updates to use matching query key
-- Added explicit `queryFn` to AdminDashboard commission query with correct endpoint URL
-- Fixed commission cache key format from mixed `['/api/b2b/admin/sales-reps', id, 'commissions']` to consistent array format `["b2b", "admin", "sales-reps", id, "commissions"]`
-- Fixed commission cache invalidation mutation to use matching query key
-- **Result**: Order status updates in TasksPage now properly invalidate AdminDashboard cache; commission lists now refresh correctly after status changes
-
-**B2B Manual Order Tier Pricing Bug**
-- Fixed critical issue where manual orders created by admins were showing Tier 1 pricing instead of customer's actual tier (e.g., Tier 4)
-- Root cause: Manual order endpoint was fetching tier discount without filtering by product category, ignoring that tiers are category-specific
-- Solution: Refactored manual order pricing to calculate discount per-product based on both tier name AND product category, matching the customer catalog endpoint logic
-- **Result**: Manual orders now correctly apply category-specific tier discounts for each product in the order
-- Added missing `desc` import in b2b-routes.ts for proper compilation
+**Payroll Commission Management System**
+- Added `payPeriod` column to b2b_commissions table via database migration
+- Created Payroll Management tab in admin dashboard to view earned but unpaid commissions
+- Built Commissions tab to view commission history per sales rep (shows earned status, order number, amount)
+- Implemented payroll settings in admin Settings tab with:
+  - Pay frequency dropdown (Weekly, Bi-Weekly, Monthly)
+  - Calendar date picker for selecting next payroll date (replaces number input)
+  - Automatic calculation of future payroll dates based on selected date + frequency
+  - Database storage of payroll settings using b2b_settings table
+- Added backend endpoints:
+  - GET `/api/b2b/admin/payroll/commissions` - Fetch earned but unpaid commissions with sales rep details
+  - PATCH `/api/b2b/admin/payroll/commissions/:id/pay` - Mark commission as paid and assign to pay period
+  - GET `/api/b2b/admin/payroll/settings` - Fetch payroll configuration
+  - POST `/api/b2b/admin/payroll/settings` - Save payroll configuration
+- When admin assigns a commission to a pay period, system marks it as "paid" (paidToSalesRep=true) and stores the pay period label
+- Sales reps see updated pay period status in their commission history
+- **Note**: Backfill Missing Commissions function will now work correctly to create commissions for existing orders
 
 ## System Architecture
 

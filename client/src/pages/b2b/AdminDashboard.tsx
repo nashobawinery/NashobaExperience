@@ -210,9 +210,10 @@ export default function AdminDashboard() {
   const [isSavingWelcomeStatement, setIsSavingWelcomeStatement] = useState(false);
 
   // Payroll settings state
-  const [payrollPayday, setPayrollPayday] = useState<number>(15); // Day of month
+  const [payrollPayday, setPayrollPayday] = useState<Date | null>(null); // Next payroll date
   const [payrollFrequency, setPayrollFrequency] = useState<string>("monthly"); // weekly, bi-weekly, monthly
   const [isSavingPayrollSettings, setIsSavingPayrollSettings] = useState(false);
+  const [showPaydayCalendar, setShowPaydayCalendar] = useState(false);
 
   // Load welcome statement and payroll settings on mount
   useEffect(() => {
@@ -228,7 +229,11 @@ export default function AdminDashboard() {
         const payrollRes = await fetch('/api/b2b/admin/payroll/settings');
         if (payrollRes.ok) {
           const payrollData = await payrollRes.json();
-          setPayrollPayday(payrollData.payday || 15);
+          if (payrollData.payday) {
+            setPayrollPayday(new Date(payrollData.payday));
+          } else {
+            setPayrollPayday(new Date());
+          }
           setPayrollFrequency(payrollData.frequency || 'monthly');
         }
       } catch (error) {
@@ -239,10 +244,19 @@ export default function AdminDashboard() {
   }, []);
 
   const handleSavePayrollSettings = async () => {
+    if (!payrollPayday) {
+      toast({
+        title: 'Error',
+        description: 'Please select a payday',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setIsSavingPayrollSettings(true);
     try {
       const res = await apiRequest('POST', '/api/b2b/admin/payroll/settings', {
-        payday: payrollPayday,
+        payday: payrollPayday.toISOString(),
         frequency: payrollFrequency,
       });
       toast({
@@ -335,30 +349,29 @@ export default function AdminDashboard() {
     },
   });
 
-  // Calculate next payroll date based on settings
+  // Calculate future payroll dates based on selected payday and frequency
   useEffect(() => {
     const calculateNextPayrollDate = () => {
+      if (!payrollPayday) return;
+      
       const today = new Date();
-      const year = today.getFullYear();
-      const month = today.getMonth();
+      today.setHours(0, 0, 0, 0);
+      let nextDate = new Date(payrollPayday);
+      nextDate.setHours(0, 0, 0, 0);
 
-      if (payrollFrequency === 'monthly') {
-        // Calculate next payroll date as the payday (day of month)
-        let payrollDate = new Date(year, month, payrollPayday);
-        if (payrollDate <= today) {
-          payrollDate = new Date(year, month + 1, payrollPayday);
+      // If the payday is in the past, calculate the next occurrence
+      if (nextDate <= today) {
+        if (payrollFrequency === 'monthly') {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        } else if (payrollFrequency === 'bi-weekly') {
+          nextDate.setDate(nextDate.getDate() + 14);
+        } else {
+          // weekly
+          nextDate.setDate(nextDate.getDate() + 7);
         }
-        setNextPayrollDate(format(payrollDate, 'MMM d, yyyy'));
-      } else if (payrollFrequency === 'bi-weekly') {
-        const nextDate = new Date(today);
-        nextDate.setDate(nextDate.getDate() + payrollPayday + 1); // +1 to get next occurrence
-        setNextPayrollDate(format(nextDate, 'MMM d, yyyy'));
-      } else {
-        // weekly
-        const nextDate = new Date(today);
-        nextDate.setDate(nextDate.getDate() + payrollPayday + 1);
-        setNextPayrollDate(format(nextDate, 'MMM d, yyyy'));
       }
+      
+      setNextPayrollDate(format(nextDate, 'MMM d, yyyy'));
     };
     calculateNextPayrollDate();
   }, [payrollFrequency, payrollPayday]);
@@ -1822,23 +1835,39 @@ export default function AdminDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payroll-payday">Pay Day{payrollFrequency === "monthly" ? " (day of month)" : ""}</Label>
-                  <Input
+                  <Label htmlFor="payroll-payday">Next Payday</Label>
+                  <Button
                     id="payroll-payday"
-                    type="number"
-                    min={payrollFrequency === "monthly" ? 1 : 0}
-                    max={payrollFrequency === "monthly" ? 31 : 6}
-                    value={payrollPayday}
-                    onChange={(e) => setPayrollPayday(parseInt(e.target.value))}
-                    data-testid="input-payroll-payday"
-                  />
+                    variant="outline"
+                    onClick={() => setShowPaydayCalendar(!showPaydayCalendar)}
+                    className="w-full justify-start text-left font-normal"
+                    data-testid="button-select-payday"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {payrollPayday ? format(payrollPayday, 'MMM d, yyyy') : 'Select a date'}
+                  </Button>
+                  {showPaydayCalendar && (
+                    <div className="border rounded-md p-3 bg-white">
+                      <input
+                        type="date"
+                        value={payrollPayday ? payrollPayday.toISOString().split('T')[0] : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setPayrollPayday(new Date(e.target.value));
+                          }
+                        }}
+                        className="w-full p-2 border rounded-md"
+                        data-testid="input-payday-date"
+                      />
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    {payrollFrequency === "monthly" ? "Day of the month (1-31)" : payrollFrequency === "bi-weekly" ? "Days from now (0-13)" : "Days from now (0-6)"}
+                    Select your next payroll date. Future payroll dates will be calculated based on the frequency you selected.
                   </p>
                 </div>
                 <Button
                   onClick={handleSavePayrollSettings}
-                  disabled={isSavingPayrollSettings}
+                  disabled={isSavingPayrollSettings || !payrollPayday}
                   data-testid="button-save-payroll-settings"
                 >
                   {isSavingPayrollSettings ? "Saving..." : "Save Payroll Settings"}

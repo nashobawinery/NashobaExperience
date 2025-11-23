@@ -2769,7 +2769,7 @@ router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Reque
     const frequency = await storage.getB2bSetting('payroll_frequency');
     
     res.json({
-      payday: payday ? parseInt(payday.settingValue) : 15,
+      payday: payday ? payday.settingValue : null,
       frequency: frequency ? frequency.settingValue : 'monthly',
     });
   } catch (error) {
@@ -2783,11 +2783,11 @@ router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Requ
   try {
     const { payday, frequency } = req.body;
     
-    if (payday === undefined || !frequency) {
+    if (!payday || !frequency) {
       return res.status(400).json({ error: 'Payday and frequency are required' });
     }
 
-    await storage.setB2bSetting('payroll_payday', payday.toString());
+    await storage.setB2bSetting('payroll_payday', payday);
     await storage.setB2bSetting('payroll_frequency', frequency);
 
     res.json({
