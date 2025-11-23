@@ -2879,6 +2879,7 @@ router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Requ
 // Admin: Send payroll email and mark commissions as paid
 router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
+    const { sendEmail } = await import('./email');
     const { commissionIds, payPeriod } = req.body;
     
     if (!commissionIds || !Array.isArray(commissionIds) || commissionIds.length === 0) {
@@ -2967,24 +2968,28 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
     }
 
     // Send email to payroll admin
-    await sendgrid.send({
-      to: payrollAdminEmail,
-      from: process.env.RESEND_FROM_EMAIL,
-      subject: `Payroll Commission Report - ${payPeriod}`,
-      html: emailBody,
-    });
+    await sendEmail(
+      payrollAdminEmail,
+      `Payroll Commission Report - ${payPeriod}`,
+      emailBody,
+      emailBody
+    );
 
     // Send copy to each sales rep
     for (const [repId, repData] of Object.entries(commissionsByRep)) {
-      await sendgrid.send({
-        to: repData.salesRepEmail,
-        from: process.env.RESEND_FROM_EMAIL,
-        subject: `Your Commissions - ${payPeriod}`,
-        html: `<p>Hi ${repData.salesRepName},</p>
-          <p>Your commissions for ${payPeriod} have been submitted to payroll.</p>
-          <p><strong>Total Amount:</strong> $${repData.totalAmount.toFixed(2)}</p>
-          <p>Commission details have been sent to our payroll department for processing.</p>`,
-      });
+      const repEmailHtml = `<p>Hi ${repData.salesRepName},</p>
+        <p>Your commissions for ${payPeriod} have been submitted to payroll.</p>
+        <p><strong>Total Amount:</strong> $${repData.totalAmount.toFixed(2)}</p>
+        <p>Commission details have been sent to our payroll department for processing.</p>`;
+      
+      const repEmailText = `Hi ${repData.salesRepName},\n\nYour commissions for ${payPeriod} have been submitted to payroll.\n\nTotal Amount: $${repData.totalAmount.toFixed(2)}\n\nCommission details have been sent to our payroll department for processing.`;
+      
+      await sendEmail(
+        repData.salesRepEmail,
+        `Your Commissions - ${payPeriod}`,
+        repEmailHtml,
+        repEmailText
+      );
     }
 
     // Send notification to managers
@@ -2992,8 +2997,7 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
       const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
       if (managerEmailsSetting?.settingValue) {
         const managerEmails = managerEmailsSetting.settingValue.split(',').map((e: string) => e.trim()).filter(e => e);
-        const managerEmailBody = `
-          <html>
+        const managerEmailBody = `<html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
               <h2 style="color: #2c3e50;">Payroll Email Sent</h2>
               <p><strong>Pay Period:</strong> ${payPeriod}</p>
@@ -3002,16 +3006,17 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
               <p><strong>Number of Commissions:</strong> ${commissionIds.length}</p>
               <p>Payroll emails have been sent to the payroll administrator and all affected sales representatives.</p>
             </body>
-          </html>
-        `;
+          </html>`;
+        
+        const managerEmailText = `Payroll Email Sent\n\nPay Period: ${payPeriod}\nTotal Commissions: $${grandTotal.toFixed(2)}\nNumber of Sales Reps: ${Object.keys(commissionsByRep).length}\nNumber of Commissions: ${commissionIds.length}\n\nPayroll emails have been sent to the payroll administrator and all affected sales representatives.`;
         
         for (const managerEmail of managerEmails) {
-          await sendgrid.send({
-            to: managerEmail,
-            from: process.env.RESEND_FROM_EMAIL,
-            subject: `Payroll Email Sent - ${payPeriod}`,
-            html: managerEmailBody,
-          }).catch(err => console.error('Failed to send manager payroll notification:', err));
+          await sendEmail(
+            managerEmail,
+            `Payroll Email Sent - ${payPeriod}`,
+            managerEmailBody,
+            managerEmailText
+          ).catch(err => console.error('Failed to send manager payroll notification:', err));
         }
       }
     } catch (emailError) {
