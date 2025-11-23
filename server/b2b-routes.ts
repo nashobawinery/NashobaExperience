@@ -2718,14 +2718,20 @@ router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: 
   }
 });
 
-// Customer: Get customer info (account name) - supports admin impersonation
-router.get('/api/b2b/customer/info', requireB2bCustomer, async (req: Request, res: Response) => {
+// Customer: Get customer info (account name) - supports admin impersonation and regular customers
+router.get('/api/b2b/customer/info', async (req: Request, res: Response) => {
   try {
+    // Try to get customerId from session (for logged-in customers) or query param (for admin impersonation)
     let customerId = (req.session as any).b2bCustomerId;
     
     // Support admin impersonation via customerId query parameter
     if (req.query.customerId) {
       customerId = req.query.customerId as string;
+    }
+
+    // If no customerId found in either place, return error
+    if (!customerId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     const customer = await storage.getB2bCustomer(customerId);
