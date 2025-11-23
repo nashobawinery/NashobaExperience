@@ -259,6 +259,7 @@ export default function AdminDashboard() {
   const [payrollFrequency, setPayrollFrequency] = useState<string>("monthly"); // weekly, bi-weekly, monthly
   const [payrollAdminName, setPayrollAdminName] = useState<string>(""); // Payroll admin name
   const [payrollAdminEmail, setPayrollAdminEmail] = useState<string>(""); // Payroll admin email
+  const [managerEmails, setManagerEmails] = useState<string>(""); // Comma-separated manager emails
   const [isSavingPayrollSettings, setIsSavingPayrollSettings] = useState(false);
   const [showPaydayCalendar, setShowPaydayCalendar] = useState(false);
   
@@ -288,6 +289,7 @@ export default function AdminDashboard() {
           setPayrollFrequency(payrollData.frequency || 'monthly');
           setPayrollAdminName(payrollData.payrollAdminName || '');
           setPayrollAdminEmail(payrollData.payrollAdminEmail || '');
+          setManagerEmails(payrollData.managerEmails || '');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -322,6 +324,7 @@ export default function AdminDashboard() {
         frequency: payrollFrequency,
         payrollAdminName,
         payrollAdminEmail,
+        managerEmails,
       });
       toast({
         title: 'Success',
@@ -2031,6 +2034,20 @@ export default function AdminDashboard() {
                     data-testid="input-payroll-admin-email"
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manager-emails">Manager Email Addresses (for notifications)</Label>
+                  <textarea
+                    id="manager-emails"
+                    className="w-full min-h-20 p-3 border rounded-md border-input bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="manager1@company.com, manager2@company.com"
+                    value={managerEmails}
+                    onChange={(e) => setManagerEmails(e.target.value)}
+                    data-testid="textarea-manager-emails"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter one or more email addresses separated by commas. Managers will receive notifications when orders are placed, order status changes, or payroll is sent.
+                  </p>
                 </div>
                 <Button
                   onClick={handleSavePayrollSettings}

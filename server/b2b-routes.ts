@@ -1122,7 +1122,7 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
     recipients.push(...additionalEmails);
   }
 
-  // Send to all recipients
+  // Send to all recipients (salesperson + other configured recipients)
   for (const recipient of recipients) {
     await sendEmail(
       recipient,
@@ -1132,13 +1132,27 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
     );
   }
 
-  // Also send confirmation to customer
+  // Send confirmation to customer
   await sendEmail(
     customer.emailAddress,
     `Order Confirmation: ${order.orderNumber}`,
     emailHtml.replace('New B2B Order Received', 'Order Confirmation'),
     emailText.replace('New B2B Order Received', 'Order Confirmation')
   );
+
+  // Send notification to managers
+  const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
+  if (managerEmailsSetting?.settingValue) {
+    const managerEmails = managerEmailsSetting.settingValue.split(',').map((e: string) => e.trim()).filter(e => e);
+    for (const managerEmail of managerEmails) {
+      await sendEmail(
+        managerEmail,
+        `New B2B Order - ${order.orderNumber}`,
+        emailHtml,
+        emailText
+      );
+    }
+  }
 }
 
 // ===== ADMIN ROUTES =====
@@ -2020,6 +2034,56 @@ router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Re
       }
     }
 
+    // Send manager notification about status change
+    try {
+      const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
+      if (managerEmailsSetting?.settingValue) {
+        const { sendEmail } = await import('./email');
+        const managerEmails = managerEmailsSetting.settingValue.split(',').map((e: string) => e.trim()).filter(e => e);
+        
+        const statusLabels: Record<string, string> = {
+          'pending_approval': 'Pending Approval',
+          'awaiting_delivery': 'Awaiting Delivery',
+          'awaiting_payment': 'Awaiting Payment',
+          'completed': 'Completed'
+        };
+        
+        const statusLabel = statusLabels[status] || status;
+        const emailHtml = `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <h2 style="color: #2c3e50;">B2B Order Status Updated</h2>
+              <p><strong>Order Number:</strong> ${order.orderNumber}</p>
+              <p><strong>New Status:</strong> <strong style="color: #27ae60;">${statusLabel}</strong></p>
+              <p><strong>Order Total:</strong> $${order.total}</p>
+              <p>The status for this order has been updated in the system.</p>
+            </body>
+          </html>
+        `;
+        
+        const emailText = `
+B2B Order Status Updated
+
+Order Number: ${order.orderNumber}
+New Status: ${statusLabel}
+Order Total: $${order.total}
+
+The status for this order has been updated in the system.
+        `.trim();
+        
+        for (const managerEmail of managerEmails) {
+          await sendEmail(
+            managerEmail,
+            `Order Status Update: ${order.orderNumber} - ${statusLabel}`,
+            emailHtml,
+            emailText
+          ).catch(err => console.error('Failed to send manager notification:', err));
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send manager status notification:', emailError);
+    }
+
     res.json(order);
   } catch (error) {
     console.error('Error updating order status:', error);
@@ -2768,12 +2832,14 @@ router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Reque
     const frequency = await storage.getB2bSetting('payroll_frequency');
     const payrollAdminName = await storage.getB2bSetting('payroll_admin_name');
     const payrollAdminEmail = await storage.getB2bSetting('payroll_admin_email');
+    const managerEmails = await storage.getB2bSetting('manager_emails');
     
     res.json({
       payday: payday ? payday.settingValue : null,
       frequency: frequency ? frequency.settingValue : 'monthly',
       payrollAdminName: payrollAdminName ? payrollAdminName.settingValue : '',
       payrollAdminEmail: payrollAdminEmail ? payrollAdminEmail.settingValue : '',
+      managerEmails: managerEmails ? managerEmails.settingValue : '',
     });
   } catch (error) {
     console.error('Error fetching payroll settings:', error);
@@ -2784,7 +2850,7 @@ router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Reque
 // Admin: Save payroll settings
 router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const { payday, frequency, payrollAdminName, payrollAdminEmail } = req.body;
+    const { payday, frequency, payrollAdminName, payrollAdminEmail, managerEmails } = req.body;
     
     if (!payday || !frequency || !payrollAdminEmail) {
       return res.status(400).json({ error: 'Payday, frequency, and payroll admin email are required' });
@@ -2794,6 +2860,7 @@ router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Requ
     await storage.setB2bSetting('payroll_frequency', frequency);
     await storage.setB2bSetting('payroll_admin_name', payrollAdminName || '');
     await storage.setB2bSetting('payroll_admin_email', payrollAdminEmail);
+    await storage.setB2bSetting('manager_emails', managerEmails || '');
 
     res.json({
       success: true,
@@ -2801,6 +2868,7 @@ router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Requ
       frequency,
       payrollAdminName,
       payrollAdminEmail,
+      managerEmails,
     });
   } catch (error) {
     console.error('Error saving payroll settings:', error);
@@ -2917,6 +2985,37 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
           <p><strong>Total Amount:</strong> $${repData.totalAmount.toFixed(2)}</p>
           <p>Commission details have been sent to our payroll department for processing.</p>`,
       });
+    }
+
+    // Send notification to managers
+    try {
+      const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
+      if (managerEmailsSetting?.settingValue) {
+        const managerEmails = managerEmailsSetting.settingValue.split(',').map((e: string) => e.trim()).filter(e => e);
+        const managerEmailBody = `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <h2 style="color: #2c3e50;">Payroll Email Sent</h2>
+              <p><strong>Pay Period:</strong> ${payPeriod}</p>
+              <p><strong>Total Commissions:</strong> $${grandTotal.toFixed(2)}</p>
+              <p><strong>Number of Sales Reps:</strong> ${Object.keys(commissionsByRep).length}</p>
+              <p><strong>Number of Commissions:</strong> ${commissionIds.length}</p>
+              <p>Payroll emails have been sent to the payroll administrator and all affected sales representatives.</p>
+            </body>
+          </html>
+        `;
+        
+        for (const managerEmail of managerEmails) {
+          await sendgrid.send({
+            to: managerEmail,
+            from: process.env.RESEND_FROM_EMAIL,
+            subject: `Payroll Email Sent - ${payPeriod}`,
+            html: managerEmailBody,
+          }).catch(err => console.error('Failed to send manager payroll notification:', err));
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send manager payroll notifications:', emailError);
     }
 
     // Update all commissions as paid with pay period
