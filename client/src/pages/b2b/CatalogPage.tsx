@@ -41,7 +41,7 @@ export default function CatalogPage() {
   const [cart, setCart] = useState<Record<string, CartItem | number>>(getCart());
   const { toast } = useToast();
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
-  const [viewType, setViewType] = useState<ViewType>("detailed");
+  const [viewType, setViewType] = useState<ViewType>("listing");
   const [quantityInputs, setQuantityInputs] = useState<Record<string, number>>({});
   
   const { data: pastOrderItems = [] } = useQuery<any[]>({
@@ -681,16 +681,6 @@ export default function CatalogPage() {
         {/* View Toggle */}
         <div className="flex gap-2 border-b">
           <Button
-            variant={viewType === "detailed" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewType("detailed")}
-            data-testid="button-view-detailed"
-            className="flex gap-2"
-          >
-            <Grid3X3 className="h-4 w-4" />
-            Detailed View
-          </Button>
-          <Button
             variant={viewType === "listing" ? "default" : "ghost"}
             size="sm"
             onClick={() => setViewType("listing")}
@@ -709,6 +699,16 @@ export default function CatalogPage() {
           >
             <Package className="h-4 w-4" />
             Past Orders
+          </Button>
+          <Button
+            variant={viewType === "detailed" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewType("detailed")}
+            data-testid="button-view-detailed"
+            className="flex gap-2"
+          >
+            <Grid3X3 className="h-4 w-4" />
+            Detailed View
           </Button>
         </div>
       </div>
