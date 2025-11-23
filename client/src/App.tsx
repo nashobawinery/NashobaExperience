@@ -30,6 +30,7 @@ import B2bOrdersPage from "@/pages/b2b/OrdersPage";
 import B2bReorderPage from "@/pages/b2b/ReorderPage";
 import B2bAdminDashboard from "@/pages/b2b/AdminDashboard";
 import B2bWhereToBuyPage from "@/pages/b2b/WhereToBuyPage";
+import B2bSalesRepDashboard from "@/pages/b2b/SalesRepDashboard";
 
 function AdminRoute() {
   const [, setLocation] = useLocation();
@@ -97,6 +98,13 @@ function B2bRoutes() {
           <Route path="/b2b/admin">
             <ProtectedRoute requireAdmin>
               <B2bAdminDashboard />
+            </ProtectedRoute>
+          </Route>
+
+          {/* Protected Sales Rep Routes */}
+          <Route path="/b2b/commissions">
+            <ProtectedRoute requireSalesRep>
+              <B2bSalesRepDashboard />
             </ProtectedRoute>
           </Route>
 

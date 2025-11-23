@@ -1,6 +1,6 @@
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Button } from "@/components/ui/button";
-import { Wine, LogOut, ShoppingCart, Package, History, User } from "lucide-react";
+import { Wine, LogOut, ShoppingCart, Package, History, User, TrendingUp } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 export function B2bLayout({ children }: { children: React.ReactNode }) {
@@ -111,6 +111,27 @@ export function B2bLayout({ children }: { children: React.ReactNode }) {
                 >
                   <User className="h-4 w-4" />
                   Dashboard
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </nav>
+      )}
+
+      {/* Sales Rep Navigation */}
+      {isAuthenticated && user?.type === "sales_rep" && (
+        <nav className="border-b bg-muted/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex gap-1 overflow-x-auto py-2">
+              <Link href="/b2b/commissions">
+                <Button
+                  variant={location === "/b2b/commissions" ? "default" : "ghost"}
+                  size="sm"
+                  className="flex items-center gap-2 whitespace-nowrap"
+                  data-testid="nav-sales-rep-commissions"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  Commissions
                 </Button>
               </Link>
             </div>
