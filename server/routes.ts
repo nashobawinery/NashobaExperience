@@ -1336,13 +1336,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bcrypt = await import('bcrypt');
       for (const rep of parseResult.salesReps) {
         try {
-          // If no password hash provided (from export for security), generate default password
-          let repData = { ...rep };
-          if (!repData.passwordHash || !repData.passwordHash.trim()) {
-            // Generate default password: first letter of first name + last name + email domain
-            const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
-            repData.passwordHash = await bcrypt.hash(defaultPassword, 10);
-          }
+          // Generate password for sales reps (passwords not exported for security)
+          const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
+          const passwordHash = await bcrypt.hash(defaultPassword, 10);
+          
+          const repData = {
+            ...rep,
+            passwordHash,
+          };
           
           const { salesRep: upserted } = await storage.upsertSalesRep(repData as any);
           salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
