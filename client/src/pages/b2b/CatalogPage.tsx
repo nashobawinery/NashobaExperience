@@ -156,7 +156,7 @@ export default function CatalogPage() {
                 </span>
               </div>
               <div className="pt-2 border-t space-y-3">
-                {(product.category === 'wine' || product.category === 'spirits' || product.category === 'beer') ? (
+                {(product.category === 'wine' || product.category === 'spirits') ? (
                   <>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -179,7 +179,6 @@ export default function CatalogPage() {
                             />
                             <Button
                               size="sm"
-                              variant="outline"
                               onClick={() => {
                                 const qty = quantityInputs[`${product.id}-bottle`] || 0;
                                 if (qty > 0) {
