@@ -2215,7 +2215,6 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
             .set({
               orderTotal: total.toFixed(2),
               commissionAmount: newCommissionAmount.toFixed(2),
-              updatedAt: new Date(),
             })
             .where(eq(b2bCommissions.id, commission.id));
         } else {
@@ -2767,10 +2766,14 @@ router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Reque
   try {
     const payday = await storage.getB2bSetting('payroll_payday');
     const frequency = await storage.getB2bSetting('payroll_frequency');
+    const payrollAdminName = await storage.getB2bSetting('payroll_admin_name');
+    const payrollAdminEmail = await storage.getB2bSetting('payroll_admin_email');
     
     res.json({
       payday: payday ? payday.settingValue : null,
       frequency: frequency ? frequency.settingValue : 'monthly',
+      payrollAdminName: payrollAdminName ? payrollAdminName.settingValue : '',
+      payrollAdminEmail: payrollAdminEmail ? payrollAdminEmail.settingValue : '',
     });
   } catch (error) {
     console.error('Error fetching payroll settings:', error);
@@ -2781,23 +2784,155 @@ router.get('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Reque
 // Admin: Save payroll settings
 router.post('/api/b2b/admin/payroll/settings', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const { payday, frequency } = req.body;
+    const { payday, frequency, payrollAdminName, payrollAdminEmail } = req.body;
     
-    if (!payday || !frequency) {
-      return res.status(400).json({ error: 'Payday and frequency are required' });
+    if (!payday || !frequency || !payrollAdminEmail) {
+      return res.status(400).json({ error: 'Payday, frequency, and payroll admin email are required' });
     }
 
     await storage.setB2bSetting('payroll_payday', payday);
     await storage.setB2bSetting('payroll_frequency', frequency);
+    await storage.setB2bSetting('payroll_admin_name', payrollAdminName || '');
+    await storage.setB2bSetting('payroll_admin_email', payrollAdminEmail);
 
     res.json({
       success: true,
       payday,
       frequency,
+      payrollAdminName,
+      payrollAdminEmail,
     });
   } catch (error) {
     console.error('Error saving payroll settings:', error);
     res.status(500).json({ error: 'Failed to save payroll settings' });
+  }
+});
+
+// Admin: Send payroll email and mark commissions as paid
+router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { commissionIds, payPeriod } = req.body;
+    
+    if (!commissionIds || !Array.isArray(commissionIds) || commissionIds.length === 0) {
+      return res.status(400).json({ error: 'Commission IDs are required' });
+    }
+
+    // Get payroll admin email from settings
+    const payrollAdminEmailSetting = await storage.getB2bSetting('payroll_admin_email');
+    const payrollAdminNameSetting = await storage.getB2bSetting('payroll_admin_name');
+    
+    if (!payrollAdminEmailSetting || !payrollAdminEmailSetting.settingValue) {
+      return res.status(400).json({ error: 'Payroll administrator email not configured' });
+    }
+
+    const payrollAdminEmail = payrollAdminEmailSetting.settingValue;
+    const payrollAdminName = payrollAdminNameSetting?.settingValue || 'Payroll Administrator';
+
+    // Fetch commission details and group by sales rep
+    interface CommissionGroup {
+      [key: string]: {
+        salesRepName: string;
+        salesRepEmail: string;
+        commissions: any[];
+        totalAmount: number;
+      };
+    }
+    
+    const commissionsByRep: CommissionGroup = {};
+    let grandTotal = 0;
+
+    for (const commissionId of commissionIds) {
+      // Get commission details with related data
+      const result = await db
+        .select({
+          commission: b2bCommissions,
+          order: b2bOrders,
+          customer: b2bCustomers,
+          salesRep: salesReps,
+        })
+        .from(b2bCommissions)
+        .innerJoin(b2bOrders, eq(b2bCommissions.orderId, b2bOrders.id))
+        .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+        .innerJoin(salesReps, eq(b2bCommissions.salesRepId, salesReps.id))
+        .where(eq(b2bCommissions.id, commissionId))
+        .limit(1);
+
+      if (result.length === 0) continue;
+
+      const { commission, order, customer, salesRep } = result[0];
+      const repKey = salesRep.id;
+      const commissionAmount = Number(commission.commissionAmount);
+
+      if (!commissionsByRep[repKey]) {
+        commissionsByRep[repKey] = {
+          salesRepName: `${salesRep.firstName} ${salesRep.lastName}`,
+          salesRepEmail: salesRep.email,
+          commissions: [],
+          totalAmount: 0,
+        };
+      }
+
+      commissionsByRep[repKey].commissions.push({
+        orderNumber: order.orderNumber,
+        customerName: customer.accountName,
+        amount: commissionAmount,
+        date: commission.createdAt,
+      });
+      commissionsByRep[repKey].totalAmount += commissionAmount;
+      grandTotal += commissionAmount;
+    }
+
+    // Create email content
+    let emailBody = `<h2>Payroll Commission Report</h2>`;
+    emailBody += `<p><strong>Pay Period:</strong> ${payPeriod}</p>`;
+    emailBody += `<p><strong>Total Commissions:</strong> $${grandTotal.toFixed(2)}</p>`;
+    emailBody += `<h3>Commission Breakdown by Sales Rep:</h3>`;
+
+    for (const [repId, repData] of Object.entries(commissionsByRep)) {
+      emailBody += `<h4>${repData.salesRepName} - $${repData.totalAmount.toFixed(2)}</h4>`;
+      emailBody += `<table border="1" cellpadding="10">`;
+      emailBody += `<tr><th>Order #</th><th>Customer</th><th>Amount</th></tr>`;
+      for (const commission of repData.commissions) {
+        emailBody += `<tr><td>#${commission.orderNumber}</td><td>${commission.customerName}</td><td>$${commission.amount.toFixed(2)}</td></tr>`;
+      }
+      emailBody += `</table>`;
+    }
+
+    // Send email to payroll admin
+    await sendgrid.send({
+      to: payrollAdminEmail,
+      from: 'noreply@nashobatasting.com',
+      subject: `Payroll Commission Report - ${payPeriod}`,
+      html: emailBody,
+    });
+
+    // Send copy to each sales rep
+    for (const [repId, repData] of Object.entries(commissionsByRep)) {
+      await sendgrid.send({
+        to: repData.salesRepEmail,
+        from: 'noreply@nashobatasting.com',
+        subject: `Your Commissions - ${payPeriod}`,
+        html: `<p>Hi ${repData.salesRepName},</p>
+          <p>Your commissions for ${payPeriod} have been submitted to payroll.</p>
+          <p><strong>Total Amount:</strong> $${repData.totalAmount.toFixed(2)}</p>
+          <p>Commission details have been sent to our payroll department for processing.</p>`,
+      });
+    }
+
+    // Update all commissions as paid with pay period
+    for (const commissionId of commissionIds) {
+      await storage.updateCommissionPayPeriod(commissionId, payPeriod);
+    }
+
+    res.json({
+      success: true,
+      message: `Payroll email sent to ${payrollAdminName} and ${Object.keys(commissionsByRep).length} sales rep(s)`,
+      totalAmount: grandTotal.toFixed(2),
+      commissionsProcessed: commissionIds.length,
+    });
+  } catch (error) {
+    console.error('Error sending payroll email:', error);
+    res.status(500).json({ error: 'Failed to send payroll email' });
   }
 });
 

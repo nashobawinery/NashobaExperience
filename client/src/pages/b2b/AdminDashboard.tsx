@@ -257,8 +257,14 @@ export default function AdminDashboard() {
   // Payroll settings state
   const [payrollPayday, setPayrollPayday] = useState<Date | null>(null); // Next payroll date
   const [payrollFrequency, setPayrollFrequency] = useState<string>("monthly"); // weekly, bi-weekly, monthly
+  const [payrollAdminName, setPayrollAdminName] = useState<string>(""); // Payroll admin name
+  const [payrollAdminEmail, setPayrollAdminEmail] = useState<string>(""); // Payroll admin email
   const [isSavingPayrollSettings, setIsSavingPayrollSettings] = useState(false);
   const [showPaydayCalendar, setShowPaydayCalendar] = useState(false);
+  
+  // Bulk commission selection state
+  const [selectedCommissionIds, setSelectedCommissionIds] = useState<Set<string>>(new Set());
+  const [isSendingPayroll, setIsSendingPayroll] = useState(false);
 
   // Load welcome statement and payroll settings on mount
   useEffect(() => {
@@ -280,6 +286,8 @@ export default function AdminDashboard() {
             setPayrollPayday(new Date());
           }
           setPayrollFrequency(payrollData.frequency || 'monthly');
+          setPayrollAdminName(payrollData.payrollAdminName || '');
+          setPayrollAdminEmail(payrollData.payrollAdminEmail || '');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -298,11 +306,22 @@ export default function AdminDashboard() {
       return;
     }
     
+    if (!payrollAdminEmail) {
+      toast({
+        title: 'Error',
+        description: 'Please enter payroll administrator email',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setIsSavingPayrollSettings(true);
     try {
       const res = await apiRequest('POST', '/api/b2b/admin/payroll/settings', {
         payday: payrollPayday.toISOString(),
         frequency: payrollFrequency,
+        payrollAdminName,
+        payrollAdminEmail,
       });
       toast({
         title: 'Success',
@@ -444,6 +463,33 @@ export default function AdminDashboard() {
       toast({
         title: "Error",
         description: error.message || "Failed to update commission",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to send payroll email for selected commissions
+  const sendPayrollEmail = useMutation({
+    mutationFn: async (commissionIds: string[]) => {
+      const response = await apiRequest(
+        'POST',
+        '/api/b2b/admin/payroll/send-email',
+        { commissionIds, payPeriod: nextPayrollDate }
+      );
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Payroll email sent and commissions marked as finalized",
+      });
+      setSelectedCommissionIds(new Set());
+      refetchPayroll();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send payroll email",
         variant: "destructive",
       });
     },
@@ -1690,25 +1736,68 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {selectedCommissionIds.size > 0 && (
+                    <div className="bg-secondary p-4 rounded-lg flex items-center justify-between gap-4">
+                      <p className="font-medium">{selectedCommissionIds.size} commission{selectedCommissionIds.size !== 1 ? 's' : ''} selected</p>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => setSelectedCommissionIds(new Set())}
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-clear-selection"
+                        >
+                          Clear Selection
+                        </Button>
+                        <Button
+                          onClick={() => sendPayrollEmail.mutate(Array.from(selectedCommissionIds))}
+                          disabled={sendPayrollEmail.isPending || selectedCommissionIds.size === 0 || !payrollAdminEmail}
+                          size="sm"
+                          className="gap-2"
+                          data-testid="button-send-payroll-email"
+                        >
+                          <Send className="h-4 w-4" />
+                          {sendPayrollEmail.isPending ? "Sending..." : "Send to Payroll"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {payrollCommissions.map((commission) => (
                     <Card key={commission.id} className="border" data-testid={`payroll-commission-${commission.id}`}>
                       <CardContent className="pt-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Sales Rep</p>
-                            <p className="font-medium">{commission.salesRep?.firstName} {commission.salesRep?.lastName}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Order</p>
-                            <p className="font-medium">#{commission.order?.orderNumber}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Amount</p>
-                            <p className="font-medium">${Number(commission.commissionAmount).toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Status</p>
-                            <Badge variant="secondary" className="mt-1">{commission.status}</Badge>
+                        <div className="flex gap-4 mb-4">
+                          <input
+                            type="checkbox"
+                            id={`commission-${commission.id}`}
+                            checked={selectedCommissionIds.has(commission.id)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedCommissionIds);
+                              if (e.target.checked) {
+                                newSet.add(commission.id);
+                              } else {
+                                newSet.delete(commission.id);
+                              }
+                              setSelectedCommissionIds(newSet);
+                            }}
+                            className="mt-1"
+                            data-testid={`checkbox-commission-${commission.id}`}
+                          />
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Sales Rep</p>
+                              <p className="font-medium">{commission.salesRep?.firstName} {commission.salesRep?.lastName}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Order</p>
+                              <p className="font-medium">#{commission.order?.orderNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Amount</p>
+                              <p className="font-medium">${Number(commission.commissionAmount).toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Status</p>
+                              <Badge variant="secondary" className="mt-1">{commission.status}</Badge>
+                            </div>
                           </div>
                         </div>
                         {payrollCommissionId === commission.id ? (
@@ -1921,9 +2010,31 @@ export default function AdminDashboard() {
                     Select your next payroll date. Future payroll dates will be calculated based on the frequency you selected.
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-admin-name">Payroll Administrator Name</Label>
+                  <Input
+                    id="payroll-admin-name"
+                    placeholder="e.g., John Smith"
+                    value={payrollAdminName}
+                    onChange={(e) => setPayrollAdminName(e.target.value)}
+                    data-testid="input-payroll-admin-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-admin-email">Payroll Administrator Email</Label>
+                  <Input
+                    id="payroll-admin-email"
+                    type="email"
+                    placeholder="payroll@company.com"
+                    value={payrollAdminEmail}
+                    onChange={(e) => setPayrollAdminEmail(e.target.value)}
+                    data-testid="input-payroll-admin-email"
+                    required
+                  />
+                </div>
                 <Button
                   onClick={handleSavePayrollSettings}
-                  disabled={isSavingPayrollSettings || !payrollPayday}
+                  disabled={isSavingPayrollSettings || !payrollPayday || !payrollAdminEmail}
                   data-testid="button-save-payroll-settings"
                 >
                   {isSavingPayrollSettings ? "Saving..." : "Save Payroll Settings"}
