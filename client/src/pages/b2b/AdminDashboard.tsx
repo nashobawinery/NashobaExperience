@@ -1890,12 +1890,12 @@ export default function AdminDashboard() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <CardTitle className="font-serif text-lg mb-2">
-                          Order #{commission.orderNumber || commission.orderId}
+                          Order #{commission.order?.orderNumber || commission.orderId}
                         </CardTitle>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            {commission.createdAt ? format(new Date(commission.createdAt), "MMM d, yyyy") : "N/A"}
+                            {commission.order?.orderDate ? format(new Date(commission.order.orderDate), "MMM d, yyyy") : commission.createdAt ? format(new Date(commission.createdAt), "MMM d, yyyy") : "N/A"}
                           </div>
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
@@ -1903,9 +1903,9 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 items-start">
+                      <div className="flex gap-2 items-start flex-wrap">
                         <Badge variant={commission.paidToSalesRep ? "default" : "secondary"}>
-                          {commission.paidToSalesRep ? "Paid" : "Pending"}
+                          {commission.paidToSalesRep ? "Paid" : commission.status === "pending" ? "Pending" : "Earned"}
                         </Badge>
                       </div>
                     </div>
