@@ -45,7 +45,7 @@ export default function TasksPage() {
   const [orderToDelete, setOrderToDelete] = useState<B2bOrder | null>(null);
 
   const { data: orders, isLoading } = useQuery<B2bOrder[]>({
-    queryKey: ['/api/b2b/admin/orders'],
+    queryKey: ["b2b", "admin", "orders"],
   });
 
   const updateStatusMutation = useMutation({
@@ -53,7 +53,7 @@ export default function TasksPage() {
       return await apiRequest("PATCH", `/api/b2b/admin/orders/${orderId}/status`, { status });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/orders'] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
       toast({
         title: "Success",
         description: "Order status updated successfully",
@@ -73,7 +73,7 @@ export default function TasksPage() {
       return await apiRequest("DELETE", `/api/b2b/admin/orders/${orderId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/orders'] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
       toast({
         title: "Success",
         description: "Order deleted successfully",

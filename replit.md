@@ -6,6 +6,15 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Fixes (November 23, 2025)
+**B2B Order Status & Commission Display Cache Issues**
+- Fixed cache key mismatch in TasksPage: Changed query key from `['/api/b2b/admin/orders']` to `["b2b", "admin", "orders"]` to match AdminDashboard query key
+- Fixed cache invalidation in TasksPage order status updates to use matching query key
+- Added explicit `queryFn` to AdminDashboard commission query with correct endpoint URL
+- Fixed commission cache key format from mixed `['/api/b2b/admin/sales-reps', id, 'commissions']` to consistent array format `["b2b", "admin", "sales-reps", id, "commissions"]`
+- Fixed commission cache invalidation mutation to use matching query key
+- **Result**: Order status updates in TasksPage now properly invalidate AdminDashboard cache; commission lists now refresh correctly after status changes
+
 ## System Architecture
 
 ### Frontend

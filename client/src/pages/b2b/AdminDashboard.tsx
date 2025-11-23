@@ -159,7 +159,7 @@ export default function AdminDashboard() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/sales-reps', commissionDialog.salesRep?.id, 'commissions'] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "sales-reps", commissionDialog.salesRep?.id, "commissions"] });
       toast({
         title: 'Success',
         description: 'Commission marked as paid',
@@ -252,7 +252,13 @@ export default function AdminDashboard() {
     salesRep: null,
   });
   const { data: commissions, isLoading: loadingCommissions } = useQuery<any[]>({
-    queryKey: ['/api/b2b/admin/sales-reps', commissionDialog.salesRep?.id, 'commissions'],
+    queryKey: ["b2b", "admin", "sales-reps", commissionDialog.salesRep?.id, "commissions"],
+    queryFn: async () => {
+      if (!commissionDialog.salesRep?.id) throw new Error("No sales rep ID");
+      const response = await fetch(`/api/b2b/admin/sales-reps/${commissionDialog.salesRep.id}/commissions`);
+      if (!response.ok) throw new Error("Failed to fetch commissions");
+      return response.json();
+    },
     enabled: !!commissionDialog.salesRep?.id,
   });
 
