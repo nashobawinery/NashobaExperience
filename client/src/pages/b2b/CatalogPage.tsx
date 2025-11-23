@@ -246,7 +246,8 @@ export default function CatalogPage() {
                             />
                             <Button
                               size="sm"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-bottle`] || 0;
                                 if (qty > 0) {
                                   addToCart(product.id, qty, 'bottle');
@@ -283,7 +284,8 @@ export default function CatalogPage() {
                             />
                             <Button
                               size="sm"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-case`] || 0;
                                 if (qty > 0) {
                                   addToCart(product.id, qty, 'case');
@@ -334,7 +336,8 @@ export default function CatalogPage() {
                           />
                           <Button
                             size="sm"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const qty = quantityInputs[product.id] || 0;
                               if (qty > 0) {
                                 addToCart(product.id, qty);
@@ -435,7 +438,8 @@ export default function CatalogPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             const qty = quantityInputs[`${product.id}-bottle`] || 0;
                             if (qty > 0) {
                               addToCart(product.id, qty, 'bottle');
@@ -469,7 +473,8 @@ export default function CatalogPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             const qty = quantityInputs[`${product.id}-case`] || 0;
                             if (qty > 0) {
                               addToCart(product.id, qty, 'case');
@@ -505,7 +510,8 @@ export default function CatalogPage() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           const qty = quantityInputs[product.id] || 0;
                           if (qty > 0) {
                             addToCart(product.id, qty);
@@ -605,7 +611,8 @@ export default function CatalogPage() {
                             </div>
                             <Button
                               size="sm"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-bottle`] || 0;
                                 if (qty > 0) {
                                   addToCart(product.id, qty, 'bottle');
@@ -639,7 +646,8 @@ export default function CatalogPage() {
                             </div>
                             <Button
                               size="sm"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-case`] || 0;
                                 if (qty > 0) {
                                   addToCart(product.id, qty, 'case');
@@ -675,7 +683,8 @@ export default function CatalogPage() {
                           </div>
                           <Button
                             size="sm"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const qty = quantityInputs[product.id] || 0;
                               if (qty > 0) {
                                 addToCart(product.id, qty);
