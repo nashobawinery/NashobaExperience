@@ -11,7 +11,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, CheckCircle2, Package, Loader2, TrendingUp, UserCog } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-function getCart(): Record<string, number> {
+interface CartItem {
+  quantity: number;
+  unit: 'bottle' | 'case';
+}
+
+function getCart(): Record<string, CartItem | number> {
   try {
     const cart = localStorage.getItem("b2b_cart");
     return cart ? JSON.parse(cart) : {};
@@ -31,7 +36,7 @@ export default function CheckoutPage() {
   const { data: tiers } = useB2bPublicTiers();
   const { mutateAsync: placeOrder, isPending } = useB2bCheckout();
   const { toast } = useToast();
-  const [cart] = useState<Record<string, number>>(getCart());
+  const [cart] = useState<Record<string, CartItem | number>>(getCart());
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
 
   const products = data?.products || [];
@@ -55,8 +60,18 @@ export default function CheckoutPage() {
     window.location.href = '/b2b/admin';
   };
   
+  // Helper to get cart quantity in cases
+  const getCartQuantityInCases = (item: CartItem | number, product: any): number => {
+    if (typeof item === 'number') return item;
+    if (item.unit === 'case') return item.quantity;
+    return item.quantity / (product?.caseSize || 1);
+  };
+  
   // Calculate total cases across ALL categories for Tier 2 qualification
-  const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const totalCases = Object.entries(cart).reduce((sum, [productId, item]) => {
+    const product = products.find((p) => p.id === productId);
+    return sum + getCartQuantityInCases(item, product);
+  }, 0);
   const qualifiesForTier2 = totalCases >= 5;
   
   // Determine effective tier - upgrade to Tier 2 if cart >= 5 cases
@@ -64,10 +79,22 @@ export default function CheckoutPage() {
 
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
-    .map(([productId, quantity]) => {
+    .map(([productId, cartItem]) => {
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
       
+      // Normalize cart item to standard format
+      let quantity: number;
+      let unit: 'bottle' | 'case' = 'case';
+      if (typeof cartItem === 'number') {
+        quantity = cartItem;
+        unit = 'case';
+      } else {
+        quantity = cartItem.quantity;
+        unit = cartItem.unit;
+      }
+      
+      const quantityInCases = getCartQuantityInCases(cartItem, product);
       const productCategory = product.category || 'unknown';
       
       // Find Tier 2 for this specific product's category
@@ -87,18 +114,25 @@ export default function CheckoutPage() {
         effectivePrice = product.tierPrice ? Number(product.tierPrice) : Number(product.price);
       }
       
+      // Calculate subtotal based on unit
+      const subtotal = unit === 'case' 
+        ? effectivePrice * product.caseSize * quantity
+        : effectivePrice * quantity;
+      
       return {
         productId,
         product,
         quantity,
+        unit,
+        quantityInCases,
         bottlePrice: effectivePrice,
         casePrice: effectivePrice * product.caseSize,
-        subtotal: effectivePrice * product.caseSize * quantity,
+        subtotal,
       };
     })
     .filter(Boolean);
 
-  const totalBottles = cartItems.reduce((sum, item) => sum + (item ? item.quantity * item.product.caseSize : 0), 0);
+  const totalBottles = cartItems.reduce((sum, item) => sum + (item ? (item.unit === 'bottle' ? item.quantity : item.quantity * item.product.caseSize) : 0), 0);
   const totalAmount = cartItems.reduce((sum, item) => sum + (item?.subtotal || 0), 0);
 
   // Show loading state while products are being fetched
@@ -130,10 +164,30 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     try {
       const orderData: any = {
-        items: Object.entries(cart).map(([productId, quantity]) => ({
-          productId,
-          quantity,
-        })),
+        items: Object.entries(cart).map(([productId, cartItem]) => {
+          const product = products.find((p) => p.id === productId);
+          
+          // Normalize cart item and convert bottles to cases
+          let quantity: number;
+          let unit: 'bottle' | 'case' = 'case';
+          if (typeof cartItem === 'number') {
+            quantity = cartItem;
+            unit = 'case';
+          } else {
+            quantity = cartItem.quantity;
+            unit = cartItem.unit;
+          }
+          
+          // Convert bottles to cases for order submission
+          const quantityInCases = unit === 'case' 
+            ? quantity 
+            : quantity / (product?.caseSize || 1);
+          
+          return {
+            productId,
+            quantity: Math.ceil(quantityInCases), // Round up to nearest case
+          };
+        }),
       };
 
       // If admin is impersonating, include customerId for backend validation

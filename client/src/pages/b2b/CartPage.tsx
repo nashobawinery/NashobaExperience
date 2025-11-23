@@ -9,7 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, Loader2, TrendingUp, UserCog } from "lucide-react";
 
-function getCart(): Record<string, number> {
+interface CartItem {
+  quantity: number;
+  unit: 'bottle' | 'case';
+}
+
+function getCart(): Record<string, CartItem | number> {
   try {
     const cart = localStorage.getItem("b2b_cart");
     return cart ? JSON.parse(cart) : {};
@@ -18,7 +23,7 @@ function getCart(): Record<string, number> {
   }
 }
 
-function saveCart(cart: Record<string, number>) {
+function saveCart(cart: Record<string, CartItem | number>) {
   localStorage.setItem("b2b_cart", JSON.stringify(cart));
 }
 
@@ -27,7 +32,7 @@ export default function CartPage() {
   const { user } = useB2bAuth();
   const { data, isLoading, isError } = useB2bProducts();
   const { data: tiers } = useB2bPublicTiers();
-  const [cart, setCart] = useState<Record<string, number>>(getCart());
+  const [cart, setCart] = useState<Record<string, CartItem | number>>(getCart());
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
 
   const products = data?.products || [];
@@ -51,16 +56,38 @@ export default function CartPage() {
     window.location.href = '/b2b/admin';
   };
   
+  // Helper to get cart quantity in cases
+  const getCartQuantityInCases = (item: CartItem | number, product: any): number => {
+    if (typeof item === 'number') return item;
+    if (item.unit === 'case') return item.quantity;
+    return item.quantity / (product?.caseSize || 1);
+  };
+  
   // Calculate total cases across ALL categories for Tier 2 qualification
-  const totalCases = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const totalCases = Object.entries(cart).reduce((sum, [productId, item]) => {
+    const product = products.find((p) => p.id === productId);
+    return sum + getCartQuantityInCases(item, product);
+  }, 0);
   const qualifiesForTier2 = totalCases >= 5;
   
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
-    .map(([productId, quantity]) => {
+    .map(([productId, cartItem]) => {
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
       
+      // Normalize cart item to standard format
+      let quantity: number;
+      let unit: 'bottle' | 'case' = 'case';
+      if (typeof cartItem === 'number') {
+        quantity = cartItem;
+        unit = 'case';
+      } else {
+        quantity = cartItem.quantity;
+        unit = cartItem.unit;
+      }
+      
+      const quantityInCases = getCartQuantityInCases(cartItem, product);
       const productCategory = product.category || 'unknown';
       
       // Find Tier 2 for this specific product's category
@@ -83,12 +110,19 @@ export default function CartPage() {
         appliedTier = currentTier || 'Retail';
       }
       
+      // Calculate subtotal based on unit
+      const subtotal = unit === 'case' 
+        ? effectivePrice * product.caseSize * quantity
+        : effectivePrice * quantity;
+      
       return {
         product,
         quantity,
+        quantityInCases,
+        unit,
         effectivePrice,
         appliedTier,
-        subtotal: effectivePrice * product.caseSize * quantity,
+        subtotal,
       };
     })
     .filter(Boolean);
@@ -100,7 +134,13 @@ export default function CartPage() {
       setCart(newCart);
       saveCart(newCart);
     } else {
-      const newCart = { ...cart, [productId]: newQuantity };
+      const newCart = { ...cart };
+      const cartItem = newCart[productId];
+      if (cartItem && typeof cartItem === 'object') {
+        cartItem.quantity = newQuantity;
+      } else {
+        newCart[productId] = newQuantity;
+      }
       setCart(newCart);
       saveCart(newCart);
     }
@@ -219,11 +259,13 @@ export default function CartPage() {
                       <p className="text-sm text-muted-foreground mb-2">SKU: {product.sku}</p>
                       <div className="flex items-center gap-4 mb-3">
                         <span className="text-sm">
-                          ${effectivePrice.toFixed(2)} × {product.caseSize} bottles
+                          ${effectivePrice.toFixed(2)}{item.unit === 'bottle' ? '/bottle' : ` × ${product.caseSize} bottles`}
                         </span>
-                        <span className="font-medium">
-                          = ${(effectivePrice * product.caseSize).toFixed(2)}/case
-                        </span>
+                        {item.unit === 'case' && (
+                          <span className="font-medium">
+                            = ${(effectivePrice * product.caseSize).toFixed(2)}/case
+                          </span>
+                        )}
                         {item.appliedTier === 'Tier 2' && (
                           <Badge variant="secondary" className="text-xs">
                             <TrendingUp className="h-3 w-3 mr-1" />
@@ -258,7 +300,7 @@ export default function CartPage() {
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
-                          <span className="text-sm text-muted-foreground">cases</span>
+                          <span className="text-sm text-muted-foreground">{item.unit}(s)</span>
                         </div>
 
                         <Button
@@ -276,7 +318,7 @@ export default function CartPage() {
 
                     <div className="text-right">
                       <p className="text-lg font-semibold">${subtotal.toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{quantity} case(s)</p>
+                      <p className="text-xs text-muted-foreground">{quantity} {item.unit}(s) ({item.quantityInCases.toFixed(1)} case{item.quantityInCases !== 1 ? 's' : ''})</p>
                     </div>
                   </div>
                 </CardContent>

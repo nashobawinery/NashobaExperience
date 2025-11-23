@@ -13,7 +13,12 @@ import { Search, ShoppingCart, Package, DollarSign, UserCog, ArrowLeft, Grid3X3,
 import { useToast } from "@/hooks/use-toast";
 
 // Cart state stored in localStorage
-function getCart(): Record<string, number> {
+interface CartItem {
+  quantity: number;
+  unit: 'bottle' | 'case';
+}
+
+function getCart(): Record<string, CartItem | number> {
   try {
     const cart = localStorage.getItem("b2b_cart");
     return cart ? JSON.parse(cart) : {};
@@ -22,7 +27,7 @@ function getCart(): Record<string, number> {
   }
 }
 
-function saveCart(cart: Record<string, number>) {
+function saveCart(cart: Record<string, CartItem | number>) {
   localStorage.setItem("b2b_cart", JSON.stringify(cart));
 }
 
@@ -32,7 +37,7 @@ export default function CatalogPage() {
   const { user } = useB2bAuth();
   const { data, isLoading } = useB2bProducts();
   const [searchQuery, setSearchQuery] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>(getCart());
+  const [cart, setCart] = useState<Record<string, CartItem | number>>(getCart());
   const { toast } = useToast();
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
   const [viewType, setViewType] = useState<ViewType>("detailed");
@@ -70,7 +75,7 @@ export default function CatalogPage() {
     p.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const addToCart = (productId: string, quantity: number) => {
+  const addToCart = (productId: string, quantity: number, unit: 'bottle' | 'case' = 'case') => {
     if (quantity < 1) {
       toast({
         title: "Invalid Quantity",
@@ -79,16 +84,28 @@ export default function CatalogPage() {
       });
       return;
     }
-    const newCart = { ...cart, [productId]: (cart[productId] || 0) + quantity };
+    const newCart = { ...cart };
+    const cartItem = newCart[productId];
+    
+    // If product is in cart and has same unit, add to quantity; otherwise replace
+    if (cartItem && typeof cartItem === 'object' && cartItem.unit === unit) {
+      cartItem.quantity += quantity;
+    } else {
+      newCart[productId] = { quantity, unit };
+    }
+    
     setCart(newCart);
     saveCart(newCart);
     toast({
       title: "Added to Cart",
-      description: `${quantity} case(s) added to your order`,
+      description: `${quantity} ${unit}(s) added to your order`,
     });
   };
 
-  const cartItemCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const cartItemCount = Object.values(cart).reduce((sum, item) => {
+    if (typeof item === 'number') return sum + item;
+    return sum + item.quantity;
+  }, 0);
 
   const renderDetailedView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -138,33 +155,69 @@ export default function CatalogPage() {
                 </span>
               </div>
               <div className="pt-2 border-t space-y-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addToCart(product.id, 1)}
-                    disabled={product.currentStock < product.caseSize}
-                    className="flex-1"
-                    data-testid={`button-add-1-case-${product.id}`}
-                  >
-                    Add 1 Case
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => addToCart(product.id, 3)}
-                    disabled={product.currentStock < product.caseSize * 3}
-                    className="flex-1"
-                    data-testid={`button-add-3-cases-${product.id}`}
-                  >
-                    Add 3 Cases
-                  </Button>
-                </div>
-                <p className="text-xs text-center text-muted-foreground">
-                  {product.currentStock >= product.caseSize
-                    ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
-                    : "Out of stock"}
-                </p>
+                {(product.category === 'wine' || product.category === 'spirits') ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addToCart(product.id, 1, 'bottle')}
+                        disabled={product.currentStock < 1}
+                        className="flex-1"
+                        data-testid={`button-add-1-bottle-${product.id}`}
+                      >
+                        Add 1 Bottle
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => addToCart(product.id, 1, 'case')}
+                        disabled={product.currentStock < product.caseSize}
+                        className="flex-1"
+                        data-testid={`button-add-1-case-${product.id}`}
+                      >
+                        Add 1 Case
+                      </Button>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground">
+                      {product.currentStock >= product.caseSize
+                        ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
+                        : product.currentStock > 0
+                        ? `${product.currentStock} bottle(s) available`
+                        : "Out of stock"}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addToCart(product.id, 1)}
+                        disabled={product.currentStock < product.caseSize}
+                        className="flex-1"
+                        data-testid={`button-add-1-case-${product.id}`}
+                      >
+                        Add 1 Case
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => addToCart(product.id, 3)}
+                        disabled={product.currentStock < product.caseSize * 3}
+                        className="flex-1"
+                        data-testid={`button-add-3-cases-${product.id}`}
+                      >
+                        Add 3 Cases
+                      </Button>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground">
+                      {product.currentStock >= product.caseSize
+                        ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
+                        : "Out of stock"}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </CardContent>
@@ -217,18 +270,40 @@ export default function CatalogPage() {
                           [product.id]: Math.max(1, parseInt(e.target.value) || 1),
                         })
                       }
-                      placeholder="Cases"
+                      placeholder={(product.category === 'wine' || product.category === 'spirits') ? "Qty" : "Cases"}
                       data-testid={`input-quantity-${product.id}`}
                     />
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => addToCart(product.id, quantityInputs[product.id] || 1)}
-                    disabled={product.currentStock < product.caseSize}
-                    data-testid={`button-add-cart-${product.id}`}
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                  </Button>
+                  {(product.category === 'wine' || product.category === 'spirits') ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'bottle')}
+                        disabled={product.currentStock < 1}
+                        data-testid={`button-add-bottles-${product.id}`}
+                      >
+                        B
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'case')}
+                        disabled={product.currentStock < product.caseSize}
+                        data-testid={`button-add-cases-${product.id}`}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => addToCart(product.id, quantityInputs[product.id] || 1)}
+                      disabled={product.currentStock < product.caseSize}
+                      data-testid={`button-add-cart-${product.id}`}
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
