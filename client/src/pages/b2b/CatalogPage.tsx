@@ -162,7 +162,7 @@ export default function CatalogPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => addToCart(product.id, 1, 'bottle')}
-                        disabled={product.currentStock < 1}
+                        disabled={!product.ignoreInventory && product.stockQuantity < 1}
                         className="flex-1"
                         data-testid={`button-add-1-bottle-${product.id}`}
                       >
@@ -172,7 +172,7 @@ export default function CatalogPage() {
                         variant="default"
                         size="sm"
                         onClick={() => addToCart(product.id, 1, 'case')}
-                        disabled={product.currentStock < product.caseSize}
+                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
                         className="flex-1"
                         data-testid={`button-add-1-case-${product.id}`}
                       >
@@ -180,11 +180,13 @@ export default function CatalogPage() {
                       </Button>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
-                      {product.currentStock >= product.caseSize
-                        ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
-                        : product.currentStock > 0
-                        ? `${product.currentStock} bottle(s) available`
-                        : "Out of stock"}
+                      {product.ignoreInventory ? (
+                        "In stock"
+                      ) : product.stockQuantity >= product.caseSize
+                        ? `${Math.floor(product.stockQuantity / product.caseSize)} cases available`
+                        : product.stockQuantity > 0
+                        ? `${product.stockQuantity} bottle(s) available`
+                        : "Out of Stock"}
                     </p>
                   </>
                 ) : (
@@ -194,7 +196,7 @@ export default function CatalogPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => addToCart(product.id, 1)}
-                        disabled={product.currentStock < product.caseSize}
+                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
                         className="flex-1"
                         data-testid={`button-add-1-case-${product.id}`}
                       >
@@ -204,7 +206,7 @@ export default function CatalogPage() {
                         variant="default"
                         size="sm"
                         onClick={() => addToCart(product.id, 3)}
-                        disabled={product.currentStock < product.caseSize * 3}
+                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize * 3}
                         className="flex-1"
                         data-testid={`button-add-3-cases-${product.id}`}
                       >
@@ -212,9 +214,11 @@ export default function CatalogPage() {
                       </Button>
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
-                      {product.currentStock >= product.caseSize
-                        ? `${Math.floor(product.currentStock / product.caseSize)} cases available`
-                        : "Out of stock"}
+                      {product.ignoreInventory ? (
+                        "In stock"
+                      ) : product.stockQuantity >= product.caseSize
+                        ? `${Math.floor(product.stockQuantity / product.caseSize)} cases available`
+                        : "Out of Stock"}
                     </p>
                   </>
                 )}
@@ -280,7 +284,7 @@ export default function CatalogPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'bottle')}
-                        disabled={product.currentStock < 1}
+                        disabled={!product.ignoreInventory && product.stockQuantity < 1}
                         data-testid={`button-add-bottles-${product.id}`}
                       >
                         B
@@ -288,7 +292,7 @@ export default function CatalogPage() {
                       <Button
                         size="sm"
                         onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'case')}
-                        disabled={product.currentStock < product.caseSize}
+                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
                         data-testid={`button-add-cases-${product.id}`}
                       >
                         <ShoppingCart className="h-4 w-4" />
@@ -298,7 +302,7 @@ export default function CatalogPage() {
                     <Button
                       size="sm"
                       onClick={() => addToCart(product.id, quantityInputs[product.id] || 1)}
-                      disabled={product.currentStock < product.caseSize}
+                      disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
                       data-testid={`button-add-cart-${product.id}`}
                     >
                       <ShoppingCart className="h-4 w-4" />

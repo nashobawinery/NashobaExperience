@@ -1150,6 +1150,18 @@ export default function AdminDashboard() {
               </TabsList>
             </div>
           </Card>
+
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Improvements</h3>
+              <TabsList className="w-full h-auto">
+                <TabsTrigger value="notes" data-testid="tab-notes" className="flex items-center justify-center gap-2 flex-1">
+                  <BookOpen className="w-4 h-4" />
+                  <span>Improvement Notes</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
         </div>
 
         {/* CUSTOMERS TAB */}
@@ -1412,6 +1424,11 @@ export default function AdminDashboard() {
         {/* SLIDESHOW TAB */}
         <TabsContent value="slideshow">
           <B2bSlideshowManager />
+        </TabsContent>
+
+        {/* NOTES TAB */}
+        <TabsContent value="notes">
+          <NotesManager appType="b2b" />
         </TabsContent>
 
         {/* SETTINGS TAB */}
