@@ -326,51 +326,107 @@ export default function CatalogPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 items-center flex-shrink-0">
-                  <div className="w-20">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={quantityInputs[product.id] || 1}
-                      onChange={(e) =>
-                        setQuantityInputs({
-                          ...quantityInputs,
-                          [product.id]: Math.max(1, parseInt(e.target.value) || 1),
-                        })
-                      }
-                      placeholder={(product.category === 'wine' || product.category === 'spirits') ? "Qty" : "Cases"}
-                      data-testid={`input-quantity-${product.id}`}
-                    />
-                  </div>
+                <div className="flex flex-col gap-2 items-end flex-shrink-0">
                   {(product.category === 'wine' || product.category === 'spirits') ? (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'bottle')}
-                        disabled={!product.ignoreInventory && product.stockQuantity < 1}
-                        data-testid={`button-add-bottles-${product.id}`}
-                      >
-                        B
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => addToCart(product.id, quantityInputs[product.id] || 1, 'case')}
-                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
-                        data-testid={`button-add-cases-${product.id}`}
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2 items-center">
+                        <div className="w-16">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={quantityInputs[`${product.id}-bottle`] || 0}
+                            onChange={(e) =>
+                              setQuantityInputs({
+                                ...quantityInputs,
+                                [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
+                              })
+                            }
+                            placeholder="B"
+                            className="h-8 text-center text-xs"
+                            data-testid={`input-bottles-listing-${product.id}`}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const qty = quantityInputs[`${product.id}-bottle`] || 0;
+                            if (qty > 0) {
+                              addToCart(product.id, qty, 'bottle');
+                              setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
+                            }
+                          }}
+                          disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                          data-testid={`button-add-bottles-listing-${product.id}`}
+                        >
+                          Add B
+                        </Button>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <div className="w-16">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={quantityInputs[`${product.id}-case`] || 0}
+                            onChange={(e) =>
+                              setQuantityInputs({
+                                ...quantityInputs,
+                                [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
+                              })
+                            }
+                            placeholder="C"
+                            className="h-8 text-center text-xs"
+                            data-testid={`input-cases-listing-${product.id}`}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const qty = quantityInputs[`${product.id}-case`] || 0;
+                            if (qty > 0) {
+                              addToCart(product.id, qty, 'case');
+                              setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
+                            }
+                          }}
+                          disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                          data-testid={`button-add-cases-listing-${product.id}`}
+                        >
+                          Add C
+                        </Button>
+                      </div>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => addToCart(product.id, quantityInputs[product.id] || 1)}
-                      disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize}
-                      data-testid={`button-add-cart-${product.id}`}
-                    >
-                      <ShoppingCart className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-2 items-center">
+                      <div className="w-16">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={quantityInputs[product.id] || 0}
+                          onChange={(e) =>
+                            setQuantityInputs({
+                              ...quantityInputs,
+                              [product.id]: Math.max(0, parseInt(e.target.value) || 0),
+                            })
+                          }
+                          placeholder="Cases"
+                          className="h-8 text-center text-xs"
+                          data-testid={`input-cases-listing-qty-${product.id}`}
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const qty = quantityInputs[product.id] || 0;
+                          if (qty > 0) {
+                            addToCart(product.id, qty);
+                            setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
+                          }
+                        }}
+                        disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                        data-testid={`button-add-cases-listing-qty-${product.id}`}
+                      >
+                        Add
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -421,30 +477,108 @@ export default function CatalogPage() {
                         <Badge variant="secondary">Previously Ordered</Badge>
                       </div>
                     </div>
-                    <div className="flex gap-2 items-center flex-shrink-0">
-                      <div className="w-20">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={quantityInputs[product.id] || 1}
-                          onChange={(e) =>
-                            setQuantityInputs({
-                              ...quantityInputs,
-                              [product.id]: Math.max(1, parseInt(e.target.value) || 1),
-                            })
-                          }
-                          placeholder="Cases"
-                          data-testid={`input-quantity-past-${product.id}`}
-                        />
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => addToCart(product.id, quantityInputs[product.id] || 1)}
-                        disabled={product.currentStock < product.caseSize}
-                        data-testid={`button-add-past-order-${product.id}`}
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                      </Button>
+                    <div className="flex flex-col gap-2 items-end flex-shrink-0">
+                      {(product.category === 'wine' || product.category === 'spirits') ? (
+                        <>
+                          <div className="flex gap-2 items-center">
+                            <div className="w-16">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={quantityInputs[`${product.id}-bottle`] || 0}
+                                onChange={(e) =>
+                                  setQuantityInputs({
+                                    ...quantityInputs,
+                                    [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
+                                  })
+                                }
+                                placeholder="B"
+                                className="h-8 text-center text-xs"
+                                data-testid={`input-bottles-past-${product.id}`}
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const qty = quantityInputs[`${product.id}-bottle`] || 0;
+                                if (qty > 0) {
+                                  addToCart(product.id, qty, 'bottle');
+                                  setQuantityInputs({ ...quantityInputs, [`${product.id}-bottle`]: 0 });
+                                }
+                              }}
+                              disabled={!product.ignoreInventory && product.stockQuantity < 1 || (quantityInputs[`${product.id}-bottle`] || 0) === 0}
+                              data-testid={`button-add-bottles-past-${product.id}`}
+                            >
+                              Add B
+                            </Button>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <div className="w-16">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={quantityInputs[`${product.id}-case`] || 0}
+                                onChange={(e) =>
+                                  setQuantityInputs({
+                                    ...quantityInputs,
+                                    [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
+                                  })
+                                }
+                                placeholder="C"
+                                className="h-8 text-center text-xs"
+                                data-testid={`input-cases-past-${product.id}`}
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const qty = quantityInputs[`${product.id}-case`] || 0;
+                                if (qty > 0) {
+                                  addToCart(product.id, qty, 'case');
+                                  setQuantityInputs({ ...quantityInputs, [`${product.id}-case`]: 0 });
+                                }
+                              }}
+                              disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[`${product.id}-case`] || 0) === 0}
+                              data-testid={`button-add-cases-past-${product.id}`}
+                            >
+                              Add C
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex gap-2 items-center">
+                          <div className="w-16">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={quantityInputs[product.id] || 0}
+                              onChange={(e) =>
+                                setQuantityInputs({
+                                  ...quantityInputs,
+                                  [product.id]: Math.max(0, parseInt(e.target.value) || 0),
+                                })
+                              }
+                              placeholder="Cases"
+                              className="h-8 text-center text-xs"
+                              data-testid={`input-quantity-past-${product.id}`}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const qty = quantityInputs[product.id] || 0;
+                              if (qty > 0) {
+                                addToCart(product.id, qty);
+                                setQuantityInputs({ ...quantityInputs, [product.id]: 0 });
+                              }
+                            }}
+                            disabled={!product.ignoreInventory && product.stockQuantity < product.caseSize || (quantityInputs[product.id] || 0) === 0}
+                            data-testid={`button-add-past-order-${product.id}`}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
