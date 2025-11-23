@@ -15,6 +15,13 @@ Preferred communication style: Simple, everyday language.
 - Fixed commission cache invalidation mutation to use matching query key
 - **Result**: Order status updates in TasksPage now properly invalidate AdminDashboard cache; commission lists now refresh correctly after status changes
 
+**B2B Manual Order Tier Pricing Bug**
+- Fixed critical issue where manual orders created by admins were showing Tier 1 pricing instead of customer's actual tier (e.g., Tier 4)
+- Root cause: Manual order endpoint was fetching tier discount without filtering by product category, ignoring that tiers are category-specific
+- Solution: Refactored manual order pricing to calculate discount per-product based on both tier name AND product category, matching the customer catalog endpoint logic
+- **Result**: Manual orders now correctly apply category-specific tier discounts for each product in the order
+- Added missing `desc` import in b2b-routes.ts for proper compilation
+
 ## System Architecture
 
 ### Frontend

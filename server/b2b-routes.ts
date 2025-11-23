@@ -35,7 +35,7 @@ import {
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
 import { substituteVariables, calculateSavingsVsTier1, calculateCommitmentProgress } from './email-template-variables';
-import { eq, and, gt, inArray } from 'drizzle-orm';
+import { eq, and, gt, inArray, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
 const router = Router();
@@ -1842,20 +1842,25 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Fetch tier information separately
-    let discountPercentage = 0;
-    if (customer.pricingTierId) {
+    // Get customer's tier name (handle both tier object from join and missing tier)
+    let customerTierName = '';
+    if (customer.tier && typeof customer.tier === 'object' && 'tierName' in customer.tier) {
+      customerTierName = (customer.tier as any).tierName;
+    }
+    
+    if (!customerTierName && customer.pricingTierId) {
       const tierData = await db.select().from(tierPricing).where(eq(tierPricing.id, customer.pricingTierId));
       if (tierData.length > 0) {
-        discountPercentage = parseFloat(tierData[0].discountPercentage);
+        customerTierName = tierData[0].tierName;
       }
     }
 
-    // Fetch products for pricing
+    // Fetch products and all tiers for category-specific pricing
     const productIds = items.map((item: any) => item.productId);
     const productsData = await db.select().from(products).where(inArray(products.id, productIds));
+    const allTiers = await db.select().from(tierPricing);
 
-    // Calculate totals
+    // Calculate totals with category-specific tier pricing
     let subtotal = 0;
     let totalDiscount = 0;
     const orderItems = [];
@@ -1864,6 +1869,19 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       const product = productsData.find((p: any) => p.id === item.productId);
       if (!product) {
         return res.status(404).json({ error: `Product ${item.productId} not found` });
+      }
+
+      // Find the tier that matches both customer's tier name AND product category
+      let discountPercentage = 0;
+      if (customerTierName) {
+        const matchingTier = allTiers.find((t: any) => 
+          t.tierName === customerTierName && 
+          t.category === product.category && 
+          t.active
+        );
+        if (matchingTier) {
+          discountPercentage = parseFloat(matchingTier.discountPercentage);
+        }
       }
 
       const retailPrice = parseFloat(product.price);
