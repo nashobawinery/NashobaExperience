@@ -2901,7 +2901,7 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
     // Send email to payroll admin
     await sendgrid.send({
       to: payrollAdminEmail,
-      from: 'noreply@nashobatasting.com',
+      from: process.env.RESEND_FROM_EMAIL,
       subject: `Payroll Commission Report - ${payPeriod}`,
       html: emailBody,
     });
@@ -2910,7 +2910,7 @@ router.post('/api/b2b/admin/payroll/send-email', requireB2bAdmin, async (req: Re
     for (const [repId, repData] of Object.entries(commissionsByRep)) {
       await sendgrid.send({
         to: repData.salesRepEmail,
-        from: 'noreply@nashobatasting.com',
+        from: process.env.RESEND_FROM_EMAIL,
         subject: `Your Commissions - ${payPeriod}`,
         html: `<p>Hi ${repData.salesRepName},</p>
           <p>Your commissions for ${payPeriod} have been submitted to payroll.</p>
