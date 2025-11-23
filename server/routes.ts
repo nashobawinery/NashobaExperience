@@ -1333,9 +1333,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 2. Import sales reps (independent)
       const salesRepEmailToId = new Map<string, string>();
+      const bcrypt = await import('bcrypt');
       for (const rep of parseResult.salesReps) {
         try {
-          const { salesRep: upserted } = await storage.upsertSalesRep(rep);
+          // If no password hash provided (from export for security), generate default password
+          let repData = { ...rep };
+          if (!repData.passwordHash || !repData.passwordHash.trim()) {
+            // Generate default password: first letter of first name + last name + email domain
+            const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
+            repData.passwordHash = await bcrypt.hash(defaultPassword, 10);
+          }
+          
+          const { salesRep: upserted } = await storage.upsertSalesRep(repData as any);
           salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
           results.salesReps.success++;
         } catch (error) {
@@ -1379,10 +1388,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let salesRepId: string | null = null;
           if (customer.salesRepEmail) {
             const repId = salesRepEmailToId.get(customer.salesRepEmail.toLowerCase().trim());
-            if (!repId) {
-              throw new Error(`Sales Rep "${customer.salesRepEmail}" not found`);
+            if (repId) {
+              salesRepId = repId;
+            } else {
+              // Sales rep not found, skip this reference (will be null)
+              results.warnings.push(`B2B Customer "${customer.emailAddress}": Sales rep "${customer.salesRepEmail}" not found, continuing without sales rep assignment`);
             }
-            salesRepId = repId;
           }
 
           // Prepare customer data with resolved FKs
@@ -1419,7 +1430,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Resolve FK: customer email → customer ID
           const customer = await storage.getB2bCustomerByEmail(order.customerEmail);
           if (!customer) {
-            throw new Error(`Customer "${order.customerEmail}" not found`);
+            // Customer not found, skip this order
+            results.warnings.push(`B2B Order "${order.orderNumber}": Customer "${order.customerEmail}" not found, skipping order`);
+            results.b2bOrders.failed++;
+            continue;
           }
 
           // Prepare order data with resolved FK
