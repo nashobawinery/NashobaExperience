@@ -38,7 +38,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -2614,7 +2614,29 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <h3 className="font-medium">Shipping Address</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Shipping Address</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const billingAddress = editCustomerForm.getValues("billingAddress");
+                    const billingCity = editCustomerForm.getValues("billingCity");
+                    const billingState = editCustomerForm.getValues("billingState");
+                    const billingZipCode = editCustomerForm.getValues("billingZipCode");
+                    
+                    editCustomerForm.setValue("shippingAddress", billingAddress || "");
+                    editCustomerForm.setValue("shippingCity", billingCity || "");
+                    editCustomerForm.setValue("shippingState", billingState || "");
+                    editCustomerForm.setValue("shippingZipCode", billingZipCode || "");
+                  }}
+                  data-testid="button-copy-billing-to-shipping"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy from Billing
+                </Button>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={editCustomerForm.control}
