@@ -6,24 +6,42 @@ The Nashoba Tasting Experience App is a mobile-first digital companion designed 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Fixes (November 23, 2025)
-**Payroll Commission Management System**
+## Recent Updates (November 23, 2025)
+**Payroll Commission Management & Email Notification System**
+
+### Payroll Commission Management
 - Added `payPeriod` column to b2b_commissions table via database migration
 - Created Payroll Management tab in admin dashboard to view earned but unpaid commissions
 - Built Commissions tab to view commission history per sales rep (shows earned status, order number, amount)
 - Implemented payroll settings in admin Settings tab with:
   - Pay frequency dropdown (Weekly, Bi-Weekly, Monthly)
-  - Calendar date picker for selecting next payroll date (replaces number input)
+  - Calendar date picker for selecting next payroll date
   - Automatic calculation of future payroll dates based on selected date + frequency
   - Database storage of payroll settings using b2b_settings table
-- Added backend endpoints:
-  - GET `/api/b2b/admin/payroll/commissions` - Fetch earned but unpaid commissions with sales rep details
+  - **Manager Email Addresses field** (comma-separated) for receiving notifications on order/payroll events
+- When admin sends commissions to payroll, system:
+  - Marks it as "paid" (paidToSalesRep=true)
+  - Sets paid date (paidToSalesRepAt=current date)
+  - Stores the pay period label
+  - Sales reps see "Paid" status with date in their commission history
+- Backend endpoints:
+  - GET `/api/b2b/admin/payroll/commissions` - Fetch earned but unpaid commissions
   - PATCH `/api/b2b/admin/payroll/commissions/:id/pay` - Mark commission as paid and assign to pay period
   - GET `/api/b2b/admin/payroll/settings` - Fetch payroll configuration
   - POST `/api/b2b/admin/payroll/settings` - Save payroll configuration
-- When admin assigns a commission to a pay period, system marks it as "paid" (paidToSalesRep=true) and stores the pay period label
-- Sales reps see updated pay period status in their commission history
-- **Note**: Backfill Missing Commissions function will now work correctly to create commissions for existing orders
+
+### Email Notification System
+- **Order Placement**: 
+  - Customer receives order confirmation with full details
+  - Sales rep (if assigned) receives order notification
+  - Managers receive order notification
+- **Order Status Changes**:
+  - Managers receive email with order number, new status, and order total
+- **Payroll Sent**:
+  - Payroll admin receives detailed commission report with all sales reps and commissions
+  - Each sales rep receives individual commission summary notification
+  - Managers receive payroll notification with summary (total commissions, number of reps, number of commissions)
+- All emails use verified SendGrid sender address via `sendEmail()` function for reliability
 
 ## System Architecture
 
