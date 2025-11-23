@@ -205,6 +205,26 @@ export default function AdminDashboard() {
   // Commission backfill state
   const [isBackfillingCommissions, setIsBackfillingCommissions] = useState(false);
 
+  // Welcome statement state
+  const [welcomeStatement, setWelcomeStatement] = useState("Great Pricing With Supporting Local Agriculture - Thank you");
+  const [isSavingWelcomeStatement, setIsSavingWelcomeStatement] = useState(false);
+
+  // Load welcome statement on mount
+  useEffect(() => {
+    const loadWelcomeStatement = async () => {
+      try {
+        const res = await fetch('/api/b2b/settings/welcome');
+        const data = await res.json();
+        if (data.welcomeStatement) {
+          setWelcomeStatement(data.welcomeStatement);
+        }
+      } catch (error) {
+        console.error('Failed to load welcome statement:', error);
+      }
+    };
+    loadWelcomeStatement();
+  }, []);
+
   const handleBackfillCommissions = async () => {
     setIsBackfillingCommissions(true);
     try {
@@ -435,6 +455,27 @@ export default function AdminDashboard() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSaveWelcomeStatement = async () => {
+    setIsSavingWelcomeStatement(true);
+    try {
+      await apiRequest('POST', '/api/b2b/admin/settings/welcome', { welcomeStatement });
+      toast({
+        title: 'Success',
+        description: 'Welcome statement has been saved',
+      });
+      // Invalidate the welcome settings cache
+      queryClient.invalidateQueries({ queryKey: ['b2b', 'settings', 'welcome'] });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save welcome statement',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingWelcomeStatement(false);
     }
   };
 
@@ -1516,6 +1557,44 @@ export default function AdminDashboard() {
               >
                 {isBackfillingCommissions ? "Backfilling Commissions..." : "Backfill Missing Commissions"}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Welcome Statement Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Welcome Statement
+              </CardTitle>
+              <CardDescription>
+                Customize the welcome message that appears on the catalog page
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-w-2xl">
+                <div className="space-y-2">
+                  <Label htmlFor="welcome-statement">Welcome Statement</Label>
+                  <textarea
+                    id="welcome-statement"
+                    className="w-full min-h-24 p-3 border rounded-md border-input bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={welcomeStatement}
+                    onChange={(e) => setWelcomeStatement(e.target.value)}
+                    placeholder="Enter the welcome message..."
+                    data-testid="input-welcome-statement"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This message will be displayed on the wholesale catalog page under the customer's store name
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSaveWelcomeStatement}
+                  disabled={isSavingWelcomeStatement}
+                  data-testid="button-save-welcome"
+                >
+                  {isSavingWelcomeStatement ? "Saving..." : "Save Welcome Statement"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

@@ -52,8 +52,18 @@ export default function CatalogPage() {
     enabled: viewType === 'past-orders',
   });
 
+  const { data: customerData } = useQuery<{ accountName: string }>({
+    queryKey: ['b2b', 'customer', 'info'],
+  });
+
+  const { data: welcomeSettings } = useQuery<{ welcomeStatement: string }>({
+    queryKey: ['b2b', 'settings', 'welcome'],
+  });
+
   const products = data?.products || [];
   const tier = data?.tier;
+  const storeName = customerData?.accountName || "Wholesale Partner";
+  const welcomeStatement = welcomeSettings?.welcomeStatement || "Great Pricing With Supporting Local Agriculture - Thank you";
 
   // Check for admin impersonation on mount
   useEffect(() => {
@@ -686,6 +696,12 @@ export default function CatalogPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Welcome Section */}
+      <div className="mb-8 p-6 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg border border-primary/20">
+        <h1 className="text-3xl font-serif font-semibold mb-2">Welcome, {storeName}!</h1>
+        <p className="text-lg text-foreground/80">{welcomeStatement}</p>
+      </div>
 
       {/* Header with search, view toggle, and cart */}
       <div className="mb-8 space-y-4">

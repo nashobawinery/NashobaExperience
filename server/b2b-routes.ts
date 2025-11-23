@@ -24,6 +24,7 @@ import {
   b2bPasswordResetTokens,
   b2bAdmins,
   b2bCustomers,
+  b2bSettings,
   salesReps,
   products,
   tierPricing,
@@ -2714,6 +2715,88 @@ router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: 
   } catch (error) {
     console.error('Error backfilling commissions:', error);
     res.status(500).json({ error: 'Failed to backfill commissions' });
+  }
+});
+
+// Customer: Get customer info (account name)
+router.get('/api/b2b/customer/info', requireB2bCustomer, async (req: Request, res: Response) => {
+  try {
+    const customerId = (req.session as any).b2bCustomerId;
+    const customer = await storage.getB2bCustomer(customerId);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    res.json({
+      accountName: customer.accountName,
+    });
+  } catch (error) {
+    console.error('Error fetching customer info:', error);
+    res.status(500).json({ error: 'Failed to fetch customer info' });
+  }
+});
+
+// Public/Customer: Get welcome statement setting
+router.get('/api/b2b/settings/welcome', async (req: Request, res: Response) => {
+  try {
+    const setting = await db
+      .select()
+      .from(b2bSettings)
+      .where(eq(b2bSettings.settingKey, 'welcome_statement'))
+      .limit(1);
+
+    const welcomeStatement = setting.length > 0 
+      ? setting[0].settingValue 
+      : 'Great Pricing With Supporting Local Agriculture - Thank you';
+
+    res.json({
+      welcomeStatement,
+    });
+  } catch (error) {
+    console.error('Error fetching welcome statement:', error);
+    res.status(500).json({ error: 'Failed to fetch welcome statement' });
+  }
+});
+
+// Admin: Save welcome statement setting
+router.post('/api/b2b/admin/settings/welcome', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { welcomeStatement } = req.body;
+
+    if (!welcomeStatement || typeof welcomeStatement !== 'string') {
+      return res.status(400).json({ error: 'Welcome statement is required' });
+    }
+
+    // Upsert the setting
+    const existing = await db
+      .select()
+      .from(b2bSettings)
+      .where(eq(b2bSettings.settingKey, 'welcome_statement'))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing
+      await db
+        .update(b2bSettings)
+        .set({ settingValue: welcomeStatement, updatedAt: new Date() })
+        .where(eq(b2bSettings.settingKey, 'welcome_statement'));
+    } else {
+      // Create new
+      await db.insert(b2bSettings).values({
+        settingKey: 'welcome_statement',
+        settingValue: welcomeStatement,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Welcome statement saved',
+      welcomeStatement,
+    });
+  } catch (error) {
+    console.error('Error saving welcome statement:', error);
+    res.status(500).json({ error: 'Failed to save welcome statement' });
   }
 });
 
