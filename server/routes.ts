@@ -1333,12 +1333,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 2. Import sales reps (independent)
       const salesRepEmailToId = new Map<string, string>();
-      const bcrypt = await import('bcrypt');
+      const bcrypt = require('bcrypt');
+      const SALT_ROUNDS = 10;
+      
       for (const rep of parseResult.salesReps) {
         try {
           // Generate password for sales reps (passwords not exported for security)
           const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
-          const passwordHash = await bcrypt.hash(defaultPassword, 10);
+          const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
           
           const repData = {
             ...rep,
