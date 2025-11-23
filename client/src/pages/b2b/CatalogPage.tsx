@@ -225,7 +225,7 @@ export default function CatalogPage() {
               <div className="pt-2 border-t space-y-3">
                 {(product.category === 'wine' || product.category === 'spirits') ? (
                   <>
-                    <div className="space-y-2">
+                    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <div className="flex-1">
                           <Label htmlFor={`bottles-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Bottles</Label>
@@ -241,6 +241,7 @@ export default function CatalogPage() {
                                   [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
                                 })
                               }
+                              onClick={(e) => e.stopPropagation()}
                               className="h-8"
                               data-testid={`input-bottles-${product.id}`}
                             />
@@ -264,7 +265,7 @@ export default function CatalogPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex-1">
                           <Label htmlFor={`cases-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
                           <div className="flex items-center gap-2">
@@ -279,6 +280,7 @@ export default function CatalogPage() {
                                   [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
                                 })
                               }
+                              onClick={(e) => e.stopPropagation()}
                               className="h-8"
                               data-testid={`input-cases-${product.id}`}
                             />
@@ -315,7 +317,7 @@ export default function CatalogPage() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex-1">
                         <Label htmlFor={`cases-qty-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
                         <div className="flex items-center gap-2">
@@ -330,6 +332,7 @@ export default function CatalogPage() {
                                 [product.id]: Math.max(0, parseInt(e.target.value) || 0),
                               })
                             }
+                            onClick={(e) => e.stopPropagation()}
                             className="h-8"
                             placeholder="0"
                             data-testid={`input-cases-qty-${product.id}`}
@@ -416,7 +419,7 @@ export default function CatalogPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 items-end flex-shrink-0">
+                <div className="flex flex-col gap-2 items-end flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   {(product.category === 'wine' || product.category === 'spirits') ? (
                     <>
                       <div className="flex gap-2 items-center">
@@ -431,6 +434,7 @@ export default function CatalogPage() {
                                 [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
                               })
                             }
+                            onClick={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-bottles-listing-${product.id}`}
@@ -466,6 +470,7 @@ export default function CatalogPage() {
                                 [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
                               })
                             }
+                            onClick={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-cases-listing-${product.id}`}
@@ -503,6 +508,7 @@ export default function CatalogPage() {
                               [product.id]: Math.max(0, parseInt(e.target.value) || 0),
                             })
                           }
+                          onClick={(e) => e.stopPropagation()}
                           placeholder="Cases"
                           className="h-8 text-center text-xs"
                           data-testid={`input-cases-listing-qty-${product.id}`}
@@ -589,7 +595,7 @@ export default function CatalogPage() {
                         <Badge variant="secondary">Previously Ordered</Badge>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 items-end flex-shrink-0">
+                    <div className="flex flex-col gap-2 items-end flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {(product.category === 'wine' || product.category === 'spirits') ? (
                         <>
                           <div className="flex gap-2 items-center">
@@ -604,6 +610,7 @@ export default function CatalogPage() {
                                     [`${product.id}-bottle`]: Math.max(0, parseInt(e.target.value) || 0),
                                   })
                                 }
+                                onClick={(e) => e.stopPropagation()}
                                 placeholder="0"
                                 className="h-8 text-center text-xs"
                                 data-testid={`input-bottles-past-${product.id}`}
@@ -639,6 +646,7 @@ export default function CatalogPage() {
                                     [`${product.id}-case`]: Math.max(0, parseInt(e.target.value) || 0),
                                   })
                                 }
+                                onClick={(e) => e.stopPropagation()}
                                 placeholder="0"
                                 className="h-8 text-center text-xs"
                                 data-testid={`input-cases-past-${product.id}`}
@@ -676,6 +684,7 @@ export default function CatalogPage() {
                                   [product.id]: Math.max(0, parseInt(e.target.value) || 0),
                                 })
                               }
+                              onClick={(e) => e.stopPropagation()}
                               placeholder="0"
                               className="h-8 text-center text-xs"
                               data-testid={`input-quantity-past-${product.id}`}
