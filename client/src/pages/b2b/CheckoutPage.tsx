@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 interface CartItem {
   quantity: number;
   unit: 'bottle' | 'case';
+  productId?: string;
 }
 
 function getCart(): Record<string, CartItem | number> {
@@ -68,7 +69,18 @@ export default function CheckoutPage() {
   };
   
   // Calculate total cases across ALL categories for Tier 2 qualification
-  const totalCases = Object.entries(cart).reduce((sum, [productId, item]) => {
+  const totalCases = Object.entries(cart).reduce((sum, [cartKey, item]) => {
+    // Extract productId from cartKey
+    let productId: string;
+    if (typeof item === 'object' && item.productId) {
+      productId = item.productId;
+    } else if (typeof item === 'object' && item.unit) {
+      const parts = cartKey.split('-');
+      productId = parts.slice(0, -1).join('-');
+    } else {
+      productId = cartKey;
+    }
+    
     const product = products.find((p) => p.id === productId);
     return sum + getCartQuantityInCases(item, product);
   }, 0);
@@ -79,19 +91,38 @@ export default function CheckoutPage() {
 
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
-    .map(([productId, cartItem]) => {
+    .map(([cartKey, cartItem]) => {
+      // Extract productId from cartKey (format: "productId-unit" or legacy productId)
+      let productId: string;
+      let unit: 'bottle' | 'case' = 'case';
+      
+      if (typeof cartItem === 'object' && cartItem.productId) {
+        // New format with composite key
+        productId = cartItem.productId;
+        unit = cartItem.unit;
+      } else if (typeof cartItem === 'object' && cartItem.unit) {
+        // New format with composite key but need to extract productId from cartKey
+        const parts = cartKey.split('-');
+        unit = (parts[parts.length - 1] as 'bottle' | 'case');
+        productId = parts.slice(0, -1).join('-');
+      } else {
+        // Legacy format: just productId as key
+        productId = cartKey;
+        if (typeof cartItem === 'object') {
+          unit = cartItem.unit;
+        }
+      }
+      
       const product = products.find((p) => p.id === productId);
       if (!product) return null;
       
       // Normalize cart item to standard format
       let quantity: number;
-      let unit: 'bottle' | 'case' = 'case';
       if (typeof cartItem === 'number') {
         quantity = cartItem;
         unit = 'case';
       } else {
         quantity = cartItem.quantity;
-        unit = cartItem.unit;
       }
       
       const quantityInCases = getCartQuantityInCases(cartItem, product);

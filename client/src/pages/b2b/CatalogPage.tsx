@@ -128,13 +128,15 @@ export default function CatalogPage() {
       return;
     }
     const newCart = { ...cart };
-    const cartItem = newCart[productId];
+    // Use composite key to allow both bottles and cases of same product
+    const cartKey = `${productId}-${unit}`;
+    const cartItem = newCart[cartKey];
     
-    // If product is in cart and has same unit, add to quantity; otherwise replace
-    if (cartItem && typeof cartItem === 'object' && cartItem.unit === unit) {
+    // If this product+unit combination is in cart, add to quantity; otherwise create new entry
+    if (cartItem && typeof cartItem === 'object') {
       cartItem.quantity += quantity;
     } else {
-      newCart[productId] = { quantity, unit };
+      newCart[cartKey] = { quantity, unit, productId };
     }
     
     setCart(newCart);
