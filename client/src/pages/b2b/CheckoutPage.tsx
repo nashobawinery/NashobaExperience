@@ -134,6 +134,11 @@ export default function CheckoutPage() {
 
   const totalBottles = cartItems.reduce((sum, item) => sum + (item ? (item.unit === 'bottle' ? item.quantity : item.quantity * item.product.caseSize) : 0), 0);
   const totalAmount = cartItems.reduce((sum, item) => sum + (item?.subtotal || 0), 0);
+  
+  // Check minimum purchase requirement: at least 1 case equivalent
+  // For wine/spirits: 12 bottles = 1 case equivalent
+  // For canned products: 1 case = 1 case equivalent
+  const meetsMinimumPurchase = totalCases >= 1;
 
   // Show loading state while products are being fetched
   if (isLoading) {
@@ -382,15 +387,33 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {!meetsMinimumPurchase && (
+                <Alert className="border-destructive bg-destructive/10">
+                  <AlertDescription className="text-destructive">
+                    <p className="font-medium mb-1">Minimum Purchase Required</p>
+                    <p className="text-sm">Your order must contain at least one case equivalent:</p>
+                    <ul className="text-sm mt-2 space-y-1 ml-4 list-disc">
+                      <li>1 case of any canned product (Beer, Cocktails, Canned Wine, Cider)</li>
+                      <li>12 bottles of Wine or Spirits</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handlePlaceOrder}
-                disabled={isPending}
+                disabled={isPending || !meetsMinimumPurchase}
                 data-testid="button-place-order"
               >
                 {isPending ? (
                   "Processing..."
+                ) : !meetsMinimumPurchase ? (
+                  <>
+                    <Package className="h-5 w-5 mr-2" />
+                    Minimum Not Met
+                  </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-5 w-5 mr-2" />
