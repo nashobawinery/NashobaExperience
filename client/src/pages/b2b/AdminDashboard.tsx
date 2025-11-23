@@ -54,15 +54,16 @@ const createCustomerSchema = z.object({
   primaryContactName: z.string().min(1, "Contact name is required"),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
-  billingAddress: z.string().optional(),
-  billingCity: z.string().optional(),
-  billingState: z.string().optional(),
-  billingZipCode: z.string().optional(),
-  shippingAddress: z.string().optional(),
-  shippingCity: z.string().optional(),
-  shippingState: z.string().optional(),
-  shippingZipCode: z.string().optional(),
-  taxId: z.string().optional(),
+  licenseNumber: z.string().min(1, "License number is required"),
+  taxId: z.string().min(1, "Tax ID is required"),
+  billingAddress: z.string().min(1, "Billing address is required"),
+  billingCity: z.string().min(1, "Billing city is required"),
+  billingState: z.string().min(1, "Billing state is required"),
+  billingZipCode: z.string().min(1, "Billing ZIP code is required"),
+  shippingAddress: z.string().min(1, "Shipping address is required"),
+  shippingCity: z.string().min(1, "Shipping city is required"),
+  shippingState: z.string().min(1, "Shipping state is required"),
+  shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
   tierId: z.string().optional(),
   salesRepId: z.string().min(1, "Sales representative assignment is required"),
   autoApprove: z.boolean(),
@@ -94,15 +95,16 @@ const editCustomerSchema = z.object({
   primaryContactName: z.string().min(1, "Contact name is required"),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
-  billingAddress: z.string().optional(),
-  billingCity: z.string().optional(),
-  billingState: z.string().optional(),
-  billingZipCode: z.string().optional(),
-  shippingAddress: z.string().optional(),
-  shippingCity: z.string().optional(),
-  shippingState: z.string().optional(),
-  shippingZipCode: z.string().optional(),
-  taxId: z.string().optional(),
+  licenseNumber: z.string().min(1, "License number is required"),
+  taxId: z.string().min(1, "Tax ID is required"),
+  billingAddress: z.string().min(1, "Billing address is required"),
+  billingCity: z.string().min(1, "Billing city is required"),
+  billingState: z.string().min(1, "Billing state is required"),
+  billingZipCode: z.string().min(1, "Billing ZIP code is required"),
+  shippingAddress: z.string().min(1, "Shipping address is required"),
+  shippingCity: z.string().min(1, "Shipping city is required"),
+  shippingState: z.string().min(1, "Shipping state is required"),
+  shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
   tierId: z.string().optional(),
   salesRepId: z.string().min(1, "Sales representative assignment is required"),
   accountStatus: z.enum(["pending_approval", "active", "inactive"]),
@@ -302,6 +304,8 @@ export default function AdminDashboard() {
       primaryContactName: "",
       emailAddress: "",
       phoneNumber: "",
+      licenseNumber: "",
+      taxId: "",
       billingAddress: "",
       billingCity: "",
       billingState: "",
@@ -310,7 +314,6 @@ export default function AdminDashboard() {
       shippingCity: "",
       shippingState: "",
       shippingZipCode: "",
-      taxId: "",
       tierId: "",
       salesRepId: "",
       autoApprove: true,
@@ -350,6 +353,8 @@ export default function AdminDashboard() {
       primaryContactName: "",
       emailAddress: "",
       phoneNumber: "",
+      licenseNumber: "",
+      taxId: "",
       billingAddress: "",
       billingCity: "",
       billingState: "",
@@ -358,7 +363,6 @@ export default function AdminDashboard() {
       shippingCity: "",
       shippingState: "",
       shippingZipCode: "",
-      taxId: "",
       tierId: "",
       salesRepId: "",
       accountStatus: "active",
@@ -781,6 +785,8 @@ export default function AdminDashboard() {
       primaryContactName: customer.primaryContactName || "",
       emailAddress: customer.emailAddress || "",
       phoneNumber: customer.phoneNumber || "",
+      licenseNumber: customer.licenseNumber || "",
+      taxId: customer.taxId || "",
       billingAddress: customer.billingAddress || "",
       billingCity: customer.billingCity || "",
       billingState: customer.billingState || "",
@@ -789,7 +795,6 @@ export default function AdminDashboard() {
       shippingCity: customer.shippingCity || "",
       shippingState: customer.shippingState || "",
       shippingZipCode: customer.shippingZipCode || "",
-      taxId: customer.taxId || "",
       tierId: customer.tier?.id || "",
       salesRepId: customer.salesRep?.id || "",
       accountStatus: customer.accountStatus || "active",
@@ -819,6 +824,8 @@ export default function AdminDashboard() {
           primaryContactName: data.primaryContactName,
           emailAddress: data.emailAddress,
           phoneNumber: data.phoneNumber,
+          licenseNumber: data.licenseNumber,
+          taxId: data.taxId,
           billingAddress: data.billingAddress,
           billingCity: data.billingCity,
           billingState: data.billingState,
@@ -827,7 +834,6 @@ export default function AdminDashboard() {
           shippingCity: data.shippingCity,
           shippingState: data.shippingState,
           shippingZipCode: data.shippingZipCode,
-          taxId: data.taxId,
           tierId: data.tierId,
           salesRepId: data.salesRepId,
           accountStatus: data.accountStatus,
@@ -2262,7 +2268,7 @@ export default function AdminDashboard() {
               name="billingAddress"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Billing Address</FormLabel>
+                  <FormLabel>Billing Address *</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-create-billing-address" />
                   </FormControl>
@@ -2277,7 +2283,7 @@ export default function AdminDashboard() {
                 name="billingCity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City</FormLabel>
+                    <FormLabel>City *</FormLabel>
                     <FormControl>
                       <Input {...field} data-testid="input-create-billing-city" />
                     </FormControl>
@@ -2291,7 +2297,7 @@ export default function AdminDashboard() {
                 name="billingState"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>State</FormLabel>
+                    <FormLabel>State *</FormLabel>
                     <FormControl>
                       <Input {...field} data-testid="input-create-billing-state" />
                     </FormControl>
@@ -2305,7 +2311,7 @@ export default function AdminDashboard() {
                 name="billingZipCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ZIP Code</FormLabel>
+                    <FormLabel>ZIP Code *</FormLabel>
                     <FormControl>
                       <Input {...field} data-testid="input-create-billing-zip" />
                     </FormControl>
@@ -2315,19 +2321,35 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <FormField
-              control={createCustomerForm.control}
-              name="taxId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tax ID (Optional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-create-tax-id" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={createCustomerForm.control}
+                name="licenseNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>License Number *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-license-number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createCustomerForm.control}
+                name="taxId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax ID *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-create-tax-id" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -2560,7 +2582,7 @@ export default function AdminDashboard() {
                   name="billingAddress"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel>Street Address</FormLabel>
+                      <FormLabel>Street Address *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-billing-address" />
                       </FormControl>
@@ -2574,7 +2596,7 @@ export default function AdminDashboard() {
                   name="billingCity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>City</FormLabel>
+                      <FormLabel>City *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-billing-city" />
                       </FormControl>
@@ -2588,7 +2610,7 @@ export default function AdminDashboard() {
                   name="billingState"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>State</FormLabel>
+                      <FormLabel>State *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-billing-state" />
                       </FormControl>
@@ -2602,7 +2624,7 @@ export default function AdminDashboard() {
                   name="billingZipCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
+                      <FormLabel>ZIP Code *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-billing-zip" />
                       </FormControl>
@@ -2611,6 +2633,36 @@ export default function AdminDashboard() {
                   )}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={editCustomerForm.control}
+                name="licenseNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>License Number *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-license-number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editCustomerForm.control}
+                name="taxId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax ID *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-tax-id" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="space-y-2">
@@ -2643,7 +2695,7 @@ export default function AdminDashboard() {
                   name="shippingAddress"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel>Street Address</FormLabel>
+                      <FormLabel>Street Address *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-shipping-address" />
                       </FormControl>
@@ -2657,7 +2709,7 @@ export default function AdminDashboard() {
                   name="shippingCity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>City</FormLabel>
+                      <FormLabel>City *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-shipping-city" />
                       </FormControl>
@@ -2671,7 +2723,7 @@ export default function AdminDashboard() {
                   name="shippingState"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>State</FormLabel>
+                      <FormLabel>State *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-shipping-state" />
                       </FormControl>
@@ -2685,7 +2737,7 @@ export default function AdminDashboard() {
                   name="shippingZipCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
+                      <FormLabel>ZIP Code *</FormLabel>
                       <FormControl>
                         <Input {...field} data-testid="input-edit-shipping-zip" />
                       </FormControl>
@@ -2695,20 +2747,6 @@ export default function AdminDashboard() {
                 />
               </div>
             </div>
-
-            <FormField
-              control={editCustomerForm.control}
-              name="taxId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tax ID (Optional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-edit-tax-id" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

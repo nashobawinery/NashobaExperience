@@ -88,6 +88,8 @@ export function useCreateB2bCustomer() {
       primaryContactName: string;
       emailAddress: string;
       phoneNumber: string;
+      licenseNumber?: string;
+      taxId?: string;
       billingAddress?: string;
       billingCity?: string;
       billingState?: string;
@@ -96,7 +98,6 @@ export function useCreateB2bCustomer() {
       shippingCity?: string;
       shippingState?: string;
       shippingZipCode?: string;
-      taxId?: string;
       tierId?: string;
       salesRepId?: string;
       autoApprove?: boolean;
@@ -126,6 +127,8 @@ export function useUpdateB2bCustomer() {
         primaryContactName?: string;
         emailAddress?: string;
         phoneNumber?: string;
+        licenseNumber?: string;
+        taxId?: string;
         billingAddress?: string;
         billingCity?: string;
         billingState?: string;
@@ -134,7 +137,6 @@ export function useUpdateB2bCustomer() {
         shippingCity?: string;
         shippingState?: string;
         shippingZipCode?: string;
-        taxId?: string;
         tierId?: string;
         salesRepId?: string;
         accountStatus?: string;
