@@ -1386,11 +1386,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Check if customer already exists
           const existingCustomer = await storage.getB2bCustomerCoreByEmail(customer.emailAddress);
           
-          // Skip new customers without passwords (passwords are not exported)
-          if (!existingCustomer && (!customer.passwordHash || !customer.passwordHash.trim())) {
-            results.warnings.push(`B2B Customer "${customer.emailAddress}": Skipped (new record without password - passwords are not exported for security)`);
-            continue;
-          }
+          // NOTE: Passwords are not exported for security. New customers will be created without
+          // passwords and will need to use password reset to set one, or admin can set it.
           
           // Resolve FK: tier name → tier ID
           let pricingTierId: string | null = null;
