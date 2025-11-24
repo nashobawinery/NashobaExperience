@@ -1036,6 +1036,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Database Analysis Endpoint - Shows complete export analysis
+  app.get("/api/admin/data/analyze", async (req, res) => {
+    try {
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings, b2bCommissions, b2bEmailTemplates, b2bEmailAutomationLogs] = await Promise.all([
+        storage.getProducts({}),
+        storage.getFilterOptions(),
+        storage.getTriviaQuestions(false),
+        storage.getSlideshowImages(),
+        storage.getMediaLibraryFiles(),
+        storage.getAllWhitelistedEmails(),
+        storage.getCommercials(),
+        storage.getVideos(),
+        storage.getTriviaAchievements(),
+        // B2B data
+        storage.getAllTierPricing(),
+        storage.getAllSalesReps(),
+        storage.getAllB2bCustomers(),
+        storage.getAllB2bSlideshowSlides(),
+        storage.getAllB2bAdmins(),
+        storage.getAllB2bSettings(),
+        storage.getAllB2bCommissions(),
+        storage.getEmailTemplates(),
+        storage.getEmailAutomationLogs(undefined, 10000),
+      ]);
+
+      // Get B2B orders
+      const allOrders = await storage.getAllB2bOrders();
+      const b2bOrdersData: any[] = [];
+      const b2bOrderItemsData: any[] = [];
+      for (const orderWithCustomer of allOrders) {
+        const fullOrder = await storage.getB2bOrder(orderWithCustomer.id);
+        if (fullOrder) {
+          const { customer, items, ...coreOrder } = fullOrder;
+          b2bOrdersData.push(coreOrder);
+          b2bOrderItemsData.push(...items);
+        }
+      }
+
+      // Build summary analysis
+      const analysis = {
+        timestamp: new Date().toISOString(),
+        databases: {
+          development: {
+            core_app: {
+              products: { count: products.length, sample: products.slice(0, 2).map(p => ({ id: p.id, name: p.name, sku: p.sku })) },
+              filterOptions: { count: filterOptions.length },
+              triviaQuestions: { count: triviaQuestions.length },
+              slideshowImages: { count: slideshowImages.length },
+              mediaLibrary: { count: mediaLibrary.length },
+              whitelistedEmails: { count: whitelistedEmails.length, sample: whitelistedEmails.slice(0, 2).map(e => ({ email: e.email })) },
+              commercials: { count: commercials.length },
+              videos: { count: videos.length },
+              triviaAchievements: { count: triviaAchievements.length },
+            },
+            b2b: {
+              tierPricing: { count: tierPricing.length, sample: tierPricing.slice(0, 2).map(t => ({ id: t.id, tierName: t.tierName, category: t.category })) },
+              salesReps: { count: salesReps.length, sample: salesReps.slice(0, 2).map(r => ({ id: r.id, email: r.email, firstName: r.firstName, lastName: r.lastName })) },
+              b2bCustomers: { 
+                count: b2bCustomers.length, 
+                sample: b2bCustomers.slice(0, 3).map(c => ({ 
+                  id: c.id, 
+                  emailAddress: c.emailAddress, 
+                  accountName: c.accountName,
+                  accountStatus: c.accountStatus,
+                  pricingTierName: (c as any).tier?.tierName || 'N/A',
+                  hasPassword: !!(c as any).passwordHash,
+                }))
+              },
+              b2bOrders: { 
+                count: b2bOrdersData.length, 
+                sample: b2bOrdersData.slice(0, 3).map(o => ({ 
+                  id: o.id, 
+                  orderNumber: o.orderNumber, 
+                  customerId: o.customerId,
+                  status: o.status,
+                  total: o.total,
+                }))
+              },
+              b2bOrderItems: { count: b2bOrderItemsData.length },
+              b2bAdmins: { count: b2bAdmins.length, sample: b2bAdmins.slice(0, 2).map(a => ({ id: a.id, email: a.email, role: a.role })) },
+              b2bSettings: { count: b2bSettings.length },
+              b2bCommissions: { 
+                count: b2bCommissions.length, 
+                sample: b2bCommissions.slice(0, 3).map(c => ({ 
+                  id: c.id, 
+                  orderId: c.orderId,
+                  salesRepId: c.salesRepId,
+                  orderTotal: c.orderTotal,
+                  commissionPercentage: c.commissionPercentage,
+                  commissionAmount: c.commissionAmount,
+                  status: c.status,
+                }))
+              },
+              b2bSlideshowSlides: { count: b2bSlideshowSlides.length },
+              b2bEmailTemplates: { count: b2bEmailTemplates.length, sample: b2bEmailTemplates.slice(0, 2).map(t => ({ id: t.id, name: t.name, triggerType: t.triggerType })) },
+              b2bEmailAutomationLogs: { count: b2bEmailAutomationLogs.length },
+            },
+          },
+        },
+        syncStatus: {
+          readyForExport: true,
+          missingPasswords: {
+            salesReps: 'NOT_EXPORTED (security)',
+            b2bAdmins: 'NOT_EXPORTED (security)',
+            b2bCustomers: 'NOT_EXPORTED (security)',
+            note: 'Passwords are intentionally not exported for security. Existing records will update without password changes. New records created without password can use password reset.',
+          },
+          fieldsExported: {
+            b2bCustomers: ['emailAddress', 'accountName', 'accountStatus', 'pricingTierName', 'salesRepEmail', 'licenseNumber', 'taxId', 'creditTerms', 'creditLimit', 'primaryContactName', 'primaryContactRole', 'phoneNumber', 'altPhoneNumber', 'billingAddress', 'billingCity', 'billingState', 'billingZipCode', 'shippingAddress', 'shippingCity', 'shippingState', 'shippingZipCode', 'approvedAt', 'notes', 'acceptsMarketing'],
+            b2bOrders: ['orderNumber', 'customerEmail', 'orderDate', 'status', 'subtotal', 'tax', 'total', 'notes', 'shippingAddress', 'shippingCity', 'shippingState', 'shippingZipCode'],
+            b2bOrderItems: ['orderNumber', 'productSku', 'productName', 'quantity', 'unitPrice', 'retailPrice', 'lineTotal'],
+            b2bCommissions: ['orderId', 'salesRepId', 'orderTotal', 'commissionPercentage', 'commissionAmount', 'status', 'payPeriod', 'paidToSalesRep', 'createdAt', 'updatedAt'],
+          },
+        },
+      };
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error analyzing data:", error);
+      res.status(500).json({ message: "Failed to analyze data", error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
       const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings, b2bCommissions, b2bEmailTemplates, b2bEmailAutomationLogs] = await Promise.all([
