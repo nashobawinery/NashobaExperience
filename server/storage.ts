@@ -1903,14 +1903,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertSalesRep(data: Omit<InsertSalesRep, 'passwordHash'> & { passwordHash?: string }): Promise<{ salesRep: SalesRep; action: 'created' | 'updated' }> {
-    console.error('DEBUG upsertSalesRep called with:', {
-      email: data.email,
-      hasPasswordHash: !!data.passwordHash,
-      passwordHashLength: data.passwordHash?.length,
-      passwordHashType: typeof data.passwordHash,
-      dataKeys: Object.keys(data),
-    });
-    
     if (!data.email) {
       throw new Error("email is required for upsert operation");
     }
@@ -1932,8 +1924,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       // On create: require passwordHash
       if (!data.passwordHash) {
-        console.error('DEBUG: No passwordHash! data.passwordHash=', data.passwordHash);
-        throw new Error("passwordHash is required when creating a new sales rep");
+        throw new Error(`[DEBUG] passwordHash is required for ${data.email}. Received data keys: ${Object.keys(data).join(', ')}. data.passwordHash value: ${data.passwordHash}. Full data: ${JSON.stringify(data)}`);
       }
       const created = await this.createSalesRep(data as InsertSalesRep);
       return { salesRep: created, action: 'created' };

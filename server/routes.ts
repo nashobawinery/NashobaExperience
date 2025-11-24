@@ -1346,6 +1346,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
           const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
           
+          if (!passwordHash) {
+            throw new Error(`[DEBUG] No passwordHash generated for ${rep.email}. bcrypt.hash returned: ${passwordHash}`);
+          }
+          
           const repData: any = {
             email: rep.email,
             firstName: rep.firstName,
@@ -1355,7 +1359,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             passwordHash: passwordHash,
           };
           
-          console.error('DEBUG: Importing rep', rep.email, 'with hash length:', passwordHash?.length, 'repData keys:', Object.keys(repData));
+          // Verify passwordHash is in repData before sending
+          if (!repData.passwordHash) {
+            throw new Error(`[DEBUG] passwordHash lost during object creation. repData = ${JSON.stringify(repData)}`);
+          }
           
           const { salesRep: upserted } = await storage.upsertSalesRep(repData);
           salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
