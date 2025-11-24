@@ -1923,10 +1923,9 @@ export class DatabaseStorage implements IStorage {
       }
       return { salesRep: updated, action: 'updated' };
     } else {
-      // On create: require passwordHash
-      if (!data.passwordHash) {
-        throw new Error("passwordHash is required when creating a new sales rep");
-      }
+      // On create: allow creating without password (sales rep can use password reset)
+      // Note: passwords are not exported for security, so new sales reps created during import
+      // will not have passwords and must use password reset functionality
       const created = await this.createSalesRep(data as InsertSalesRep);
       return { salesRep: created, action: 'created' };
     }
@@ -1989,10 +1988,9 @@ export class DatabaseStorage implements IStorage {
       }
       return { admin: updated, action: 'updated' };
     } else {
-      // On create: require passwordHash
-      if (!data.passwordHash) {
-        throw new Error("passwordHash is required when creating a new B2B admin");
-      }
+      // On create: allow creating without password (admin can use password reset)
+      // Note: passwords are not exported for security, so new admins created during import
+      // will not have passwords and must use password reset functionality
       const created = await this.createB2bAdmin(data as InsertB2bAdmin);
       return { admin: created, action: 'created' };
     }
@@ -2096,10 +2094,9 @@ export class DatabaseStorage implements IStorage {
       }
       return { customer: updated, action: 'updated' };
     } else {
-      // On create: require passwordHash
-      if (!data.passwordHash) {
-        throw new Error("passwordHash is required when creating a new B2B customer");
-      }
+      // On create: allow creating without password (customer can use password reset)
+      // Note: passwords are not exported for security, so new customers created during import
+      // will not have passwords and must use password reset functionality
       const created = await this.createB2bCustomer(data as InsertB2bCustomer);
       return { customer: created, action: 'created' };
     }
