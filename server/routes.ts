@@ -1667,7 +1667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 8. Import B2B commissions (upsert by ID or create)
+      // 8. Import B2B commissions (upsert by orderId + salesRepId combination)
       results.b2bCommissions = { success: 0, failed: 0 };
       for (const commission of parseResult.b2bCommissions) {
         try {
@@ -1686,15 +1686,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             paidToSalesRep: commission.paidToSalesRep || false,
             paidToSalesRepAt: commission.paidToSalesRepAt || null,
           };
-          // Upsert: check if exists, update or create
-          const existing = commission.id ? (await storage.getCommissionsByOrderId(commission.orderId)).find(c => c.id === commission.id) : null;
-          if (existing) {
-            await storage.updateCommissionStatus(existing.id, data.status);
-            results.b2bCommissions.success++;
-          } else {
-            await storage.createCommission(data);
-            results.b2bCommissions.success++;
-          }
+          // Upsert: check if exists by order+salesRep combination (natural business key)
+          // This prevents duplicates on re-import
+          await storage.upsertCommissionByOrderAndSalesRep(data);
+          results.b2bCommissions.success++;
         } catch (error) {
           results.b2bCommissions.failed++;
           results.errors.push(`Commission: ${error instanceof Error ? error.message : 'Unknown error'}`);

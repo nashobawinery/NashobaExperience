@@ -348,6 +348,7 @@ export interface IStorage {
   markCommissionAsPaid(commissionId: string): Promise<B2bCommission | undefined>;
   getEarnedCommissionsNotPaid(): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer }; salesRep: SalesRep })[]>;
   updateCommissionPayPeriod(commissionId: string, payPeriod: string): Promise<B2bCommission | undefined>;
+  upsertCommissionByOrderAndSalesRep(data: InsertB2bCommission): Promise<{ commission: B2bCommission; action: 'created' | 'updated' }>;
 
   // B2B - Tier Commitments
   getTierCommitmentReport(): Promise<any[]>;
@@ -2755,6 +2756,39 @@ export class DatabaseStorage implements IStorage {
       },
       salesRep: r.salesRep,
     }));
+  }
+
+  async upsertCommissionByOrderAndSalesRep(data: InsertB2bCommission): Promise<{ commission: B2bCommission; action: 'created' | 'updated' }> {
+    if (!data.orderId || !data.salesRepId) {
+      throw new Error("orderId and salesRepId are required for commission upsert");
+    }
+
+    // Check if commission already exists for this order and sales rep
+    const [existing] = await db
+      .select()
+      .from(b2bCommissions)
+      .where(and(
+        eq(b2bCommissions.orderId, data.orderId),
+        eq(b2bCommissions.salesRepId, data.salesRepId)
+      ));
+
+    if (existing) {
+      // Update existing commission with all fields
+      const updated = await db
+        .update(b2bCommissions)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(eq(b2bCommissions.id, existing.id))
+        .returning();
+      
+      return { commission: updated[0], action: 'updated' };
+    } else {
+      // Create new commission
+      const [commission] = await db.insert(b2bCommissions).values(data).returning();
+      return { commission, action: 'created' };
+    }
   }
 
   async updateCommissionPayPeriod(commissionId: string, payPeriod: string): Promise<B2bCommission | undefined> {
