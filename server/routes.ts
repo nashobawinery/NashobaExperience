@@ -1038,7 +1038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings, b2bCommissions, b2bEmailTemplates, b2bEmailAutomationLogs] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
@@ -1055,6 +1055,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAllB2bSlideshowSlides(),
         storage.getAllB2bAdmins(),
         storage.getAllB2bSettings(),
+        storage.getAllB2bCommissions(),
+        storage.getEmailTemplates(),
+        storage.getEmailAutomationLogs(undefined, 10000),
       ]);
 
       const appSettingsData: any[] = [];
@@ -1107,6 +1110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         b2bSlideshowSlides,
         b2bAdmins,
         b2bSettings,
+        b2bCommissions,
+        b2bEmailTemplates,
+        b2bEmailAutomationLogs,
       });
       
       const timestamp = new Date().toISOString().split('T')[0];
@@ -1188,6 +1194,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         b2bSlideshowSlides: { success: 0, failed: 0 },
         b2bAdmins: { success: 0, failed: 0 },
         b2bSettings: { success: 0, failed: 0 },
+        b2bCommissions: { success: 0, failed: 0 },
+        b2bEmailTemplates: { success: 0, failed: 0 },
+        b2bEmailAutomationLogs: { success: 0, failed: 0 },
         errors: [...parseResult.errors],
         warnings: [...parseResult.warnings],
       };
@@ -1530,11 +1539,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 7. Import B2B settings (independent - no FK dependencies)
       for (const setting of parseResult.b2bSettings) {
         try {
-          await storage.setB2bSetting(setting.settingKey, setting.settingValue);
+          await storage.setB2bSetting(setting.key, setting.value);
           results.b2bSettings.success++;
         } catch (error) {
           results.b2bSettings.failed++;
-          results.errors.push(`B2B Setting "${setting.settingKey}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          results.errors.push(`B2B Setting "${setting.key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 8. Import B2B commissions (skip if order/sales rep not found)
+      results.b2bCommissions = { success: 0, failed: 0 };
+      for (const commission of parseResult.b2bCommissions) {
+        try {
+          if (!commission.orderId || !commission.salesRepId) {
+            results.warnings.push(`Commission: Missing order or sales rep ID, skipping`);
+            continue;
+          }
+          const existing = await storage.getCommissionsByOrderId(commission.orderId);
+          const data = {
+            orderId: commission.orderId,
+            salesRepId: commission.salesRepId,
+            commissionAmount: commission.commissionAmount || 0,
+            status: commission.status || 'earned',
+            payPeriod: commission.payPeriod || null,
+            paidToSalesRep: commission.paidToSalesRep || false,
+            paidToSalesRepAt: commission.paidToSalesRepAt || null,
+          };
+          if (existing.length > 0) {
+            await storage.updateCommissionStatus(existing[0].id, data.status);
+            results.b2bCommissions.success++;
+          } else {
+            await storage.createCommission(data);
+            results.b2bCommissions.success++;
+          }
+        } catch (error) {
+          results.b2bCommissions.failed++;
+          results.errors.push(`Commission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 9. Import B2B email templates (independent)
+      results.b2bEmailTemplates = { success: 0, failed: 0 };
+      for (const template of parseResult.b2bEmailTemplates) {
+        try {
+          const existing = await storage.getEmailTemplate(template.id);
+          const data = {
+            name: template.name,
+            subject: template.subject,
+            htmlContent: template.htmlContent || '',
+            triggerType: template.triggerType || '',
+            active: template.active !== undefined ? template.active : true,
+          };
+          if (existing) {
+            await storage.updateEmailTemplate(template.id, data);
+          } else {
+            await storage.createEmailTemplate({ ...data, id: template.id });
+          }
+          results.b2bEmailTemplates.success++;
+        } catch (error) {
+          results.b2bEmailTemplates.failed++;
+          results.errors.push(`Email Template "${template.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 10. Import B2B email automation logs (skip if customer not found)
+      results.b2bEmailAutomationLogs = { success: 0, failed: 0 };
+      for (const log of parseResult.b2bEmailAutomationLogs) {
+        try {
+          if (!log.customerId) {
+            results.warnings.push(`Email Log: Missing customer ID, skipping`);
+            continue;
+          }
+          const data = {
+            customerId: log.customerId,
+            emailType: log.emailType,
+            recipientEmail: log.recipientEmail,
+            subject: log.subject,
+            sentAt: log.sentAt || new Date(),
+            status: log.status || 'sent',
+          };
+          await storage.logEmailAutomation(data);
+          results.b2bEmailAutomationLogs.success++;
+        } catch (error) {
+          results.b2bEmailAutomationLogs.failed++;
+          results.errors.push(`Email Log: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
@@ -1543,13 +1631,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.mediaLibrary.success + results.whitelistedEmails.success + results.commercials.success + 
         results.videos.success + results.triviaAchievements.success + results.tierPricing.success + 
         results.salesReps.success + results.b2bCustomers.success + results.b2bOrders.success + results.b2bOrderItems.success +
-        results.b2bSlideshowSlides.success + results.b2bAdmins.success + results.b2bSettings.success;
+        results.b2bSlideshowSlides.success + results.b2bAdmins.success + results.b2bSettings.success +
+        results.b2bCommissions.success + results.b2bEmailTemplates.success + results.b2bEmailAutomationLogs.success;
       const totalFailed = results.products.failed + results.filterOptions.failed + 
         results.triviaQuestions.failed + results.slideshowImages.failed + results.appSettings.failed + 
         results.mediaLibrary.failed + results.whitelistedEmails.failed + results.commercials.failed + 
         results.videos.failed + results.triviaAchievements.failed + results.tierPricing.failed + 
         results.salesReps.failed + results.b2bCustomers.failed + results.b2bOrders.failed + results.b2bOrderItems.failed +
-        results.b2bSlideshowSlides.failed + results.b2bAdmins.failed + results.b2bSettings.failed;
+        results.b2bSlideshowSlides.failed + results.b2bAdmins.failed + results.b2bSettings.failed +
+        results.b2bCommissions.failed + results.b2bEmailTemplates.failed + results.b2bEmailAutomationLogs.failed;
 
       const message = totalSuccess > 0
         ? `Import completed: ${totalSuccess} items imported${totalFailed > 0 ? `, ${totalFailed} failed` : ''}`

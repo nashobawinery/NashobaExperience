@@ -348,6 +348,9 @@ export function exportAllDataToExcel(data: {
   b2bSlideshowSlides?: any[];
   b2bAdmins?: any[];
   b2bSettings?: any[];
+  b2bCommissions?: any[];
+  b2bEmailTemplates?: any[];
+  b2bEmailAutomationLogs?: any[];
 }): Buffer {
   const workbook = XLSX.utils.book_new();
 
@@ -646,6 +649,53 @@ export function exportAllDataToExcel(data: {
     XLSX.utils.book_append_sheet(workbook, settingsSheet, 'B2bSettings');
   }
 
+  // B2B Commissions sheet (if provided)
+  if (data.b2bCommissions && data.b2bCommissions.length > 0) {
+    const commissionData = data.b2bCommissions.map(commission => ({
+      id: commission.id,
+      order_id: commission.orderId,
+      sales_rep_id: commission.salesRepId,
+      commission_amount: commission.commissionAmount ? parseFloat(commission.commissionAmount) : 0,
+      status: commission.status,
+      pay_period: commission.payPeriod || '',
+      paid_to_sales_rep: commission.paidToSalesRep ? 'Yes' : 'No',
+      paid_to_sales_rep_at: commission.paidToSalesRepAt ? new Date(commission.paidToSalesRepAt).toISOString() : '',
+      created_at: commission.createdAt ? new Date(commission.createdAt).toISOString() : '',
+    }));
+    const commissionSheet = XLSX.utils.json_to_sheet(commissionData);
+    XLSX.utils.book_append_sheet(workbook, commissionSheet, 'B2bCommissions');
+  }
+
+  // B2B Email Templates sheet (if provided)
+  if (data.b2bEmailTemplates && data.b2bEmailTemplates.length > 0) {
+    const templateData = data.b2bEmailTemplates.map(template => ({
+      id: template.id,
+      name: template.name,
+      subject: template.subject,
+      html_content: template.htmlContent || '',
+      trigger_type: template.triggerType || '',
+      active: template.active ? 'Yes' : 'No',
+      created_at: template.createdAt ? new Date(template.createdAt).toISOString() : '',
+    }));
+    const templateSheet = XLSX.utils.json_to_sheet(templateData);
+    XLSX.utils.book_append_sheet(workbook, templateSheet, 'B2bEmailTemplates');
+  }
+
+  // B2B Email Automation Logs sheet (if provided)
+  if (data.b2bEmailAutomationLogs && data.b2bEmailAutomationLogs.length > 0) {
+    const logData = data.b2bEmailAutomationLogs.map(log => ({
+      id: log.id,
+      customer_id: log.customerId,
+      email_type: log.emailType,
+      recipient_email: log.recipientEmail,
+      subject: log.subject,
+      sent_at: log.sentAt ? new Date(log.sentAt).toISOString() : '',
+      status: log.status || 'sent',
+    }));
+    const logSheet = XLSX.utils.json_to_sheet(logData);
+    XLSX.utils.book_append_sheet(workbook, logSheet, 'B2bEmailAutomationLogs');
+  }
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -669,6 +719,9 @@ export interface ParseAllDataResult {
   b2bSlideshowSlides: any[];
   b2bAdmins: any[];
   b2bSettings: any[];
+  b2bCommissions: any[];
+  b2bEmailTemplates: any[];
+  b2bEmailAutomationLogs: any[];
   errors: string[];
   warnings: string[];
 }
@@ -694,6 +747,9 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     b2bSlideshowSlides: [],
     b2bAdmins: [],
     b2bSettings: [],
+    b2bCommissions: [],
+    b2bEmailTemplates: [],
+    b2bEmailAutomationLogs: [],
     errors: [],
     warnings: [],
   };
@@ -1123,6 +1179,56 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     result.b2bSettings = rawSettingsData.map((row: any) => ({
       key: row.key?.trim() || '', // Business key for upsert
       value: row.value ? JSON.parse(row.value) : {},
+    }));
+  }
+
+  // Parse B2B Commissions sheet (OPTIONAL)
+  if (workbook.SheetNames.includes('B2bCommissions')) {
+    const commissionSheet = workbook.Sheets['B2bCommissions'];
+    const rawCommissionData: any[] = XLSX.utils.sheet_to_json(commissionSheet);
+    
+    result.b2bCommissions = rawCommissionData.map((row: any) => ({
+      id: row.id?.trim() || '',
+      orderId: row.order_id?.trim() || '',
+      salesRepId: row.sales_rep_id?.trim() || '',
+      commissionAmount: toDecimal(row.commission_amount),
+      status: row.status?.trim() || 'earned',
+      payPeriod: row.pay_period?.trim() || null,
+      paidToSalesRep: normalizeBool(row.paid_to_sales_rep),
+      paidToSalesRepAt: parseDate(row.paid_to_sales_rep_at),
+      createdAt: parseDate(row.created_at),
+    }));
+  }
+
+  // Parse B2B Email Templates sheet (OPTIONAL)
+  if (workbook.SheetNames.includes('B2bEmailTemplates')) {
+    const templateSheet = workbook.Sheets['B2bEmailTemplates'];
+    const rawTemplateData: any[] = XLSX.utils.sheet_to_json(templateSheet);
+    
+    result.b2bEmailTemplates = rawTemplateData.map((row: any) => ({
+      id: row.id?.trim() || '',
+      name: row.name?.trim() || '',
+      subject: row.subject?.trim() || '',
+      htmlContent: row.html_content?.trim() || '',
+      triggerType: row.trigger_type?.trim() || '',
+      active: normalizeBool(row.active !== undefined ? row.active : true),
+      createdAt: parseDate(row.created_at),
+    }));
+  }
+
+  // Parse B2B Email Automation Logs sheet (OPTIONAL)
+  if (workbook.SheetNames.includes('B2bEmailAutomationLogs')) {
+    const logSheet = workbook.Sheets['B2bEmailAutomationLogs'];
+    const rawLogData: any[] = XLSX.utils.sheet_to_json(logSheet);
+    
+    result.b2bEmailAutomationLogs = rawLogData.map((row: any) => ({
+      id: row.id?.trim() || '',
+      customerId: row.customer_id?.trim() || '',
+      emailType: row.email_type?.trim() || '',
+      recipientEmail: row.recipient_email?.trim() || '',
+      subject: row.subject?.trim() || '',
+      sentAt: parseDate(row.sent_at),
+      status: row.status?.trim() || 'sent',
     }));
   }
 

@@ -340,6 +340,7 @@ export interface IStorage {
   upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }>;
 
   // B2B - Commissions
+  getAllB2bCommissions(): Promise<B2bCommission[]>;
   getCommissionsBySalesRep(salesRepId: string): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer } })[]>;
   getCommissionsByOrderId(orderId: string): Promise<B2bCommission[]>;
   createCommission(data: InsertB2bCommission): Promise<B2bCommission>;
@@ -2770,6 +2771,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(b2bCommissions.id, commissionId))
       .returning();
     return updated;
+  }
+
+  async getAllB2bCommissions(): Promise<B2bCommission[]> {
+    return await db.select().from(b2bCommissions).orderBy(desc(b2bCommissions.createdAt));
   }
 
   // B2B - Email Templates
