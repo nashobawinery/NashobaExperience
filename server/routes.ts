@@ -1162,12 +1162,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/data/import-all", upload.single('file'), async (req, res) => {
     try {
+      console.error('DEBUG: /api/admin/data/import-all endpoint called');
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const { parseAllDataExcelFile } = await import("./excel-import");
       const parseResult = parseAllDataExcelFile(req.file.buffer);
+      
+      console.error('DEBUG: Parse result - salesReps count:', parseResult.salesReps.length);
+      console.error('DEBUG: First salesRep:', parseResult.salesReps[0]);
 
       const results = {
         products: { success: 0, failed: 0 },
