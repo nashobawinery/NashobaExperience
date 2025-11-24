@@ -1547,7 +1547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 8. Import B2B commissions (skip if order/sales rep not found)
+      // 8. Import B2B commissions (upsert by ID or create)
       results.b2bCommissions = { success: 0, failed: 0 };
       for (const commission of parseResult.b2bCommissions) {
         try {
@@ -1555,18 +1555,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.warnings.push(`Commission: Missing order or sales rep ID, skipping`);
             continue;
           }
-          const existing = await storage.getCommissionsByOrderId(commission.orderId);
           const data = {
             orderId: commission.orderId,
             salesRepId: commission.salesRepId,
+            orderTotal: commission.orderTotal || 0,
+            commissionPercentage: commission.commissionPercentage || 0,
             commissionAmount: commission.commissionAmount || 0,
-            status: commission.status || 'earned',
+            status: commission.status || 'pending',
             payPeriod: commission.payPeriod || null,
             paidToSalesRep: commission.paidToSalesRep || false,
             paidToSalesRepAt: commission.paidToSalesRepAt || null,
           };
-          if (existing.length > 0) {
-            await storage.updateCommissionStatus(existing[0].id, data.status);
+          // Upsert: check if exists, update or create
+          const existing = commission.id ? (await storage.getCommissionsByOrderId(commission.orderId)).find(c => c.id === commission.id) : null;
+          if (existing) {
+            await storage.updateCommissionStatus(existing.id, data.status);
             results.b2bCommissions.success++;
           } else {
             await storage.createCommission(data);
@@ -1578,22 +1581,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 9. Import B2B email templates (independent)
+      // 9. Import B2B email templates (upsert by ID)
       results.b2bEmailTemplates = { success: 0, failed: 0 };
       for (const template of parseResult.b2bEmailTemplates) {
         try {
-          const existing = await storage.getEmailTemplate(template.id);
           const data = {
-            name: template.name,
-            subject: template.subject,
-            htmlContent: template.htmlContent || '',
+            name: template.name || '',
+            description: template.description || '',
             triggerType: template.triggerType || '',
+            tierFilter: template.tierFilter || null,
+            subject: template.subject || '',
+            bodyHtml: template.bodyHtml || '',
+            bodyText: template.bodyText || '',
+            daysBeforeEvent: template.daysBeforeEvent || null,
             active: template.active !== undefined ? template.active : true,
+            createdByAdminId: template.createdByAdminId || null,
           };
+          const existing = await storage.getEmailTemplate(template.id);
           if (existing) {
             await storage.updateEmailTemplate(template.id, data);
           } else {
-            await storage.createEmailTemplate({ ...data, id: template.id });
+            // Create with auto-generated ID (can't preserve original ID from import)
+            await storage.createEmailTemplate(data);
           }
           results.b2bEmailTemplates.success++;
         } catch (error) {
@@ -1602,7 +1611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 10. Import B2B email automation logs (skip if customer not found)
+      // 10. Import B2B email automation logs (create only)
       results.b2bEmailAutomationLogs = { success: 0, failed: 0 };
       for (const log of parseResult.b2bEmailAutomationLogs) {
         try {
@@ -1611,12 +1620,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           const data = {
+            templateId: log.templateId || null,
             customerId: log.customerId,
-            emailType: log.emailType,
             recipientEmail: log.recipientEmail,
             subject: log.subject,
+            triggerType: log.triggerType,
             sentAt: log.sentAt || new Date(),
-            status: log.status || 'sent',
+            success: log.success !== undefined ? log.success : true,
+            errorMessage: log.errorMessage || null,
           };
           await storage.logEmailAutomation(data);
           results.b2bEmailAutomationLogs.success++;

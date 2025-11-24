@@ -52,13 +52,19 @@ Preferred communication style: Simple, everyday language.
 - **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
 
 ### Database Synchronization
-- **Process**: Excel-based export/import system for synchronizing database configuration between environments using multi-sheet workbooks.
-- **Cross-Environment Portability**: Uses portable business keys instead of UUIDs for seamless data synchronization.
-- **Upsert Logic**: ID-first upsert strategy with natural business key fallback.
+- **Process**: Comprehensive Excel-based export/import system for synchronizing ALL database data between environments using multi-sheet workbooks.
+- **Complete Data Coverage**: 
+  - **Core Tables**: Products, Filter Options, Trivia, Slideshow, App Settings, Media Library, Whitelisted Emails, Commercials, Videos, Achievements
+  - **B2B Tables**: Tier Pricing, Sales Reps, Customers, Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions (with order_total, commission_percentage), Email Templates (with description, tier_filter, body_html, body_text, days_before_event), Email Automation Logs (with template_id, trigger_type, success, error_message)
+  - **All Fields Exported**: Every field in every table is captured during export to ensure complete data fidelity
+- **Cross-Environment Portability**: Uses portable business keys (email, order_number, etc.) instead of UUIDs for seamless data synchronization.
+- **Upsert Logic**: ID-first upsert strategy with natural business key fallback; handles partial updates correctly.
 - **FK Resolution**: Cross-sheet lookup dictionaries for resolving business keys to database IDs.
-- **Validation**: Zod-based validation pipeline for data import.
+- **Validation**: Zod-based validation pipeline with detailed error/warning reporting for data import.
 - **Sales Rep Import**: Only updates existing sales reps (preserves passwords); new sales reps must be created via admin UI since passwords are not exported for security.
-- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production.
+- **Commissions**: Full sync including order_total, commission_percentage, status, pay_period, paid_to_sales_rep tracking, and timestamps
+- **Email System**: Complete sync of email templates and automation logs with all content, trigger types, and delivery status
+- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production. Complete synchronization ensures development database fully mirrors production after export/import cycle.
 
 ## External Dependencies
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.

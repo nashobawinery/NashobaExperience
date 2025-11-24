@@ -655,12 +655,15 @@ export function exportAllDataToExcel(data: {
       id: commission.id,
       order_id: commission.orderId,
       sales_rep_id: commission.salesRepId,
+      order_total: commission.orderTotal ? parseFloat(commission.orderTotal) : 0,
+      commission_percentage: commission.commissionPercentage ? parseFloat(commission.commissionPercentage) : 0,
       commission_amount: commission.commissionAmount ? parseFloat(commission.commissionAmount) : 0,
       status: commission.status,
       pay_period: commission.payPeriod || '',
       paid_to_sales_rep: commission.paidToSalesRep ? 'Yes' : 'No',
       paid_to_sales_rep_at: commission.paidToSalesRepAt ? new Date(commission.paidToSalesRepAt).toISOString() : '',
       created_at: commission.createdAt ? new Date(commission.createdAt).toISOString() : '',
+      updated_at: commission.updatedAt ? new Date(commission.updatedAt).toISOString() : '',
     }));
     const commissionSheet = XLSX.utils.json_to_sheet(commissionData);
     XLSX.utils.book_append_sheet(workbook, commissionSheet, 'B2bCommissions');
@@ -671,11 +674,17 @@ export function exportAllDataToExcel(data: {
     const templateData = data.b2bEmailTemplates.map(template => ({
       id: template.id,
       name: template.name,
-      subject: template.subject,
-      html_content: template.htmlContent || '',
+      description: template.description || '',
       trigger_type: template.triggerType || '',
+      tier_filter: template.tierFilter ? JSON.stringify(template.tierFilter) : '',
+      subject: template.subject || '',
+      body_html: template.bodyHtml || '',
+      body_text: template.bodyText || '',
+      days_before_event: template.daysBeforeEvent || '',
       active: template.active ? 'Yes' : 'No',
+      created_by_admin_id: template.createdByAdminId || '',
       created_at: template.createdAt ? new Date(template.createdAt).toISOString() : '',
+      updated_at: template.updatedAt ? new Date(template.updatedAt).toISOString() : '',
     }));
     const templateSheet = XLSX.utils.json_to_sheet(templateData);
     XLSX.utils.book_append_sheet(workbook, templateSheet, 'B2bEmailTemplates');
@@ -685,12 +694,14 @@ export function exportAllDataToExcel(data: {
   if (data.b2bEmailAutomationLogs && data.b2bEmailAutomationLogs.length > 0) {
     const logData = data.b2bEmailAutomationLogs.map(log => ({
       id: log.id,
+      template_id: log.templateId || '',
       customer_id: log.customerId,
-      email_type: log.emailType,
       recipient_email: log.recipientEmail,
       subject: log.subject,
+      trigger_type: log.triggerType,
       sent_at: log.sentAt ? new Date(log.sentAt).toISOString() : '',
-      status: log.status || 'sent',
+      success: log.success ? 'Yes' : 'No',
+      error_message: log.errorMessage || '',
     }));
     const logSheet = XLSX.utils.json_to_sheet(logData);
     XLSX.utils.book_append_sheet(workbook, logSheet, 'B2bEmailAutomationLogs');
@@ -1191,12 +1202,15 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       id: row.id?.trim() || '',
       orderId: row.order_id?.trim() || '',
       salesRepId: row.sales_rep_id?.trim() || '',
+      orderTotal: toDecimal(row.order_total),
+      commissionPercentage: toDecimal(row.commission_percentage),
       commissionAmount: toDecimal(row.commission_amount),
-      status: row.status?.trim() || 'earned',
+      status: row.status?.trim() || 'pending',
       payPeriod: row.pay_period?.trim() || null,
       paidToSalesRep: normalizeBool(row.paid_to_sales_rep),
       paidToSalesRepAt: parseDate(row.paid_to_sales_rep_at),
       createdAt: parseDate(row.created_at),
+      updatedAt: parseDate(row.updated_at),
     }));
   }
 
@@ -1208,11 +1222,17 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     result.b2bEmailTemplates = rawTemplateData.map((row: any) => ({
       id: row.id?.trim() || '',
       name: row.name?.trim() || '',
-      subject: row.subject?.trim() || '',
-      htmlContent: row.html_content?.trim() || '',
+      description: row.description?.trim() || '',
       triggerType: row.trigger_type?.trim() || '',
+      tierFilter: row.tier_filter ? JSON.parse(row.tier_filter) : null,
+      subject: row.subject?.trim() || '',
+      bodyHtml: row.body_html?.trim() || '',
+      bodyText: row.body_text?.trim() || '',
+      daysBeforeEvent: toNumber(row.days_before_event),
       active: normalizeBool(row.active !== undefined ? row.active : true),
+      createdByAdminId: row.created_by_admin_id?.trim() || null,
       createdAt: parseDate(row.created_at),
+      updatedAt: parseDate(row.updated_at),
     }));
   }
 
@@ -1223,12 +1243,14 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     
     result.b2bEmailAutomationLogs = rawLogData.map((row: any) => ({
       id: row.id?.trim() || '',
+      templateId: row.template_id?.trim() || null,
       customerId: row.customer_id?.trim() || '',
-      emailType: row.email_type?.trim() || '',
       recipientEmail: row.recipient_email?.trim() || '',
       subject: row.subject?.trim() || '',
+      triggerType: row.trigger_type?.trim() || '',
       sentAt: parseDate(row.sent_at),
-      status: row.status?.trim() || 'sent',
+      success: normalizeBool(row.success !== undefined ? row.success : true),
+      errorMessage: row.error_message?.trim() || null,
     }));
   }
 
