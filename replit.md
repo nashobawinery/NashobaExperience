@@ -57,6 +57,8 @@ Preferred communication style: Simple, everyday language.
 - **Upsert Logic**: ID-first upsert strategy with natural business key fallback.
 - **FK Resolution**: Cross-sheet lookup dictionaries for resolving business keys to database IDs.
 - **Validation**: Zod-based validation pipeline for data import.
+- **Sales Rep Import**: Only updates existing sales reps (preserves passwords); new sales reps must be created via admin UI since passwords are not exported for security.
+- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production.
 
 ## External Dependencies
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
