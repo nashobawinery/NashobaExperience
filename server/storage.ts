@@ -1924,7 +1924,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       // On create: require passwordHash
       if (!data.passwordHash) {
-        throw new Error(`[DEBUG] passwordHash is required for ${data.email}. Received data keys: ${Object.keys(data).join(', ')}. data.passwordHash value: ${data.passwordHash}. Full data: ${JSON.stringify(data)}`);
+        throw new Error("passwordHash is required when creating a new sales rep");
       }
       const created = await this.createSalesRep(data as InsertSalesRep);
       return { salesRep: created, action: 'created' };

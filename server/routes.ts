@@ -1162,16 +1162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/data/import-all", upload.single('file'), async (req, res) => {
     try {
-      console.error('DEBUG: /api/admin/data/import-all endpoint called');
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const { parseAllDataExcelFile } = await import("./excel-import");
       const parseResult = parseAllDataExcelFile(req.file.buffer);
-      
-      console.error('DEBUG: Parse result - salesReps count:', parseResult.salesReps.length);
-      console.error('DEBUG: First salesRep:', parseResult.salesReps[0]);
 
       const results = {
         products: { success: 0, failed: 0 },
@@ -1336,37 +1332,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 2. Import sales reps (independent)
+      // NOTE: Only updates existing sales reps. New sales reps must be created separately via the admin UI
+      // Passwords are not exported for security, so new reps cannot be created during import
       const salesRepEmailToId = new Map<string, string>();
-      const bcrypt = require('bcrypt');
-      const SALT_ROUNDS = 10;
       
       for (const rep of parseResult.salesReps) {
         try {
-          // Generate password for sales reps (passwords not exported for security)
-          const defaultPassword = rep.firstName.charAt(0).toLowerCase() + rep.lastName.toLowerCase() + '123';
-          const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
+          // Check if sales rep exists
+          const existing = await storage.getSalesRepByEmailNormalized(rep.email);
           
-          if (!passwordHash) {
-            throw new Error(`[DEBUG] No passwordHash generated for ${rep.email}. bcrypt.hash returned: ${passwordHash}`);
+          if (existing) {
+            // Update existing sales rep (preserves password)
+            const repData = {
+              firstName: rep.firstName,
+              lastName: rep.lastName,
+              phoneNumber: rep.phoneNumber || null,
+              active: rep.active !== undefined ? rep.active : true,
+            };
+            await storage.updateSalesRep(existing.id, repData);
+            salesRepEmailToId.set(rep.email.toLowerCase().trim(), existing.id);
+            results.salesReps.success++;
+          } else {
+            // Skip new sales reps - they must be created via admin UI
+            results.warnings.push(`Sales Rep "${rep.email}": Skipped (new record - create via admin UI, passwords are not exported for security)`);
           }
-          
-          const repData: any = {
-            email: rep.email,
-            firstName: rep.firstName,
-            lastName: rep.lastName,
-            phoneNumber: rep.phoneNumber || null,
-            active: rep.active !== undefined ? rep.active : true,
-            passwordHash: passwordHash,
-          };
-          
-          // Verify passwordHash is in repData before sending
-          if (!repData.passwordHash) {
-            throw new Error(`[DEBUG] passwordHash lost during object creation. repData = ${JSON.stringify(repData)}`);
-          }
-          
-          const { salesRep: upserted } = await storage.upsertSalesRep(repData);
-          salesRepEmailToId.set(rep.email.toLowerCase().trim(), upserted.id);
-          results.salesReps.success++;
         } catch (error) {
           results.salesReps.failed++;
           results.errors.push(`Sales Rep "${rep.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
