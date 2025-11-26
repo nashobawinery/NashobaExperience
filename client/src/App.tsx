@@ -31,6 +31,7 @@ import B2bReorderPage from "@/pages/b2b/ReorderPage";
 import B2bAdminDashboard from "@/pages/b2b/AdminDashboard";
 import B2bWhereToBuyPage from "@/pages/b2b/WhereToBuyPage";
 import B2bSalesRepDashboard from "@/pages/b2b/SalesRepDashboard";
+import B2bCustomerDataPage from "@/pages/b2b/CustomerDataPage";
 
 function AdminRoute() {
   const [, setLocation] = useLocation();
@@ -91,6 +92,11 @@ function B2bRoutes() {
           <Route path="/b2b/reorder">
             <ProtectedRoute requireCustomer>
               <B2bReorderPage />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/b2b/customer-data">
+            <ProtectedRoute requireCustomer>
+              <B2bCustomerDataPage />
             </ProtectedRoute>
           </Route>
 

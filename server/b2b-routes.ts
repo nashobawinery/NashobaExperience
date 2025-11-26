@@ -3134,4 +3134,98 @@ router.post('/api/b2b/admin/settings/welcome', requireB2bAdmin, async (req: Requ
   }
 });
 
+// Customer: Export customers to Excel
+router.get('/api/b2b/customer/export', requireB2bCustomer, async (req: Request, res: Response) => {
+  try {
+    const { exportB2bCustomersToExcel } = await import('./excel-import');
+    
+    const allCustomers = await storage.getAllB2bCustomers();
+    const allTiers = await storage.getAllTierPricing();
+    const allSalesReps = await storage.getAllSalesReps();
+    
+    const buffer = exportB2bCustomersToExcel(allCustomers, allTiers, allSalesReps);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="customers-${new Date().toISOString().split('T')[0]}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error exporting customers:', error);
+    res.status(500).json({ error: 'Failed to export customers' });
+  }
+});
+
+// Customer: Import customers from Excel
+router.post('/api/b2b/customer/import', requireB2bCustomer, async (req: Request, res: Response) => {
+  try {
+    const multer = (await import('multer')).default;
+    const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+    
+    // Use multer middleware directly
+    return upload.single('file')(req, res, async () => {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const { parseB2bCustomersExcelFile } = await import('./excel-import');
+      
+      const allTiers = await storage.getAllTierPricing();
+      const allSalesReps = await storage.getAllSalesReps();
+      const parseResult = parseB2bCustomersExcelFile(req.file.buffer, allTiers, allSalesReps);
+
+      if (parseResult.errors.length > 0) {
+        return res.status(400).json({
+          error: 'Import failed due to validation errors',
+          errors: parseResult.errors,
+          warnings: parseResult.warnings,
+        });
+      }
+
+      let imported = 0;
+      const errors: string[] = [];
+
+      for (const customerData of parseResult.customers) {
+        try {
+          const existing = await db
+            .select()
+            .from(b2bCustomers)
+            .where(eq(b2bCustomers.emailAddress, customerData.emailAddress))
+            .limit(1);
+
+          if (existing.length > 0) {
+            await storage.updateB2bCustomer(existing[0].id, customerData);
+          } else {
+            await storage.createB2bCustomer({
+              ...customerData,
+              passwordHash: null,
+            });
+          }
+          imported++;
+        } catch (error) {
+          errors.push(`Failed to import ${customerData.emailAddress}: ${error}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        imported,
+        errors,
+      });
+    });
+  } catch (error) {
+    console.error('Error importing customers:', error);
+    res.status(500).json({ error: 'Failed to import customers' });
+  }
+});
+
+// Customer: Get customer count
+router.get('/api/b2b/customer/count', requireB2bCustomer, async (req: Request, res: Response) => {
+  try {
+    const customers = await storage.getAllB2bCustomers();
+    res.json(customers.length);
+  } catch (error) {
+    console.error('Error fetching customer count:', error);
+    res.status(500).json({ error: 'Failed to fetch customer count' });
+  }
+});
+
 export default router;
