@@ -164,7 +164,7 @@ export default function WhereToBuyPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Products Carried:</span>
+                        <span className="text-sm font-medium">Products purchased in the last 12 months:</span>
                       </div>
                       <div className="flex flex-wrap gap-1" data-testid={`location-products-${location.id}`}>
                         {location.products.slice(0, 5).map((product, idx) => (
