@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MapPin, Phone, Package } from "lucide-react";
+import { Search, MapPin, Phone, Package, Heart } from "lucide-react";
 
 interface Location {
   id: string;
@@ -65,6 +65,17 @@ export default function WhereToBuyPage() {
             Find retailers and establishments near you that carry Nashoba Valley Winery products
           </p>
         </div>
+
+        <Card className="mb-12 border-l-4 border-l-orange-600 bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20 dark:to-transparent">
+          <CardContent className="py-8 px-6">
+            <div className="flex gap-4 items-start">
+              <Heart className="h-6 w-6 text-orange-600 flex-shrink-0 mt-1" />
+              <p className="text-lg italic text-foreground leading-relaxed">
+                A heartfelt cheers to our farm-to-table heroes—the stores and restaurants truly committed to local flavors, proudly pouring and serving adult beverages crafted by your neighbors. Your dedication keeps our community thriving, one sip at a time!
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="mb-8 max-w-md mx-auto">
           <div className="relative">
