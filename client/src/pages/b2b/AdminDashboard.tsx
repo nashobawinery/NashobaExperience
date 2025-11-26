@@ -154,6 +154,7 @@ export default function AdminDashboard() {
   const { user: currentUser } = useB2bAuth();
   const { data: pendingCustomers, isLoading: loadingPending } = useB2bAdminCustomers("pending_approval");
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
+  const { data: inactiveCustomers, isLoading: loadingInactive } = useB2bAdminCustomers("inactive");
   const { data: orders, isLoading: loadingOrders } = useB2bAdminOrders();
   const { data: salesReps, isLoading: loadingSalesReps } = useB2bAdminSalesReps();
   const { data: admins, isLoading: loadingAdmins } = useB2bAdmins();
@@ -1546,12 +1547,15 @@ export default function AdminDashboard() {
           )}
           
           <Tabs defaultValue="active" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsList className="grid w-full grid-cols-3 max-w-lg">
               <TabsTrigger value="pending" data-testid="tab-pending">
                 Pending ({pendingCustomers?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="active" data-testid="tab-active">
                 Active ({activeCustomers?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="inactive" data-testid="tab-inactive">
+                Inactive ({inactiveCustomers?.length || 0})
               </TabsTrigger>
             </TabsList>
 
@@ -1607,6 +1611,34 @@ export default function AdminDashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeCustomers.map((customer) => renderCustomerCard(customer, false))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="inactive" className="space-y-4">
+              {loadingInactive ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i}>
+                      <CardContent className="p-6">
+                        <Skeleton className="h-32 w-full" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : !inactiveCustomers || inactiveCustomers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No Inactive Customers</h3>
+                    <p className="text-muted-foreground">
+                      Customers marked as inactive will appear here
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {inactiveCustomers.map((customer) => renderCustomerCard(customer, false))}
                 </div>
               )}
             </TabsContent>
