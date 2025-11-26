@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, MapPin, Phone, Package, Heart } from "lucide-react";
+import { Fireworks } from "@/components/Fireworks";
 
 interface Location {
   id: string;
@@ -56,15 +57,22 @@ export default function WhereToBuyPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-12 text-center">
-          <h1 className="text-4xl font-serif font-semibold mb-4" data-testid="page-title">
+      <div className="relative w-full bg-gradient-to-b from-orange-100/20 to-transparent dark:from-orange-950/10 dark:to-transparent overflow-hidden py-8 mb-4">
+        <div className="absolute inset-0 h-96">
+          <Fireworks />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+          <h1 className="text-4xl font-serif font-semibold mb-4 text-foreground" data-testid="page-title">
             Where to Buy Our Wines
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="page-description">
             Find retailers and establishments near you that carry Nashoba Valley Winery products
           </p>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-12"></div>
 
         <Card className="mb-12 border-l-4 border-l-orange-600 bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20 dark:to-transparent">
           <CardContent className="py-8 px-6">
