@@ -71,7 +71,7 @@ export default function WhereToBuyPage() {
             <div className="flex gap-4 items-start">
               <Heart className="h-6 w-6 text-orange-600 flex-shrink-0 mt-1" />
               <p className="text-lg italic text-foreground leading-relaxed">
-                A heartfelt cheers to our farm-to-table heroes—the stores and restaurants truly committed to local flavors, proudly pouring and serving adult beverages crafted by your neighbors. Your dedication keeps our community thriving, one sip at a time!
+                A heartfelt cheers to our farm-to-table heroes—the stores and restaurants truly committed to local flavors, proudly pouring and serving adult beverages crafted by your neighbors. Their dedication to our farm keeps our community thriving, one sip at a time!  Your support of these stores and restaurants shows your dedication to local farming and locally owned business.  Thank you as every dollar you spend stays in our local enconomy.
               </p>
             </div>
           </CardContent>
