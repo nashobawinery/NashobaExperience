@@ -131,7 +131,7 @@ export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesRe
       const salesRep = salesRepEmail ? salesReps.find(r => r.email === salesRepEmail) : null;
 
       const parsedCustomer = {
-        customerNumber: row.customer_number?.trim() || '',
+        customerNumber: String(row.customer_number || '').trim() || '',
         accountName: row.business_name?.trim() || '',
         primaryContactName: row.contact_name?.trim() || '',
         emailAddress: row.email_address?.trim() || '',
