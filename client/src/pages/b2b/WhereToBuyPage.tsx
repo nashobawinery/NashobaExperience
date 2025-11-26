@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MapPin, Phone, Package, Heart } from "lucide-react";
+import { Search, MapPin, Phone, Package, Heart, Wine } from "lucide-react";
 import { Fireworks } from "@/components/Fireworks";
 
 interface Location {
@@ -24,6 +24,7 @@ interface Location {
 
 export default function WhereToBuyPage() {
   const [searchZip, setSearchZip] = useState("");
+  const [searchProduct, setSearchProduct] = useState("");
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ["/api/b2b/where-to-buy"],
@@ -40,20 +41,34 @@ export default function WhereToBuyPage() {
   };
 
   const filteredAndSortedLocations = useMemo(() => {
+    let result = [...locations];
+    
+    // Filter by product search if provided
+    const productSearchTerm = searchProduct.trim().toLowerCase();
+    if (productSearchTerm) {
+      result = result.filter((loc) =>
+        loc.products.some((product) =>
+          product.productName.toLowerCase().includes(productSearchTerm) ||
+          (product.sku && product.sku.toLowerCase().includes(productSearchTerm))
+        )
+      );
+    }
+    
+    // Sort by ZIP code proximity if provided, otherwise alphabetically
     if (!searchZip.trim()) {
-      return locations.sort((a, b) => 
+      return result.sort((a, b) => 
         (a.accountName || "").localeCompare(b.accountName || "")
       );
     }
 
-    return locations
+    return result
       .map((loc) => ({
         ...loc,
         distance: calculateZipDistance(searchZip, loc.shippingZipCode || ""),
       }))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 20);
-  }, [locations, searchZip]);
+  }, [locations, searchZip, searchProduct]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,33 +98,62 @@ export default function WhereToBuyPage() {
           </CardContent>
         </Card>
 
-        <div className="mb-8 max-w-md mx-auto">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Enter your ZIP code to find nearby locations"
-              value={searchZip}
-              onChange={(e) => setSearchZip(e.target.value)}
-              className="pl-10 pr-20"
-              data-testid="input-zip-search"
-              maxLength={10}
-            />
-            {searchZip && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSearchZip("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2"
-                data-testid="button-clear-search"
-              >
-                Clear
-              </Button>
-            )}
+        <div className="mb-8 max-w-2xl mx-auto space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Enter ZIP code for nearby stores"
+                value={searchZip}
+                onChange={(e) => setSearchZip(e.target.value)}
+                className="pl-10 pr-16"
+                data-testid="input-zip-search"
+                maxLength={10}
+              />
+              {searchZip && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchZip("")}
+                  className="absolute right-1 top-1/2 -translate-y-1/2"
+                  data-testid="button-clear-zip"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+            <div className="relative">
+              <Wine className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search by product name"
+                value={searchProduct}
+                onChange={(e) => setSearchProduct(e.target.value)}
+                className="pl-10 pr-16"
+                data-testid="input-product-search"
+              />
+              {searchProduct && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchProduct("")}
+                  className="absolute right-1 top-1/2 -translate-y-1/2"
+                  data-testid="button-clear-product"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
-          {searchZip && (
-            <p className="text-sm text-muted-foreground mt-2 text-center">
-              Showing locations nearest to {searchZip}
+          {(searchZip || searchProduct) && (
+            <p className="text-sm text-muted-foreground text-center">
+              {searchProduct && searchZip 
+                ? `Showing stores carrying "${searchProduct}" nearest to ${searchZip}`
+                : searchProduct
+                ? `Showing stores carrying "${searchProduct}"`
+                : `Showing locations nearest to ${searchZip}`
+              }
             </p>
           )}
         </div>
@@ -130,7 +174,11 @@ export default function WhereToBuyPage() {
               <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">No Locations Found</h3>
               <p className="text-muted-foreground">
-                {searchZip 
+                {searchProduct && searchZip
+                  ? `No stores carrying "${searchProduct}" found near ${searchZip}. Try broadening your search.`
+                  : searchProduct
+                  ? `No stores carrying "${searchProduct}" found. Try a different product name.`
+                  : searchZip 
                   ? "Try a different ZIP code or clear your search" 
                   : "No retailers have purchased from us in the past 12 months"}
               </p>
@@ -184,11 +232,21 @@ export default function WhereToBuyPage() {
                         <span className="text-sm font-medium">Products purchased in the last 12 months:</span>
                       </div>
                       <div className="flex flex-wrap gap-1" data-testid={`location-products-${location.id}`}>
-                        {location.products.slice(0, 5).map((product, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {product.productName}
-                          </Badge>
-                        ))}
+                        {location.products.slice(0, 5).map((product, idx) => {
+                          const isMatch = searchProduct.trim() && (
+                            product.productName.toLowerCase().includes(searchProduct.trim().toLowerCase()) ||
+                            (product.sku && product.sku.toLowerCase().includes(searchProduct.trim().toLowerCase()))
+                          );
+                          return (
+                            <Badge 
+                              key={idx} 
+                              variant={isMatch ? "default" : "secondary"} 
+                              className={`text-xs ${isMatch ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                            >
+                              {product.productName}
+                            </Badge>
+                          );
+                        })}
                         {location.products.length > 5 && (
                           <Badge variant="secondary" className="text-xs">
                             +{location.products.length - 5} more
