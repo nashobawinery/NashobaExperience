@@ -73,6 +73,91 @@ function formatZodError(sheetName: string, rowNum: number, error: ZodError): str
   return `${sheetName} Row ${rowNum} - ${issues}`;
 }
 
+// Export B2B customers to Excel (customer-only, no orders)
+export function exportB2bCustomersToExcel(customers: any[], tiers?: any[], salesReps?: any[]): Buffer {
+  const customerData = customers.map(customer => {
+    const tier = tiers?.find(t => t.id === customer.pricingTierId);
+    const salesRep = salesReps?.find(r => r.id === customer.salesRepId);
+    
+    return {
+      business_name: customer.accountName,
+      contact_name: customer.primaryContactName,
+      email_address: customer.emailAddress,
+      phone_number: customer.phoneNumber,
+      billing_street_address: customer.billingAddress || '',
+      billing_city: customer.billingCity || '',
+      billing_state: customer.billingState || '',
+      billing_zip_code: customer.billingZipCode || '',
+      license_number: customer.licenseNumber || '',
+      tax_id: customer.taxId || '',
+      shipping_street_address: customer.shippingAddress || '',
+      shipping_city: customer.shippingCity || '',
+      shipping_state: customer.shippingState || '',
+      shipping_zip_code: customer.shippingZipCode || '',
+      pricing_tier_name: tier?.tierName || '',
+      sales_rep_email: salesRep?.email || '',
+      account_status: customer.accountStatus,
+      notes: customer.notes || '',
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(customerData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+}
+
+// Parse B2B customer Excel file
+export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesReps: any[]): { customers: any[], errors: string[], warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  
+  if (!workbook.SheetNames.includes('Customers')) {
+    errors.push('Excel file must contain a "Customers" sheet');
+    return { customers: [], errors, warnings };
+  }
+
+  const sheet = workbook.Sheets['Customers'];
+  const rawData = XLSX.utils.sheet_to_json(sheet);
+
+  const customers = rawData.map((row: any, idx: number) => {
+    try {
+      const tierName = row.pricing_tier_name?.trim() || '';
+      const tier = tierName ? tiers.find(t => t.tierName === tierName) : null;
+      const salesRepEmail = row.sales_rep_email?.trim() || '';
+      const salesRep = salesRepEmail ? salesReps.find(r => r.email === salesRepEmail) : null;
+
+      return {
+        accountName: row.business_name?.trim() || '',
+        primaryContactName: row.contact_name?.trim() || '',
+        emailAddress: row.email_address?.trim() || '',
+        phoneNumber: row.phone_number?.trim() || '',
+        billingAddress: row.billing_street_address?.trim() || '',
+        billingCity: row.billing_city?.trim() || '',
+        billingState: row.billing_state?.trim() || '',
+        billingZipCode: row.billing_zip_code?.trim() || '',
+        licenseNumber: row.license_number?.trim() || '',
+        taxId: row.tax_id?.trim() || '',
+        shippingAddress: row.shipping_street_address?.trim() || '',
+        shippingCity: row.shipping_city?.trim() || '',
+        shippingState: row.shipping_state?.trim() || '',
+        shippingZipCode: row.shipping_zip_code?.trim() || '',
+        pricingTierId: tier?.id || null,
+        salesRepId: salesRep?.id || null,
+        accountStatus: row.account_status?.trim() || 'pending_approval',
+        notes: row.notes?.trim() || '',
+      };
+    } catch (error) {
+      errors.push(`Row ${idx + 2}: Invalid customer data - ${error}`);
+      return null;
+    }
+  }).filter(c => c !== null);
+
+  return { customers, errors, warnings };
+}
+
 // Generic sheet validation helper
 interface ValidateSheetResult<T> {
   records: T[];
