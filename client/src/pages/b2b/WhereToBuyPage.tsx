@@ -71,9 +71,7 @@ export default function WhereToBuyPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-12"></div>
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Card className="mb-12 border-l-4 border-l-orange-600 bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20 dark:to-transparent">
           <CardContent className="py-8 px-6">
             <div className="flex gap-4 items-start">
