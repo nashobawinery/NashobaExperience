@@ -11,7 +11,7 @@ export const bodyEnum = pgEnum("body", ["light", "medium", "full"]);
 export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
 export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
-export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended"]);
+export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended", "archived"]);
 export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep", "admin"]);
 export const productMediaRoleEnum = pgEnum("product_media_role", ["primary", "label", "lifestyle", "gallery"]);
 
@@ -430,6 +430,7 @@ export const b2bCustomers = pgTable("b2b_customers", {
   commitmentStartDate: timestamp("commitment_start_date"),
   notes: text("notes"),
   acceptsMarketing: boolean("accepts_marketing").notNull().default(false),
+  showOnWhereToBuy: boolean("show_on_where_to_buy").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

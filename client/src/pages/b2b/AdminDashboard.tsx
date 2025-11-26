@@ -108,7 +108,8 @@ const editCustomerSchema = z.object({
   shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
   tierId: z.string().optional(),
   salesRepId: z.string().min(1, "Sales representative assignment is required"),
-  accountStatus: z.enum(["pending_approval", "active", "inactive"]),
+  accountStatus: z.enum(["pending_approval", "active", "inactive", "archived"]),
+  showOnWhereToBuy: z.boolean().default(true),
   notes: z.string().optional(),
 });
 

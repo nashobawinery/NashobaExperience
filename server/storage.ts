@@ -2615,7 +2615,7 @@ export class DatabaseStorage implements IStorage {
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-    // Get all active customers
+    // Get all active customers that are visible on Where to Buy page
     const allCustomers = await db
       .select({
         id: b2bCustomers.id,
@@ -2628,7 +2628,10 @@ export class DatabaseStorage implements IStorage {
         lastOrderDate: b2bCustomers.lastOrderDate,
       })
       .from(b2bCustomers)
-      .where(eq(b2bCustomers.accountStatus, 'active'));
+      .where(and(
+        eq(b2bCustomers.accountStatus, 'active'),
+        eq(b2bCustomers.showOnWhereToBuy, true)
+      ));
 
     // Get products purchased by each customer (from last 12 months, if any)
     const locationsWithProducts = await Promise.all(
