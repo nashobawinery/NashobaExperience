@@ -129,7 +129,7 @@ export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesRe
       const salesRepEmail = row.sales_rep_email?.trim() || '';
       const salesRep = salesRepEmail ? salesReps.find(r => r.email === salesRepEmail) : null;
 
-      return {
+      const parsedCustomer = {
         accountName: row.business_name?.trim() || '',
         primaryContactName: row.contact_name?.trim() || '',
         emailAddress: row.email_address?.trim() || '',
@@ -149,6 +149,16 @@ export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesRe
         accountStatus: row.account_status?.trim() || 'pending_approval',
         notes: row.notes?.trim() || '',
       };
+
+      // Validate against schema
+      const validation = insertB2bCustomerSchema.safeParse(parsedCustomer);
+      if (!validation.success) {
+        const fieldErrors = validation.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+        errors.push(`Row ${idx + 2} (${row.business_name || 'unknown'}): ${fieldErrors}`);
+        return null;
+      }
+
+      return parsedCustomer;
     } catch (error) {
       errors.push(`Row ${idx + 2}: Invalid customer data - ${error}`);
       return null;
