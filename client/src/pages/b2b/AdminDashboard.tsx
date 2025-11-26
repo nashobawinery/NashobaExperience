@@ -38,7 +38,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -266,6 +266,97 @@ export default function AdminDashboard() {
   // Bulk commission selection state
   const [selectedCommissionIds, setSelectedCommissionIds] = useState<Set<string>>(new Set());
   const [isSendingPayroll, setIsSendingPayroll] = useState(false);
+
+  // Export/Import state
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportCustomers = async () => {
+    try {
+      setIsExporting(true);
+      const response = await fetch("/api/b2b/admin/customer/export", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to export customers");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `customers-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Success",
+        description: "Customer data exported successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to export data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/b2b/admin/customer/import", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to import customers");
+      }
+
+      toast({
+        title: "Success",
+        description: `Imported ${data.imported} customer(s). ${data.errors.length > 0 ? `${data.errors.length} error(s).` : ""}`,
+      });
+
+      if (data.errors.length > 0) {
+        console.error("Import errors:", data.errors);
+      }
+
+      // Refresh customers list
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to import data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   // Load welcome statement and payroll settings on mount
   useEffect(() => {
@@ -1349,7 +1440,7 @@ export default function AdminDashboard() {
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Customer & Order Management</h3>
-              <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsList className="grid w-full grid-cols-4 h-auto">
                 <TabsTrigger value="customers" data-testid="tab-customers" className="flex items-center justify-center gap-2">
                   <Users className="w-4 h-4" />
                   <span>Customers</span>
@@ -1361,6 +1452,10 @@ export default function AdminDashboard() {
                 <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex items-center justify-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Tasks</span>
+                </TabsTrigger>
+                <TabsTrigger value="data" data-testid="tab-data" className="flex items-center justify-center gap-2">
+                  <Download className="w-4 h-4" />
+                  <span>Export/Import</span>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -1602,6 +1697,94 @@ export default function AdminDashboard() {
         {/* TASKS TAB */}
         <TabsContent value="tasks">
           <TasksPage />
+        </TabsContent>
+
+        {/* EXPORT/IMPORT TAB */}
+        <TabsContent value="data" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Export Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Export All Customers
+                </CardTitle>
+                <CardDescription>
+                  Download all customer information as an Excel file
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  This will export all customer records with their contact information, addresses, tiers, and notes.
+                </p>
+                <Button
+                  onClick={handleExportCustomers}
+                  disabled={isExporting}
+                  className="w-full"
+                  data-testid="button-export-all-customers"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Customers
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Import Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Import Customers
+                </CardTitle>
+                <CardDescription>
+                  Upload an Excel file to add or update customers in bulk
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <AlertDescription>
+                    The Excel file must contain a "Customers" sheet with columns: business_name, contact_name, email_address, phone_number, billing_street_address, billing_city, billing_state, billing_zip_code, license_number, tax_id, shipping_street_address, shipping_city, shipping_state, shipping_zip_code, pricing_tier_name, sales_rep_email, account_status, notes
+                  </AlertDescription>
+                </Alert>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="input-import-file"
+                />
+                <Button
+                  onClick={handleImportClick}
+                  disabled={isImporting}
+                  variant="outline"
+                  className="w-full"
+                  data-testid="button-import-customers"
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Choose Excel File
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* MARKETING TAB */}
