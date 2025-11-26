@@ -2615,8 +2615,8 @@ export class DatabaseStorage implements IStorage {
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-    // Get customers who have made purchases in the last 12 months
-    const customersWithOrders = await db
+    // Get all active customers
+    const allCustomers = await db
       .select({
         id: b2bCustomers.id,
         accountName: b2bCustomers.accountName,
@@ -2628,27 +2628,11 @@ export class DatabaseStorage implements IStorage {
         lastOrderDate: b2bCustomers.lastOrderDate,
       })
       .from(b2bCustomers)
-      .innerJoin(b2bOrders, eq(b2bOrders.customerId, b2bCustomers.id))
-      .where(
-        and(
-          eq(b2bCustomers.accountStatus, 'active'),
-          sql`${b2bOrders.orderDate} >= ${twelveMonthsAgo}`
-        )
-      )
-      .groupBy(
-        b2bCustomers.id,
-        b2bCustomers.accountName,
-        b2bCustomers.shippingAddress,
-        b2bCustomers.shippingCity,
-        b2bCustomers.shippingState,
-        b2bCustomers.shippingZipCode,
-        b2bCustomers.phoneNumber,
-        b2bCustomers.lastOrderDate
-      );
+      .where(eq(b2bCustomers.accountStatus, 'active'));
 
-    // Get products purchased by each customer
+    // Get products purchased by each customer (from last 12 months, if any)
     const locationsWithProducts = await Promise.all(
-      customersWithOrders.map(async (customer) => {
+      allCustomers.map(async (customer) => {
         const productsPurchased = await db
           .select({
             productName: b2bOrderItems.productName,
