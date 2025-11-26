@@ -430,6 +430,7 @@ export const b2bCustomers = pgTable("b2b_customers", {
   commitmentStartDate: timestamp("commitment_start_date"),
   notes: text("notes"),
   acceptsMarketing: boolean("accepts_marketing").notNull().default(false),
+  showOnWhereToBuy: boolean("show_on_where_to_buy").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

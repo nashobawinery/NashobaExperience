@@ -47,8 +47,11 @@ Preferred communication style: Simple, everyday language.
 - **Customer Workflow**: Self-service registration with admin approval, or direct admin-created accounts, both with email notifications and password setup.
 - **Case Pricing**: All orders calculated by case with tier-based discounts.
 - **Admin Dashboard**: 6-tab dashboard for managing customers, orders, tier commitments, sales reps, slideshow, and settings. Includes admin impersonation for placing customer orders.
+- **Customer Privacy Controls**: 
+  - **Archive Status**: Customers can be marked as "Archived" (in addition to Active, Pending Approval, and Inactive) to preserve records while removing them from active lists
+  - **Where to Buy Visibility**: Toggle to hide private membership customers from the public Where to Buy page
 - **Tier Commitment Tracking**: Monitors annual case commitments, calculates progress, and provides renewal reminders.
-- **Where to Buy**: Public page displaying B2B customers for consumers, with ZIP code proximity search.
+- **Where to Buy**: Public page displaying B2B customers for consumers with ZIP code proximity search. Features a celebratory header with animated fireworks and community appreciation messaging.
 - **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
 
 ### Database Synchronization

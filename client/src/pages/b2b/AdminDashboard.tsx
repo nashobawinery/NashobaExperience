@@ -109,6 +109,7 @@ const editCustomerSchema = z.object({
   tierId: z.string().optional(),
   salesRepId: z.string().min(1, "Sales representative assignment is required"),
   accountStatus: z.enum(["pending_approval", "active", "inactive", "archived"]),
+  showOnWhereToBuy: z.boolean().default(true),
   notes: z.string().optional(),
 });
 
@@ -1145,6 +1146,7 @@ export default function AdminDashboard() {
       tierId: customer.tier?.id || "",
       salesRepId: customer.salesRep?.id || "",
       accountStatus: customer.accountStatus || "active",
+      showOnWhereToBuy: customer.showOnWhereToBuy !== false,
       notes: customer.notes || "",
     });
   };
@@ -1184,6 +1186,7 @@ export default function AdminDashboard() {
           tierId: data.tierId,
           salesRepId: data.salesRepId,
           accountStatus: data.accountStatus,
+          showOnWhereToBuy: data.showOnWhereToBuy,
           notes: data.notes,
         },
       });
@@ -3624,9 +3627,30 @@ export default function AdminDashboard() {
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="pending_approval">Pending Approval</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={editCustomerForm.control}
+              name="showOnWhereToBuy"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between border rounded-lg p-3">
+                  <div className="flex-1">
+                    <FormLabel className="text-base">Show on Where to Buy Page</FormLabel>
+                    <p className="text-sm text-muted-foreground">Display this customer on the public Where to Buy page</p>
+                  </div>
+                  <FormControl>
+                    <Switch 
+                      checked={field.value} 
+                      onCheckedChange={field.onChange}
+                      data-testid="toggle-show-on-where-to-buy"
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
