@@ -109,7 +109,6 @@ const editCustomerSchema = z.object({
   tierId: z.string().optional(),
   salesRepId: z.string().min(1, "Sales representative assignment is required"),
   accountStatus: z.enum(["pending_approval", "active", "inactive", "archived"]),
-  showOnWhereToBuy: z.boolean().default(true),
   notes: z.string().optional(),
 });
 
