@@ -80,6 +80,7 @@ export function exportB2bCustomersToExcel(customers: any[], tiers?: any[], sales
     const salesRep = salesReps?.find(r => r.id === customer.salesRepId);
     
     return {
+      customer_number: customer.customerNumber || '',
       business_name: customer.accountName,
       contact_name: customer.primaryContactName,
       email_address: customer.emailAddress,
@@ -130,6 +131,7 @@ export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesRe
       const salesRep = salesRepEmail ? salesReps.find(r => r.email === salesRepEmail) : null;
 
       const parsedCustomer = {
+        customerNumber: row.customer_number?.trim() || '',
         accountName: row.business_name?.trim() || '',
         primaryContactName: row.contact_name?.trim() || '',
         emailAddress: row.email_address?.trim() || '',

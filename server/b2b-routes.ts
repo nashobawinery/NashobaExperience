@@ -3187,20 +3187,20 @@ router.post('/api/b2b/admin/customer/import', requireB2bAdmin, async (req: Reque
 
       for (const customerData of parseResult.customers) {
         try {
-          console.log(`[ADMIN IMPORT] Processing: ${customerData.emailAddress}`);
+          console.log(`[ADMIN IMPORT] Processing: ${customerData.customerNumber} (${customerData.emailAddress})`);
           
           const existing = await db
             .select()
             .from(b2bCustomers)
-            .where(eq(b2bCustomers.emailAddress, customerData.emailAddress))
+            .where(eq(b2bCustomers.customerNumber, customerData.customerNumber))
             .limit(1);
 
           if (existing.length > 0) {
-            console.log(`[ADMIN IMPORT] Updating existing: ${customerData.emailAddress}`);
+            console.log(`[ADMIN IMPORT] Updating existing: ${customerData.customerNumber}`);
             const result = await storage.updateB2bCustomer(existing[0].id, customerData);
             console.log(`[ADMIN IMPORT] Update result:`, result?.id ? 'success' : 'failed');
           } else {
-            console.log(`[ADMIN IMPORT] Creating new: ${customerData.emailAddress}`);
+            console.log(`[ADMIN IMPORT] Creating new: ${customerData.customerNumber}`);
             const result = await storage.createB2bCustomer({
               ...customerData,
               passwordHash: null,
@@ -3210,8 +3210,8 @@ router.post('/api/b2b/admin/customer/import', requireB2bAdmin, async (req: Reque
           imported++;
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
-          console.error(`[ADMIN IMPORT ERROR] ${customerData.emailAddress}:`, errMsg);
-          errors.push(`Failed to import ${customerData.emailAddress}: ${errMsg}`);
+          console.error(`[ADMIN IMPORT ERROR] ${customerData.customerNumber}:`, errMsg);
+          errors.push(`Failed to import ${customerData.customerNumber}: ${errMsg}`);
         }
       }
 
