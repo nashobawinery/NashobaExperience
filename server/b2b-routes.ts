@@ -1882,6 +1882,84 @@ router.delete('/api/b2b/admin/customers/:customerId/locations/:locationId', requ
   }
 });
 
+// Admin: Get customer manual products (Featured Products for Where to Buy)
+router.get('/api/b2b/admin/customers/:id/manual-products', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const manualProducts = await storage.getCustomerManualProducts(id);
+    res.json(manualProducts);
+  } catch (error) {
+    console.error('Get customer manual products error:', error);
+    res.status(500).json({ error: 'Failed to get customer manual products' });
+  }
+});
+
+// Admin: Add manual products to customer (Featured Products for Where to Buy)
+router.post('/api/b2b/admin/customers/:id/manual-products', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { productIds, expiresInMonths = 12 } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ error: 'productIds array is required' });
+    }
+
+    // Verify customer exists
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Calculate expiration date
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + parseInt(expiresInMonths));
+
+    const manualProducts = await storage.addCustomerManualProducts(id, productIds, expiresAt);
+    res.json(manualProducts);
+  } catch (error) {
+    console.error('Add customer manual products error:', error);
+    res.status(500).json({ error: 'Failed to add customer manual products' });
+  }
+});
+
+// Admin: Remove a manual product from customer
+router.delete('/api/b2b/admin/customers/:customerId/manual-products/:manualProductId', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { customerId, manualProductId } = req.params;
+
+    // Verify customer exists
+    const customer = await storage.getB2bCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    await storage.removeCustomerManualProduct(manualProductId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove customer manual product error:', error);
+    res.status(500).json({ error: 'Failed to remove customer manual product' });
+  }
+});
+
+// Admin: Remove all manual products from customer
+router.delete('/api/b2b/admin/customers/:id/manual-products', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Verify customer exists
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    await storage.removeAllCustomerManualProducts(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove all customer manual products error:', error);
+    res.status(500).json({ error: 'Failed to remove all customer manual products' });
+  }
+});
+
 // Admin: Reset customer password
 router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
