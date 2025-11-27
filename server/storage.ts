@@ -77,6 +77,7 @@ import {
   salesReps,
   b2bAdmins,
   b2bCustomers,
+  b2bCustomerLocations,
   b2bOrders,
   b2bOrderItems,
   b2bCommissions,
@@ -94,6 +95,8 @@ import {
   type B2bAdmin,
   type InsertB2bCustomer,
   type B2bCustomer,
+  type InsertB2bCustomerLocation,
+  type B2bCustomerLocation,
   type InsertB2bOrder,
   type B2bOrder,
   type InsertB2bOrderItem,
@@ -327,6 +330,14 @@ export interface IStorage {
   deleteB2bCustomer(id: string): Promise<boolean>;
   approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined>;
   upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }>;
+
+  // B2B - Customer Locations
+  getCustomerLocations(customerId: string): Promise<B2bCustomerLocation[]>;
+  getCustomerLocation(id: string): Promise<B2bCustomerLocation | undefined>;
+  createCustomerLocation(data: InsertB2bCustomerLocation): Promise<B2bCustomerLocation>;
+  updateCustomerLocation(id: string, data: Partial<InsertB2bCustomerLocation>): Promise<B2bCustomerLocation | undefined>;
+  deleteCustomerLocation(id: string): Promise<boolean>;
+  upsertCustomerLocation(data: InsertB2bCustomerLocation & { id?: string }): Promise<{ location: B2bCustomerLocation; action: 'created' | 'updated' }>;
 
   // B2B - Orders
   getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
@@ -2117,6 +2128,57 @@ export class DatabaseStorage implements IStorage {
       .where(eq(b2bCustomers.id, id))
       .returning();
     return customer;
+  }
+
+  // B2B - Customer Locations implementations
+  async getCustomerLocations(customerId: string): Promise<B2bCustomerLocation[]> {
+    return db
+      .select()
+      .from(b2bCustomerLocations)
+      .where(eq(b2bCustomerLocations.customerId, customerId))
+      .orderBy(desc(b2bCustomerLocations.isPrimary), b2bCustomerLocations.storeName);
+  }
+
+  async getCustomerLocation(id: string): Promise<B2bCustomerLocation | undefined> {
+    const [location] = await db
+      .select()
+      .from(b2bCustomerLocations)
+      .where(eq(b2bCustomerLocations.id, id));
+    return location;
+  }
+
+  async createCustomerLocation(data: InsertB2bCustomerLocation): Promise<B2bCustomerLocation> {
+    const [location] = await db.insert(b2bCustomerLocations).values(data).returning();
+    return location;
+  }
+
+  async updateCustomerLocation(id: string, data: Partial<InsertB2bCustomerLocation>): Promise<B2bCustomerLocation | undefined> {
+    const [location] = await db
+      .update(b2bCustomerLocations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bCustomerLocations.id, id))
+      .returning();
+    return location;
+  }
+
+  async deleteCustomerLocation(id: string): Promise<boolean> {
+    const result = await db.delete(b2bCustomerLocations).where(eq(b2bCustomerLocations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async upsertCustomerLocation(data: InsertB2bCustomerLocation & { id?: string }): Promise<{ location: B2bCustomerLocation; action: 'created' | 'updated' }> {
+    if (data.id) {
+      const existing = await this.getCustomerLocation(data.id);
+      if (existing) {
+        const updated = await this.updateCustomerLocation(data.id, data);
+        if (!updated) {
+          throw new Error("Failed to update customer location");
+        }
+        return { location: updated, action: 'updated' };
+      }
+    }
+    const created = await this.createCustomerLocation(data);
+    return { location: created, action: 'created' };
   }
 
   // B2B - Orders implementations
