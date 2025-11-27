@@ -17,8 +17,8 @@ export function Fireworks() {
     const isDark = document.documentElement.classList.contains('dark');
 
     const colors = isDark 
-      ? ['#fbbf24', '#f59e0b', '#ec4899', '#a78bfa', '#60a5fa']
-      : ['#fbbf24', '#f59e0b', '#ec4899', '#a78bfa', '#60a5fa'];
+      ? ['#fbbf24', '#f59e0b', '#ec4899', '#a78bfa', '#60a5fa', '#f97316', '#ef4444', '#22c55e', '#06b6d4']
+      : ['#fbbf24', '#f59e0b', '#ec4899', '#a78bfa', '#60a5fa', '#f97316', '#ef4444', '#22c55e', '#06b6d4'];
 
     class Particle {
       x: number;
@@ -33,11 +33,11 @@ export function Fireworks() {
       constructor(x: number, y: number) {
         this.x = x;
         this.y = y;
-        this.vx = (Math.random() - 0.5) * 8;
-        this.vy = (Math.random() - 0.5) * 8 - 2;
+        this.vx = (Math.random() - 0.5) * 12;
+        this.vy = (Math.random() - 0.5) * 12 - 3;
         this.life = 1;
-        this.maxLife = 60 + Math.random() * 40;
-        this.size = Math.random() * 3 + 2;
+        this.maxLife = 80 + Math.random() * 60;
+        this.size = Math.random() * 4 + 3;
         this.color = colors[Math.floor(Math.random() * colors.length)];
       }
 
@@ -57,30 +57,35 @@ export function Fireworks() {
     }
 
     const createFirework = (x: number, y: number) => {
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 50; i++) {
         particles.push(new Particle(x, y));
       }
     };
 
-    // Create initial fireworks
+    // Create initial fireworks - more bursts at start
     const createInitialFireworks = () => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 8; i++) {
         setTimeout(() => {
           const x = Math.random() * canvas.width;
-          const y = canvas.height * 0.3;
+          const y = canvas.height * (0.2 + Math.random() * 0.3);
           createFirework(x, y);
-        }, i * 300);
+        }, i * 200);
       }
     };
 
     createInitialFireworks();
 
-    // Create periodic fireworks
+    // Create periodic fireworks - faster and multiple bursts
     const interval = setInterval(() => {
-      const x = Math.random() * canvas.width;
-      const y = canvas.height * 0.3;
-      createFirework(x, y);
-    }, 1500);
+      const numBursts = Math.random() > 0.5 ? 2 : 1;
+      for (let i = 0; i < numBursts; i++) {
+        setTimeout(() => {
+          const x = Math.random() * canvas.width;
+          const y = canvas.height * (0.2 + Math.random() * 0.3);
+          createFirework(x, y);
+        }, i * 150);
+      }
+    }, 800);
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);

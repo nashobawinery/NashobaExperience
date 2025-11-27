@@ -89,12 +89,12 @@ export default function WhereToBuyPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="relative w-full bg-gradient-to-b from-orange-100/20 to-transparent dark:from-orange-950/10 dark:to-transparent overflow-hidden py-8 mb-4">
+      <div className="relative w-full bg-gradient-to-b from-orange-100/30 to-transparent dark:from-orange-950/20 dark:to-transparent overflow-hidden py-6 mb-0">
         <div className="absolute inset-0 h-96">
           <Fireworks />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <h1 className="text-4xl font-serif font-semibold mb-4 text-foreground" data-testid="page-title">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
+          <h1 className="text-4xl font-serif font-semibold mb-3 text-foreground" data-testid="page-title">
             Where to Buy Nashoba Valley's Wines, Spirits, Beers, Canned Cocktails and Hard Ciders
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="page-description">
@@ -103,14 +103,21 @@ export default function WhereToBuyPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Card className="mb-12 border-l-4 border-l-orange-600 bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20 dark:to-transparent">
-          <CardContent className="py-8 px-6">
-            <div className="flex gap-4 items-start">
-              <Heart className="h-6 w-6 text-orange-600 flex-shrink-0 mt-1" />
-              <p className="text-lg italic text-foreground leading-relaxed">
-                A heartfelt cheers to our farm-to-table heroes—the stores and restaurants truly committed to local flavors, proudly pouring and serving adult beverages crafted by your neighbors. Their dedication to our farm keeps our community thriving, one sip at a time!  Your support of these stores and restaurants shows your dedication to local farming and locally owned business.  Thank you as every dollar you spend stays in our local enconomy.
-              </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-2">
+        <Card className="mb-8 border-l-4 border-l-orange-600 bg-gradient-to-r from-orange-50 via-orange-25 to-transparent dark:from-orange-950/30 dark:via-orange-900/10 dark:to-transparent shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="py-6 px-6">
+            <div className="flex gap-5 items-center">
+              <div className="flex-shrink-0 bg-gradient-to-br from-orange-500 to-red-500 rounded-full p-3 shadow-md">
+                <Heart className="h-8 w-8 text-white" fill="currentColor" />
+              </div>
+              <div>
+                <p className="text-xl font-medium text-foreground leading-relaxed mb-2">
+                  A heartfelt cheers to our farm-to-table heroes!
+                </p>
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  The stores and restaurants truly committed to local flavors, proudly pouring and serving adult beverages crafted by your neighbors. Their dedication to our farm keeps our community thriving, one sip at a time! Your support shows your dedication to local farming and locally owned business. <span className="font-semibold text-orange-600 dark:text-orange-400">Every dollar you spend stays in our local economy.</span>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
