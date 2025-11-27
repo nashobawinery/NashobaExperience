@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed, Globe, AlertCircle } from "lucide-react";
+import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed, Globe, AlertCircle, Star } from "lucide-react";
 import { Fireworks } from "@/components/Fireworks";
 
 type CustomerType = "retail_liquor" | "restaurant";
@@ -22,6 +22,8 @@ interface Location {
   storeZipCode: string | null;
   storePhone: string | null;
   website: string | null;
+  tierName: string | null;
+  tierSortOrder: number | null;
   products: Array<{
     productName: string;
     sku: string | null;
@@ -71,11 +73,19 @@ export default function WhereToBuyPage() {
       );
     }
     
-    // Sort by ZIP code proximity if provided, otherwise alphabetically by store name
+    // Sort by ZIP code proximity if provided, otherwise by tier then alphabetically
+    // Tier 4 (sortOrder 4) comes first, then Tier 3, 2, 1, then no tier
     if (!searchZip.trim()) {
-      return result.sort((a, b) => 
-        (a.storeName || a.accountName || "").localeCompare(b.storeName || b.accountName || "")
-      );
+      return result.sort((a, b) => {
+        // First sort by tier (highest tier first - Tier 4 has sortOrder 4)
+        const tierA = a.tierSortOrder ?? 0;
+        const tierB = b.tierSortOrder ?? 0;
+        if (tierB !== tierA) {
+          return tierB - tierA; // Higher tier first
+        }
+        // Then sort alphabetically by store name
+        return (a.storeName || a.accountName || "").localeCompare(b.storeName || b.accountName || "");
+      });
     }
 
     return result
@@ -83,7 +93,16 @@ export default function WhereToBuyPage() {
         ...loc,
         distance: calculateZipDistance(searchZip, loc.storeZipCode || ""),
       }))
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => {
+        // First sort by tier (highest tier first)
+        const tierA = a.tierSortOrder ?? 0;
+        const tierB = b.tierSortOrder ?? 0;
+        if (tierB !== tierA) {
+          return tierB - tierA;
+        }
+        // Then sort by distance
+        return a.distance - b.distance;
+      })
       .slice(0, 20);
   }, [locations, searchZip, searchProduct, filterType]);
 
@@ -254,13 +273,31 @@ export default function WhereToBuyPage() {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredAndSortedLocations.map((location) => (
-              <Card key={location.id} className="hover-elevate" data-testid={`location-card-${location.id}`}>
+            {filteredAndSortedLocations.map((location) => {
+              const isTier4 = location.tierSortOrder === 4;
+              return (
+              <Card 
+                key={location.id} 
+                className={`hover-elevate relative ${isTier4 ? 'border-2 border-amber-400 dark:border-amber-500 shadow-lg shadow-amber-100 dark:shadow-amber-900/20' : ''}`}
+                data-testid={`location-card-${location.id}`}
+              >
+                {isTier4 && (
+                  <div className="absolute -top-2 -right-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full p-1.5 shadow-md">
+                    <Star className="h-4 w-4 text-white" fill="currentColor" />
+                  </div>
+                )}
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
-                      {location.storeName || location.accountName}
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
+                        {location.storeName || location.accountName}
+                      </CardTitle>
+                      {isTier4 && (
+                        <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-xs">
+                          Top Partner
+                        </Badge>
+                      )}
+                    </div>
                     {location.customerType && (
                       <Badge 
                         variant="outline" 
@@ -364,7 +401,8 @@ export default function WhereToBuyPage() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
 

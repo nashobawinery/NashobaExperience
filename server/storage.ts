@@ -2769,6 +2769,7 @@ export class DatabaseStorage implements IStorage {
 
     // Get all store locations that are set to show on Where to Buy page, joined with active customers
     // Only include retail_liquor and restaurant customer types
+    // Also join tier pricing to get tier information for sorting/highlighting
     const allLocations = await db
       .select({
         id: b2bCustomerLocations.id,
@@ -2782,9 +2783,13 @@ export class DatabaseStorage implements IStorage {
         website: b2bCustomerLocations.website,
         accountName: b2bCustomers.accountName,
         customerType: b2bCustomers.customerType,
+        pricingTierId: b2bCustomers.pricingTierId,
+        tierName: tierPricing.tierName,
+        tierSortOrder: tierPricing.sortOrder,
       })
       .from(b2bCustomerLocations)
       .innerJoin(b2bCustomers, eq(b2bCustomerLocations.customerId, b2bCustomers.id))
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
       .where(
         and(
           eq(b2bCustomers.accountStatus, 'active'),
@@ -2854,6 +2859,7 @@ export class DatabaseStorage implements IStorage {
     );
 
     // Map locations to include products - use canonical location field names
+    // Include tier information for sorting and highlighting
     const locationsWithProducts = allLocations.map((location) => ({
       id: location.id,
       storeName: location.storeName,
@@ -2865,6 +2871,8 @@ export class DatabaseStorage implements IStorage {
       storeZipCode: location.storeZipCode,
       storePhone: location.storePhone,
       website: location.website,
+      tierName: location.tierName,
+      tierSortOrder: location.tierSortOrder,
       products: customerProductsMap.get(location.customerId) || [],
     }));
 
