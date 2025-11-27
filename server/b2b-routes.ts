@@ -956,6 +956,426 @@ router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Req
   }
 });
 
+// Sales Rep: Create a new customer (auto-assigned to this sales rep)
+router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { tierId, autoApprove, autoGeneratePassword = true, customPassword, ...customerData } = req.body;
+    const salesRepId = req.session.b2bUserId;
+    
+    // Validate customer data
+    const validatedData = insertB2bCustomerSchema.parse(customerData);
+    
+    // Check if email already exists
+    const existing = await storage.getB2bCustomerByEmail(validatedData.emailAddress);
+    if (existing) {
+      return res.status(400).json({ error: 'Email address already registered' });
+    }
+
+    // Create customer with pending_approval status initially
+    const customer = await storage.createB2bCustomer(validatedData);
+    
+    // Always assign to this sales rep
+    await storage.updateB2bCustomer(customer.id, { salesRepId });
+    
+    // If auto-approve is requested and tier is provided, approve immediately
+    if (autoApprove && tierId) {
+      // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+      const tierError = await validateTierAssignment(tierId);
+      if (tierError) {
+        return res.status(400).json({ error: tierError });
+      }
+
+      // Determine password - use custom if provided, otherwise auto-generate
+      let tempPassword: string;
+      if (autoGeneratePassword || !customPassword) {
+        tempPassword = generatePasswordFromPhone(customer.phoneNumber);
+      } else {
+        tempPassword = customPassword;
+      }
+      const passwordHash = await hashPassword(tempPassword);
+      
+      // Approve customer (sales rep acts as approver)
+      const approvedCustomer = await storage.approveB2bCustomer(
+        customer.id,
+        tierId,
+        passwordHash,
+        salesRepId!
+      );
+      
+      if (!approvedCustomer) {
+        return res.status(500).json({ error: 'Customer created but approval failed' });
+      }
+      
+      // Send approval email with login credentials
+      try {
+        if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+          const tier = await storage.getTierPricing(tierId);
+          const emailHtml = `
+            <html>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #2c3e50;">Welcome to Nashoba B2B</h2>
+                <p>Dear ${customer.primaryContactName},</p>
+                <p>Your B2B account has been created and approved! You can now log in and start placing orders.</p>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                  <h3 style="margin-top: 0;">Login Credentials</h3>
+                  <p><strong>Email:</strong> ${customer.emailAddress}</p>
+                  <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+                  <p style="margin-bottom: 0;"><em>Please change your password after your first login.</em></p>
+                </div>
+                
+                <div style="background-color: #e8f4f8; padding: 15px; border-radius: 4px; margin: 20px 0;">
+                  <h3 style="margin-top: 0;">Your Pricing Tier</h3>
+                  <p><strong>${tier?.tierName || 'Tier'}</strong></p>
+                  <p>${tier?.description || ''}</p>
+                  <p><strong>Discount:</strong> ${tier?.discountPercentage}% off retail prices</p>
+                </div>
+                
+                <p>To access your account, visit our B2B portal and log in with the credentials above.</p>
+                
+                <p>If you have any questions, please don't hesitate to contact us.</p>
+                
+                <p>Best regards,<br>Nashoba Valley Winery Team</p>
+              </body>
+            </html>
+          `;
+
+          await sendgrid.send({
+            to: customer.emailAddress,
+            from: process.env.RESEND_FROM_EMAIL,
+            subject: 'Your Nashoba B2B Account is Ready',
+            html: emailHtml,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send approval email:', emailError);
+      }
+      
+      res.json({ 
+        success: true,
+        customer: approvedCustomer,
+        approved: true,
+        tempPassword
+      });
+    } else {
+      // Customer created but not auto-approved
+      res.json({ 
+        success: true,
+        customer,
+        approved: false,
+        message: 'Customer created. Approval required before they can log in.'
+      });
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid customer data', details: error.errors });
+    }
+    console.error('Sales rep create customer error:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+// Sales Rep: Update a customer they are assigned to
+router.put('/api/b2b/sales-rep/customers/:id', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const salesRepId = req.session.b2bUserId;
+    const updateData = req.body;
+
+    // Get existing customer
+    const existingCustomer = await storage.getB2bCustomer(id);
+    if (!existingCustomer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Check if this sales rep is assigned to this customer
+    if (existingCustomer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only edit customers assigned to you' });
+    }
+
+    // If email is being changed, check if new email is already in use
+    if (updateData.emailAddress && updateData.emailAddress !== existingCustomer.emailAddress) {
+      const emailExists = await storage.getB2bCustomerByEmail(updateData.emailAddress);
+      if (emailExists) {
+        return res.status(400).json({ error: 'Email address already in use' });
+      }
+    }
+
+    // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
+    if (updateData.tierId) {
+      const tierError = await validateTierAssignment(updateData.tierId);
+      if (tierError) {
+        return res.status(400).json({ error: tierError });
+      }
+    }
+
+    // Sales reps cannot change the sales rep assignment
+    delete updateData.salesRepId;
+
+    // Update customer
+    const updatedCustomer = await storage.updateB2bCustomer(id, updateData);
+
+    if (!updatedCustomer) {
+      return res.status(500).json({ error: 'Failed to update customer' });
+    }
+
+    res.json({ success: true, customer: updatedCustomer });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid customer data', details: error.errors });
+    }
+    console.error('Sales rep update customer error:', error);
+    res.status(500).json({ error: 'Failed to update customer' });
+  }
+});
+
+// Sales Rep: Get customer locations (for customers assigned to them)
+router.get('/api/b2b/sales-rep/customers/:id/locations', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const salesRepId = req.session.b2bUserId;
+
+    // Get customer to verify assignment
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Check if this sales rep is assigned to this customer
+    if (customer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only view locations for customers assigned to you' });
+    }
+
+    const locations = await storage.getCustomerLocations(id);
+    res.json(locations);
+  } catch (error) {
+    console.error('Sales rep get customer locations error:', error);
+    res.status(500).json({ error: 'Failed to get customer locations' });
+  }
+});
+
+// Sales Rep: Create customer location (for customers assigned to them)
+router.post('/api/b2b/sales-rep/customers/:id/locations', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const salesRepId = req.session.b2bUserId;
+    const locationData = req.body;
+
+    // Verify customer exists and is assigned to this sales rep
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (customer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only add locations for customers assigned to you' });
+    }
+
+    const location = await storage.createCustomerLocation({
+      ...locationData,
+      customerId: id,
+    });
+
+    res.status(201).json(location);
+  } catch (error) {
+    console.error('Sales rep create customer location error:', error);
+    res.status(500).json({ error: 'Failed to create customer location' });
+  }
+});
+
+// Sales Rep: Update customer location (for customers assigned to them)
+router.put('/api/b2b/sales-rep/customers/:customerId/locations/:locationId', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId, locationId } = req.params;
+    const salesRepId = req.session.b2bUserId;
+    const updateData = req.body;
+
+    // Verify customer exists and is assigned to this sales rep
+    const customer = await storage.getB2bCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (customer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only update locations for customers assigned to you' });
+    }
+
+    // Verify location exists and belongs to customer
+    const locations = await storage.getCustomerLocations(customerId);
+    const location = locations.find((l: any) => l.id === locationId);
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found for this customer' });
+    }
+
+    const updatedLocation = await storage.updateCustomerLocation(locationId, updateData);
+    res.json(updatedLocation);
+  } catch (error) {
+    console.error('Sales rep update customer location error:', error);
+    res.status(500).json({ error: 'Failed to update customer location' });
+  }
+});
+
+// Sales Rep: Delete customer location (for customers assigned to them)
+router.delete('/api/b2b/sales-rep/customers/:customerId/locations/:locationId', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId, locationId } = req.params;
+    const salesRepId = req.session.b2bUserId;
+
+    // Verify customer exists and is assigned to this sales rep
+    const customer = await storage.getB2bCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (customer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only delete locations for customers assigned to you' });
+    }
+
+    // Verify location exists and belongs to customer
+    const locations = await storage.getCustomerLocations(customerId);
+    const location = locations.find((l: any) => l.id === locationId);
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found for this customer' });
+    }
+
+    await storage.deleteCustomerLocation(locationId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Sales rep delete customer location error:', error);
+    res.status(500).json({ error: 'Failed to delete customer location' });
+  }
+});
+
+// Sales Rep: Place order for a customer assigned to them  
+router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId, items, notes } = req.body;
+    const salesRepId = req.session.b2bUserId;
+
+    // Validate input
+    if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Customer and at least one item are required' });
+    }
+
+    // Fetch customer and verify assignment
+    const customer = await storage.getB2bCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    if (customer.salesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'You can only place orders for customers assigned to you' });
+    }
+
+    // Get customer's tier name (handle both tier object from join and missing tier)
+    let customerTierName = '';
+    if (customer.tier && typeof customer.tier === 'object' && 'tierName' in customer.tier) {
+      customerTierName = (customer.tier as any).tierName;
+    }
+    
+    if (!customerTierName && customer.pricingTierId) {
+      const tierData = await db.select().from(tierPricing).where(eq(tierPricing.id, customer.pricingTierId));
+      if (tierData.length > 0) {
+        customerTierName = tierData[0].tierName;
+      }
+    }
+
+    // Fetch products and all tiers for category-specific pricing
+    const productIds = items.map((item: any) => item.productId);
+    const productsData = await db.select().from(products).where(inArray(products.id, productIds));
+    const allTiers = await db.select().from(tierPricing);
+
+    // Calculate totals with category-specific tier pricing
+    let subtotal = 0;
+    let totalDiscount = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = productsData.find((p: any) => p.id === item.productId);
+      if (!product) {
+        return res.status(404).json({ error: `Product ${item.productId} not found` });
+      }
+
+      // Find the tier that matches both customer's tier name AND product category
+      let discountPercentage = 0;
+      if (customerTierName) {
+        const matchingTier = allTiers.find((t: any) => 
+          t.tierName === customerTierName && 
+          t.category === product.category && 
+          t.active
+        );
+        if (matchingTier) {
+          discountPercentage = parseFloat(matchingTier.discountPercentage);
+        }
+      }
+
+      const retailPrice = parseFloat(product.price);
+      const unitPrice = retailPrice * (1 - discountPercentage / 100);
+      const lineTotal = unitPrice * item.quantity;
+      const lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      
+      subtotal += lineTotal;
+      totalDiscount += lineDiscount;
+
+      orderItems.push({
+        productId: product.id,
+        productName: product.name,
+        productSku: product.sku || '',
+        quantity: item.quantity,
+        caseSize: product.caseSize || 12,
+        unitPrice: unitPrice.toFixed(2),
+        retailPrice: retailPrice.toFixed(2),
+        totalPrice: lineTotal.toFixed(2),
+      });
+    }
+
+    // Create order with items using createB2bOrder which handles both
+    const orderNumber = `SR-${Date.now()}`;
+    const order = await storage.createB2bOrder({
+      customerId,
+      orderNumber,
+      status: 'pending_approval',
+      subtotal: (subtotal + totalDiscount).toFixed(2),
+      tax: '0',
+      total: subtotal.toFixed(2),
+      notes: notes || '',
+      shippingAddress: customer.shippingAddress || '',
+      shippingCity: customer.shippingCity || '',
+      shippingState: customer.shippingState || '',
+      shippingZipCode: customer.shippingZipCode || '',
+    }, orderItems.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.productSku,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      retailPrice: item.retailPrice,
+      lineTotal: item.totalPrice,
+    })));
+
+    // Create commission record for the sales rep
+    const salesRep = await storage.getSalesRep(salesRepId!);
+    if (salesRep && salesRep.commissionPercentage) {
+      const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
+      const commissionAmount = (subtotal * commissionPercentage) / 100;
+      
+      await storage.createCommission({
+        orderId: order.id,
+        salesRepId: salesRepId!,
+        orderTotal: subtotal.toFixed(2),
+        commissionPercentage: commissionPercentage.toString(),
+        commissionAmount: commissionAmount.toFixed(2),
+        status: 'pending',
+      });
+    }
+
+    res.json({ success: true, orderId: order.id });
+  } catch (error) {
+    console.error('Sales rep place order error:', error);
+    res.status(500).json({ error: 'Failed to place order' });
+  }
+});
+
 // Customer: Get past order items (items previously ordered by customer)
 router.get('/api/b2b/customer/past-orders', requireB2bCustomer, async (req: Request, res: Response) => {
   try {
