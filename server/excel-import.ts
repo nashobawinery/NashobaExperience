@@ -440,6 +440,8 @@ export function exportAllDataToExcel(data: {
   tierPricing?: any[];
   salesReps?: any[];
   b2bCustomers?: any[];
+  b2bCustomerLocations?: any[];
+  b2bCustomerManualProducts?: any[];
   b2bOrders?: any[];
   b2bOrderItems?: any[];
   b2bSlideshowSlides?: any[];
@@ -661,6 +663,44 @@ export function exportAllDataToExcel(data: {
     XLSX.utils.book_append_sheet(workbook, customerSheet, 'B2bCustomers');
   }
 
+  // B2B Customer Locations sheet (if provided) - Use customer email as business key
+  if (data.b2bCustomerLocations && data.b2bCustomerLocations.length > 0) {
+    const locationData = data.b2bCustomerLocations.map(location => {
+      const customer = data.b2bCustomers?.find(c => c.id === location.customerId);
+      return {
+        customer_email: customer?.emailAddress || '',
+        store_name: location.storeName || '',
+        store_address: location.storeAddress || '',
+        store_city: location.storeCity || '',
+        store_state: location.storeState || '',
+        store_zip_code: location.storeZipCode || '',
+        store_phone: location.storePhone || '',
+        store_email: location.storeEmail || '',
+        website: location.website || '',
+        is_primary: location.isPrimary ? 'Yes' : 'No',
+        show_on_where_to_buy: location.showOnWhereToBuy ? 'Yes' : 'No',
+      };
+    });
+    const locationSheet = XLSX.utils.json_to_sheet(locationData);
+    XLSX.utils.book_append_sheet(workbook, locationSheet, 'B2bCustomerLocations');
+  }
+
+  // B2B Customer Manual Products (Featured Products) sheet - Use customer email and product SKU as business keys
+  if (data.b2bCustomerManualProducts && data.b2bCustomerManualProducts.length > 0) {
+    const manualProductData = data.b2bCustomerManualProducts.map(mp => {
+      const customer = data.b2bCustomers?.find(c => c.id === mp.customerId);
+      const product = data.products?.find(p => p.id === mp.productId);
+      return {
+        customer_email: customer?.emailAddress || '',
+        product_sku: product?.sku || '',
+        assigned_at: mp.assignedAt ? new Date(mp.assignedAt).toISOString() : '',
+        expires_at: mp.expiresAt ? new Date(mp.expiresAt).toISOString() : '',
+      };
+    });
+    const manualProductSheet = XLSX.utils.json_to_sheet(manualProductData);
+    XLSX.utils.book_append_sheet(workbook, manualProductSheet, 'B2bCustomerManualProducts');
+  }
+
   // B2B Orders sheet (OPTIONAL - only if provided) - Use business keys for FKs
   if (data.b2bOrders && data.b2bOrders.length > 0) {
     const orderData = data.b2bOrders.map(order => {
@@ -822,6 +862,8 @@ export interface ParseAllDataResult {
   tierPricing: any[];
   salesReps: any[];
   b2bCustomers: any[];
+  b2bCustomerLocations: any[];
+  b2bCustomerManualProducts: any[];
   b2bOrders: any[];
   b2bOrderItems: any[];
   b2bSlideshowSlides: any[];
@@ -850,6 +892,8 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     tierPricing: [],
     salesReps: [],
     b2bCustomers: [],
+    b2bCustomerLocations: [],
+    b2bCustomerManualProducts: [],
     b2bOrders: [],
     b2bOrderItems: [],
     b2bSlideshowSlides: [],
@@ -1206,6 +1250,39 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       approvedAt: parseDate(row.approved_at),
       notes: row.notes?.trim() || null,
       acceptsMarketing: normalizeBool(row.accepts_marketing),
+    }));
+  }
+
+  // Parse B2B Customer Locations sheet (uses customer email as business key)
+  if (workbook.SheetNames.includes('B2bCustomerLocations')) {
+    const locationSheet = workbook.Sheets['B2bCustomerLocations'];
+    const rawLocationData: any[] = XLSX.utils.sheet_to_json(locationSheet);
+    
+    result.b2bCustomerLocations = rawLocationData.map((row: any) => ({
+      customerEmail: row.customer_email?.trim() || '', // Business key for FK
+      storeName: row.store_name?.trim() || '',
+      storeAddress: row.store_address?.trim() || '',
+      storeCity: row.store_city?.trim() || '',
+      storeState: row.store_state?.trim() || '',
+      storeZipCode: row.store_zip_code?.trim() || '',
+      storePhone: row.store_phone?.trim() || '',
+      storeEmail: row.store_email?.trim() || '',
+      website: row.website?.trim() || '',
+      isPrimary: normalizeBool(row.is_primary),
+      showOnWhereToBuy: normalizeBool(row.show_on_where_to_buy !== undefined ? row.show_on_where_to_buy : true),
+    }));
+  }
+
+  // Parse B2B Customer Manual Products (Featured Products) sheet
+  if (workbook.SheetNames.includes('B2bCustomerManualProducts')) {
+    const manualProductSheet = workbook.Sheets['B2bCustomerManualProducts'];
+    const rawManualProductData: any[] = XLSX.utils.sheet_to_json(manualProductSheet);
+    
+    result.b2bCustomerManualProducts = rawManualProductData.map((row: any) => ({
+      customerEmail: row.customer_email?.trim() || '', // Business key for FK
+      productSku: row.product_sku?.trim() || '', // Business key for FK
+      assignedAt: parseDate(row.assigned_at) || new Date(),
+      expiresAt: parseDate(row.expires_at),
     }));
   }
 

@@ -335,6 +335,7 @@ export interface IStorage {
   upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }>;
 
   // B2B - Customer Locations
+  getAllB2bCustomerLocations(): Promise<B2bCustomerLocation[]>;
   getCustomerLocations(customerId: string): Promise<B2bCustomerLocation[]>;
   getCustomerLocation(id: string): Promise<B2bCustomerLocation | undefined>;
   createCustomerLocation(data: InsertB2bCustomerLocation): Promise<B2bCustomerLocation>;
@@ -2141,6 +2142,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // B2B - Customer Locations implementations
+  async getAllB2bCustomerLocations(): Promise<B2bCustomerLocation[]> {
+    return db.select().from(b2bCustomerLocations).orderBy(b2bCustomerLocations.customerId, b2bCustomerLocations.storeName);
+  }
+
   async getCustomerLocations(customerId: string): Promise<B2bCustomerLocation[]> {
     return db
       .select()

@@ -1161,7 +1161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/data/export-all", async (req, res) => {
     try {
-      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings, b2bCommissions, b2bEmailTemplates, b2bEmailAutomationLogs] = await Promise.all([
+      const [products, filterOptions, triviaQuestions, slideshowImages, mediaLibrary, whitelistedEmails, commercials, videos, triviaAchievements, tierPricing, salesReps, b2bCustomers, b2bSlideshowSlides, b2bAdmins, b2bSettings, b2bCommissions, b2bEmailTemplates, b2bEmailAutomationLogs, b2bCustomerLocations] = await Promise.all([
         storage.getProducts({}),
         storage.getFilterOptions(),
         storage.getTriviaQuestions(false),
@@ -1181,7 +1181,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getAllB2bCommissions(),
         storage.getEmailTemplates(),
         storage.getEmailAutomationLogs(undefined, 10000),
+        storage.getAllB2bCustomerLocations(),
       ]);
+
+      // Fetch all manual products (Featured Products) for export
+      const b2bCustomerManualProducts: any[] = [];
+      for (const customer of b2bCustomers) {
+        const manualProducts = await storage.getManualProducts(customer.id);
+        b2bCustomerManualProducts.push(...manualProducts.map(mp => ({
+          ...mp,
+          customerId: customer.id,
+        })));
+      }
 
       const appSettingsData: any[] = [];
       try {
@@ -1228,6 +1239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tierPricing,
         salesReps,
         b2bCustomers: b2bCustomers.map(c => c), // Already has tier and salesRep joined
+        b2bCustomerLocations,
+        b2bCustomerManualProducts,
         b2bOrders,
         b2bOrderItems,
         b2bSlideshowSlides,
@@ -1312,6 +1325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tierPricing: { success: 0, failed: 0 },
         salesReps: { success: 0, failed: 0 },
         b2bCustomers: { success: 0, failed: 0 },
+        b2bCustomerLocations: { success: 0, failed: 0 },
+        b2bCustomerManualProducts: { success: 0, failed: 0 },
         b2bOrders: { success: 0, failed: 0 },
         b2bOrderItems: { success: 0, failed: 0 },
         b2bSlideshowSlides: { success: 0, failed: 0 },
@@ -1548,6 +1563,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (error) {
           results.b2bCustomers.failed++;
           results.errors.push(`B2B Customer "${customer.emailAddress}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 3.1. Import B2B customer locations (depends on customers)
+      for (const location of parseResult.b2bCustomerLocations) {
+        try {
+          // Resolve FK: customer email → customer ID
+          const customer = await storage.getB2bCustomerByEmail(location.customerEmail);
+          if (!customer) {
+            results.warnings.push(`B2B Location "${location.storeName}": Customer "${location.customerEmail}" not found, skipping location`);
+            results.b2bCustomerLocations.failed++;
+            continue;
+          }
+
+          // Check if location already exists for this customer with this store name
+          const existingLocations = await storage.getCustomerLocations(customer.id);
+          const existingLocation = existingLocations.find(
+            l => l.storeName?.toLowerCase().trim() === location.storeName?.toLowerCase().trim()
+          );
+
+          const locationData = {
+            ...location,
+            customerId: customer.id,
+          };
+          delete (locationData as any).customerEmail;
+
+          if (existingLocation) {
+            await storage.updateCustomerLocation(existingLocation.id, locationData);
+          } else {
+            await storage.createCustomerLocation(locationData);
+          }
+          results.b2bCustomerLocations.success++;
+        } catch (error) {
+          results.b2bCustomerLocations.failed++;
+          results.errors.push(`B2B Location "${location.storeName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // 3.2. Import B2B customer manual products / Featured Products (depends on customers and products)
+      for (const manualProduct of parseResult.b2bCustomerManualProducts) {
+        try {
+          // Resolve FK: customer email → customer ID
+          const customer = await storage.getB2bCustomerByEmail(manualProduct.customerEmail);
+          if (!customer) {
+            results.warnings.push(`B2B Featured Product: Customer "${manualProduct.customerEmail}" not found, skipping`);
+            results.b2bCustomerManualProducts.failed++;
+            continue;
+          }
+
+          // Resolve FK: product SKU → product ID
+          const productId = productSkuToId.get(manualProduct.productSku?.toLowerCase().trim());
+          if (!productId) {
+            results.warnings.push(`B2B Featured Product: Product SKU "${manualProduct.productSku}" not found, skipping`);
+            results.b2bCustomerManualProducts.failed++;
+            continue;
+          }
+
+          // Calculate expires_at: if not provided, default to 12 months from now
+          const expiresAt = manualProduct.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+          await storage.addCustomerManualProduct(customer.id, productId, expiresAt);
+          results.b2bCustomerManualProducts.success++;
+        } catch (error) {
+          results.b2bCustomerManualProducts.failed++;
+          results.errors.push(`B2B Featured Product for "${manualProduct.customerEmail}": ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
