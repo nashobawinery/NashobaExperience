@@ -151,6 +151,151 @@ const getOrderStatusBadgeVariant = (status: string): 'default' | 'secondary' | '
   }
 };
 
+// Location Form Component
+interface LocationFormProps {
+  location: any | null;
+  onSave: (data: {
+    storeName: string;
+    storeAddress: string;
+    storeCity: string;
+    storeState: string;
+    storeZipCode: string;
+    storePhone?: string;
+    isPrimary?: boolean;
+    showOnWhereToBuy?: boolean;
+  }) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+}
+
+function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProps) {
+  const [formData, setFormData] = useState({
+    storeName: location?.storeName || "",
+    storeAddress: location?.storeAddress || "",
+    storeCity: location?.storeCity || "",
+    storeState: location?.storeState || "",
+    storeZipCode: location?.storeZipCode || "",
+    storePhone: location?.storePhone || "",
+    isPrimary: location?.isPrimary || false,
+    showOnWhereToBuy: location?.showOnWhereToBuy !== false,
+  });
+
+  useEffect(() => {
+    setFormData({
+      storeName: location?.storeName || "",
+      storeAddress: location?.storeAddress || "",
+      storeCity: location?.storeCity || "",
+      storeState: location?.storeState || "",
+      storeZipCode: location?.storeZipCode || "",
+      storePhone: location?.storePhone || "",
+      isPrimary: location?.isPrimary || false,
+      showOnWhereToBuy: location?.showOnWhereToBuy !== false,
+    });
+  }, [location]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="storeName">Store Name *</Label>
+        <Input
+          id="storeName"
+          value={formData.storeName}
+          onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
+          placeholder="Main Store"
+          required
+          data-testid="input-location-store-name"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="storeAddress">Store Location (Street Address) *</Label>
+        <Input
+          id="storeAddress"
+          value={formData.storeAddress}
+          onChange={(e) => setFormData({ ...formData, storeAddress: e.target.value })}
+          placeholder="123 Main St"
+          required
+          data-testid="input-location-address"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="storeCity">City *</Label>
+          <Input
+            id="storeCity"
+            value={formData.storeCity}
+            onChange={(e) => setFormData({ ...formData, storeCity: e.target.value })}
+            required
+            data-testid="input-location-city"
+          />
+        </div>
+        <div>
+          <Label htmlFor="storeState">State *</Label>
+          <Input
+            id="storeState"
+            value={formData.storeState}
+            onChange={(e) => setFormData({ ...formData, storeState: e.target.value })}
+            required
+            data-testid="input-location-state"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="storeZipCode">ZIP Code *</Label>
+          <Input
+            id="storeZipCode"
+            value={formData.storeZipCode}
+            onChange={(e) => setFormData({ ...formData, storeZipCode: e.target.value })}
+            required
+            data-testid="input-location-zip"
+          />
+        </div>
+        <div>
+          <Label htmlFor="storePhone">Phone (Optional)</Label>
+          <Input
+            id="storePhone"
+            value={formData.storePhone}
+            onChange={(e) => setFormData({ ...formData, storePhone: e.target.value })}
+            placeholder="(555) 555-5555"
+            data-testid="input-location-phone"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between py-2">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="showOnWhereToBuy"
+            checked={formData.showOnWhereToBuy}
+            onCheckedChange={(checked) => setFormData({ ...formData, showOnWhereToBuy: checked })}
+            data-testid="switch-location-show-on-wtb"
+          />
+          <Label htmlFor="showOnWhereToBuy" className="cursor-pointer">
+            Show on Where to Buy page
+          </Label>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-location">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isSaving} data-testid="button-save-location">
+          {isSaving ? "Saving..." : location ? "Update Location" : "Add Location"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
@@ -658,6 +803,35 @@ export default function AdminDashboard() {
     isOpen: false,
     customer: null,
   });
+
+  // Customer locations state
+  const [customerLocations, setCustomerLocations] = useState<any[]>([]);
+  const [locationDialog, setLocationDialog] = useState<{ isOpen: boolean; location: any | null; customerId: string | null }>({
+    isOpen: false,
+    location: null,
+    customerId: null,
+  });
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+
+  // Fetch customer locations when edit dialog opens
+  const { data: fetchedLocations, refetch: refetchLocations } = useQuery<any[]>({
+    queryKey: ['/api/b2b/admin/customers', editCustomerDialog.customer?.id, 'locations'],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/locations`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch locations');
+      return res.json();
+    },
+    enabled: !!editCustomerDialog.customer?.id && editCustomerDialog.isOpen,
+  });
+
+  // Update local locations state when fetched
+  useEffect(() => {
+    if (fetchedLocations) {
+      setCustomerLocations(fetchedLocations);
+    }
+  }, [fetchedLocations]);
 
   // Order history dialog state
   const [orderHistoryDialog, setOrderHistoryDialog] = useState<{ isOpen: boolean; customer: any | null }>({
@@ -1207,6 +1381,85 @@ export default function AdminDashboard() {
       toast({
         title: "Failed to Update Customer",
         description: error.message || "An error occurred while updating the customer",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Location management functions
+  const handleSaveLocation = async (locationData: {
+    storeName: string;
+    storeAddress: string;
+    storeCity: string;
+    storeState: string;
+    storeZipCode: string;
+    storePhone?: string;
+    isPrimary?: boolean;
+    showOnWhereToBuy?: boolean;
+  }) => {
+    if (!locationDialog.customerId) return;
+
+    setIsSavingLocation(true);
+    try {
+      const url = locationDialog.location
+        ? `/api/b2b/admin/customers/${locationDialog.customerId}/locations/${locationDialog.location.id}`
+        : `/api/b2b/admin/customers/${locationDialog.customerId}/locations`;
+      
+      const response = await fetch(url, {
+        method: locationDialog.location ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(locationData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save location');
+      }
+
+      toast({
+        title: locationDialog.location ? "Location Updated" : "Location Added",
+        description: `${locationData.storeName} has been saved.`,
+      });
+
+      setLocationDialog({ isOpen: false, location: null, customerId: null });
+      refetchLocations();
+    } catch (error: any) {
+      toast({
+        title: "Failed to Save Location",
+        description: error.message || "An error occurred while saving the location",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
+  const handleDeleteLocation = async (locationId: string) => {
+    if (!editCustomerDialog.customer?.id) return;
+
+    try {
+      const response = await fetch(
+        `/api/b2b/admin/customers/${editCustomerDialog.customer.id}/locations/${locationId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete location');
+      }
+
+      toast({
+        title: "Location Deleted",
+        description: "The store location has been removed.",
+      });
+
+      refetchLocations();
+    } catch (error: any) {
+      toast({
+        title: "Failed to Delete Location",
+        description: error.message || "An error occurred while deleting the location",
         variant: "destructive",
       });
     }
@@ -3584,87 +3837,136 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <div className="space-y-2">
+            {/* Store Locations Section */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Shipping Address</h3>
+                <h3 className="font-medium">Store Locations</h3>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    const billingAddress = editCustomerForm.getValues("billingAddress");
-                    const billingCity = editCustomerForm.getValues("billingCity");
-                    const billingState = editCustomerForm.getValues("billingState");
-                    const billingZipCode = editCustomerForm.getValues("billingZipCode");
-                    
-                    editCustomerForm.setValue("shippingAddress", billingAddress || "");
-                    editCustomerForm.setValue("shippingCity", billingCity || "");
-                    editCustomerForm.setValue("shippingState", billingState || "");
-                    editCustomerForm.setValue("shippingZipCode", billingZipCode || "");
-                  }}
-                  data-testid="button-copy-billing-to-shipping"
+                  onClick={() => setLocationDialog({ 
+                    isOpen: true, 
+                    location: null, 
+                    customerId: editCustomerDialog.customer?.id 
+                  })}
+                  data-testid="button-add-location"
                 >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy from Billing
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Location
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editCustomerForm.control}
-                  name="shippingAddress"
-                  render={({ field }) => (
-                    <FormItem className="col-span-2">
-                      <FormLabel>Street Address *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-edit-shipping-address" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <p className="text-xs text-muted-foreground">
+                Each location appears separately on the Where to Buy page. All locations share the same pricing tier.
+              </p>
+              
+              {customerLocations.length === 0 ? (
+                <div className="p-4 bg-muted rounded-md text-center text-muted-foreground">
+                  <Building className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No store locations added yet.</p>
+                  <p className="text-xs">Click "Add Location" to add the first store location.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customerLocations.map((location) => (
+                    <div 
+                      key={location.id} 
+                      className="p-3 bg-muted rounded-md flex items-start justify-between gap-2"
+                      data-testid={`location-card-${location.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">{location.storeName}</span>
+                          {location.isPrimary && (
+                            <Badge variant="secondary" className="text-xs">Primary</Badge>
+                          )}
+                          {!location.showOnWhereToBuy && (
+                            <Badge variant="outline" className="text-xs">Hidden</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {location.storeAddress}, {location.storeCity}, {location.storeState} {location.storeZipCode}
+                        </p>
+                        {location.storePhone && (
+                          <p className="text-sm text-muted-foreground">{location.storePhone}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setLocationDialog({ 
+                            isOpen: true, 
+                            location, 
+                            customerId: editCustomerDialog.customer?.id 
+                          })}
+                          data-testid={`button-edit-location-${location.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteLocation(location.id)}
+                          data-testid={`button-delete-location-${location.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                <FormField
-                  control={editCustomerForm.control}
-                  name="shippingCity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-edit-shipping-city" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editCustomerForm.control}
-                  name="shippingState"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-edit-shipping-state" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={editCustomerForm.control}
-                  name="shippingZipCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-edit-shipping-zip" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            {/* Legacy Shipping Address - Hidden but kept for backward compatibility */}
+            <div className="hidden">
+              <FormField
+                control={editCustomerForm.control}
+                name="shippingAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editCustomerForm.control}
+                name="shippingCity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editCustomerForm.control}
+                name="shippingState"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editCustomerForm.control}
+                name="shippingZipCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -3773,6 +4075,28 @@ export default function AdminDashboard() {
             </DialogFooter>
           </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Location Dialog */}
+      <Dialog open={locationDialog.isOpen} onOpenChange={(open) => {
+        if (!open) setLocationDialog({ isOpen: false, location: null, customerId: null });
+      }}>
+        <DialogContent className="max-w-md" data-testid="dialog-location">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">
+              {locationDialog.location ? "Edit Store Location" : "Add Store Location"}
+            </DialogTitle>
+            <DialogDescription>
+              {locationDialog.location ? "Update the store location details" : "Add a new store location for this customer"}
+            </DialogDescription>
+          </DialogHeader>
+          <LocationForm
+            location={locationDialog.location}
+            onSave={handleSaveLocation}
+            onCancel={() => setLocationDialog({ isOpen: false, location: null, customerId: null })}
+            isSaving={isSavingLocation}
+          />
         </DialogContent>
       </Dialog>
 
