@@ -486,6 +486,9 @@ export default function AdminDashboard() {
   const [selectedCommissionIds, setSelectedCommissionIds] = useState<Set<string>>(new Set());
   const [isSendingPayroll, setIsSendingPayroll] = useState(false);
 
+  // Customer search state
+  const [customerSearch, setCustomerSearch] = useState("");
+
   // Export/Import state
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -2048,8 +2051,19 @@ export default function AdminDashboard() {
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
-          {(currentUser?.type === 'admin' || currentUser?.type === 'sales_rep') && (
-            <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search by company name..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="pl-10"
+                data-testid="input-customer-search"
+              />
+            </div>
+            {(currentUser?.type === 'admin' || currentUser?.type === 'sales_rep') && (
               <Button
                 onClick={() => setCreateCustomerDialog(true)}
                 data-testid="button-create-customer"
@@ -2057,19 +2071,19 @@ export default function AdminDashboard() {
                 <Plus className="h-4 w-4 mr-2" />
                 Create Customer
               </Button>
-            </div>
-          )}
+            )}
+          </div>
           
           <Tabs defaultValue="active" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3 max-w-lg">
               <TabsTrigger value="pending" data-testid="tab-pending">
-                Pending ({pendingCustomers?.length || 0})
+                Pending ({pendingCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
               <TabsTrigger value="active" data-testid="tab-active">
-                Active ({activeCustomers?.length || 0})
+                Active ({activeCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
               <TabsTrigger value="inactive" data-testid="tab-inactive">
-                Inactive ({inactiveCustomers?.length || 0})
+                Inactive ({inactiveCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
             </TabsList>
 
@@ -2084,19 +2098,19 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !pendingCustomers || pendingCustomers.length === 0 ? (
+              ) : !pendingCustomers || pendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">No Pending Applications</h3>
+                    <h3 className="text-lg font-medium mb-2">{customerSearch.trim() ? "No Matching Customers" : "No Pending Applications"}</h3>
                     <p className="text-muted-foreground">
-                      New customer registrations will appear here for approval
+                      {customerSearch.trim() ? `No pending customers match "${customerSearch}"` : "New customer registrations will appear here for approval"}
                     </p>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pendingCustomers.map((customer) => renderCustomerCard(customer, true))}
+                  {pendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, true))}
                 </div>
               )}
             </TabsContent>
@@ -2112,19 +2126,19 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !activeCustomers || activeCustomers.length === 0 ? (
+              ) : !activeCustomers || activeCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">No Active Customers</h3>
+                    <h3 className="text-lg font-medium mb-2">{customerSearch.trim() ? "No Matching Customers" : "No Active Customers"}</h3>
                     <p className="text-muted-foreground">
-                      Approved customers will appear here
+                      {customerSearch.trim() ? `No active customers match "${customerSearch}"` : "Approved customers will appear here"}
                     </p>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activeCustomers.map((customer) => renderCustomerCard(customer, false))}
+                  {activeCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
                 </div>
               )}
             </TabsContent>
@@ -2140,19 +2154,19 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !inactiveCustomers || inactiveCustomers.length === 0 ? (
+              ) : !inactiveCustomers || inactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">No Inactive Customers</h3>
+                    <h3 className="text-lg font-medium mb-2">{customerSearch.trim() ? "No Matching Customers" : "No Inactive Customers"}</h3>
                     <p className="text-muted-foreground">
-                      Customers marked as inactive will appear here
+                      {customerSearch.trim() ? `No inactive customers match "${customerSearch}"` : "Customers marked as inactive will appear here"}
                     </p>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inactiveCustomers.map((customer) => renderCustomerCard(customer, false))}
+                  {inactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
                 </div>
               )}
             </TabsContent>
