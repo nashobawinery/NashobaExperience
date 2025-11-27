@@ -4207,9 +4207,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Featured Products Section (Manual product assignments for Where to Buy) */}
-            {(editCustomerDialog.customer?.customerType === 'retail_liquor' || 
-              editCustomerDialog.customer?.customerType === 'restaurant') && (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-medium">Featured Products</h3>
                 </div>
@@ -4312,8 +4310,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
 
             {/* Legacy Shipping Address - Hidden but kept for backward compatibility */}
             <div className="hidden">
