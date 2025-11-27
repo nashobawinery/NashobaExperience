@@ -74,7 +74,7 @@ Preferred communication style: Simple, everyday language.
 - **Process**: Comprehensive Excel-based export/import system for synchronizing ALL database data between environments using multi-sheet workbooks.
 - **Complete Data Coverage**: 
   - **Core Tables**: Products, Filter Options, Trivia, Slideshow, App Settings, Media Library, Whitelisted Emails, Commercials, Videos, Achievements
-  - **B2B Tables**: Tier Pricing, Sales Reps, Customers, Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions (with order_total, commission_percentage), Email Templates (with description, tier_filter, body_html, body_text, days_before_event), Email Automation Logs (with template_id, trigger_type, success, error_message)
+  - **B2B Tables**: Tier Pricing, Sales Reps, Customers, Customer Locations, Customer Manual Products (Featured Products), Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions (with order_total, commission_percentage), Email Templates (with description, tier_filter, body_html, body_text, days_before_event), Email Automation Logs (with template_id, trigger_type, success, error_message)
   - **All Fields Exported**: Every field in every table is captured during export to ensure complete data fidelity
 - **Cross-Environment Portability**: Uses portable business keys (email, order_number, etc.) instead of UUIDs for seamless data synchronization.
 - **Upsert Logic**: ID-first upsert strategy with natural business key fallback; handles partial updates correctly.
