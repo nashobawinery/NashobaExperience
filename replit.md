@@ -49,7 +49,9 @@ Preferred communication style: Simple, everyday language.
 - **Admin Dashboard**: 6-tab dashboard for managing customers, orders, tier commitments, sales reps, slideshow, and settings. Includes admin impersonation for placing customer orders.
 - **Multi-Location Support**: 
   - Each B2B customer account can have multiple store locations (e.g., a restaurant chain with 5 locations)
-  - Locations stored in `b2bCustomerLocations` table with: storeName, storeAddress, storeCity, storeState, storeZipCode, storePhone
+  - Locations stored in `b2bCustomerLocations` table with: storeName, storeAddress, storeCity, storeState, storeZipCode, storePhone, storeEmail
+  - Each location has its own phone number and email address for location-specific contact information
+  - "Copy from Main Address" button in location form to quickly populate address, phone, and email from the customer's main contact info
   - All locations share the parent customer's pricing tier and product purchase history
   - Admin can add/edit/delete locations via the Edit Customer dialog's "Store Locations" section
   - Each location can be individually toggled to show/hide on the Where to Buy page (showOnWhereToBuy field)

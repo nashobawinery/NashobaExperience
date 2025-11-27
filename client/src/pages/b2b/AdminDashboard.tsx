@@ -154,6 +154,14 @@ const getOrderStatusBadgeVariant = (status: string): 'default' | 'secondary' | '
 // Location Form Component
 interface LocationFormProps {
   location: any | null;
+  customer?: {
+    shippingAddress?: string | null;
+    shippingCity?: string | null;
+    shippingState?: string | null;
+    shippingZipCode?: string | null;
+    phoneNumber?: string | null;
+    emailAddress?: string | null;
+  } | null;
   onSave: (data: {
     storeName: string;
     storeAddress: string;
@@ -161,6 +169,7 @@ interface LocationFormProps {
     storeState: string;
     storeZipCode: string;
     storePhone?: string;
+    storeEmail?: string;
     website?: string;
     isPrimary?: boolean;
     showOnWhereToBuy?: boolean;
@@ -169,7 +178,7 @@ interface LocationFormProps {
   isSaving: boolean;
 }
 
-function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProps) {
+function LocationForm({ location, customer, onSave, onCancel, isSaving }: LocationFormProps) {
   const [formData, setFormData] = useState({
     storeName: location?.storeName || "",
     storeAddress: location?.storeAddress || "",
@@ -177,6 +186,7 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
     storeState: location?.storeState || "",
     storeZipCode: location?.storeZipCode || "",
     storePhone: location?.storePhone || "",
+    storeEmail: location?.storeEmail || "",
     website: location?.website || "",
     isPrimary: location?.isPrimary || false,
     showOnWhereToBuy: location?.showOnWhereToBuy !== false,
@@ -190,6 +200,7 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
       storeState: location?.storeState || "",
       storeZipCode: location?.storeZipCode || "",
       storePhone: location?.storePhone || "",
+      storeEmail: location?.storeEmail || "",
       website: location?.website || "",
       isPrimary: location?.isPrimary || false,
       showOnWhereToBuy: location?.showOnWhereToBuy !== false,
@@ -201,8 +212,39 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
     onSave(formData);
   };
 
+  const handleCopyFromMain = () => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        storeAddress: customer.shippingAddress || prev.storeAddress,
+        storeCity: customer.shippingCity || prev.storeCity,
+        storeState: customer.shippingState || prev.storeState,
+        storeZipCode: customer.shippingZipCode || prev.storeZipCode,
+        storePhone: customer.phoneNumber || prev.storePhone,
+        storeEmail: customer.emailAddress || prev.storeEmail,
+      }));
+    }
+  };
+
+  const hasMainAddress = customer && (customer.shippingAddress || customer.shippingCity);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {hasMainAddress && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCopyFromMain}
+            data-testid="button-copy-main-address"
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Copy from Main Address
+          </Button>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="storeName">Store Name *</Label>
         <Input
@@ -262,7 +304,7 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
           />
         </div>
         <div>
-          <Label htmlFor="storePhone">Phone (Optional)</Label>
+          <Label htmlFor="storePhone">Store Phone</Label>
           <Input
             id="storePhone"
             value={formData.storePhone}
@@ -271,6 +313,18 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
             data-testid="input-location-phone"
           />
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="storeEmail">Store Email</Label>
+        <Input
+          id="storeEmail"
+          type="email"
+          value={formData.storeEmail}
+          onChange={(e) => setFormData({ ...formData, storeEmail: e.target.value })}
+          placeholder="store@example.com"
+          data-testid="input-location-email"
+        />
       </div>
 
       <div>
@@ -1484,6 +1538,8 @@ export default function AdminDashboard() {
     storeState: string;
     storeZipCode: string;
     storePhone?: string;
+    storeEmail?: string;
+    website?: string;
     isPrimary?: boolean;
     showOnWhereToBuy?: boolean;
   }) => {
@@ -4000,8 +4056,21 @@ export default function AdminDashboard() {
                         <p className="text-sm text-muted-foreground truncate">
                           {location.storeAddress}, {location.storeCity}, {location.storeState} {location.storeZipCode}
                         </p>
-                        {location.storePhone && (
-                          <p className="text-sm text-muted-foreground">{location.storePhone}</p>
+                        {(location.storePhone || location.storeEmail) && (
+                          <div className="flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+                            {location.storePhone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {location.storePhone}
+                              </span>
+                            )}
+                            {location.storeEmail && (
+                              <span className="flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {location.storeEmail}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div className="flex gap-1">
@@ -4214,6 +4283,7 @@ export default function AdminDashboard() {
           </DialogHeader>
           <LocationForm
             location={locationDialog.location}
+            customer={editCustomerDialog.customer}
             onSave={handleSaveLocation}
             onCancel={() => setLocationDialog({ isOpen: false, location: null, customerId: null })}
             isSaving={isSavingLocation}

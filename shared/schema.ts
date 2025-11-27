@@ -445,6 +445,7 @@ export const b2bCustomerLocations = pgTable("b2b_customer_locations", {
   storeState: varchar("store_state").notNull(),
   storeZipCode: varchar("store_zip_code").notNull(),
   storePhone: varchar("store_phone"),
+  storeEmail: varchar("store_email"),
   website: text("website"),
   isPrimary: boolean("is_primary").notNull().default(false),
   showOnWhereToBuy: boolean("show_on_where_to_buy").notNull().default(true),
