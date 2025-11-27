@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed } from "lucide-react";
+import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed, Globe, AlertCircle } from "lucide-react";
 import { Fireworks } from "@/components/Fireworks";
 
 type CustomerType = "retail_liquor" | "restaurant";
@@ -21,6 +21,7 @@ interface Location {
   storeState: string | null;
   storeZipCode: string | null;
   storePhone: string | null;
+  website: string | null;
   products: Array<{
     productName: string;
     sku: string | null;
@@ -305,6 +306,21 @@ export default function WhereToBuyPage() {
                     </div>
                   )}
 
+                  {location.website && (
+                    <div className="flex gap-2 items-center text-sm">
+                      <Globe className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <a
+                        href={location.website.startsWith('http') ? location.website : `https://${location.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                        data-testid={`location-website-${location.id}`}
+                      >
+                        Visit Website
+                      </a>
+                    </div>
+                  )}
+
                   {location.products.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -333,6 +349,10 @@ export default function WhereToBuyPage() {
                           </Badge>
                         )}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-2 italic flex items-start gap-1">
+                        <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                        <span>Items purchased does not mean "In Stock" - Call for current availability.</span>
+                      </p>
                     </div>
                   )}
                 </CardContent>

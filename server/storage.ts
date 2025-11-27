@@ -2689,6 +2689,7 @@ export class DatabaseStorage implements IStorage {
         storeState: b2bCustomerLocations.storeState,
         storeZipCode: b2bCustomerLocations.storeZipCode,
         storePhone: b2bCustomerLocations.storePhone,
+        website: b2bCustomerLocations.website,
         accountName: b2bCustomers.accountName,
         customerType: b2bCustomers.customerType,
       })
@@ -2745,6 +2746,7 @@ export class DatabaseStorage implements IStorage {
       storeState: location.storeState,
       storeZipCode: location.storeZipCode,
       storePhone: location.storePhone,
+      website: location.website,
       products: customerProductsMap.get(location.customerId) || [],
     }));
 

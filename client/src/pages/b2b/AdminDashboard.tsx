@@ -161,6 +161,7 @@ interface LocationFormProps {
     storeState: string;
     storeZipCode: string;
     storePhone?: string;
+    website?: string;
     isPrimary?: boolean;
     showOnWhereToBuy?: boolean;
   }) => void;
@@ -176,6 +177,7 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
     storeState: location?.storeState || "",
     storeZipCode: location?.storeZipCode || "",
     storePhone: location?.storePhone || "",
+    website: location?.website || "",
     isPrimary: location?.isPrimary || false,
     showOnWhereToBuy: location?.showOnWhereToBuy !== false,
   });
@@ -188,6 +190,7 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
       storeState: location?.storeState || "",
       storeZipCode: location?.storeZipCode || "",
       storePhone: location?.storePhone || "",
+      website: location?.website || "",
       isPrimary: location?.isPrimary || false,
       showOnWhereToBuy: location?.showOnWhereToBuy !== false,
     });
@@ -268,6 +271,17 @@ function LocationForm({ location, onSave, onCancel, isSaving }: LocationFormProp
             data-testid="input-location-phone"
           />
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="website">Website (Optional)</Label>
+        <Input
+          id="website"
+          value={formData.website}
+          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+          placeholder="https://www.example.com"
+          data-testid="input-location-website"
+        />
       </div>
 
       <div className="flex items-center justify-between py-2">
