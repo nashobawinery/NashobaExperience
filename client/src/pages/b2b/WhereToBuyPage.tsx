@@ -77,16 +77,25 @@ export default function WhereToBuyPage() {
     setSelectedLocationId(id);
     // Close mobile map sheet and scroll to the card
     setMobileMapOpen(false);
+    
+    // Use a longer timeout to ensure sheet animation completes and DOM is ready
     setTimeout(() => {
       const element = locationRefs.current[id];
       if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
-        element.classList.add("ring-2", "ring-orange-500");
-        setTimeout(() => {
-          element.classList.remove("ring-2", "ring-orange-500");
-        }, 2000);
+        // Get the element's position relative to the viewport
+        const rect = element.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        
+        // Calculate the scroll position to center the element
+        const scrollTop = window.pageYOffset + rect.top - (viewportHeight / 2) + (rect.height / 2);
+        
+        // Scroll the window smoothly to the calculated position
+        window.scrollTo({
+          top: Math.max(0, scrollTop),
+          behavior: "smooth"
+        });
       }
-    }, 100);
+    }, 300);
   };
 
   // Handle card click to highlight on map
