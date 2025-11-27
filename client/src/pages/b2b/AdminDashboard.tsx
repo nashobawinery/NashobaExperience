@@ -155,6 +155,7 @@ const getOrderStatusBadgeVariant = (status: string): 'default' | 'secondary' | '
 interface LocationFormProps {
   location: any | null;
   customer?: {
+    accountName?: string | null;
     shippingAddress?: string | null;
     shippingCity?: string | null;
     shippingState?: string | null;
@@ -216,6 +217,7 @@ function LocationForm({ location, customer, onSave, onCancel, isSaving }: Locati
     if (customer) {
       setFormData(prev => ({
         ...prev,
+        storeName: customer.accountName || prev.storeName,
         storeAddress: customer.shippingAddress || prev.storeAddress,
         storeCity: customer.shippingCity || prev.storeCity,
         storeState: customer.shippingState || prev.storeState,
@@ -226,11 +228,11 @@ function LocationForm({ location, customer, onSave, onCancel, isSaving }: Locati
     }
   };
 
-  const hasMainAddress = customer && (customer.shippingAddress || customer.shippingCity);
+  const hasMainInfo = customer && (customer.accountName || customer.shippingAddress || customer.shippingCity);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {hasMainAddress && (
+      {hasMainInfo && (
         <div className="flex justify-end">
           <Button
             type="button"
