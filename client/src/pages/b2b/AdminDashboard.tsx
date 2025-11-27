@@ -1370,8 +1370,8 @@ export default function AdminDashboard() {
           throw new Error(errorData.error || 'Failed to create customer');
         }
 
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/customers'] });
+        // Invalidate queries to refresh data - use the correct query key format that matches the hook
+        queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
 
         toast({
           title: "Customer Created Successfully",
@@ -1544,8 +1544,8 @@ export default function AdminDashboard() {
         throw new Error(errorData.error || 'Failed to update customer');
       }
 
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/customers'] });
+      // Invalidate queries to refresh data - use the correct query key format that matches the hook
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
 
       toast({
         title: "Customer Updated Successfully",
