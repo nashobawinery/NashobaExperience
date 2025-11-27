@@ -2781,6 +2781,8 @@ export class DatabaseStorage implements IStorage {
         storeZipCode: b2bCustomerLocations.storeZipCode,
         storePhone: b2bCustomerLocations.storePhone,
         website: b2bCustomerLocations.website,
+        latitude: b2bCustomerLocations.latitude,
+        longitude: b2bCustomerLocations.longitude,
         accountName: b2bCustomers.accountName,
         customerType: b2bCustomers.customerType,
         pricingTierId: b2bCustomers.pricingTierId,
@@ -2860,6 +2862,7 @@ export class DatabaseStorage implements IStorage {
 
     // Map locations to include products - use canonical location field names
     // Include tier information for sorting and highlighting
+    // Include latitude/longitude for distance calculations
     const locationsWithProducts = allLocations.map((location) => ({
       id: location.id,
       storeName: location.storeName,
@@ -2871,6 +2874,8 @@ export class DatabaseStorage implements IStorage {
       storeZipCode: location.storeZipCode,
       storePhone: location.storePhone,
       website: location.website,
+      latitude: location.latitude,
+      longitude: location.longitude,
       tierName: location.tierName,
       tierSortOrder: location.tierSortOrder,
       products: customerProductsMap.get(location.customerId) || [],

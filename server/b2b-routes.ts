@@ -82,6 +82,48 @@ router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
 router.get('/api/b2b/where-to-buy', async (req: Request, res: Response) => {
   try {
     const locations = await storage.getWhereToBuyLocations();
+    const { zip } = req.query;
+    
+    // If a zip code is provided, calculate distances
+    if (zip && typeof zip === 'string') {
+      const { getZipCoordinates, calculateDistance } = await import('./zip-coordinates');
+      const userCoords = getZipCoordinates(zip);
+      
+      if (userCoords) {
+        const locationsWithDistance = locations.map((loc: any) => {
+          let distanceMiles: number | null = null;
+          
+          // Try to use store's lat/long if available
+          if (loc.latitude && loc.longitude) {
+            distanceMiles = calculateDistance(
+              userCoords.lat, 
+              userCoords.lng, 
+              Number(loc.latitude), 
+              Number(loc.longitude)
+            );
+          } else if (loc.storeZipCode) {
+            // Fallback: Use store zip code centroid
+            const storeCoords = getZipCoordinates(loc.storeZipCode);
+            if (storeCoords) {
+              distanceMiles = calculateDistance(
+                userCoords.lat, 
+                userCoords.lng, 
+                storeCoords.lat, 
+                storeCoords.lng
+              );
+            }
+          }
+          
+          return {
+            ...loc,
+            distanceMiles: distanceMiles !== null ? Math.round(distanceMiles * 10) / 10 : null,
+          };
+        });
+        
+        return res.json(locationsWithDistance);
+      }
+    }
+    
     res.json(locations);
   } catch (error) {
     console.error('Error fetching where to buy locations:', error);
