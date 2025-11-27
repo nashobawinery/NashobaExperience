@@ -78,6 +78,7 @@ import {
   b2bAdmins,
   b2bCustomers,
   b2bCustomerLocations,
+  b2bCustomerManualProducts,
   b2bOrders,
   b2bOrderItems,
   b2bCommissions,
@@ -97,6 +98,8 @@ import {
   type B2bCustomer,
   type InsertB2bCustomerLocation,
   type B2bCustomerLocation,
+  type InsertB2bCustomerManualProduct,
+  type B2bCustomerManualProduct,
   type InsertB2bOrder,
   type B2bOrder,
   type InsertB2bOrderItem,
@@ -338,6 +341,13 @@ export interface IStorage {
   updateCustomerLocation(id: string, data: Partial<InsertB2bCustomerLocation>): Promise<B2bCustomerLocation | undefined>;
   deleteCustomerLocation(id: string): Promise<boolean>;
   upsertCustomerLocation(data: InsertB2bCustomerLocation & { id?: string }): Promise<{ location: B2bCustomerLocation; action: 'created' | 'updated' }>;
+
+  // B2B - Customer Manual Products (Featured Products for Where to Buy)
+  getCustomerManualProducts(customerId: string): Promise<(B2bCustomerManualProduct & { product: Product })[]>;
+  addCustomerManualProduct(customerId: string, productId: string, expiresAt: Date): Promise<B2bCustomerManualProduct>;
+  addCustomerManualProducts(customerId: string, productIds: string[], expiresAt: Date): Promise<B2bCustomerManualProduct[]>;
+  removeCustomerManualProduct(id: string): Promise<boolean>;
+  removeAllCustomerManualProducts(customerId: string): Promise<boolean>;
 
   // B2B - Orders
   getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
@@ -2181,6 +2191,80 @@ export class DatabaseStorage implements IStorage {
     return { location: created, action: 'created' };
   }
 
+  // B2B - Customer Manual Products (Featured Products for Where to Buy)
+  async getCustomerManualProducts(customerId: string): Promise<(B2bCustomerManualProduct & { product: Product })[]> {
+    const results = await db
+      .select({
+        manualProduct: b2bCustomerManualProducts,
+        product: products,
+      })
+      .from(b2bCustomerManualProducts)
+      .innerJoin(products, eq(b2bCustomerManualProducts.productId, products.id))
+      .where(eq(b2bCustomerManualProducts.customerId, customerId))
+      .orderBy(desc(b2bCustomerManualProducts.createdAt));
+
+    return results.map(r => ({ ...r.manualProduct, product: r.product }));
+  }
+
+  async addCustomerManualProduct(customerId: string, productId: string, expiresAt: Date): Promise<B2bCustomerManualProduct> {
+    // Check if already exists
+    const [existing] = await db
+      .select()
+      .from(b2bCustomerManualProducts)
+      .where(
+        and(
+          eq(b2bCustomerManualProducts.customerId, customerId),
+          eq(b2bCustomerManualProducts.productId, productId)
+        )
+      );
+
+    if (existing) {
+      // Update expiry date
+      const [updated] = await db
+        .update(b2bCustomerManualProducts)
+        .set({ expiresAt, assignedAt: new Date() })
+        .where(eq(b2bCustomerManualProducts.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    // Create new
+    const [created] = await db
+      .insert(b2bCustomerManualProducts)
+      .values({
+        customerId,
+        productId,
+        expiresAt,
+        assignedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async addCustomerManualProducts(customerId: string, productIds: string[], expiresAt: Date): Promise<B2bCustomerManualProduct[]> {
+    const results: B2bCustomerManualProduct[] = [];
+    for (const productId of productIds) {
+      const result = await this.addCustomerManualProduct(customerId, productId, expiresAt);
+      results.push(result);
+    }
+    return results;
+  }
+
+  async removeCustomerManualProduct(id: string): Promise<boolean> {
+    const result = await db
+      .delete(b2bCustomerManualProducts)
+      .where(eq(b2bCustomerManualProducts.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async removeAllCustomerManualProducts(customerId: string): Promise<boolean> {
+    await db
+      .delete(b2bCustomerManualProducts)
+      .where(eq(b2bCustomerManualProducts.customerId, customerId));
+    return true;
+  }
+
   // B2B - Orders implementations
   async getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]> {
     const results = await db
@@ -2676,6 +2760,7 @@ export class DatabaseStorage implements IStorage {
   async getWhereToBuyLocations(): Promise<any[]> {
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    const now = new Date();
 
     // Get all store locations that are set to show on Where to Buy page, joined with active customers
     // Only include retail_liquor and restaurant customer types
@@ -2707,16 +2792,18 @@ export class DatabaseStorage implements IStorage {
       );
 
     // Get products purchased by each customer (from last 12 months, if any)
+    // AND manually assigned products that haven't expired yet
     // Create a map of customer ID to products to avoid duplicate queries
     const customerProductsMap = new Map<string, Array<{ productName: string; sku: string | null }>>();
     
     // Get unique customer IDs
     const uniqueCustomerIds = [...new Set(allLocations.map(loc => loc.customerId))];
     
-    // Fetch products for each customer
+    // Fetch products for each customer (both from orders and manual assignments)
     await Promise.all(
       uniqueCustomerIds.map(async (customerId) => {
-        const productsPurchased = await db
+        // Get products from orders (last 12 months)
+        const productsFromOrders = await db
           .select({
             productName: b2bOrderItems.productName,
             sku: b2bOrderItems.sku,
@@ -2731,7 +2818,33 @@ export class DatabaseStorage implements IStorage {
           )
           .groupBy(b2bOrderItems.productName, b2bOrderItems.sku);
         
-        customerProductsMap.set(customerId, productsPurchased);
+        // Get manually assigned products that haven't expired
+        const manualProducts = await db
+          .select({
+            productName: products.name,
+            sku: products.sku,
+          })
+          .from(b2bCustomerManualProducts)
+          .innerJoin(products, eq(b2bCustomerManualProducts.productId, products.id))
+          .where(
+            and(
+              eq(b2bCustomerManualProducts.customerId, customerId),
+              sql`${b2bCustomerManualProducts.expiresAt} > ${now}`
+            )
+          );
+        
+        // Merge products from both sources, removing duplicates by product name
+        const allProducts = [...productsFromOrders];
+        const existingNames = new Set(productsFromOrders.map(p => p.productName));
+        
+        for (const mp of manualProducts) {
+          if (!existingNames.has(mp.productName)) {
+            allProducts.push(mp);
+            existingNames.add(mp.productName);
+          }
+        }
+        
+        customerProductsMap.set(customerId, allProducts);
       })
     );
 

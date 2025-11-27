@@ -453,6 +453,15 @@ export const b2bCustomerLocations = pgTable("b2b_customer_locations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const b2bCustomerManualProducts = pgTable("b2b_customer_manual_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id, { onDelete: 'cascade' }),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const b2bSessions = pgTable(
   "b2b_sessions",
   {
@@ -612,6 +621,7 @@ export const insertSalesRepSchema = createInsertSchema(salesReps).omit({ id: tru
 export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
 export const insertB2bCustomerLocationSchema = createInsertSchema(b2bCustomerLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertB2bCustomerManualProductSchema = createInsertSchema(b2bCustomerManualProducts).omit({ id: true, createdAt: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
@@ -721,6 +731,9 @@ export type B2bCustomer = typeof b2bCustomers.$inferSelect;
 
 export type InsertB2bCustomerLocation = z.infer<typeof insertB2bCustomerLocationSchema>;
 export type B2bCustomerLocation = typeof b2bCustomerLocations.$inferSelect;
+
+export type InsertB2bCustomerManualProduct = z.infer<typeof insertB2bCustomerManualProductSchema>;
+export type B2bCustomerManualProduct = typeof b2bCustomerManualProducts.$inferSelect;
 
 export type InsertB2bOrder = z.infer<typeof insertB2bOrderSchema>;
 export type B2bOrder = typeof b2bOrders.$inferSelect;
