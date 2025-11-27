@@ -1379,6 +1379,87 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
   }
 });
 
+// Admin: Get customer locations
+router.get('/api/b2b/admin/customers/:id/locations', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const locations = await storage.getCustomerLocations(id);
+    res.json(locations);
+  } catch (error) {
+    console.error('Get customer locations error:', error);
+    res.status(500).json({ error: 'Failed to get customer locations' });
+  }
+});
+
+// Admin: Create customer location
+router.post('/api/b2b/admin/customers/:id/locations', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const locationData = req.body;
+
+    // Verify customer exists
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const location = await storage.createCustomerLocation({
+      ...locationData,
+      customerId: id,
+    });
+
+    res.status(201).json(location);
+  } catch (error) {
+    console.error('Create customer location error:', error);
+    res.status(500).json({ error: 'Failed to create customer location' });
+  }
+});
+
+// Admin: Update customer location
+router.put('/api/b2b/admin/customers/:customerId/locations/:locationId', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { customerId, locationId } = req.params;
+    const updateData = req.body;
+
+    // Verify location exists and belongs to customer
+    const location = await storage.getCustomerLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    if (location.customerId !== customerId) {
+      return res.status(400).json({ error: 'Location does not belong to this customer' });
+    }
+
+    const updatedLocation = await storage.updateCustomerLocation(locationId, updateData);
+    res.json(updatedLocation);
+  } catch (error) {
+    console.error('Update customer location error:', error);
+    res.status(500).json({ error: 'Failed to update customer location' });
+  }
+});
+
+// Admin: Delete customer location
+router.delete('/api/b2b/admin/customers/:customerId/locations/:locationId', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { customerId, locationId } = req.params;
+
+    // Verify location exists and belongs to customer
+    const location = await storage.getCustomerLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    if (location.customerId !== customerId) {
+      return res.status(400).json({ error: 'Location does not belong to this customer' });
+    }
+
+    await storage.deleteCustomerLocation(locationId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete customer location error:', error);
+    res.status(500).json({ error: 'Failed to delete customer location' });
+  }
+});
+
 // Admin: Reset customer password
 router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
