@@ -53,6 +53,7 @@ import { BookOpen } from "lucide-react";
 const createCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
   primaryContactName: z.string().min(1, "Contact name is required"),
+  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other"]).optional(),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
   licenseNumber: z.string().min(1, "License number is required"),
@@ -94,6 +95,7 @@ type CreateCustomerFormData = z.infer<typeof createCustomerSchema>;
 const editCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
   primaryContactName: z.string().min(1, "Contact name is required"),
+  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other"]).optional(),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
   licenseNumber: z.string().min(1, "License number is required"),
@@ -629,6 +631,7 @@ export default function AdminDashboard() {
     defaultValues: {
       accountName: "",
       primaryContactName: "",
+      customerType: undefined,
       emailAddress: "",
       phoneNumber: "",
       licenseNumber: "",
@@ -678,6 +681,7 @@ export default function AdminDashboard() {
     defaultValues: {
       accountName: "",
       primaryContactName: "",
+      customerType: undefined,
       emailAddress: "",
       phoneNumber: "",
       licenseNumber: "",
@@ -1131,6 +1135,7 @@ export default function AdminDashboard() {
     editCustomerForm.reset({
       accountName: customer.accountName || "",
       primaryContactName: customer.primaryContactName || "",
+      customerType: customer.customerType || undefined,
       emailAddress: customer.emailAddress || "",
       phoneNumber: customer.phoneNumber || "",
       licenseNumber: customer.licenseNumber || "",
@@ -1170,6 +1175,7 @@ export default function AdminDashboard() {
         data: {
           accountName: data.accountName,
           primaryContactName: data.primaryContactName,
+          customerType: data.customerType,
           emailAddress: data.emailAddress,
           phoneNumber: data.phoneNumber,
           licenseNumber: data.licenseNumber,
@@ -1314,8 +1320,8 @@ export default function AdminDashboard() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-muted-foreground">Business Type:</p>
-              <p className="font-medium capitalize">{customer.businessType || "N/A"}</p>
+              <p className="text-muted-foreground">Customer Type:</p>
+              <p className="font-medium capitalize">{customer.customerType?.replace(/_/g, ' ') || "Not Set"}</p>
             </div>
             {customer.tier && (
               <div>
@@ -3070,6 +3076,30 @@ export default function AdminDashboard() {
               />
             </div>
 
+            <FormField
+              control={createCustomerForm.control}
+              name="customerType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer Type</FormLabel>
+                  <Select value={field.value || ""} onValueChange={(value) => field.onChange(value || undefined)}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-create-customer-type">
+                        <SelectValue placeholder="Select customer type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
+                      <SelectItem value="restaurant">Restaurant</SelectItem>
+                      <SelectItem value="private_club">Private Club</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={createCustomerForm.control}
@@ -3352,7 +3382,7 @@ export default function AdminDashboard() {
           <Form {...editCustomerForm}>
           <form onSubmit={editCustomerForm.handleSubmit(handleEditCustomerSubmit)} className="space-y-4">
             {/* Account Status - Prominent at top */}
-            <div className="p-4 bg-muted rounded-md">
+            <div className="p-4 bg-muted rounded-md space-y-4">
               <FormField
                 control={editCustomerForm.control}
                 name="accountStatus"
@@ -3374,6 +3404,29 @@ export default function AdminDashboard() {
                     <p className="text-xs text-muted-foreground mt-1">
                       Inactive customers won't appear on the Where to Buy page
                     </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editCustomerForm.control}
+                name="customerType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-medium">Customer Type</FormLabel>
+                    <Select value={field.value || ""} onValueChange={(value) => field.onChange(value || undefined)}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-customer-type" className="w-full max-w-xs">
+                          <SelectValue placeholder="Select customer type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
+                        <SelectItem value="restaurant">Restaurant</SelectItem>
+                        <SelectItem value="private_club">Private Club</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

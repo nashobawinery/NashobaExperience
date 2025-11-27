@@ -12,6 +12,7 @@ export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
 export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
 export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended", "archived"]);
+export const customerTypeEnum = pgEnum("customer_type", ["retail_liquor", "restaurant", "private_club", "other"]);
 export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep", "admin"]);
 export const productMediaRoleEnum = pgEnum("product_media_role", ["primary", "label", "lifestyle", "gallery"]);
 
@@ -401,6 +402,7 @@ export const b2bCustomers = pgTable("b2b_customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   accountName: varchar("account_name").notNull(),
   accountStatus: accountStatusEnum("account_status").notNull().default("pending_approval"),
+  customerType: customerTypeEnum("customer_type"),
   pricingTierId: varchar("pricing_tier_id").references(() => tierPricing.id),
   licenseNumber: varchar("license_number"),
   taxId: varchar("tax_id"),
