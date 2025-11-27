@@ -10,6 +10,7 @@ import { Fireworks } from "@/components/Fireworks";
 
 interface Location {
   id: string;
+  storeName: string;
   accountName: string;
   shippingAddress: string | null;
   shippingCity: string | null;
@@ -54,10 +55,10 @@ export default function WhereToBuyPage() {
       );
     }
     
-    // Sort by ZIP code proximity if provided, otherwise alphabetically
+    // Sort by ZIP code proximity if provided, otherwise alphabetically by store name
     if (!searchZip.trim()) {
       return result.sort((a, b) => 
-        (a.accountName || "").localeCompare(b.accountName || "")
+        (a.storeName || a.accountName || "").localeCompare(b.storeName || b.accountName || "")
       );
     }
 
@@ -190,8 +191,13 @@ export default function WhereToBuyPage() {
               <Card key={location.id} className="hover-elevate" data-testid={`location-card-${location.id}`}>
                 <CardHeader>
                   <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
-                    {location.accountName}
+                    {location.storeName || location.accountName}
                   </CardTitle>
+                  {location.storeName && location.storeName !== location.accountName && (
+                    <p className="text-sm text-muted-foreground" data-testid={`location-account-${location.id}`}>
+                      {location.accountName}
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {(location.shippingAddress || location.shippingCity) && (

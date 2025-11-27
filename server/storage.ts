@@ -2677,24 +2677,38 @@ export class DatabaseStorage implements IStorage {
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-    // Get all active customers
-    const allCustomers = await db
+    // Get all store locations that are set to show on Where to Buy page, joined with active customers
+    const allLocations = await db
       .select({
-        id: b2bCustomers.id,
+        id: b2bCustomerLocations.id,
+        customerId: b2bCustomerLocations.customerId,
+        storeName: b2bCustomerLocations.storeName,
+        storeAddress: b2bCustomerLocations.storeAddress,
+        storeCity: b2bCustomerLocations.storeCity,
+        storeState: b2bCustomerLocations.storeState,
+        storeZipCode: b2bCustomerLocations.storeZipCode,
+        storePhone: b2bCustomerLocations.storePhone,
         accountName: b2bCustomers.accountName,
-        shippingAddress: b2bCustomers.shippingAddress,
-        shippingCity: b2bCustomers.shippingCity,
-        shippingState: b2bCustomers.shippingState,
-        shippingZipCode: b2bCustomers.shippingZipCode,
-        phoneNumber: b2bCustomers.phoneNumber,
-        lastOrderDate: b2bCustomers.lastOrderDate,
       })
-      .from(b2bCustomers)
-      .where(eq(b2bCustomers.accountStatus, 'active'));
+      .from(b2bCustomerLocations)
+      .innerJoin(b2bCustomers, eq(b2bCustomerLocations.customerId, b2bCustomers.id))
+      .where(
+        and(
+          eq(b2bCustomers.accountStatus, 'active'),
+          eq(b2bCustomerLocations.showOnWhereToBuy, true)
+        )
+      );
 
     // Get products purchased by each customer (from last 12 months, if any)
-    const locationsWithProducts = await Promise.all(
-      allCustomers.map(async (customer) => {
+    // Create a map of customer ID to products to avoid duplicate queries
+    const customerProductsMap = new Map<string, Array<{ productName: string; sku: string | null }>>();
+    
+    // Get unique customer IDs
+    const uniqueCustomerIds = [...new Set(allLocations.map(loc => loc.customerId))];
+    
+    // Fetch products for each customer
+    await Promise.all(
+      uniqueCustomerIds.map(async (customerId) => {
         const productsPurchased = await db
           .select({
             productName: b2bOrderItems.productName,
@@ -2704,18 +2718,28 @@ export class DatabaseStorage implements IStorage {
           .innerJoin(b2bOrders, eq(b2bOrderItems.orderId, b2bOrders.id))
           .where(
             and(
-              eq(b2bOrders.customerId, customer.id),
+              eq(b2bOrders.customerId, customerId),
               sql`${b2bOrders.orderDate} >= ${twelveMonthsAgo}`
             )
           )
           .groupBy(b2bOrderItems.productName, b2bOrderItems.sku);
-
-        return {
-          ...customer,
-          products: productsPurchased,
-        };
+        
+        customerProductsMap.set(customerId, productsPurchased);
       })
     );
+
+    // Map locations to include products
+    const locationsWithProducts = allLocations.map((location) => ({
+      id: location.id,
+      storeName: location.storeName,
+      accountName: location.accountName,
+      shippingAddress: location.storeAddress,
+      shippingCity: location.storeCity,
+      shippingState: location.storeState,
+      shippingZipCode: location.storeZipCode,
+      phoneNumber: location.storePhone,
+      products: customerProductsMap.get(location.customerId) || [],
+    }));
 
     return locationsWithProducts;
   }
