@@ -104,10 +104,10 @@ const editCustomerSchema = z.object({
   billingCity: z.string().min(1, "Billing city is required"),
   billingState: z.string().min(1, "Billing state is required"),
   billingZipCode: z.string().min(1, "Billing ZIP code is required"),
-  shippingAddress: z.string().min(1, "Shipping address is required"),
-  shippingCity: z.string().min(1, "Shipping city is required"),
-  shippingState: z.string().min(1, "Shipping state is required"),
-  shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
+  shippingAddress: z.string().optional(), // Hidden - using locations system instead
+  shippingCity: z.string().optional(), // Hidden - using locations system instead
+  shippingState: z.string().optional(), // Hidden - using locations system instead
+  shippingZipCode: z.string().optional(), // Hidden - using locations system instead
   tierId: z.string().optional(),
   salesRepId: z.string().optional(), // Optional for sales reps (they can't change assignment)
   accountStatus: z.enum(["pending_approval", "active", "inactive", "archived"]),
