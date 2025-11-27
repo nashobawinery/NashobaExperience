@@ -294,7 +294,7 @@ export default function WhereToBuyPage() {
                       </CardTitle>
                       {isTier4 && (
                         <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-xs">
-                          Top Partner
+                          Premium Supporter of Nashoba
                         </Badge>
                       )}
                     </div>
