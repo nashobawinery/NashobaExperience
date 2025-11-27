@@ -3351,6 +3351,35 @@ export default function AdminDashboard() {
           </DialogHeader>
           <Form {...editCustomerForm}>
           <form onSubmit={editCustomerForm.handleSubmit(handleEditCustomerSubmit)} className="space-y-4">
+            {/* Account Status - Prominent at top */}
+            <div className="p-4 bg-muted rounded-md">
+              <FormField
+                control={editCustomerForm.control}
+                name="accountStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-medium">Account Status</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-status" className="w-full max-w-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Inactive customers won't appear on the Where to Buy page
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={editCustomerForm.control}
@@ -3639,29 +3668,6 @@ export default function AdminDashboard() {
                 )}
               />
             </div>
-
-            <FormField
-              control={editCustomerForm.control}
-              name="accountStatus"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Account Status</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-edit-status">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <FormField
               control={editCustomerForm.control}
