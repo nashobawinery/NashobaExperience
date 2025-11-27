@@ -1529,7 +1529,7 @@ export default function AdminDashboard() {
 
       // Only admin can change sales rep assignment
       if (currentUser?.type === 'admin') {
-        updateData.salesRepId = data.salesRepId;
+        updateData.salesRepId = data.salesRepId || null;
       }
 
       const response = await fetch(endpoint, {
