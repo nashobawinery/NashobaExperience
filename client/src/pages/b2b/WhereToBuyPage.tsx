@@ -5,13 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, MapPin, Phone, Package, Heart, Wine } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed } from "lucide-react";
 import { Fireworks } from "@/components/Fireworks";
+
+type CustomerType = "retail_liquor" | "restaurant";
 
 interface Location {
   id: string;
   storeName: string;
   accountName: string;
+  customerType: CustomerType | null;
   storeAddress: string | null;
   storeCity: string | null;
   storeState: string | null;
@@ -23,9 +27,15 @@ interface Location {
   }>;
 }
 
+const customerTypeLabels: Record<CustomerType, string> = {
+  retail_liquor: "Retail Liquor Store",
+  restaurant: "Restaurant",
+};
+
 export default function WhereToBuyPage() {
   const [searchZip, setSearchZip] = useState("");
   const [searchProduct, setSearchProduct] = useState("");
+  const [filterType, setFilterType] = useState<CustomerType | "all">("all");
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ["/api/b2b/where-to-buy"],
@@ -43,6 +53,11 @@ export default function WhereToBuyPage() {
 
   const filteredAndSortedLocations = useMemo(() => {
     let result = [...locations];
+    
+    // Filter by customer type if selected
+    if (filterType !== "all") {
+      result = result.filter((loc) => loc.customerType === filterType);
+    }
     
     // Filter by product search if provided
     const productSearchTerm = searchProduct.trim().toLowerCase();
@@ -69,7 +84,7 @@ export default function WhereToBuyPage() {
       }))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 20);
-  }, [locations, searchZip, searchProduct]);
+  }, [locations, searchZip, searchProduct, filterType]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,13 +114,13 @@ export default function WhereToBuyPage() {
           </CardContent>
         </Card>
 
-        <div className="mb-8 max-w-2xl mx-auto space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mb-8 max-w-3xl mx-auto space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Enter ZIP code for nearby stores"
+                placeholder="Enter ZIP code"
                 value={searchZip}
                 onChange={(e) => setSearchZip(e.target.value)}
                 className="pl-10 pr-16"
@@ -128,7 +143,7 @@ export default function WhereToBuyPage() {
               <Wine className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search by product name"
+                placeholder="Search by product"
                 value={searchProduct}
                 onChange={(e) => setSearchProduct(e.target.value)}
                 className="pl-10 pr-16"
@@ -146,15 +161,50 @@ export default function WhereToBuyPage() {
                 </Button>
               )}
             </div>
+            <Select value={filterType} onValueChange={(val) => setFilterType(val as CustomerType | "all")}>
+              <SelectTrigger data-testid="select-type-filter">
+                <div className="flex items-center gap-2">
+                  {filterType === "retail_liquor" ? (
+                    <Store className="h-4 w-4 text-muted-foreground" />
+                  ) : filterType === "restaurant" ? (
+                    <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+                  ) : null}
+                  <SelectValue placeholder="All Types" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="retail_liquor">
+                  <div className="flex items-center gap-2">
+                    <Store className="h-4 w-4" />
+                    <span>Retail Liquor Stores</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="restaurant">
+                  <div className="flex items-center gap-2">
+                    <UtensilsCrossed className="h-4 w-4" />
+                    <span>Restaurants</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {(searchZip || searchProduct) && (
+          {(searchZip || searchProduct || filterType !== "all") && (
             <p className="text-sm text-muted-foreground text-center">
-              {searchProduct && searchZip 
-                ? `Showing stores carrying "${searchProduct}" nearest to ${searchZip}`
-                : searchProduct
-                ? `Showing stores carrying "${searchProduct}"`
-                : `Showing locations nearest to ${searchZip}`
-              }
+              {(() => {
+                const parts: string[] = [];
+                if (filterType !== "all") {
+                  parts.push(filterType === "retail_liquor" ? "retail liquor stores" : "restaurants");
+                }
+                if (searchProduct) {
+                  parts.push(`carrying "${searchProduct}"`);
+                }
+                if (searchZip) {
+                  parts.push(`nearest to ${searchZip}`);
+                }
+                if (parts.length === 0) return "";
+                return `Showing ${parts.join(" ")}`;
+              })()}
             </p>
           )}
         </div>
@@ -175,13 +225,22 @@ export default function WhereToBuyPage() {
               <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">No Locations Found</h3>
               <p className="text-muted-foreground">
-                {searchProduct && searchZip
-                  ? `No stores carrying "${searchProduct}" found near ${searchZip}. Try broadening your search.`
-                  : searchProduct
-                  ? `No stores carrying "${searchProduct}" found. Try a different product name.`
-                  : searchZip 
-                  ? "Try a different ZIP code or clear your search" 
-                  : "No retailers have purchased from us in the past 12 months"}
+                {(() => {
+                  const filters: string[] = [];
+                  if (filterType !== "all") {
+                    filters.push(filterType === "retail_liquor" ? "retail liquor stores" : "restaurants");
+                  }
+                  if (searchProduct) {
+                    filters.push(`carrying "${searchProduct}"`);
+                  }
+                  if (searchZip) {
+                    filters.push(`near ${searchZip}`);
+                  }
+                  if (filters.length > 0) {
+                    return `No ${filters.join(" ")} found. Try broadening your search.`;
+                  }
+                  return "No retailers have purchased from us in the past 12 months";
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -190,9 +249,24 @@ export default function WhereToBuyPage() {
             {filteredAndSortedLocations.map((location) => (
               <Card key={location.id} className="hover-elevate" data-testid={`location-card-${location.id}`}>
                 <CardHeader>
-                  <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
-                    {location.storeName || location.accountName}
-                  </CardTitle>
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
+                      {location.storeName || location.accountName}
+                    </CardTitle>
+                    {location.customerType && (
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs flex-shrink-0"
+                        data-testid={`location-type-${location.id}`}
+                      >
+                        {location.customerType === "retail_liquor" ? (
+                          <><Store className="h-3 w-3 mr-1" />Retail</>
+                        ) : (
+                          <><UtensilsCrossed className="h-3 w-3 mr-1" />Restaurant</>
+                        )}
+                      </Badge>
+                    )}
+                  </div>
                   {location.storeName && location.storeName !== location.accountName && (
                     <p className="text-sm text-muted-foreground" data-testid={`location-account-${location.id}`}>
                       {location.accountName}

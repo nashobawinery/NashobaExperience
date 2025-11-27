@@ -2678,6 +2678,7 @@ export class DatabaseStorage implements IStorage {
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
     // Get all store locations that are set to show on Where to Buy page, joined with active customers
+    // Only include retail_liquor and restaurant customer types
     const allLocations = await db
       .select({
         id: b2bCustomerLocations.id,
@@ -2689,13 +2690,18 @@ export class DatabaseStorage implements IStorage {
         storeZipCode: b2bCustomerLocations.storeZipCode,
         storePhone: b2bCustomerLocations.storePhone,
         accountName: b2bCustomers.accountName,
+        customerType: b2bCustomers.customerType,
       })
       .from(b2bCustomerLocations)
       .innerJoin(b2bCustomers, eq(b2bCustomerLocations.customerId, b2bCustomers.id))
       .where(
         and(
           eq(b2bCustomers.accountStatus, 'active'),
-          eq(b2bCustomerLocations.showOnWhereToBuy, true)
+          eq(b2bCustomerLocations.showOnWhereToBuy, true),
+          or(
+            eq(b2bCustomers.customerType, 'retail_liquor'),
+            eq(b2bCustomers.customerType, 'restaurant')
+          )
         )
       );
 
@@ -2733,6 +2739,7 @@ export class DatabaseStorage implements IStorage {
       id: location.id,
       storeName: location.storeName,
       accountName: location.accountName,
+      customerType: location.customerType,
       storeAddress: location.storeAddress,
       storeCity: location.storeCity,
       storeState: location.storeState,
