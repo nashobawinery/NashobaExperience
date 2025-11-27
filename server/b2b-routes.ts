@@ -959,7 +959,8 @@ router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Req
 // Sales Rep: Create a new customer (auto-assigned to this sales rep)
 router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Request, res: Response) => {
   try {
-    const { tierId, autoApprove, autoGeneratePassword = true, customPassword, ...customerData } = req.body;
+    const { tierId, autoApprove, autoGeneratePassword = true, customPassword, salesRepId: _ignored, ...customerData } = req.body;
+    // Always use the session salesRepId, never trust client-provided salesRepId
     const salesRepId = req.session.b2bUserId;
     
     // Validate customer data
@@ -1109,8 +1110,9 @@ router.put('/api/b2b/sales-rep/customers/:id', requireB2bSalesRep, async (req: R
       }
     }
 
-    // Sales reps cannot change the sales rep assignment
+    // Sales reps cannot change the sales rep assignment or account status (admin-only fields)
     delete updateData.salesRepId;
+    delete updateData.accountStatus;
 
     // Update customer
     const updatedCustomer = await storage.updateB2bCustomer(id, updateData);
