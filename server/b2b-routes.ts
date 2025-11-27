@@ -1098,7 +1098,7 @@ router.put('/api/b2b/sales-rep/customers/:id', requireB2bSalesRep, async (req: R
     if (updateData.emailAddress && updateData.emailAddress !== existingCustomer.emailAddress) {
       const emailExists = await storage.getB2bCustomerByEmail(updateData.emailAddress);
       if (emailExists) {
-        return res.status(400).json({ error: 'Email address already in use' });
+        return res.status(400).json({ error: 'Duplicate Email' });
       }
     }
 
@@ -1773,7 +1773,7 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
     if (updateData.emailAddress && updateData.emailAddress !== existingCustomer.emailAddress) {
       const emailExists = await storage.getB2bCustomerByEmail(updateData.emailAddress);
       if (emailExists) {
-        return res.status(400).json({ error: 'Email address already in use' });
+        return res.status(400).json({ error: 'Duplicate Email' });
       }
     }
 
