@@ -95,10 +95,10 @@ export default function WhereToBuyPage() {
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
           <h1 className="text-4xl font-serif font-semibold mb-4 text-foreground" data-testid="page-title">
-            Where to Buy Our Wines
+            Where to Buy Nashoba Valley's Wines, Spirits, Beers, Canned Cocktails and Hard Ciders
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="page-description">
-            Find retailers and establishments near you that carry Nashoba Valley Winery products
+            Help us build a Community by Asking for us at the Stores and Restaurants that you support
           </p>
         </div>
       </div>
