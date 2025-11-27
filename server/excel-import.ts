@@ -131,11 +131,15 @@ export function parseB2bCustomersExcelFile(buffer: Buffer, tiers: any[], salesRe
       const salesRepEmail = row.sales_rep_email?.trim() || '';
       const salesRep = salesRepEmail ? salesReps.find(r => r.email === salesRepEmail) : null;
 
+      const validCustomerTypes = ['retail_liquor', 'restaurant', 'private_club', 'other'];
+      const rawCustomerType = row.customer_type?.trim() || '';
+      const customerType = validCustomerTypes.includes(rawCustomerType) ? rawCustomerType : null;
+
       const parsedCustomer = {
         customerNumber: String(row.customer_number || '').trim() || '',
         accountName: row.business_name?.trim() || '',
         primaryContactName: row.contact_name?.trim() || '',
-        customerType: row.customer_type?.trim() || '',
+        customerType: customerType,
         emailAddress: row.email_address?.trim() || '',
         phoneNumber: row.phone_number?.trim() || '',
         billingAddress: row.billing_street_address?.trim() || '',
