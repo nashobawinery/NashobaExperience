@@ -1763,7 +1763,6 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
   try {
     const { id } = req.params;
     const updateData = req.body;
-
     // Get existing customer
     const existingCustomer = await storage.getB2bCustomer(id);
     if (!existingCustomer) {
