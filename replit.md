@@ -60,6 +60,14 @@ Preferred communication style: Simple, everyday language.
   - **Where to Buy Visibility**: Individual location-level toggle to hide specific store locations from the public Where to Buy page
 - **Tier Commitment Tracking**: Monitors annual case commitments, calculates progress, and provides renewal reminders.
 - **Where to Buy**: Public page displaying individual store locations for consumers with ZIP code proximity search and product name search. Features storeName prominently with accountName as subtitle. Shows products purchased in the last 12 months. Includes celebratory header with animated fireworks and community appreciation messaging.
+- **Featured Products System**: 
+  - Allows admins to manually assign products to customers for the "Where to Buy" page before actual orders exist
+  - Useful for launch day when customers carry products but haven't ordered through B2B yet
+  - Separate from actual orders - does not affect sales data, invoicing, or commission tracking
+  - Stored in `b2bCustomerManualProducts` table with automatic 12-month expiration
+  - Products from both orders and manual assignments are merged and deduplicated on Where to Buy page
+  - UI in Edit Customer dialog under "Featured Products" section (only shown for retail_liquor and restaurant customers)
+  - Multi-select dropdown for quick product assignment with badge-based display
 - **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
 
 ### Database Synchronization
