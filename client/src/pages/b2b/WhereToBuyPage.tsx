@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ interface Location {
   website: string | null;
   tierName: string | null;
   tierSortOrder: number | null;
+  distanceMiles?: number | null;
   products: Array<{
     productName: string;
     sku: string | null;
@@ -37,22 +38,29 @@ const customerTypeLabels: Record<CustomerType, string> = {
 
 export default function WhereToBuyPage() {
   const [searchZip, setSearchZip] = useState("");
+  const [debouncedZip, setDebouncedZip] = useState("");
   const [searchProduct, setSearchProduct] = useState("");
   const [filterType, setFilterType] = useState<CustomerType | "all">("all");
 
-  const { data: locations = [], isLoading } = useQuery<Location[]>({
-    queryKey: ["/api/b2b/where-to-buy"],
-  });
+  // Debounce zip code using useEffect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const cleanZip = searchZip.replace(/\D/g, "").slice(0, 5);
+      if (cleanZip.length === 5 || cleanZip.length === 0) {
+        setDebouncedZip(cleanZip);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchZip]);
 
-  const calculateZipDistance = (zip1: string, zip2: string): number => {
-    const cleanZip1 = zip1.replace(/\D/g, "").slice(0, 5);
-    const cleanZip2 = zip2.replace(/\D/g, "").slice(0, 5);
-    
-    if (!cleanZip1 || !cleanZip2) return Infinity;
-    
-    const diff = Math.abs(parseInt(cleanZip1) - parseInt(cleanZip2));
-    return diff;
-  };
+  // Build query key with zip parameter if provided
+  const queryKey = debouncedZip 
+    ? `/api/b2b/where-to-buy?zip=${debouncedZip}` 
+    : "/api/b2b/where-to-buy";
+
+  const { data: locations = [], isLoading } = useQuery<Location[]>({
+    queryKey: [queryKey],
+  });
 
   const filteredAndSortedLocations = useMemo(() => {
     let result = [...locations];
@@ -73,38 +81,29 @@ export default function WhereToBuyPage() {
       );
     }
     
-    // Sort by ZIP code proximity if provided, otherwise by tier then alphabetically
-    // Tier 4 (sortOrder 4) comes first, then Tier 3, 2, 1, then no tier
-    if (!searchZip.trim()) {
-      return result.sort((a, b) => {
-        // First sort by tier (highest tier first - Tier 4 has sortOrder 4)
-        const tierA = a.tierSortOrder ?? 0;
-        const tierB = b.tierSortOrder ?? 0;
-        if (tierB !== tierA) {
-          return tierB - tierA; // Higher tier first
-        }
-        // Then sort alphabetically by store name
-        return (a.storeName || a.accountName || "").localeCompare(b.storeName || b.accountName || "");
-      });
-    }
-
-    return result
-      .map((loc) => ({
-        ...loc,
-        distance: calculateZipDistance(searchZip, loc.storeZipCode || ""),
-      }))
-      .sort((a, b) => {
-        // First sort by tier (highest tier first)
-        const tierA = a.tierSortOrder ?? 0;
-        const tierB = b.tierSortOrder ?? 0;
-        if (tierB !== tierA) {
-          return tierB - tierA;
-        }
-        // Then sort by distance
-        return a.distance - b.distance;
-      })
-      .slice(0, 20);
-  }, [locations, searchZip, searchProduct, filterType]);
+    // Sort by: 1) Tier (highest first), 2) Distance within same tier, 3) Alphabetically
+    // Tier 4 (sortOrder 4) is highest priority and always appears first
+    return result.sort((a, b) => {
+      // First sort by tier (highest tier first - Tier 4 has sortOrder 4)
+      const tierA = a.tierSortOrder ?? 0;
+      const tierB = b.tierSortOrder ?? 0;
+      if (tierB !== tierA) {
+        return tierB - tierA; // Higher tier always comes first
+      }
+      
+      // Within same tier: if both have distance info, use distance as tiebreaker
+      if (a.distanceMiles != null && b.distanceMiles != null) {
+        return a.distanceMiles - b.distanceMiles;
+      }
+      
+      // If only one has distance, prioritize the one with distance
+      if (a.distanceMiles != null && b.distanceMiles == null) return -1;
+      if (a.distanceMiles == null && b.distanceMiles != null) return 1;
+      
+      // Otherwise sort alphabetically by store name
+      return (a.storeName || a.accountName || "").localeCompare(b.storeName || b.accountName || "");
+    });
+  }, [locations, searchProduct, filterType]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -329,6 +328,11 @@ export default function WhereToBuyPage() {
                             {location.storeCity}
                             {location.storeCity && location.storeState && ", "}
                             {location.storeState} {location.storeZipCode}
+                          </p>
+                        )}
+                        {location.distanceMiles != null && (
+                          <p className="text-orange-600 dark:text-orange-400 font-medium mt-1" data-testid={`location-distance-${location.id}`}>
+                            {location.distanceMiles} miles away
                           </p>
                         )}
                       </div>
