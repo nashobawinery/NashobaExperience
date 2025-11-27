@@ -83,35 +83,46 @@ router.get('/api/b2b/where-to-buy', async (req: Request, res: Response) => {
   try {
     const locations = await storage.getWhereToBuyLocations();
     const { zip } = req.query;
+    const { getZipCoordinates, calculateDistance } = await import('./zip-coordinates');
+    
+    // Always include coordinates for map display (use centroid fallback if no precise coords)
+    const locationsWithCoords = locations.map((loc: any) => {
+      let mapLat = loc.latitude ? Number(loc.latitude) : null;
+      let mapLng = loc.longitude ? Number(loc.longitude) : null;
+      let coordsPrecise = !!(loc.latitude && loc.longitude);
+      
+      // Fallback to zip code centroid if no precise coordinates
+      if (!coordsPrecise && loc.storeZipCode) {
+        const centroid = getZipCoordinates(loc.storeZipCode);
+        if (centroid) {
+          mapLat = centroid.lat;
+          mapLng = centroid.lng;
+        }
+      }
+      
+      return {
+        ...loc,
+        mapLat,
+        mapLng,
+        coordsPrecise,
+      };
+    });
     
     // If a zip code is provided, calculate distances
     if (zip && typeof zip === 'string') {
-      const { getZipCoordinates, calculateDistance } = await import('./zip-coordinates');
       const userCoords = getZipCoordinates(zip);
       
       if (userCoords) {
-        const locationsWithDistance = locations.map((loc: any) => {
+        const locationsWithDistance = locationsWithCoords.map((loc: any) => {
           let distanceMiles: number | null = null;
           
-          // Try to use store's lat/long if available
-          if (loc.latitude && loc.longitude) {
+          if (loc.mapLat && loc.mapLng) {
             distanceMiles = calculateDistance(
               userCoords.lat, 
               userCoords.lng, 
-              Number(loc.latitude), 
-              Number(loc.longitude)
+              loc.mapLat, 
+              loc.mapLng
             );
-          } else if (loc.storeZipCode) {
-            // Fallback: Use store zip code centroid
-            const storeCoords = getZipCoordinates(loc.storeZipCode);
-            if (storeCoords) {
-              distanceMiles = calculateDistance(
-                userCoords.lat, 
-                userCoords.lng, 
-                storeCoords.lat, 
-                storeCoords.lng
-              );
-            }
           }
           
           return {
@@ -124,7 +135,7 @@ router.get('/api/b2b/where-to-buy', async (req: Request, res: Response) => {
       }
     }
     
-    res.json(locations);
+    res.json(locationsWithCoords);
   } catch (error) {
     console.error('Error fetching where to buy locations:', error);
     res.status(500).json({ error: 'Failed to fetch locations' });
