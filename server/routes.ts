@@ -1187,9 +1187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch all manual products (Featured Products) for export
       const b2bCustomerManualProducts: any[] = [];
       for (const customer of b2bCustomers) {
-        const manualProducts = await storage.getManualProducts(customer.id);
+        const manualProducts = await storage.getCustomerManualProducts(customer.id);
         b2bCustomerManualProducts.push(...manualProducts.map(mp => ({
-          ...mp,
+          ...mp.manualProduct,
           customerId: customer.id,
         })));
       }
