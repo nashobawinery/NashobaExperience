@@ -12,11 +12,11 @@ interface Location {
   id: string;
   storeName: string;
   accountName: string;
-  shippingAddress: string | null;
-  shippingCity: string | null;
-  shippingState: string | null;
-  shippingZipCode: string | null;
-  phoneNumber: string | null;
+  storeAddress: string | null;
+  storeCity: string | null;
+  storeState: string | null;
+  storeZipCode: string | null;
+  storePhone: string | null;
   products: Array<{
     productName: string;
     sku: string | null;
@@ -65,7 +65,7 @@ export default function WhereToBuyPage() {
     return result
       .map((loc) => ({
         ...loc,
-        distance: calculateZipDistance(searchZip, loc.shippingZipCode || ""),
+        distance: calculateZipDistance(searchZip, loc.storeZipCode || ""),
       }))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 20);
@@ -200,33 +200,33 @@ export default function WhereToBuyPage() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {(location.shippingAddress || location.shippingCity) && (
+                  {(location.storeAddress || location.storeCity) && (
                     <div className="flex gap-2 text-sm">
                       <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
                       <div data-testid={`location-address-${location.id}`}>
-                        {location.shippingAddress && (
-                          <p>{location.shippingAddress}</p>
+                        {location.storeAddress && (
+                          <p>{location.storeAddress}</p>
                         )}
-                        {(location.shippingCity || location.shippingState || location.shippingZipCode) && (
+                        {(location.storeCity || location.storeState || location.storeZipCode) && (
                           <p>
-                            {location.shippingCity}
-                            {location.shippingCity && location.shippingState && ", "}
-                            {location.shippingState} {location.shippingZipCode}
+                            {location.storeCity}
+                            {location.storeCity && location.storeState && ", "}
+                            {location.storeState} {location.storeZipCode}
                           </p>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {location.phoneNumber && (
+                  {location.storePhone && (
                     <div className="flex gap-2 items-center text-sm">
                       <Phone className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       <a
-                        href={`tel:${location.phoneNumber}`}
+                        href={`tel:${location.storePhone}`}
                         className="hover:underline"
                         data-testid={`location-phone-${location.id}`}
                       >
-                        {location.phoneNumber}
+                        {location.storePhone}
                       </a>
                     </div>
                   )}

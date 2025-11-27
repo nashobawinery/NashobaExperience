@@ -47,11 +47,17 @@ Preferred communication style: Simple, everyday language.
 - **Customer Workflow**: Self-service registration with admin approval, or direct admin-created accounts, both with email notifications and password setup.
 - **Case Pricing**: All orders calculated by case with tier-based discounts.
 - **Admin Dashboard**: 6-tab dashboard for managing customers, orders, tier commitments, sales reps, slideshow, and settings. Includes admin impersonation for placing customer orders.
+- **Multi-Location Support**: 
+  - Each B2B customer account can have multiple store locations (e.g., a restaurant chain with 5 locations)
+  - Locations stored in `b2bCustomerLocations` table with: storeName, storeAddress, storeCity, storeState, storeZipCode, storePhone
+  - All locations share the parent customer's pricing tier and product purchase history
+  - Admin can add/edit/delete locations via the Edit Customer dialog's "Store Locations" section
+  - Each location can be individually toggled to show/hide on the Where to Buy page (showOnWhereToBuy field)
 - **Customer Privacy Controls**: 
   - **Archive Status**: Customers can be marked as "Archived" (in addition to Active, Pending Approval, and Inactive) to preserve records while removing them from active lists
-  - **Where to Buy Visibility**: Toggle to hide private membership customers from the public Where to Buy page
+  - **Where to Buy Visibility**: Individual location-level toggle to hide specific store locations from the public Where to Buy page
 - **Tier Commitment Tracking**: Monitors annual case commitments, calculates progress, and provides renewal reminders.
-- **Where to Buy**: Public page displaying B2B customers for consumers with ZIP code proximity search. Features a celebratory header with animated fireworks and community appreciation messaging.
+- **Where to Buy**: Public page displaying individual store locations for consumers with ZIP code proximity search and product name search. Features storeName prominently with accountName as subtitle. Shows products purchased in the last 12 months. Includes celebratory header with animated fireworks and community appreciation messaging.
 - **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
 
 ### Database Synchronization

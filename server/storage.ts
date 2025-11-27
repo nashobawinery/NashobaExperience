@@ -2728,16 +2728,16 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    // Map locations to include products
+    // Map locations to include products - use canonical location field names
     const locationsWithProducts = allLocations.map((location) => ({
       id: location.id,
       storeName: location.storeName,
       accountName: location.accountName,
-      shippingAddress: location.storeAddress,
-      shippingCity: location.storeCity,
-      shippingState: location.storeState,
-      shippingZipCode: location.storeZipCode,
-      phoneNumber: location.storePhone,
+      storeAddress: location.storeAddress,
+      storeCity: location.storeCity,
+      storeState: location.storeState,
+      storeZipCode: location.storeZipCode,
+      storePhone: location.storePhone,
       products: customerProductsMap.get(location.customerId) || [],
     }));
 
