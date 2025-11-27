@@ -1509,6 +1509,7 @@ export default function AdminDashboard() {
       const updateData: any = {
         accountName: data.accountName,
         primaryContactName: data.primaryContactName,
+        customerType: data.customerType,
         emailAddress: data.emailAddress,
         phoneNumber: data.phoneNumber,
         licenseNumber: data.licenseNumber,
@@ -1521,7 +1522,7 @@ export default function AdminDashboard() {
         shippingCity: data.shippingCity,
         shippingState: data.shippingState,
         shippingZipCode: data.shippingZipCode,
-        tierId: data.tierId,
+        pricingTierId: data.tierId || null,
         accountStatus: data.accountStatus,
         notes: data.notes,
       };
