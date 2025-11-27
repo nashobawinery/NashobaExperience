@@ -39,7 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2 } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -901,6 +901,37 @@ export default function AdminDashboard() {
     }
   }, [fetchedLocations]);
 
+  // Customer manual products state (Featured Products for Where to Buy)
+  const [customerManualProducts, setCustomerManualProducts] = useState<any[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [isSavingManualProducts, setIsSavingManualProducts] = useState(false);
+
+  // Fetch customer manual products when edit dialog opens
+  const { data: fetchedManualProducts, refetch: refetchManualProducts } = useQuery<any[]>({
+    queryKey: ['/api/b2b/admin/customers', editCustomerDialog.customer?.id, 'manual-products'],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/manual-products`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch manual products');
+      return res.json();
+    },
+    enabled: !!editCustomerDialog.customer?.id && editCustomerDialog.isOpen,
+  });
+
+  // Update local manual products state when fetched
+  useEffect(() => {
+    if (fetchedManualProducts) {
+      setCustomerManualProducts(fetchedManualProducts);
+    }
+  }, [fetchedManualProducts]);
+
+  // Fetch all products for selection dropdown
+  const { data: allProducts } = useQuery<any[]>({
+    queryKey: ['/api/products'],
+    enabled: editCustomerDialog.isOpen,
+  });
+
   // Order history dialog state
   const [orderHistoryDialog, setOrderHistoryDialog] = useState<{ isOpen: boolean; customer: any | null }>({
     isOpen: false,
@@ -1606,6 +1637,76 @@ export default function AdminDashboard() {
       toast({
         title: "Failed to Delete Location",
         description: error.message || "An error occurred while deleting the location",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler for adding featured products
+  const handleAddManualProducts = async () => {
+    if (!editCustomerDialog.customer?.id || selectedProductIds.length === 0) return;
+
+    setIsSavingManualProducts(true);
+    try {
+      const response = await fetch(
+        `/api/b2b/admin/customers/${editCustomerDialog.customer.id}/manual-products`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ productIds: selectedProductIds, expiresInMonths: 12 }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to add featured products');
+      }
+
+      toast({
+        title: "Featured Products Added",
+        description: `${selectedProductIds.length} product(s) added to Where to Buy display.`,
+      });
+
+      setSelectedProductIds([]);
+      refetchManualProducts();
+    } catch (error: any) {
+      toast({
+        title: "Failed to Add Products",
+        description: error.message || "An error occurred while adding featured products",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingManualProducts(false);
+    }
+  };
+
+  // Handler for removing a single featured product
+  const handleRemoveManualProduct = async (manualProductId: string) => {
+    if (!editCustomerDialog.customer?.id) return;
+
+    try {
+      const response = await fetch(
+        `/api/b2b/admin/customers/${editCustomerDialog.customer.id}/manual-products/${manualProductId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to remove featured product');
+      }
+
+      toast({
+        title: "Product Removed",
+        description: "The featured product has been removed.",
+      });
+
+      refetchManualProducts();
+    } catch (error: any) {
+      toast({
+        title: "Failed to Remove Product",
+        description: error.message || "An error occurred while removing the product",
         variant: "destructive",
       });
     }
@@ -4102,6 +4203,115 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Featured Products Section (Manual product assignments for Where to Buy) */}
+            {(editCustomerDialog.customer?.customerType === 'retail_liquor' || 
+              editCustomerDialog.customer?.customerType === 'restaurant') && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Featured Products</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pre-populate products for the "Where to Buy" page before actual orders exist. 
+                  Useful for launch or when customers carry products not yet ordered through B2B.
+                  Products expire after 12 months but are renewed if actual orders are placed.
+                </p>
+
+                {/* Product Selection */}
+                <div className="flex gap-2">
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      if (value && !selectedProductIds.includes(value)) {
+                        setSelectedProductIds([...selectedProductIds, value]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="flex-1" data-testid="select-featured-product">
+                      <SelectValue placeholder="Select product to add..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allProducts?.filter(p => 
+                        !customerManualProducts.some(mp => mp.productId === p.id) &&
+                        !selectedProductIds.includes(p.id)
+                      ).map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.name} {product.sku ? `(${product.sku})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedProductIds.length === 0 || isSavingManualProducts}
+                    onClick={handleAddManualProducts}
+                    data-testid="button-add-featured-products"
+                  >
+                    {isSavingManualProducts ? "Adding..." : `Add ${selectedProductIds.length > 0 ? `(${selectedProductIds.length})` : ""}`}
+                  </Button>
+                </div>
+
+                {/* Selected products to add */}
+                {selectedProductIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedProductIds.map((productId) => {
+                      const product = allProducts?.find(p => p.id === productId);
+                      return (
+                        <Badge
+                          key={productId}
+                          variant="secondary"
+                          className="text-xs cursor-pointer"
+                          onClick={() => setSelectedProductIds(selectedProductIds.filter(id => id !== productId))}
+                        >
+                          {product?.name || productId}
+                          <X className="h-3 w-3 ml-1" />
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Currently assigned featured products */}
+                {customerManualProducts.length === 0 ? (
+                  <div className="p-4 bg-muted rounded-md text-center text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No featured products assigned.</p>
+                    <p className="text-xs">Products from actual orders are automatically shown on Where to Buy.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Currently Featured ({customerManualProducts.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {customerManualProducts.map((mp) => (
+                        <Badge
+                          key={mp.id}
+                          variant="outline"
+                          className="text-xs"
+                          data-testid={`featured-product-${mp.id}`}
+                        >
+                          {mp.product?.name || 'Unknown Product'}
+                          <span className="text-muted-foreground ml-1">
+                            (exp: {new Date(mp.expiresAt).toLocaleDateString()})
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-4 w-4 ml-1 p-0"
+                            onClick={() => handleRemoveManualProduct(mp.id)}
+                            data-testid={`button-remove-featured-${mp.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Legacy Shipping Address - Hidden but kept for backward compatibility */}
             <div className="hidden">
