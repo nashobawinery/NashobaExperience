@@ -287,17 +287,15 @@ export default function WhereToBuyPage() {
                   </div>
                 )}
                 <CardHeader>
+                  {isTier4 && (
+                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-xs mb-2 w-fit">
+                      Premium Supporter of Nashoba
+                    </Badge>
+                  )}
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
-                        {location.storeName || location.accountName}
-                      </CardTitle>
-                      {isTier4 && (
-                        <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 text-xs">
-                          Premium Supporter of Nashoba
-                        </Badge>
-                      )}
-                    </div>
+                    <CardTitle className="font-serif text-xl" data-testid={`location-name-${location.id}`}>
+                      {location.storeName || location.accountName}
+                    </CardTitle>
                     {location.customerType && (
                       <Badge 
                         variant="outline" 
