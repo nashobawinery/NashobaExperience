@@ -447,6 +447,8 @@ export const b2bCustomerLocations = pgTable("b2b_customer_locations", {
   storePhone: varchar("store_phone"),
   storeEmail: varchar("store_email"),
   website: text("website"),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
   isPrimary: boolean("is_primary").notNull().default(false),
   showOnWhereToBuy: boolean("show_on_where_to_buy").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
