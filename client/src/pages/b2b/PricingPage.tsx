@@ -267,7 +267,7 @@ export default function B2BPricingPage() {
             <p className="text-sm text-primary-foreground/70">
               Already have an account?
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center flex-wrap">
               <Button
                 variant="outline"
                 className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30"
@@ -275,6 +275,14 @@ export default function B2BPricingPage() {
                 data-testid="button-customer-login"
               >
                 Customer Login
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30"
+                onClick={() => setLocation("/b2b/login/sales-rep")}
+                data-testid="button-sales-rep-login"
+              >
+                Sales Rep Login
               </Button>
               <Button
                 variant="outline"

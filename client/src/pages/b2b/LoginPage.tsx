@@ -84,7 +84,8 @@ export default function LoginPage() {
       if (role === "admin") {
         setLocation("/b2b/admin");
       } else if (role === "sales-rep") {
-        setLocation("/b2b/sales-rep");
+        // Sales reps go to admin dashboard (with limited permissions)
+        setLocation("/b2b/admin");
       } else {
         setLocation("/b2b/catalog");
       }

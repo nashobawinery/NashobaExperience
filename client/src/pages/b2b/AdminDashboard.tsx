@@ -3595,30 +3595,38 @@ export default function AdminDashboard() {
                 )}
               />
 
-              <FormField
-                control={createCustomerForm.control}
-                name="salesRepId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sales Rep (Optional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-create-sales-rep">
-                          <SelectValue placeholder="Select sales rep..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {salesReps?.filter(rep => rep.active).map((rep) => (
-                          <SelectItem key={rep.id} value={rep.id}>
-                            {rep.firstName} {rep.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {currentUser?.type === 'admin' ? (
+                <FormField
+                  control={createCustomerForm.control}
+                  name="salesRepId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sales Rep (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-create-sales-rep">
+                            <SelectValue placeholder="Select sales rep..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {salesReps?.filter(rep => rep.active).map((rep) => (
+                            <SelectItem key={rep.id} value={rep.id}>
+                              {rep.firstName} {rep.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="flex items-center justify-center bg-muted rounded-md p-3 h-full">
+                  <p className="text-sm text-muted-foreground">
+                    You will be auto-assigned as the Sales Representative
+                  </p>
+                </div>
+              )}
             </div>
 
             <FormField
@@ -3737,18 +3745,28 @@ export default function AdminDashboard() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-base font-medium">Account Status</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-edit-status" className="w-full max-w-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {currentUser?.type === 'admin' ? (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-status" className="w-full max-w-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="archived">Archived</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 bg-background rounded-md">
+                        <Badge variant={field.value === 'active' ? 'default' : 'secondary'}>
+                          {field.value?.replace(/_/g, ' ')}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">(cannot be changed)</span>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       Inactive customers won't appear on the Where to Buy page
                     </p>
@@ -4093,30 +4111,38 @@ export default function AdminDashboard() {
                 )}
               />
 
-              <FormField
-                control={editCustomerForm.control}
-                name="salesRepId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sales Rep (Optional)</FormLabel>
-                    <Select value={field.value || undefined} onValueChange={(value) => field.onChange(value || undefined)}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-edit-sales-rep">
-                          <SelectValue placeholder="No sales rep assigned" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {salesReps?.map((rep) => (
-                          <SelectItem key={rep.id} value={rep.id}>
-                            {rep.firstName} {rep.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {currentUser?.type === 'admin' ? (
+                <FormField
+                  control={editCustomerForm.control}
+                  name="salesRepId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sales Rep (Optional)</FormLabel>
+                      <Select value={field.value || undefined} onValueChange={(value) => field.onChange(value || undefined)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-sales-rep">
+                            <SelectValue placeholder="No sales rep assigned" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {salesReps?.map((rep) => (
+                            <SelectItem key={rep.id} value={rep.id}>
+                              {rep.firstName} {rep.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="flex items-center justify-center bg-muted rounded-md p-3 h-full">
+                  <p className="text-sm text-muted-foreground">
+                    Sales rep assignment cannot be changed
+                  </p>
+                </div>
+              )}
             </div>
 
             <FormField
