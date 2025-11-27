@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed, Globe, AlertCircle, Star } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Search, MapPin, Phone, Package, Heart, Wine, Store, UtensilsCrossed, Globe, AlertCircle, Star, Map, X, List } from "lucide-react";
 import { Fireworks } from "@/components/Fireworks";
+
+const StoreLocationsMap = lazy(() => import("@/components/StoreLocationsMap"));
 
 type CustomerType = "retail_liquor" | "restaurant";
 
@@ -25,6 +28,9 @@ interface Location {
   tierName: string | null;
   tierSortOrder: number | null;
   distanceMiles?: number | null;
+  mapLat?: number | null;
+  mapLng?: number | null;
+  coordsPrecise?: boolean;
   products: Array<{
     productName: string;
     sku: string | null;
@@ -41,6 +47,10 @@ export default function WhereToBuyPage() {
   const [debouncedZip, setDebouncedZip] = useState("");
   const [searchProduct, setSearchProduct] = useState("");
   const [filterType, setFilterType] = useState<CustomerType | "all">("all");
+  const [showMap, setShowMap] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
+  const locationRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Debounce zip code using useEffect
   useEffect(() => {
@@ -61,6 +71,31 @@ export default function WhereToBuyPage() {
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: [queryKey],
   });
+
+  // Handle location selection from map
+  const handleMapLocationSelect = (id: string) => {
+    setSelectedLocationId(id);
+    // Close mobile map sheet and scroll to the card
+    setMobileMapOpen(false);
+    setTimeout(() => {
+      const element = locationRefs.current[id];
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("ring-2", "ring-orange-500");
+        setTimeout(() => {
+          element.classList.remove("ring-2", "ring-orange-500");
+        }, 2000);
+      }
+    }, 100);
+  };
+
+  // Handle card click to highlight on map
+  const handleCardClick = (id: string) => {
+    setSelectedLocationId(id);
+    if (!showMap && window.innerWidth >= 1024) {
+      setShowMap(true);
+    }
+  };
 
   const filteredAndSortedLocations = useMemo(() => {
     let result = [...locations];
@@ -215,6 +250,59 @@ export default function WhereToBuyPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex justify-center gap-2">
+            {/* Desktop map toggle */}
+            <Button
+              variant={showMap ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowMap(!showMap)}
+              className="hidden lg:flex items-center gap-2"
+              data-testid="button-toggle-map-desktop"
+            >
+              <Map className="h-4 w-4" />
+              {showMap ? "Hide Map" : "View Map"}
+            </Button>
+            
+            {/* Mobile map sheet trigger */}
+            <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="lg:hidden flex items-center gap-2"
+                  data-testid="button-view-map-mobile"
+                >
+                  <Map className="h-4 w-4" />
+                  View Map
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[80vh] p-0">
+                <SheetHeader className="p-4 pb-2">
+                  <SheetTitle className="flex items-center gap-2">
+                    <Map className="h-5 w-5" />
+                    Store Locations Map
+                  </SheetTitle>
+                </SheetHeader>
+                <div className="h-[calc(100%-60px)] px-4 pb-4">
+                  <Suspense fallback={
+                    <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-lg">
+                      <div className="text-center">
+                        <MapPin className="h-8 w-8 mx-auto mb-2 animate-pulse text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Loading map...</p>
+                      </div>
+                    </div>
+                  }>
+                    <StoreLocationsMap
+                      locations={filteredAndSortedLocations}
+                      selectedLocationId={selectedLocationId}
+                      onLocationSelect={handleMapLocationSelect}
+                    />
+                  </Suspense>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+          
           {(searchZip || searchProduct || filterType !== "all") && (
             <p className="text-sm text-muted-foreground text-center">
               {(() => {
@@ -271,14 +359,41 @@ export default function WhereToBuyPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className={`flex gap-6 ${showMap ? 'lg:flex-row' : ''}`}>
+            {/* Desktop Map Panel */}
+            {showMap && (
+              <div className="hidden lg:block lg:w-[45%] lg:sticky lg:top-4 lg:h-[600px]">
+                <Suspense fallback={
+                  <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-lg border">
+                    <div className="text-center">
+                      <MapPin className="h-8 w-8 mx-auto mb-2 animate-pulse text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Loading map...</p>
+                    </div>
+                  </div>
+                }>
+                  <StoreLocationsMap
+                    locations={filteredAndSortedLocations}
+                    selectedLocationId={selectedLocationId}
+                    onLocationSelect={handleMapLocationSelect}
+                  />
+                </Suspense>
+              </div>
+            )}
+            
+            {/* Location Cards Grid */}
+            <div className={`grid gap-6 md:grid-cols-2 ${showMap ? 'lg:grid-cols-2 lg:w-[55%]' : 'lg:grid-cols-3 w-full'}`}>
             {filteredAndSortedLocations.map((location) => {
               const isTier4 = location.tierSortOrder === 4;
+              const isSelected = selectedLocationId === location.id;
               return (
+              <div 
+                key={location.id}
+                ref={(el) => { locationRefs.current[location.id] = el; }}
+              >
               <Card 
-                key={location.id} 
-                className={`hover-elevate relative ${isTier4 ? 'border-2 border-amber-400 dark:border-amber-500 shadow-lg shadow-amber-100 dark:shadow-amber-900/20' : ''}`}
+                className={`hover-elevate relative cursor-pointer transition-all duration-300 ${isTier4 ? 'border-2 border-amber-400 dark:border-amber-500 shadow-lg shadow-amber-100 dark:shadow-amber-900/20' : ''} ${isSelected ? 'ring-2 ring-orange-500 shadow-lg' : ''}`}
                 data-testid={`location-card-${location.id}`}
+                onClick={() => handleCardClick(location.id)}
               >
                 {isTier4 && (
                   <div className="absolute -top-2 -right-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full p-1.5 shadow-md">
@@ -403,8 +518,10 @@ export default function WhereToBuyPage() {
                   )}
                 </CardContent>
               </Card>
+              </div>
               );
             })}
+            </div>
           </div>
         )}
 

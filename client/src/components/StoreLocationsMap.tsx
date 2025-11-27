@@ -17,9 +17,9 @@ interface Location {
   storeState: string | null;
   storeZipCode: string | null;
   storePhone: string | null;
-  mapLat: number | null;
-  mapLng: number | null;
-  coordsPrecise: boolean;
+  mapLat?: number | null;
+  mapLng?: number | null;
+  coordsPrecise?: boolean;
   tierSortOrder: number | null;
 }
 
