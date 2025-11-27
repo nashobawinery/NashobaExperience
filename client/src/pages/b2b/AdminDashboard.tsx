@@ -67,7 +67,7 @@ const createCustomerSchema = z.object({
   shippingState: z.string().min(1, "Shipping state is required"),
   shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
   tierId: z.string().optional(),
-  salesRepId: z.string().min(1, "Sales representative assignment is required"),
+  salesRepId: z.string().optional(), // Optional for sales reps (auto-assigned)
   autoApprove: z.boolean(),
   autoGeneratePassword: z.boolean().default(true),
   customPassword: z.string().optional(),
@@ -109,8 +109,8 @@ const editCustomerSchema = z.object({
   shippingState: z.string().min(1, "Shipping state is required"),
   shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
   tierId: z.string().optional(),
-  salesRepId: z.string().min(1, "Sales representative assignment is required"),
-  accountStatus: z.enum(["pending_approval", "active", "inactive"]),
+  salesRepId: z.string().optional(), // Optional for sales reps (they can't change assignment)
+  accountStatus: z.enum(["pending_approval", "active", "inactive", "archived"]),
   notes: z.string().optional(),
 });
 
@@ -1265,14 +1265,44 @@ export default function AdminDashboard() {
 
   const handleCreateCustomerSubmit = async (data: CreateCustomerFormData) => {
     try {
-      const result = await createCustomer(data);
-      
-      toast({
-        title: "Customer Created Successfully",
-        description: data.autoApprove 
-          ? `${data.accountName} has been created and approved. Login credentials have been sent to ${data.emailAddress}. The password is the last 6 digits of their phone number.`
-          : `${data.accountName} has been created and is pending approval.`,
-      });
+      // Use different endpoint for sales rep (auto-assigns them as sales rep)
+      if (currentUser?.type === 'sales_rep') {
+        const endpoint = '/api/b2b/sales-rep/customers';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            ...data,
+            // Sales rep doesn't specify their own salesRepId - it's auto-assigned
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create customer');
+        }
+
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/customers'] });
+
+        toast({
+          title: "Customer Created Successfully",
+          description: data.autoApprove 
+            ? `${data.accountName} has been created and approved. You are assigned as the Sales Representative.`
+            : `${data.accountName} has been created and is pending approval. You are assigned as the Sales Representative.`,
+        });
+      } else {
+        // Admin flow
+        const result = await createCustomer(data);
+        
+        toast({
+          title: "Customer Created Successfully",
+          description: data.autoApprove 
+            ? `${data.accountName} has been created and approved. Login credentials have been sent to ${data.emailAddress}. The password is the last 6 digits of their phone number.`
+            : `${data.accountName} has been created and is pending approval.`,
+        });
+      }
 
       // Reset form and close dialog
       createCustomerForm.reset();
@@ -1286,18 +1316,40 @@ export default function AdminDashboard() {
     }
   };
 
+  // Helper function to check if current user can edit a customer
+  const canEditCustomer = (customer: any) => {
+    if (currentUser?.type === 'admin') return true;
+    if (currentUser?.type === 'sales_rep') {
+      // Sales rep can only edit customers assigned to them
+      return customer.salesRepId === currentUser.id || customer.salesRep?.id === currentUser.id;
+    }
+    return false;
+  };
+
+  // Helper function to check if current user can place orders for a customer
+  const canPlaceOrderForCustomer = (customer: any) => {
+    if (currentUser?.type === 'admin') return true;
+    if (currentUser?.type === 'sales_rep') {
+      // Sales rep can only place orders for customers assigned to them
+      return customer.salesRepId === currentUser.id || customer.salesRep?.id === currentUser.id;
+    }
+    return false;
+  };
+
   const handlePlaceOrderForCustomer = (customer: any) => {
-    // Only admins can place orders for customers
-    if (currentUser?.type !== 'admin') {
+    // Check if user can place orders for this customer
+    if (!canPlaceOrderForCustomer(customer)) {
       toast({
         title: "Access Denied",
-        description: "Only administrators can place orders for customers",
+        description: currentUser?.type === 'sales_rep' 
+          ? "You can only place orders for customers assigned to you"
+          : "Only administrators can place orders for customers",
         variant: "destructive",
       });
       return;
     }
 
-    // Store admin impersonation info in localStorage
+    // Store impersonation info in localStorage
     localStorage.setItem('admin_impersonating', JSON.stringify({
       customerId: customer.id,
       customerName: customer.accountName,
@@ -1309,11 +1361,13 @@ export default function AdminDashboard() {
   };
 
   const handleEditCustomer = (customer: any) => {
-    // Only admins can edit customers
-    if (currentUser?.type !== 'admin') {
+    // Check if user can edit this customer
+    if (!canEditCustomer(customer)) {
       toast({
         title: "Access Denied",
-        description: "Only administrators can edit customers",
+        description: currentUser?.type === 'sales_rep'
+          ? "You can only edit customers assigned to you"
+          : "Only administrators can edit customers",
         variant: "destructive",
       });
       return;
@@ -1346,11 +1400,13 @@ export default function AdminDashboard() {
   const handleEditCustomerSubmit = async (data: EditCustomerFormData) => {
     if (!editCustomerDialog.customer) return;
 
-    // Only admins can edit customers
-    if (currentUser?.type !== 'admin') {
+    // Check if user can edit this customer
+    if (!canEditCustomer(editCustomerDialog.customer)) {
       toast({
         title: "Access Denied",
-        description: "Only administrators can edit customers",
+        description: currentUser?.type === 'sales_rep'
+          ? "You can only edit customers assigned to you"
+          : "Only administrators can edit customers",
         variant: "destructive",
       });
       setEditCustomerDialog({ isOpen: false, customer: null });
@@ -1358,30 +1414,50 @@ export default function AdminDashboard() {
     }
 
     try {
-      await updateCustomer({
-        customerId: editCustomerDialog.customer.id,
-        data: {
-          accountName: data.accountName,
-          primaryContactName: data.primaryContactName,
-          customerType: data.customerType,
-          emailAddress: data.emailAddress,
-          phoneNumber: data.phoneNumber,
-          licenseNumber: data.licenseNumber,
-          taxId: data.taxId,
-          billingAddress: data.billingAddress,
-          billingCity: data.billingCity,
-          billingState: data.billingState,
-          billingZipCode: data.billingZipCode,
-          shippingAddress: data.shippingAddress,
-          shippingCity: data.shippingCity,
-          shippingState: data.shippingState,
-          shippingZipCode: data.shippingZipCode,
-          tierId: data.tierId,
-          salesRepId: data.salesRepId,
-          accountStatus: data.accountStatus,
-          notes: data.notes,
-        },
+      // Use different API endpoint for sales rep
+      const endpoint = currentUser?.type === 'sales_rep'
+        ? `/api/b2b/sales-rep/customers/${editCustomerDialog.customer.id}`
+        : `/api/b2b/admin/customers/${editCustomerDialog.customer.id}`;
+
+      const updateData: any = {
+        accountName: data.accountName,
+        primaryContactName: data.primaryContactName,
+        emailAddress: data.emailAddress,
+        phoneNumber: data.phoneNumber,
+        licenseNumber: data.licenseNumber,
+        taxId: data.taxId,
+        billingAddress: data.billingAddress,
+        billingCity: data.billingCity,
+        billingState: data.billingState,
+        billingZipCode: data.billingZipCode,
+        shippingAddress: data.shippingAddress,
+        shippingCity: data.shippingCity,
+        shippingState: data.shippingState,
+        shippingZipCode: data.shippingZipCode,
+        tierId: data.tierId,
+        accountStatus: data.accountStatus,
+        notes: data.notes,
+      };
+
+      // Only admin can change sales rep assignment
+      if (currentUser?.type === 'admin') {
+        updateData.salesRepId = data.salesRepId;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updateData),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update customer');
+      }
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/b2b/admin/customers'] });
 
       toast({
         title: "Customer Updated Successfully",
@@ -1611,7 +1687,8 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <div className="pt-3 border-t flex gap-2">
+          <div className="pt-3 border-t flex gap-2 flex-wrap">
+            {/* Approval/Rejection buttons - Admin only for pending customers */}
             {isPending && currentUser?.type === 'admin' && (
               <>
                 <Button
@@ -1635,43 +1712,47 @@ export default function AdminDashboard() {
                 </Button>
               </>
             )}
-            {currentUser?.type === 'admin' && (
-              <>
-                {!isPending && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => handlePlaceOrderForCustomer(customer)}
-                    className="flex-1"
-                    data-testid={`button-place-order-${customer.id}`}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    Place Order
-                  </Button>
-                )}
-                {!isPending && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setOrderHistoryDialog({ isOpen: true, customer })}
-                    className="flex-1"
-                    data-testid={`button-view-orders-${customer.id}`}
-                  >
-                    <Package className="h-4 w-4 mr-2" />
-                    View Orders
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleEditCustomer(customer)}
-                  className={isPending ? "flex-shrink-0" : (activeCustomers?.length || 0 > 2 ? "hidden sm:flex flex-1" : "flex-1")}
-                  data-testid={`button-edit-${customer.id}`}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              </>
+            
+            {/* Place Order button - Admin or assigned Sales Rep */}
+            {!isPending && canPlaceOrderForCustomer(customer) && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => handlePlaceOrderForCustomer(customer)}
+                className="flex-1"
+                data-testid={`button-place-order-${customer.id}`}
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Place Order
+              </Button>
+            )}
+            
+            {/* View Orders button - Admin or assigned Sales Rep */}
+            {!isPending && canEditCustomer(customer) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOrderHistoryDialog({ isOpen: true, customer })}
+                className="flex-1"
+                data-testid={`button-view-orders-${customer.id}`}
+              >
+                <Package className="h-4 w-4 mr-2" />
+                View Orders
+              </Button>
+            )}
+            
+            {/* Edit button - Admin or assigned Sales Rep */}
+            {canEditCustomer(customer) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleEditCustomer(customer)}
+                className={isPending ? "flex-shrink-0" : (activeCustomers?.length || 0 > 2 ? "hidden sm:flex flex-1" : "flex-1")}
+                data-testid={`button-edit-${customer.id}`}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
             )}
           </div>
         </div>
@@ -1807,7 +1888,7 @@ export default function AdminDashboard() {
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
-          {currentUser?.type === 'admin' && (
+          {(currentUser?.type === 'admin' || currentUser?.type === 'sales_rep') && (
             <div className="flex justify-end">
               <Button
                 onClick={() => setCreateCustomerDialog(true)}
