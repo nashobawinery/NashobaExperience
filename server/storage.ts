@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, like, or, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, like, or, sql, inArray, isNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
@@ -345,10 +345,12 @@ export interface IStorage {
 
   // B2B - Customer Manual Products (Featured Products for Where to Buy)
   getCustomerManualProducts(customerId: string): Promise<(B2bCustomerManualProduct & { product: Product })[]>;
+  getCustomerManualProductsRaw(customerId: string): Promise<B2bCustomerManualProduct[]>;
   addCustomerManualProduct(customerId: string, productId: string, expiresAt: Date): Promise<B2bCustomerManualProduct>;
   addCustomerManualProducts(customerId: string, productIds: string[], expiresAt: Date): Promise<B2bCustomerManualProduct[]>;
   removeCustomerManualProduct(id: string): Promise<boolean>;
   removeAllCustomerManualProducts(customerId: string): Promise<boolean>;
+  cleanupOrphanedManualProducts(customerId: string): Promise<number>;
 
   // B2B - Orders
   getAllB2bOrders(): Promise<(B2bOrder & { customer: B2bCustomer })[]>;
@@ -2212,6 +2214,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addCustomerManualProduct(customerId: string, productId: string, expiresAt: Date): Promise<B2bCustomerManualProduct> {
+    // Validate that the product exists before inserting (defense-in-depth)
+    const [productExists] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+    
+    if (!productExists) {
+      throw new Error(`Cannot add Featured Product: Product ID "${productId}" does not exist`);
+    }
+
     // Check if already exists
     const [existing] = await db
       .select()
@@ -2268,6 +2281,43 @@ export class DatabaseStorage implements IStorage {
       .delete(b2bCustomerManualProducts)
       .where(eq(b2bCustomerManualProducts.customerId, customerId));
     return true;
+  }
+
+  // Get raw manual products without joining to products table (includes orphaned records)
+  async getCustomerManualProductsRaw(customerId: string): Promise<B2bCustomerManualProduct[]> {
+    return await db
+      .select()
+      .from(b2bCustomerManualProducts)
+      .where(eq(b2bCustomerManualProducts.customerId, customerId))
+      .orderBy(desc(b2bCustomerManualProducts.createdAt));
+  }
+
+  // Remove orphaned manual products (where product_id doesn't exist in products table)
+  async cleanupOrphanedManualProducts(customerId: string): Promise<number> {
+    // Find all manual products for this customer that don't have a matching product
+    const orphaned = await db
+      .select({ id: b2bCustomerManualProducts.id })
+      .from(b2bCustomerManualProducts)
+      .leftJoin(products, eq(b2bCustomerManualProducts.productId, products.id))
+      .where(
+        and(
+          eq(b2bCustomerManualProducts.customerId, customerId),
+          isNull(products.id)
+        )
+      );
+
+    if (orphaned.length === 0) {
+      return 0;
+    }
+
+    // Delete the orphaned records
+    for (const record of orphaned) {
+      await db
+        .delete(b2bCustomerManualProducts)
+        .where(eq(b2bCustomerManualProducts.id, record.id));
+    }
+
+    return orphaned.length;
   }
 
   // B2B - Orders implementations

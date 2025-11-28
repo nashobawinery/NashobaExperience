@@ -2012,6 +2012,41 @@ router.delete('/api/b2b/admin/customers/:id/manual-products', requireB2bAdmin, a
   }
 });
 
+// Admin: Cleanup orphaned manual products (ghost records where product no longer exists)
+router.post('/api/b2b/admin/customers/:id/manual-products/cleanup', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Verify customer exists
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Get raw records first to report what will be cleaned up
+    const rawRecords = await storage.getCustomerManualProductsRaw(id);
+    const validRecords = await storage.getCustomerManualProducts(id);
+    const orphanedCount = rawRecords.length - validRecords.length;
+
+    // Cleanup orphaned records
+    const deletedCount = await storage.cleanupOrphanedManualProducts(id);
+
+    res.json({ 
+      success: true, 
+      message: deletedCount > 0 
+        ? `Cleaned up ${deletedCount} orphaned Featured Product record(s)` 
+        : 'No orphaned records found',
+      deletedCount,
+      rawRecordsBefore: rawRecords.length,
+      validRecordsBefore: validRecords.length,
+      orphanedRecords: orphanedCount
+    });
+  } catch (error) {
+    console.error('Cleanup orphaned manual products error:', error);
+    res.status(500).json({ error: 'Failed to cleanup orphaned manual products' });
+  }
+});
+
 // Admin: Reset customer password
 router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
