@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Wine, Martini, Package, Eye, TrendingUp, DollarSign } from "lucide-react";
+import { ArrowLeft, Wine, Martini, Package, Eye, TrendingUp, DollarSign, UserPlus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Product = {
@@ -451,6 +451,14 @@ export default function PricingSheetPage() {
           <p className="text-lg text-primary-foreground/90 mt-2">
             Complete wholesale pricing with profit margin calculations
           </p>
+          <Button
+            onClick={() => setLocation("/b2b/register")}
+            className="mt-4 bg-white text-primary hover:bg-white/90"
+            data-testid="button-open-account-top"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Open an Account
+          </Button>
         </div>
       </div>
 
@@ -687,6 +695,27 @@ export default function PricingSheetPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Bottom CTA */}
+        <div className="mt-8 text-center">
+          <Card className="bg-primary text-primary-foreground">
+            <CardContent className="py-8">
+              <h3 className="text-2xl font-serif mb-2">Ready to Partner with Us?</h3>
+              <p className="text-primary-foreground/90 mb-4">
+                Apply for a wholesale account and start saving today
+              </p>
+              <Button
+                onClick={() => setLocation("/b2b/register")}
+                className="bg-white text-primary hover:bg-white/90"
+                size="lg"
+                data-testid="button-open-account-bottom"
+              >
+                <UserPlus className="h-5 w-5 mr-2" />
+                Open an Account
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Product Detail Dialog */}
