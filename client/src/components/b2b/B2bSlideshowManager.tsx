@@ -33,7 +33,6 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
   Pencil,
@@ -44,11 +43,9 @@ import {
   ChevronUp,
   ChevronDown,
   Search,
-  Check,
-  Film,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { B2bSlideshowSlide } from "@shared/schema";
+import { MediaPickerInline } from "@/components/MediaPicker";
 
 type B2bSlideshowSlideWithMedia = B2bSlideshowSlide & { mediaUrl?: string | null };
 
@@ -85,6 +82,13 @@ function formatCategoryLabel(category: string) {
     .split("-")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function addPublicUrlToMedia(items: any[]): MediaLibraryItem[] {
+  return items.map(item => ({
+    ...item,
+    publicUrl: item.publicUrl || `/api/media-library/${item.id}/file`
+  }));
 }
 
 export function B2bSlideshowManager() {
@@ -126,25 +130,6 @@ export function B2bSlideshowManager() {
     });
     return Array.from(cats).sort();
   }, [mediaLibrary]);
-
-  const filteredMedia = useMemo(() => {
-    return mediaLibrary.filter(item => {
-      const matchesSearch = mediaSearchQuery === "" || 
-        item.filename.toLowerCase().includes(mediaSearchQuery.toLowerCase()) ||
-        item.originalFilename.toLowerCase().includes(mediaSearchQuery.toLowerCase());
-      
-      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-      
-      return matchesSearch && matchesCategory;
-    });
-  }, [mediaLibrary, mediaSearchQuery, categoryFilter]);
-
-  const filteredVideos = useMemo(() => {
-    return videos.filter(video => {
-      return mediaSearchQuery === "" || 
-        video.title.toLowerCase().includes(mediaSearchQuery.toLowerCase());
-    });
-  }, [videos, mediaSearchQuery]);
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<typeof formData, 'mediaLibraryId' | 'videoId'> & { mediaLibraryId: string | null; videoId: string | null }) => {
@@ -569,69 +554,15 @@ export function B2bSlideshowManager() {
                   )}
                 </div>
 
-                {isLoadingMedia ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
-                    ))}
-                  </div>
-                ) : mediaLibrary.length === 0 ? (
-                  <div className="text-sm text-destructive p-4 border rounded-md text-center">
-                    No images available. Upload images in Media Library first.
-                  </div>
-                ) : filteredMedia.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-4 border rounded-md text-center">
-                    No images match your search. Try adjusting your filters.
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[250px] rounded-md border p-2">
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {filteredMedia.map((item) => {
-                        const isSelected = formData.mediaLibraryId === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setFormData({ ...formData, mediaLibraryId: item.id })}
-                            className={cn(
-                              "group relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover-elevate",
-                              isSelected
-                                ? "border-primary ring-2 ring-primary ring-offset-2"
-                                : "border-border hover:border-primary/50"
-                            )}
-                            data-testid={`media-item-${item.id}`}
-                          >
-                            <img
-                              src={item.publicUrl}
-                              alt={item.originalFilename}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                            
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                            
-                            {isSelected && (
-                              <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                                <Check className="h-3 w-3" />
-                              </div>
-                            )}
-                            
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                              <p className="text-white text-[10px] truncate">
-                                {item.originalFilename}
-                              </p>
-                              {item.category && item.category !== "uncategorized" && (
-                                <Badge variant="secondary" className="text-[9px] px-1 py-0 mt-0.5">
-                                  {formatCategoryLabel(item.category)}
-                                </Badge>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
+                <MediaPickerInline
+                  value={formData.mediaLibraryId}
+                  onChange={(id) => setFormData({ ...formData, mediaLibraryId: id })}
+                  items={addPublicUrlToMedia(mediaLibrary)}
+                  mediaType="image"
+                  categoryFilter={categoryFilter}
+                  searchQuery={mediaSearchQuery}
+                  isLoading={isLoadingMedia}
+                />
                 
                 {formData.mediaLibraryId && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
@@ -671,82 +602,20 @@ export function B2bSlideshowManager() {
                   />
                 </div>
 
-                {isLoadingVideos ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
-                    ))}
-                  </div>
-                ) : videos.length === 0 ? (
-                  <div className="text-sm text-destructive p-4 border rounded-md text-center">
-                    No videos available. Add videos in Admin Dashboard first.
-                  </div>
-                ) : filteredVideos.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-4 border rounded-md text-center">
-                    No videos match your search.
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[200px] rounded-md border p-2">
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {filteredVideos.map((video) => {
-                        const isSelected = formData.videoId === video.id;
-                        return (
-                          <button
-                            key={video.id}
-                            type="button"
-                            onClick={() => setFormData({ ...formData, videoId: video.id })}
-                            className={cn(
-                              "group relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover-elevate",
-                              isSelected
-                                ? "border-primary ring-2 ring-primary ring-offset-2"
-                                : "border-border hover:border-primary/50"
-                            )}
-                            data-testid={`video-item-${video.id}`}
-                          >
-                            {video.thumbnailUrl ? (
-                              <img
-                                src={video.thumbnailUrl}
-                                alt={video.title}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-muted flex items-center justify-center">
-                                <Film className="h-8 w-8 text-muted-foreground" />
-                              </div>
-                            )}
-                            
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                            
-                            <div className="absolute top-1 left-1">
-                              <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                                <Video className="h-2 w-2 mr-0.5" />
-                                Video
-                              </Badge>
-                            </div>
-                            
-                            {isSelected && (
-                              <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                                <Check className="h-3 w-3" />
-                              </div>
-                            )}
-                            
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                              <p className="text-white text-[10px] truncate">
-                                {video.title}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
+                <MediaPickerInline
+                  value={formData.videoId}
+                  onChange={(id) => setFormData({ ...formData, videoId: id })}
+                  items={[]}
+                  videos={videos}
+                  mediaType="video"
+                  searchQuery={mediaSearchQuery}
+                  isLoading={isLoadingVideos}
+                />
                 
                 {formData.videoId && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
                     <div className="h-10 w-10 bg-background rounded border flex items-center justify-center flex-shrink-0">
-                      <Film className="h-5 w-5 text-muted-foreground" />
+                      <Video className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <span className="text-sm flex-1 truncate">
                       {videos.find(v => v.id === formData.videoId)?.title}

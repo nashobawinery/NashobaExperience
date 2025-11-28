@@ -32,7 +32,7 @@ import { useState } from "react";
 import type { SlideshowImage } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import MediaPicker from "@/components/MediaPicker";
+import { MediaPicker } from "@/components/MediaPicker";
 
 const imageSchema = z.object({
   imageUrl: z.string().min(1, "Image URL is required (select from media library)"),
