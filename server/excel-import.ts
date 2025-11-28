@@ -1039,7 +1039,20 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     const slideshowSheet = workbook.Sheets['SlideshowImages'];
     const rawSlideshowData: any[] = XLSX.utils.sheet_to_json(slideshowSheet);
     
-    const validationResult = validateSheet('SlideshowImages', rawSlideshowData, insertSlideshowImageSchema, (row: any) => {
+    // Filter out blank rows BEFORE validation - rows must have either image_url or filename
+    const filteredSlideshowData = rawSlideshowData.filter((row: any) => {
+      const hasImageUrl = row.image_url && row.image_url.toString().trim().length > 0;
+      const hasFilename = row.filename && row.filename.toString().trim().length > 0;
+      const hasMediaLibraryId = row.media_library_id && row.media_library_id.toString().trim().length > 0;
+      return hasImageUrl || hasFilename || hasMediaLibraryId;
+    });
+    
+    const skippedBlankRows = rawSlideshowData.length - filteredSlideshowData.length;
+    if (skippedBlankRows > 0) {
+      result.warnings.push(`SlideshowImages: Skipped ${skippedBlankRows} blank rows without image data`);
+    }
+    
+    const validationResult = validateSheet('SlideshowImages', filteredSlideshowData, insertSlideshowImageSchema, (row: any) => {
       return {
         filename: row.filename?.trim() || null,
         imageUrl: row.image_url?.trim() || null,

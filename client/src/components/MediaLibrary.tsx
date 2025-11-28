@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { getMediaLibraryFiles, createMediaLibraryFile, deleteMediaLibraryFile, getMediaLibraryUploadUrl, updateMediaLibraryFile } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Copy, Image as ImageIcon, FileText, Edit } from "lucide-react";
+import { Upload, Trash2, Copy, Image as ImageIcon, FileText, Edit, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
 import type { MediaLibrary } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const CATEGORIES = [
   { value: 'all', label: 'All Files' },
@@ -28,6 +29,42 @@ const CATEGORIES = [
   { value: 'uncategorized', label: 'Uncategorized' },
 ];
 
+interface SyncStatus {
+  bucketId: string;
+  summary: {
+    total: number;
+    existingInBucket: number;
+    missingFromBucket: number;
+    urlMismatch: number;
+  };
+  files: Array<{
+    id: string;
+    filename: string;
+    objectPath: string;
+    publicUrl: string;
+    existsInBucket: boolean;
+    urlMatchesBucket: boolean;
+  }>;
+}
+
+interface SyncResult {
+  success: boolean;
+  dryRun: boolean;
+  summary: {
+    total: number;
+    synced: number;
+    skipped: number;
+    failed: number;
+  };
+  results: Array<{
+    id: string;
+    filename: string;
+    status: 'synced' | 'skipped' | 'failed';
+    message: string;
+    newUrl?: string;
+  }>;
+}
+
 export function MediaLibrary() {
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -35,11 +72,64 @@ export function MediaLibrary() {
   const [editingFile, setEditingFile] = useState<MediaLibrary | null>(null);
   const [editForm, setEditForm] = useState<Partial<MediaLibrary>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['/api/media-library', selectedCategory],
     queryFn: () => getMediaLibraryFiles(selectedCategory !== 'all' ? selectedCategory : undefined),
   });
+
+  const syncStatusMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/admin/media-library/sync-status');
+      if (!response.ok) throw new Error('Failed to fetch sync status');
+      return response.json() as Promise<SyncStatus>;
+    },
+    onSuccess: (data) => {
+      setSyncStatus(data);
+      setSyncResult(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to check sync status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async (dryRun: boolean) => {
+      const response = await apiRequest('POST', '/api/admin/media-library/sync', { dryRun });
+      return await response.json() as SyncResult;
+    },
+    onSuccess: (data) => {
+      setSyncResult(data);
+      if (!data.dryRun) {
+        queryClient.invalidateQueries({ queryKey: ['/api/media-library'] });
+        toast({
+          title: "Sync Complete",
+          description: `Synced ${data.summary.synced} files, ${data.summary.skipped} skipped, ${data.summary.failed} failed`,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Sync Failed",
+        description: error instanceof Error ? error.message : "Failed to sync media files",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openSyncDialog = () => {
+    setSyncDialogOpen(true);
+    setSyncStatus(null);
+    setSyncResult(null);
+    syncStatusMutation.mutate();
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -247,8 +337,159 @@ export function MediaLibrary() {
               Uploading file...
             </div>
           )}
+          
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Media Sync Utility</p>
+                <p className="text-xs text-muted-foreground">
+                  Sync media files from dev to production environment
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={openSyncDialog}
+                data-testid="button-open-sync"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Sync Media
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      <Dialog open={syncDialogOpen} onOpenChange={setSyncDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Media Sync Utility</DialogTitle>
+            <DialogDescription>
+              This utility downloads media files from their source URLs and uploads them to this environment's storage bucket.
+              Use this after importing database records from another environment.
+            </DialogDescription>
+          </DialogHeader>
+
+          {syncStatusMutation.isPending && (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+              <span>Checking sync status...</span>
+            </div>
+          )}
+
+          {syncStatus && !syncResult && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Sync Status</AlertTitle>
+                <AlertDescription>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                    <div>Total files: <strong>{syncStatus.summary.total}</strong></div>
+                    <div>Existing in bucket: <strong>{syncStatus.summary.existingInBucket}</strong></div>
+                    <div>Missing from bucket: <strong className="text-destructive">{syncStatus.summary.missingFromBucket}</strong></div>
+                    <div>URL mismatch: <strong className="text-yellow-600">{syncStatus.summary.urlMismatch}</strong></div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              {syncStatus.summary.missingFromBucket > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Missing Files:</p>
+                  <div className="max-h-32 overflow-y-auto border rounded p-2 text-xs">
+                    {syncStatus.files
+                      .filter(f => !f.existsInBucket)
+                      .map(f => (
+                        <div key={f.id} className="py-1 border-b last:border-0">
+                          {f.filename}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => syncMutation.mutate(true)}
+                  disabled={syncMutation.isPending}
+                  data-testid="button-dry-run"
+                >
+                  {syncMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Preview (Dry Run)
+                </Button>
+                <Button
+                  onClick={() => syncMutation.mutate(false)}
+                  disabled={syncMutation.isPending || syncStatus.summary.missingFromBucket === 0}
+                  data-testid="button-sync-now"
+                >
+                  {syncMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Sync {syncStatus.summary.missingFromBucket} Files
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {syncResult && (
+            <div className="space-y-4">
+              <Alert variant={syncResult.summary.failed > 0 ? "destructive" : "default"}>
+                {syncResult.summary.failed > 0 ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <CheckCircle className="h-4 w-4" />
+                )}
+                <AlertTitle>{syncResult.dryRun ? "Dry Run Results" : "Sync Complete"}</AlertTitle>
+                <AlertDescription>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                    <div>Total processed: <strong>{syncResult.summary.total}</strong></div>
+                    <div>Synced: <strong className="text-green-600">{syncResult.summary.synced}</strong></div>
+                    <div>Skipped: <strong>{syncResult.summary.skipped}</strong></div>
+                    <div>Failed: <strong className="text-destructive">{syncResult.summary.failed}</strong></div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Results:</p>
+                <div className="max-h-48 overflow-y-auto border rounded text-xs">
+                  {syncResult.results.map(r => (
+                    <div 
+                      key={r.id} 
+                      className={`p-2 border-b last:border-0 flex justify-between ${
+                        r.status === 'synced' ? 'bg-green-50 dark:bg-green-950' : 
+                        r.status === 'failed' ? 'bg-red-50 dark:bg-red-950' : ''
+                      }`}
+                    >
+                      <span className="font-medium">{r.filename}</span>
+                      <span className="text-muted-foreground">{r.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>
+                  Close
+                </Button>
+                {syncResult.dryRun && syncResult.summary.synced > 0 && (
+                  <Button
+                    onClick={() => syncMutation.mutate(false)}
+                    disabled={syncMutation.isPending}
+                    data-testid="button-confirm-sync"
+                  >
+                    {syncMutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Sync Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
