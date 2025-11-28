@@ -34,7 +34,7 @@ import {
   b2bCommissions,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
-import { generatePasswordResetEmail, generateAccessRequestEmail, sendEmail } from './email';
+import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail } from './email';
 import { substituteVariables, calculateSavingsVsTier1, calculateCommitmentProgress } from './email-template-variables';
 import { eq, and, gt, inArray, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
@@ -627,6 +627,38 @@ router.post('/api/b2b/register', async (req: Request, res: Response) => {
       });
     }
     // For multiple locations, admin will add them after approval
+    
+    // Send notification email to support
+    try {
+      const emailData = {
+        accountName,
+        customerType,
+        customerNumber,
+        primaryContactName,
+        primaryContactRole,
+        emailAddress,
+        phoneNumber,
+        altPhoneNumber,
+        licenseNumber,
+        taxId,
+        billingAddress,
+        billingCity,
+        billingState,
+        billingZipCode,
+        storeLocationSameAsBusiness,
+        hasMultipleLocations,
+        notes: fullNotes,
+        acceptsMarketing: acceptsMarketing || false,
+        submittedAt: new Date(),
+      };
+      
+      const { subject, html, text } = generateWholesaleApplicationEmail(emailData);
+      await sendEmail('support@nashobawinery.com', subject, html, text);
+      console.log('Wholesale application notification sent to support@nashobawinery.com');
+    } catch (emailError) {
+      // Log email error but don't fail the registration
+      console.error('Failed to send wholesale application notification email:', emailError);
+    }
     
     res.json({ 
       success: true,
