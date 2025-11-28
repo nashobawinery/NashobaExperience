@@ -1185,13 +1185,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       // Fetch all manual products (Featured Products) for export
+      // storage.getCustomerManualProducts returns { ...manualProduct, product: Product }
+      // so mp IS the manualProduct directly (with product joined), not mp.manualProduct
       const b2bCustomerManualProducts: any[] = [];
       for (const customer of b2bCustomers) {
         const manualProducts = await storage.getCustomerManualProducts(customer.id);
-        b2bCustomerManualProducts.push(...manualProducts.map(mp => ({
-          ...mp.manualProduct,
-          customerId: customer.id,
-        })));
+        b2bCustomerManualProducts.push(...manualProducts.map(mp => {
+          // Destructure to remove the joined product and keep core manualProduct fields
+          const { product, ...manualProductCore } = mp;
+          return {
+            ...manualProductCore,
+            customerId: customer.id,
+          };
+        }));
       }
 
       const appSettingsData: any[] = [];
