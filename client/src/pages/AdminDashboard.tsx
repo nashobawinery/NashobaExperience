@@ -30,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -973,6 +973,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                       <Download className="w-4 h-4 mr-2" />
                       {exportAllDataMutation.isPending ? "Exporting..." : "Export All Data"}
                     </Button>
+                  </div>
+
+                  <div className="border-t pt-6">
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg p-6 text-center">
+                      <h3 className="font-medium mb-2">Advanced Database Sync Tool</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Selectively export and import specific tables between development and production environments.
+                      </p>
+                      <Button 
+                        variant="default"
+                        onClick={() => window.location.href = '/admin/database-sync'}
+                        data-testid="button-database-sync-tool"
+                      >
+                        <Database className="w-4 h-4 mr-2" />
+                        Open Database Sync Tool
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="border-t pt-6">
