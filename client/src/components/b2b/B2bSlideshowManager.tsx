@@ -51,9 +51,9 @@ type B2bSlideshowSlideWithMedia = B2bSlideshowSlide & { mediaUrl?: string | null
 
 const iconOptions = [
   { value: "none", label: "No Icon" },
+  { value: "Logo", label: "Nashoba Logo" },
   { value: "Sprout", label: "Sprout (Agriculture)" },
   { value: "Users", label: "Users (Family)" },
-  { value: "Award", label: "Award (Quality)" },
   { value: "Wine", label: "Wine Glass" },
   { value: "Package", label: "Package" },
   { value: "TrendingDown", label: "Trending Down (Pricing)" },

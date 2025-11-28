@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wine, ShoppingBag, Sparkles, Award } from "lucide-react";
+import { Wine, ShoppingBag, Sparkles } from "lucide-react";
 
 export default function Landing() {
   const handleLogin = () => {
@@ -42,7 +42,11 @@ export default function Landing() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Award className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+              <img 
+                src="/nvw-logo.png" 
+                alt="Nashoba Logo" 
+                className="w-5 h-5 object-contain flex-shrink-0"
+              />
               <div>
                 <h3 className="font-semibold">Interactive Trivia</h3>
                 <p className="text-sm text-muted-foreground">

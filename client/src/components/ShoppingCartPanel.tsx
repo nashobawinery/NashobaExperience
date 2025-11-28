@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle, Award } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Tag, Mail, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { getDiscountTiers, getCannedDiscountTiers, getCartDiscounts } from "@/lib/api";
@@ -317,7 +317,11 @@ export default function ShoppingCartPanel({
           {cartDiscounts.length > 0 && (
             <div className="bg-primary/5 dark:bg-primary/10 rounded-lg p-4 border border-primary/20" data-testid="section-achievement-discounts">
               <div className="flex items-center gap-2 mb-3">
-                <Award className="w-5 h-5 text-primary" />
+                <img 
+                  src="/nvw-logo.png" 
+                  alt="Nashoba Logo" 
+                  className="w-5 h-5 object-contain"
+                />
                 <p className="font-medium text-sm">Trivia Achievement Rewards</p>
               </div>
               <div className="space-y-2">

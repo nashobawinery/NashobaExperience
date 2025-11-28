@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Award, Mail, Heart, Star, GlassWater, MapPin, Boxes } from "lucide-react";
+import { Wine, TrendingDown, Package, Shield, ChevronRight, ChevronLeft, Sprout, Users, Mail, Heart, Star, GlassWater, MapPin, Boxes } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -113,7 +113,6 @@ export default function B2BPricingPage() {
   const iconMap: Record<string, any> = {
     Sprout,
     Users,
-    Award,
     Wine,
     Package,
     TrendingDown,
@@ -124,6 +123,7 @@ export default function B2BPricingPage() {
 
   const getIconComponent = (iconName?: string | null) => {
     if (!iconName || iconName === "none") return null;
+    if (iconName === "Logo") return "Logo";
     return iconMap[iconName] || null;
   };
 
@@ -427,6 +427,17 @@ export default function B2BPricingPage() {
                       <div className="text-center max-w-3xl mx-auto">
                         {(() => {
                           const IconComponent = getIconComponent(slides[currentSlide].iconName);
+                          if (IconComponent === "Logo") {
+                            return (
+                              <div className="flex justify-center mb-6">
+                                <img 
+                                  src="/nvw-logo.png" 
+                                  alt="Nashoba Valley Winery Logo" 
+                                  className="h-16 w-auto object-contain"
+                                />
+                              </div>
+                            );
+                          }
                           return IconComponent ? (
                             <div className="flex justify-center mb-6">
                               <IconComponent className="h-16 w-16 text-primary" />
