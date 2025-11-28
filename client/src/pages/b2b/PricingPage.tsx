@@ -743,7 +743,7 @@ export default function B2BPricingPage() {
               <TrendingDown className="h-12 w-12 mx-auto mb-4 text-primary" />
               <h3 className="font-semibold text-lg mb-2">Wholesale Discounts</h3>
               <p className="text-sm text-muted-foreground">
-                Save 10% to 60% off retail prices with our tier-based pricing
+                Get incredible savings on our new tiered pricing for annual purchases
               </p>
             </CardContent>
           </Card>
