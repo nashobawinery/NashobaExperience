@@ -48,7 +48,29 @@ export default function CatalogPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
   const { data: pastOrderItems = [] } = useQuery<any[]>({
-    queryKey: ['/api/b2b/customer/past-orders'],
+    queryKey: ['b2b', 'customer', 'past-orders', adminImpersonating?.customerId],
+    queryFn: async () => {
+      // Check for admin/sales rep impersonation
+      const impersonationData = localStorage.getItem('admin_impersonating');
+      let url = "/api/b2b/customer/past-orders";
+      
+      if (impersonationData) {
+        try {
+          const { customerId } = JSON.parse(impersonationData);
+          if (customerId) {
+            url += `?customerId=${encodeURIComponent(customerId)}`;
+          }
+        } catch {
+          // Invalid impersonation data, ignore
+        }
+      }
+      
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error("Failed to fetch past orders");
+      }
+      return response.json();
+    },
     enabled: viewType === 'past-orders',
   });
 

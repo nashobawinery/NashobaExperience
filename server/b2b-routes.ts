@@ -807,13 +807,22 @@ router.get('/api/b2b/me', requireB2bAuth, async (req: Request, res: Response) =>
 // Customer routes - support both customer login and admin impersonation
 router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    // Support admin impersonation via customerId query parameter
+    // Support admin and sales rep impersonation via customerId query parameter
     let customerId = req.session.b2bUserId!;
     const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
     
-    if (isAdmin && req.query.customerId) {
+    if ((isAdmin || isSalesRep) && req.query.customerId) {
       customerId = req.query.customerId as string;
-    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      
+      // Sales reps can only impersonate their assigned customers
+      if (isSalesRep) {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only view products for customers assigned to you' });
+        }
+      }
+    } else if (!isAdmin && !isSalesRep && req.session.b2bUserType !== 'customer') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -855,16 +864,25 @@ router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, re
   }
 });
 
-// Get customer's previous products (for reorder page) - support admin impersonation
+// Get customer's previous products (for reorder page) - support admin/sales rep impersonation
 router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    // Support admin impersonation via customerId query parameter
+    // Support admin and sales rep impersonation via customerId query parameter
     let customerId = req.session.b2bUserId!;
     const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
     
-    if (isAdmin && req.query.customerId) {
+    if ((isAdmin || isSalesRep) && req.query.customerId) {
       customerId = req.query.customerId as string;
-    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      
+      // Sales reps can only impersonate their assigned customers
+      if (isSalesRep) {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only view products for customers assigned to you' });
+        }
+      }
+    } else if (!isAdmin && !isSalesRep && req.session.b2bUserType !== 'customer') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -905,16 +923,25 @@ router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Re
   }
 });
 
-// Get customer order history - support admin impersonation
+// Get customer order history - support admin/sales rep impersonation
 router.get('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    // Support admin impersonation via customerId query parameter
+    // Support admin and sales rep impersonation via customerId query parameter
     let customerId = req.session.b2bUserId!;
     const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
     
-    if (isAdmin && req.query.customerId) {
+    if ((isAdmin || isSalesRep) && req.query.customerId) {
       customerId = req.query.customerId as string;
-    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      
+      // Sales reps can only impersonate their assigned customers
+      if (isSalesRep) {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only view orders for customers assigned to you' });
+        }
+      }
+    } else if (!isAdmin && !isSalesRep && req.session.b2bUserType !== 'customer') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -926,16 +953,25 @@ router.get('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res:
   }
 });
 
-// Get specific order details - support admin impersonation
+// Get specific order details - support admin/sales rep impersonation
 router.get('/api/b2b/customer/orders/:id', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    // Support admin impersonation via customerId query parameter
+    // Support admin and sales rep impersonation via customerId query parameter
     let customerId = req.session.b2bUserId!;
     const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
     
-    if (isAdmin && req.query.customerId) {
+    if ((isAdmin || isSalesRep) && req.query.customerId) {
       customerId = req.query.customerId as string;
-    } else if (!isAdmin && req.session.b2bUserType !== 'customer') {
+      
+      // Sales reps can only impersonate their assigned customers
+      if (isSalesRep) {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only view orders for customers assigned to you' });
+        }
+      }
+    } else if (!isAdmin && !isSalesRep && req.session.b2bUserType !== 'customer') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -945,8 +981,8 @@ router.get('/api/b2b/customer/orders/:id', requireB2bAuth, async (req: Request, 
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Verify order belongs to customer (or admin is accessing it)
-    if (order.customerId !== customerId && !isAdmin) {
+    // Verify order belongs to customer (or admin/sales rep is accessing it)
+    if (order.customerId !== customerId && !isAdmin && !isSalesRep) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -957,7 +993,7 @@ router.get('/api/b2b/customer/orders/:id', requireB2bAuth, async (req: Request, 
   }
 });
 
-// Place order (supports admin impersonation via customerId parameter)
+// Place order (supports admin/sales rep impersonation via customerId parameter)
 router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res: Response) => {
   try {
     const { items, notes, shippingAddress, customerId } = req.body;
@@ -966,16 +1002,26 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
       return res.status(400).json({ error: 'Order must contain at least one item' });
     }
 
-    // Determine which customer to place order for (admin can specify customerId)
+    // Determine which customer to place order for (admin/sales rep can specify customerId)
     let targetCustomerId = req.session.b2bUserId!;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
     
-    // If customerId is provided, verify user is admin
+    // If customerId is provided, verify user is admin or sales rep
     if (customerId) {
-      const currentAdmin = await storage.getB2bAdmin(req.session.b2bUserId!);
-      if (!currentAdmin) {
-        return res.status(403).json({ error: 'Only admins can place orders for other customers' });
+      if (isAdmin) {
+        // Admin can place order for any customer
+        targetCustomerId = customerId;
+      } else if (isSalesRep) {
+        // Sales rep can only place orders for their assigned customers
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only place orders for customers assigned to you' });
+        }
+        targetCustomerId = customerId;
+      } else {
+        return res.status(403).json({ error: 'Only admins and sales reps can place orders for other customers' });
       }
-      targetCustomerId = customerId;
     }
 
     const customer = await storage.getB2bCustomer(targetCustomerId);
@@ -1587,9 +1633,27 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
 });
 
 // Customer: Get past order items (items previously ordered by customer)
-router.get('/api/b2b/customer/past-orders', requireB2bCustomer, async (req: Request, res: Response) => {
+router.get('/api/b2b/customer/past-orders', requireB2bAuth, async (req: Request, res: Response) => {
   try {
-    const customerId = req.session.b2bUserId;
+    // Support admin and sales rep impersonation via customerId query parameter
+    let customerId = req.session.b2bUserId;
+    const isAdmin = req.session.b2bUserType === 'admin';
+    const isSalesRep = req.session.b2bUserType === 'sales_rep';
+    
+    if ((isAdmin || isSalesRep) && req.query.customerId) {
+      customerId = req.query.customerId as string;
+      
+      // Sales reps can only impersonate their assigned customers
+      if (isSalesRep) {
+        const customer = await storage.getB2bCustomer(customerId);
+        if (!customer || customer.salesRepId !== req.session.b2bUserId) {
+          return res.status(403).json({ error: 'You can only view past orders for customers assigned to you' });
+        }
+      }
+    } else if (!isAdmin && !isSalesRep && req.session.b2bUserType !== 'customer') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     if (!customerId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
