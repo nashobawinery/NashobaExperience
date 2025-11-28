@@ -4068,6 +4068,123 @@ router.post('/api/b2b/admin/settings/welcome', requireB2bAdmin, async (req: Requ
   }
 });
 
+// ======= ROLE PERMISSIONS API =======
+
+// Get all role permissions (admin only)
+router.get('/api/b2b/role-permissions', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const permissions = await storage.getAllB2bRolePermissions();
+    
+    // If no permissions exist yet, initialize defaults
+    if (permissions.length === 0) {
+      await storage.initializeDefaultRolePermissions();
+      const initializedPermissions = await storage.getAllB2bRolePermissions();
+      return res.json(initializedPermissions);
+    }
+    
+    res.json(permissions);
+  } catch (error) {
+    console.error('Error fetching role permissions:', error);
+    res.status(500).json({ error: 'Failed to fetch role permissions' });
+  }
+});
+
+// Get single role permission
+router.get('/api/b2b/role-permissions/:roleName', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { roleName } = req.params;
+    const permission = await storage.getB2bRolePermission(roleName);
+    
+    if (!permission) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+    
+    res.json(permission);
+  } catch (error) {
+    console.error('Error fetching role permission:', error);
+    res.status(500).json({ error: 'Failed to fetch role permission' });
+  }
+});
+
+// Update role permissions (admin only)
+router.put('/api/b2b/role-permissions/:roleName', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { roleName } = req.params;
+    const { tabPermissions, specialPermissions, roleDisplayName, roleDescription } = req.body;
+    
+    // Validate that the role exists
+    const existing = await storage.getB2bRolePermission(roleName);
+    if (!existing) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+    
+    // Get admin ID from session
+    const adminId = (req.session as any)?.b2bUser?.id;
+    
+    const updated = await storage.upsertB2bRolePermission({
+      roleName,
+      roleDisplayName: roleDisplayName ?? existing.roleDisplayName,
+      roleDescription: roleDescription ?? existing.roleDescription,
+      tabPermissions: tabPermissions ?? existing.tabPermissions,
+      specialPermissions: specialPermissions ?? existing.specialPermissions,
+      updatedByAdminId: adminId,
+      isDefault: false, // Mark as customized
+    });
+    
+    res.json({
+      success: true,
+      message: `Permissions updated for role: ${roleName}`,
+      permission: updated,
+    });
+  } catch (error) {
+    console.error('Error updating role permissions:', error);
+    res.status(500).json({ error: 'Failed to update role permissions' });
+  }
+});
+
+// Reset a role to default permissions (admin only)
+router.post('/api/b2b/role-permissions/:roleName/reset', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { roleName } = req.params;
+    
+    // Get the default permissions for this role from storage initialization
+    await storage.initializeDefaultRolePermissions();
+    const resetPermission = await storage.getB2bRolePermission(roleName);
+    
+    if (!resetPermission) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+    
+    res.json({
+      success: true,
+      message: `Permissions reset to default for role: ${roleName}`,
+      permission: resetPermission,
+    });
+  } catch (error) {
+    console.error('Error resetting role permissions:', error);
+    res.status(500).json({ error: 'Failed to reset role permissions' });
+  }
+});
+
+// Initialize all default permissions (admin only - for setup/reset)
+router.post('/api/b2b/role-permissions/initialize', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    await storage.initializeDefaultRolePermissions();
+    const permissions = await storage.getAllB2bRolePermissions();
+    
+    res.json({
+      success: true,
+      message: 'Default role permissions initialized',
+      permissions,
+    });
+  } catch (error) {
+    console.error('Error initializing role permissions:', error);
+    res.status(500).json({ error: 'Failed to initialize role permissions' });
+  }
+});
+
+// ======= END ROLE PERMISSIONS API =======
+
 // Admin: Export all customers to Excel
 router.get('/api/b2b/admin/customer/export', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
