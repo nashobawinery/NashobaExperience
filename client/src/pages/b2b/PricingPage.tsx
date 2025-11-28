@@ -388,16 +388,28 @@ export default function B2BPricingPage() {
                   }}
                   className="py-8"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-                    {/* Media Column (1/3 width) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+                    {/* Media Column (1/3 width) - Stacked Images */}
                     {slides[currentSlide].mediaType !== "none" && slides[currentSlide].mediaUrl && (
-                      <div className="md:col-span-1">
+                      <div className="md:col-span-1 flex flex-col gap-4">
                         {slides[currentSlide].mediaType === "image" ? (
-                          <img 
-                            src={slides[currentSlide].mediaUrl!} 
-                            alt={slides[currentSlide].title}
-                            className="w-full h-auto rounded-lg object-cover"
-                          />
+                          <>
+                            <img 
+                              src={slides[currentSlide].mediaUrl!} 
+                              alt={slides[currentSlide].title}
+                              className="w-full h-auto rounded-lg object-cover"
+                            />
+                            {slides[currentSlide].additionalMediaIds && 
+                             slides[currentSlide].additionalMediaIds!.length > 0 && 
+                             slides[currentSlide].additionalMediaIds!.map((mediaId, index) => (
+                              <img 
+                                key={mediaId}
+                                src={`/api/media-library/${mediaId}/file`} 
+                                alt={`${slides[currentSlide].title} - image ${index + 2}`}
+                                className="w-full h-auto rounded-lg object-cover"
+                              />
+                            ))}
+                          </>
                         ) : slides[currentSlide].mediaType === "video" ? (
                           <video 
                             src={slides[currentSlide].mediaUrl!}

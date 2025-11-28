@@ -104,6 +104,7 @@ export function B2bSlideshowManager() {
     mediaType: "none" as "none" | "image" | "video",
     mediaLibraryId: "" as string,
     videoId: "" as string,
+    additionalMediaIds: [] as string[],
     iconName: "none",
     sortOrder: 0,
     active: true,
@@ -185,6 +186,7 @@ export function B2bSlideshowManager() {
         mediaType: slide.mediaType as any,
         mediaLibraryId: slide.mediaLibraryId || "",
         videoId: slide.videoId || "",
+        additionalMediaIds: slide.additionalMediaIds || [],
         iconName: slide.iconName || "none",
         sortOrder: slide.sortOrder,
         active: slide.active,
@@ -199,6 +201,7 @@ export function B2bSlideshowManager() {
         mediaType: "none",
         mediaLibraryId: "",
         videoId: "",
+        additionalMediaIds: [],
         iconName: "none",
         sortOrder: maxOrder + 1,
         active: true,
@@ -249,6 +252,7 @@ export function B2bSlideshowManager() {
       mediaUrl, // Add the constructed URL
       mediaLibraryId: formData.mediaLibraryId || null,
       videoId: formData.videoId || null,
+      additionalMediaIds: formData.mediaType === "image" ? formData.additionalMediaIds : [],
     };
     
     if (editingSlide) {
@@ -567,7 +571,7 @@ export function B2bSlideshowManager() {
                 {formData.mediaLibraryId && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
                     <img
-                      src={mediaLibrary.find(m => m.id === formData.mediaLibraryId)?.publicUrl}
+                      src={`/api/media-library/${formData.mediaLibraryId}/file`}
                       alt="Selected"
                       className="h-10 w-10 object-cover rounded border"
                     />
@@ -582,6 +586,82 @@ export function B2bSlideshowManager() {
                     >
                       Clear
                     </Button>
+                  </div>
+                )}
+
+                {formData.mediaLibraryId && (
+                  <div className="border-t pt-4 mt-4">
+                    <Label className="text-base font-medium">Stack Additional Images (Optional)</Label>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Add more images to display in a vertical stack in the left column. Useful when you have longer content.
+                    </p>
+                    
+                    <MediaPickerInline
+                      value=""
+                      onChange={(id) => {
+                        if (id && !formData.additionalMediaIds.includes(id) && id !== formData.mediaLibraryId) {
+                          setFormData({ 
+                            ...formData, 
+                            additionalMediaIds: [...formData.additionalMediaIds, id] 
+                          });
+                        }
+                      }}
+                      items={addPublicUrlToMedia(mediaLibrary.filter(m => 
+                        m.id !== formData.mediaLibraryId && 
+                        !formData.additionalMediaIds.includes(m.id)
+                      ))}
+                      mediaType="image"
+                      categoryFilter={categoryFilter}
+                      searchQuery={mediaSearchQuery}
+                      isLoading={isLoadingMedia}
+                    />
+
+                    {formData.additionalMediaIds.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <Label className="text-sm">Selected Additional Images ({formData.additionalMediaIds.length})</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {formData.additionalMediaIds.map((id, index) => {
+                            const media = mediaLibrary.find(m => m.id === id);
+                            return (
+                              <div key={id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                <Badge variant="outline" className="h-6 w-6 p-0 flex items-center justify-center">
+                                  {index + 2}
+                                </Badge>
+                                <img
+                                  src={`/api/media-library/${id}/file`}
+                                  alt={media?.originalFilename || "Additional image"}
+                                  className="h-10 w-10 object-cover rounded border"
+                                />
+                                <span className="text-sm truncate max-w-[120px]">
+                                  {media?.originalFilename}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => setFormData({ 
+                                    ...formData, 
+                                    additionalMediaIds: formData.additionalMediaIds.filter(i => i !== id) 
+                                  })}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFormData({ ...formData, additionalMediaIds: [] })}
+                          className="mt-2"
+                        >
+                          Clear All Additional Images
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
