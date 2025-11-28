@@ -29,16 +29,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Edit, Trash2, Eye, EyeOff, AlertTriangle, Lock, Image, CheckSquare, Square } from "lucide-react";
 import { useState } from "react";
-import type { SlideshowImage, MediaLibrary } from "@shared/schema";
+import type { SlideshowImage } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import MediaPicker from "@/components/MediaPicker";
 
 const imageSchema = z.object({
   imageUrl: z.string().min(1, "Image URL is required (select from media library)"),
@@ -60,14 +54,6 @@ export default function SlideshowImageManager() {
   const { data: images = [], isLoading } = useQuery<SlideshowImage[]>({
     queryKey: ["/api/slideshow-images"],
   });
-
-  const { data: mediaFiles = [] } = useQuery<MediaLibrary[]>({
-    queryKey: ["/api/media-library"],
-  });
-
-  const imageMediaFiles = mediaFiles.filter(
-    (file) => file.mimeType.startsWith("image/")
-  );
 
   const createMutation = useMutation({
     mutationFn: async (data: ImageFormData) => {
@@ -293,40 +279,13 @@ export default function SlideshowImageManager() {
                   name="imageUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Image</FormLabel>
-                      
-                      {imageMediaFiles.length > 0 ? (
-                        <Select 
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-image">
-                              <SelectValue placeholder="Select from media library" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {imageMediaFiles.map((file) => (
-                              <SelectItem key={file.id} value={`/api/media-library/${file.id}/file`}>
-                                <div className="flex items-center gap-2">
-                                  <Image className="h-4 w-4" />
-                                  {file.filename}
-                                  {file.category && (
-                                    <span className="text-xs text-muted-foreground">
-                                      ({file.category})
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-sm text-muted-foreground py-2">
-                          No images in media library. Upload images in the Media Library section first.
-                        </p>
-                      )}
-                      
+                      <MediaPicker
+                        value={field.value}
+                        onChange={field.onChange}
+                        mediaType="image"
+                        label="Select Image"
+                        placeholder="Choose an image for this slide"
+                      />
                       <FormDescription>
                         Select an image from your media library. Upload images in the Media Library section.
                       </FormDescription>
@@ -334,17 +293,6 @@ export default function SlideshowImageManager() {
                     </FormItem>
                   )}
                 />
-                
-                {form.watch("imageUrl") && (
-                  <div className="rounded-lg border p-4 bg-muted/20">
-                    <p className="text-sm text-muted-foreground mb-2">Preview:</p>
-                    <img
-                      src={form.watch("imageUrl")}
-                      alt="Selected slide"
-                      className="max-w-full h-auto max-h-48 rounded object-contain"
-                    />
-                  </div>
-                )}
 
                 <FormField
                   control={form.control}
