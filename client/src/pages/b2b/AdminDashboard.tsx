@@ -165,6 +165,15 @@ interface LocationFormProps {
     phoneNumber?: string | null;
     emailAddress?: string | null;
   } | null;
+  formValues?: {
+    accountName?: string;
+    shippingAddress?: string;
+    shippingCity?: string;
+    shippingState?: string;
+    shippingZipCode?: string;
+    phoneNumber?: string;
+    emailAddress?: string;
+  };
   onSave: (data: {
     storeName: string;
     storeAddress: string;
@@ -181,7 +190,7 @@ interface LocationFormProps {
   isSaving: boolean;
 }
 
-function LocationForm({ location, customer, onSave, onCancel, isSaving }: LocationFormProps) {
+function LocationForm({ location, customer, formValues, onSave, onCancel, isSaving }: LocationFormProps) {
   const [formData, setFormData] = useState({
     storeName: location?.storeName || "",
     storeAddress: location?.storeAddress || "",
@@ -216,21 +225,30 @@ function LocationForm({ location, customer, onSave, onCancel, isSaving }: Locati
   };
 
   const handleCopyFromMain = () => {
-    if (customer) {
-      setFormData(prev => ({
-        ...prev,
-        storeName: customer.accountName || prev.storeName,
-        storeAddress: customer.shippingAddress || prev.storeAddress,
-        storeCity: customer.shippingCity || prev.storeCity,
-        storeState: customer.shippingState || prev.storeState,
-        storeZipCode: customer.shippingZipCode || prev.storeZipCode,
-        storePhone: customer.phoneNumber || prev.storePhone,
-        storeEmail: customer.emailAddress || prev.storeEmail,
-      }));
-    }
+    // Use current form values first (if user edited but hasn't saved), then fall back to customer data
+    const accountName = formValues?.accountName || customer?.accountName;
+    const shippingAddress = formValues?.shippingAddress || customer?.shippingAddress;
+    const shippingCity = formValues?.shippingCity || customer?.shippingCity;
+    const shippingState = formValues?.shippingState || customer?.shippingState;
+    const shippingZipCode = formValues?.shippingZipCode || customer?.shippingZipCode;
+    const phoneNumber = formValues?.phoneNumber || customer?.phoneNumber;
+    const emailAddress = formValues?.emailAddress || customer?.emailAddress;
+    
+    setFormData(prev => ({
+      ...prev,
+      storeName: accountName || prev.storeName,
+      storeAddress: shippingAddress || prev.storeAddress,
+      storeCity: shippingCity || prev.storeCity,
+      storeState: shippingState || prev.storeState,
+      storeZipCode: shippingZipCode || prev.storeZipCode,
+      storePhone: phoneNumber || prev.storePhone,
+      storeEmail: emailAddress || prev.storeEmail,
+    }));
   };
 
-  const hasMainInfo = customer && (customer.accountName || customer.shippingAddress || customer.shippingCity);
+  // Check if there's any main info to copy (from either form values or customer data)
+  const hasMainInfo = (formValues?.accountName || formValues?.shippingAddress || formValues?.shippingCity) ||
+                      (customer?.accountName || customer?.shippingAddress || customer?.shippingCity);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -4661,6 +4679,7 @@ export default function AdminDashboard() {
           <LocationForm
             location={locationDialog.location}
             customer={editCustomerDialog.customer}
+            formValues={editCustomerForm.getValues()}
             onSave={handleSaveLocation}
             onCancel={() => setLocationDialog({ isOpen: false, location: null, customerId: null })}
             isSaving={isSavingLocation}
