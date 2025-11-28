@@ -525,6 +525,194 @@ Nashoba Valley Winery B2B Team
   return { subject, html, text };
 }
 
+// Generate wholesale account application notification email
+interface WholesaleApplicationData {
+  accountName: string;
+  customerType: string;
+  customerNumber: string;
+  primaryContactName: string;
+  primaryContactRole?: string;
+  emailAddress: string;
+  phoneNumber: string;
+  altPhoneNumber?: string;
+  licenseNumber?: string;
+  taxId?: string;
+  billingAddress: string;
+  billingCity: string;
+  billingState: string;
+  billingZipCode: string;
+  storeLocationSameAsBusiness: string;
+  hasMultipleLocations?: string;
+  notes?: string;
+  acceptsMarketing: boolean;
+  submittedAt: Date;
+}
+
+export function generateWholesaleApplicationEmail(data: WholesaleApplicationData): { subject: string; html: string; text: string } {
+  const customerTypeLabels: Record<string, string> = {
+    retail_liquor: 'Retail Liquor Store',
+    restaurant: 'Restaurant / Bar',
+    private_club: 'Private Club',
+    other: 'Other',
+  };
+
+  const subject = `New Wholesale Account Application: ${data.accountName}`;
+
+  const text = `
+New Wholesale Account Application
+
+Application submitted: ${data.submittedAt.toLocaleString()}
+Customer Number: ${data.customerNumber}
+
+BUSINESS INFORMATION
+Business Name: ${data.accountName}
+Business Type: ${customerTypeLabels[data.customerType] || data.customerType}
+${data.licenseNumber ? `License Number: ${data.licenseNumber}` : ''}
+${data.taxId ? `Tax ID: ${data.taxId}` : ''}
+
+CONTACT INFORMATION
+Contact Name: ${data.primaryContactName}
+${data.primaryContactRole ? `Role: ${data.primaryContactRole}` : ''}
+Email: ${data.emailAddress}
+Phone: ${data.phoneNumber}
+${data.altPhoneNumber ? `Alt Phone: ${data.altPhoneNumber}` : ''}
+
+BUSINESS ADDRESS
+${data.billingAddress}
+${data.billingCity}, ${data.billingState} ${data.billingZipCode}
+
+STORE LOCATION
+Same as business address: ${data.storeLocationSameAsBusiness === 'yes' ? 'Yes' : 'No'}
+${data.hasMultipleLocations ? `Multiple locations: ${data.hasMultipleLocations === 'yes' ? 'Yes' : 'No'}` : ''}
+
+ADDITIONAL INFORMATION
+Marketing emails: ${data.acceptsMarketing ? 'Yes' : 'No'}
+${data.notes ? `Notes: ${data.notes}` : ''}
+
+---
+Please review this application in the B2B Admin Dashboard.
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .header p { margin: 10px 0 0; opacity: 0.9; }
+    .content { padding: 25px; background-color: #f9f9f9; }
+    .section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e0e0e0; }
+    .section-title { color: #5C2535; font-size: 16px; font-weight: bold; margin: 0 0 15px; padding-bottom: 10px; border-bottom: 2px solid #5C2535; }
+    .field { margin-bottom: 10px; }
+    .field-label { font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; }
+    .field-value { color: #333; font-size: 14px; margin-top: 2px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .badge-pending { background-color: #FFF3CD; color: #856404; }
+    .badge-type { background-color: #E8F4FD; color: #0066CC; }
+    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    .cta-button { display: inline-block; padding: 12px 24px; background-color: #5C2535; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>New Wholesale Application</h1>
+    <p>${data.accountName}</p>
+  </div>
+  
+  <div class="content">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span class="badge badge-pending">Pending Approval</span>
+      <span class="badge badge-type">${customerTypeLabels[data.customerType] || data.customerType}</span>
+    </div>
+    
+    <p style="text-align: center; color: #666; margin-bottom: 20px;">
+      Submitted on ${data.submittedAt.toLocaleDateString()} at ${data.submittedAt.toLocaleTimeString()}<br>
+      <strong>Customer #:</strong> ${data.customerNumber}
+    </p>
+    
+    <div class="section">
+      <h3 class="section-title">Business Information</h3>
+      <div class="field">
+        <div class="field-label">Business Name</div>
+        <div class="field-value">${data.accountName}</div>
+      </div>
+      ${data.licenseNumber ? `
+      <div class="field">
+        <div class="field-label">License Number</div>
+        <div class="field-value">${data.licenseNumber}</div>
+      </div>
+      ` : ''}
+      ${data.taxId ? `
+      <div class="field">
+        <div class="field-label">Tax ID</div>
+        <div class="field-value">${data.taxId}</div>
+      </div>
+      ` : ''}
+    </div>
+    
+    <div class="section">
+      <h3 class="section-title">Contact Information</h3>
+      <div class="field">
+        <div class="field-label">Primary Contact</div>
+        <div class="field-value">${data.primaryContactName}${data.primaryContactRole ? ` (${data.primaryContactRole})` : ''}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Email</div>
+        <div class="field-value"><a href="mailto:${data.emailAddress}">${data.emailAddress}</a></div>
+      </div>
+      <div class="field">
+        <div class="field-label">Phone</div>
+        <div class="field-value">${data.phoneNumber}${data.altPhoneNumber ? ` / ${data.altPhoneNumber}` : ''}</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3 class="section-title">Business Address</h3>
+      <div class="field-value">
+        ${data.billingAddress}<br>
+        ${data.billingCity}, ${data.billingState} ${data.billingZipCode}
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3 class="section-title">Store Location</h3>
+      <div class="field">
+        <div class="field-label">Same as Business Address?</div>
+        <div class="field-value">${data.storeLocationSameAsBusiness === 'yes' ? 'Yes' : 'No'}</div>
+      </div>
+      ${data.hasMultipleLocations ? `
+      <div class="field">
+        <div class="field-label">Multiple Locations?</div>
+        <div class="field-value">${data.hasMultipleLocations === 'yes' ? 'Yes - Admin to add after approval' : 'No'}</div>
+      </div>
+      ` : ''}
+    </div>
+    
+    ${data.notes ? `
+    <div class="section">
+      <h3 class="section-title">Notes</h3>
+      <div class="field-value">${data.notes}</div>
+    </div>
+    ` : ''}
+    
+    <div style="text-align: center;">
+      <p>Please review this application in the B2B Admin Dashboard and approve or contact the applicant.</p>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p><strong>Nashoba Valley Winery</strong></p>
+    <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {
