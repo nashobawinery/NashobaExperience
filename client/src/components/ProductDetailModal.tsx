@@ -278,24 +278,23 @@ export default function ProductDetailModal({
                   </div>
                 )}
                 
-                <div className="space-y-2">
-                  <span className="text-sm text-muted-foreground">Retail Price:</span>
-                  <p className="text-lg line-through text-muted-foreground">${parseFloat(product.price).toFixed(2)} per bottle</p>
-                </div>
-
-                {getDiscountInfo(product) && (
-                  <div className="space-y-1 p-3 bg-primary/10 rounded-lg border border-primary/20">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Your Price:</span>
-                      <span className="text-2xl font-bold text-primary">${getDiscountInfo(product)!.tierPrice} per bottle</span>
+                {getDiscountInfo(product) ? (
+                  <>
+                    <div className="space-y-2">
+                      <span className="text-sm text-muted-foreground">Retail Price:</span>
+                      <p className="text-lg line-through text-muted-foreground">${parseFloat(product.price).toFixed(2)} per bottle</p>
                     </div>
-                    <p className="text-sm text-green-600">
-                      Save ${getDiscountInfo(product)!.savings} per bottle ({getDiscountInfo(product)!.discountPercent}% off)
-                    </p>
-                  </div>
-                )}
-
-                {!getDiscountInfo(product) && (
+                    <div className="space-y-1 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">Your Price:</span>
+                        <span className="text-2xl font-bold text-primary">${getDiscountInfo(product)!.tierPrice} per bottle</span>
+                      </div>
+                      <p className="text-sm text-green-600">
+                        Save ${getDiscountInfo(product)!.savings} per bottle ({getDiscountInfo(product)!.discountPercent}% off)
+                      </p>
+                    </div>
+                  </>
+                ) : (
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Price:</span>
                     <span className="text-2xl font-bold text-primary" data-testid="text-product-price">
