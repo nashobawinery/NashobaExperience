@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +19,11 @@ import {
   AlertCircle,
   CheckCircle,
   Server,
-  Laptop
+  Laptop,
+  HardDrive,
+  Image,
+  Check,
+  X
 } from "lucide-react";
 
 const BASE_APP_TABLES = [
@@ -53,17 +57,91 @@ const B2B_TABLES = [
 
 const ALL_TABLES = [...BASE_APP_TABLES, ...B2B_TABLES];
 
+interface MediaSyncStatus {
+  bucketId: string;
+  summary: {
+    total: number;
+    existingInBucket: number;
+    missingFromBucket: number;
+    urlMismatch: number;
+  };
+  files: Array<{
+    id: string;
+    filename: string;
+    objectPath: string;
+    publicUrl: string;
+    existsInBucket: boolean;
+    urlMatchesBucket: boolean;
+  }>;
+}
+
+interface MediaSyncResult {
+  success: boolean;
+  dryRun: boolean;
+  summary: {
+    total: number;
+    synced: number;
+    skipped: number;
+    failed: number;
+  };
+  results: Array<{
+    id: string;
+    filename: string;
+    status: 'synced' | 'skipped' | 'failed';
+    message: string;
+    newUrl?: string;
+  }>;
+}
+
 export default function DatabaseSync() {
   const { toast } = useToast();
   const [selectedTables, setSelectedTables] = useState<string[]>(ALL_TABLES.map(t => t.id));
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
+  const [syncTab, setSyncTab] = useState<'database' | 'storage'>('database');
   const [syncDirection, setSyncDirection] = useState<'export' | 'import'>('export');
+  const [mediaSyncResult, setMediaSyncResult] = useState<MediaSyncResult | null>(null);
   
   const isProduction = window.location.hostname.includes('.replit.app') && 
                        !window.location.hostname.includes('-00-');
   const environmentName = isProduction ? 'Production' : 'Development';
   const environmentColor = isProduction ? 'destructive' : 'default';
+
+  // Object Storage sync status query
+  const { data: mediaSyncStatus, isLoading: isLoadingStatus, refetch: refetchStatus } = useQuery<MediaSyncStatus>({
+    queryKey: ['/api/admin/media-library/sync-status'],
+    enabled: syncTab === 'storage',
+  });
+
+  // Media sync mutation
+  const mediaSyncMutation = useMutation({
+    mutationFn: async (dryRun: boolean) => {
+      const response = await fetch('/api/admin/media-library/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun }),
+      });
+      if (!response.ok) {
+        throw new Error('Media sync failed');
+      }
+      return response.json() as Promise<MediaSyncResult>;
+    },
+    onSuccess: (data) => {
+      setMediaSyncResult(data);
+      refetchStatus();
+      toast({
+        title: data.dryRun ? "Dry Run Complete" : "Media Sync Complete",
+        description: `${data.summary.synced} synced, ${data.summary.skipped} skipped, ${data.summary.failed} failed`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Media Sync Failed",
+        description: error instanceof Error ? error.message : "Failed to sync media files",
+        variant: "destructive",
+      });
+    },
+  });
 
   const toggleTable = (tableId: string) => {
     setSelectedTables(prev => 
@@ -205,11 +283,11 @@ export default function DatabaseSync() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Database className="h-8 w-8" />
-            Database Sync Tool
+            <RefreshCw className="h-8 w-8" />
+            Environment Sync Tool
           </h1>
           <p className="text-muted-foreground mt-1">
-            Sync database tables between development and production environments
+            Sync database and media files between development and production environments
           </p>
         </div>
         <Badge variant={environmentColor} className="text-lg px-4 py-2">
@@ -218,19 +296,33 @@ export default function DatabaseSync() {
         </Badge>
       </div>
 
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>How Database Sync Works</AlertTitle>
-        <AlertDescription>
-          <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
-            <li><strong>Export from source:</strong> Select tables and download Excel file from {isProduction ? 'Production' : 'Development'}</li>
-            <li><strong>Switch environments:</strong> Open the {isProduction ? 'Development' : 'Production'} app</li>
-            <li><strong>Import to target:</strong> Upload the Excel file to sync the selected tables</li>
-          </ol>
-        </AlertDescription>
-      </Alert>
+      {/* Top-level tabs for Database vs Object Storage */}
+      <Tabs value={syncTab} onValueChange={(v) => setSyncTab(v as 'database' | 'storage')}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="database" className="flex items-center gap-2" data-testid="tab-database">
+            <Database className="h-4 w-4" />
+            Database Tables
+          </TabsTrigger>
+          <TabsTrigger value="storage" className="flex items-center gap-2" data-testid="tab-storage">
+            <HardDrive className="h-4 w-4" />
+            Object Storage
+          </TabsTrigger>
+        </TabsList>
 
-      <Tabs value={syncDirection} onValueChange={(v) => setSyncDirection(v as 'export' | 'import')}>
+        <TabsContent value="database" className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>How Database Sync Works</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                <li><strong>Export from source:</strong> Select tables and download Excel file from {isProduction ? 'Production' : 'Development'}</li>
+                <li><strong>Switch environments:</strong> Open the {isProduction ? 'Development' : 'Production'} app</li>
+                <li><strong>Import to target:</strong> Upload the Excel file to sync the selected tables</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <Tabs value={syncDirection} onValueChange={(v) => setSyncDirection(v as 'export' | 'import')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="export" className="flex items-center gap-2" data-testid="tab-export">
             <Download className="h-4 w-4" />
@@ -518,19 +610,228 @@ export default function DatabaseSync() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+          </Tabs>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Important Notes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p><strong>Media Files:</strong> This sync only transfers database records. Use the Media Sync utility in the Media Library to sync actual image files.</p>
-          <p><strong>Sales Reps:</strong> New sales rep accounts must be created via the admin UI (passwords are not exported for security).</p>
-          <p><strong>B2B Admins:</strong> Admin passwords are not exported. Existing admins are updated, new admins need password setup.</p>
-          <p><strong>Order Data:</strong> Importing orders uses order numbers and customer emails as business keys for matching.</p>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Important Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>Media Files:</strong> Database sync only transfers database records. Use the Object Storage tab to sync actual image files.</p>
+              <p><strong>Sales Reps:</strong> New sales rep accounts must be created via the admin UI (passwords are not exported for security).</p>
+              <p><strong>B2B Admins:</strong> Admin passwords are not exported. Existing admins are updated, new admins need password setup.</p>
+              <p><strong>Order Data:</strong> Importing orders uses order numbers and customer emails as business keys for matching.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Object Storage Tab */}
+        <TabsContent value="storage" className="space-y-4">
+          <Alert>
+            <HardDrive className="h-4 w-4" />
+            <AlertTitle>How Object Storage Sync Works</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                <li><strong>Check status:</strong> View which files exist in this environment's bucket</li>
+                <li><strong>Preview sync:</strong> Run a dry run to see what will be downloaded</li>
+                <li><strong>Sync files:</strong> Download files from their source URLs and upload to this bucket</li>
+              </ol>
+              <p className="mt-2 text-xs">
+                Files are downloaded from the URLs stored in the Media Library database records and re-uploaded to the current environment's Object Storage bucket.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Image className="h-5 w-5" />
+                Media Sync Status
+              </CardTitle>
+              <CardDescription>
+                Current state of media files in {environmentName} Object Storage
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoadingStatus ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : mediaSyncStatus ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-muted rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold">{mediaSyncStatus.summary.total}</div>
+                      <div className="text-sm text-muted-foreground">Total Files</div>
+                    </div>
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-green-600">{mediaSyncStatus.summary.existingInBucket}</div>
+                      <div className="text-sm text-muted-foreground">In Bucket</div>
+                    </div>
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-yellow-600">{mediaSyncStatus.summary.missingFromBucket}</div>
+                      <div className="text-sm text-muted-foreground">Missing</div>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-600">{mediaSyncStatus.summary.urlMismatch}</div>
+                      <div className="text-sm text-muted-foreground">URL Mismatch</div>
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    <strong>Bucket ID:</strong> {mediaSyncStatus.bucketId}
+                  </div>
+
+                  {mediaSyncStatus.summary.missingFromBucket > 0 && (
+                    <Alert variant="default" className="border-yellow-500/50 bg-yellow-500/10">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Files Need Syncing</AlertTitle>
+                      <AlertDescription>
+                        {mediaSyncStatus.summary.missingFromBucket} file(s) are missing from this environment's bucket. 
+                        Run the sync to download them from their source URLs.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {mediaSyncStatus.summary.missingFromBucket === 0 && mediaSyncStatus.summary.urlMismatch === 0 && (
+                    <Alert className="border-green-500/50 bg-green-500/10">
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertTitle>All Synced</AlertTitle>
+                      <AlertDescription>
+                        All media files are present in this environment's bucket with correct URLs.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                  <p>Could not load sync status. Object Storage may not be configured.</p>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-between border-t pt-6 flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => refetchStatus()}
+                disabled={isLoadingStatus}
+                data-testid="button-refresh-status"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+                Refresh Status
+              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => mediaSyncMutation.mutate(true)}
+                  disabled={mediaSyncMutation.isPending}
+                  data-testid="button-dry-run"
+                >
+                  {mediaSyncMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Preview Sync (Dry Run)
+                </Button>
+                <Button 
+                  onClick={() => mediaSyncMutation.mutate(false)}
+                  disabled={mediaSyncMutation.isPending}
+                  variant={isProduction ? "destructive" : "default"}
+                  data-testid="button-sync-media"
+                >
+                  {mediaSyncMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Media Files
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+
+          {/* Sync Results */}
+          {mediaSyncResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {mediaSyncResult.dryRun ? (
+                    <AlertCircle className="h-5 w-5 text-blue-500" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  )}
+                  {mediaSyncResult.dryRun ? 'Dry Run Results' : 'Sync Results'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold">{mediaSyncResult.summary.total}</div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">{mediaSyncResult.summary.synced}</div>
+                    <div className="text-xs text-muted-foreground">Synced</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-yellow-600">{mediaSyncResult.summary.skipped}</div>
+                    <div className="text-xs text-muted-foreground">Skipped</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-destructive">{mediaSyncResult.summary.failed}</div>
+                    <div className="text-xs text-muted-foreground">Failed</div>
+                  </div>
+                </div>
+
+                {mediaSyncResult.results.length > 0 && (
+                  <div className="max-h-64 overflow-y-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted sticky top-0">
+                        <tr>
+                          <th className="text-left p-2">File</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-left p-2">Message</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mediaSyncResult.results.map((result, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-2 font-mono text-xs truncate max-w-[200px]">{result.filename}</td>
+                            <td className="p-2">
+                              <Badge variant={
+                                result.status === 'synced' ? 'default' : 
+                                result.status === 'skipped' ? 'secondary' : 'destructive'
+                              }>
+                                {result.status === 'synced' && <Check className="h-3 w-3 mr-1" />}
+                                {result.status === 'failed' && <X className="h-3 w-3 mr-1" />}
+                                {result.status}
+                              </Badge>
+                            </td>
+                            <td className="p-2 text-xs text-muted-foreground truncate max-w-[300px]">{result.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>How Media Sync Works</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>1. File Check:</strong> Compares Media Library database records against files in the current environment's Object Storage bucket.</p>
+              <p><strong>2. Download & Upload:</strong> For missing files, downloads from the source URL (stored in database) and uploads to the current bucket.</p>
+              <p><strong>3. URL Update:</strong> Updates the Media Library database record with the new URL pointing to this environment's bucket.</p>
+              <p className="pt-2"><strong>Tip:</strong> After syncing database tables (including Media Library), run Object Storage sync to ensure all image files are available in this environment.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

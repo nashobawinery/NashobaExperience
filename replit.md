@@ -70,11 +70,18 @@ Preferred communication style: Simple, everyday language.
   - Multi-select dropdown for quick product assignment with badge-based display
 - **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
 
+### Environment Sync Tool
+- **Location**: Admin Dashboard → Import tab → "Open Environment Sync Tool" button, or navigate directly to `/admin/database-sync`
+- **Two-Tab Interface**:
+  - **Database Tables Tab**: Selective export/import of 23 database tables (10 Base App + 13 B2B)
+  - **Object Storage Tab**: Sync media files between development and production Object Storage buckets
+
 ### Database Synchronization
 - **Process**: Comprehensive Excel-based export/import system for synchronizing ALL database data between environments using multi-sheet workbooks.
+- **Selective Table Sync**: Choose exactly which tables to export/import using checkboxes with quick-select buttons (Select All, None, Base App Only, B2B Only)
 - **Complete Data Coverage**: 
-  - **Core Tables**: Products, Filter Options, Trivia, Slideshow, App Settings, Media Library, Whitelisted Emails, Commercials, Videos, Achievements
-  - **B2B Tables**: Tier Pricing, Sales Reps, Customers, Customer Locations, Customer Manual Products (Featured Products), Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions (with order_total, commission_percentage), Email Templates (with description, tier_filter, body_html, body_text, days_before_event), Email Automation Logs (with template_id, trigger_type, success, error_message)
+  - **Core Tables** (10): Products, Filter Options, Trivia, Slideshow, App Settings, Media Library, Whitelisted Emails, Commercials, Videos, Achievements
+  - **B2B Tables** (13): Tier Pricing, Sales Reps, Customers, Customer Locations, Customer Manual Products (Featured Products), Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions, Email Templates, Email Automation Logs
   - **All Fields Exported**: Every field in every table is captured during export to ensure complete data fidelity
 - **Cross-Environment Portability**: Uses portable business keys (email, order_number, etc.) instead of UUIDs for seamless data synchronization.
 - **Upsert Logic**: ID-first upsert strategy with natural business key fallback; handles partial updates correctly.
@@ -83,7 +90,17 @@ Preferred communication style: Simple, everyday language.
 - **Sales Rep Import**: Only updates existing sales reps (preserves passwords); new sales reps must be created via admin UI since passwords are not exported for security.
 - **Commissions**: Full sync including order_total, commission_percentage, status, pay_period, paid_to_sales_rep tracking, and timestamps
 - **Email System**: Complete sync of email templates and automation logs with all content, trigger types, and delivery status
-- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production. Complete synchronization ensures development database fully mirrors production after export/import cycle.
+
+### Object Storage Synchronization
+- **Purpose**: Ensures both development and production environments have the same media files in their Object Storage buckets
+- **How It Works**:
+  1. Checks which files from the Media Library database are present in the current environment's bucket
+  2. For missing files, downloads from their source URLs and re-uploads to the current bucket
+  3. Updates Media Library database records with URLs pointing to the current bucket
+- **Status Display**: Shows total files, files in bucket, missing files, and URL mismatches
+- **Preview Mode**: "Dry Run" option shows what would be synced without making changes
+- **Sync Workflow**: After syncing database tables (including Media Library), run Object Storage sync to ensure all images are available
+- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production. Complete synchronization ensures both database and media files are consistent between environments.
 
 ## External Dependencies
 - **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.

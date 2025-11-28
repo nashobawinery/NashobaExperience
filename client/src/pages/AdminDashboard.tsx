@@ -977,9 +977,9 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
                   <div className="border-t pt-6">
                     <div className="bg-primary/10 border border-primary/20 rounded-lg p-6 text-center">
-                      <h3 className="font-medium mb-2">Advanced Database Sync Tool</h3>
+                      <h3 className="font-medium mb-2">Environment Sync Tool</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Selectively export and import specific tables between development and production environments.
+                        Sync database tables and Object Storage files between development and production environments.
                       </p>
                       <Button 
                         variant="default"
@@ -987,7 +987,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                         data-testid="button-database-sync-tool"
                       >
                         <Database className="w-4 h-4 mr-2" />
-                        Open Database Sync Tool
+                        Open Environment Sync Tool
                       </Button>
                     </div>
                   </div>
