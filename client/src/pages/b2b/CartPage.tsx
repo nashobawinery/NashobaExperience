@@ -82,6 +82,17 @@ export default function CartPage() {
   }, 0);
   const qualifiesForTier2 = totalCases >= 5;
   
+  // Check if customer's current tier is already better than Tier 2
+  // Find Tier 2 sortOrder and customer's tier sortOrder
+  const tier2 = tiers?.find(t => t.tierName === 'Tier 2');
+  const customerTier = tiers?.find(t => t.tierName === currentTier);
+  const customerTierSortOrder = customerTier?.sortOrder || 0;
+  const tier2SortOrder = tier2?.sortOrder || 2;
+  const customerHasBetterTierThanTier2 = customerTierSortOrder > tier2SortOrder;
+  
+  // Only show Tier 2 upgrade if customer qualifies AND doesn't have a better tier
+  const shouldShowTier2Upgrade = qualifiesForTier2 && !customerHasBetterTierThanTier2;
+  
   // Get cart items with product details and apply category-specific tier-based pricing
   const cartItems = Object.entries(cart)
     .map(([cartKey, cartItem]) => {
@@ -126,17 +137,30 @@ export default function CartPage() {
         t => t.tierName === 'Tier 2' && t.category === productCategory && t.active
       );
       
+      // Find customer's current tier for this category to compare sortOrder
+      const customerTierForCategory = tiers?.find(
+        t => t.tierName === currentTier && t.category === productCategory && t.active
+      );
+      
+      // Check if customer's tier is BETTER than Tier 2 (higher sortOrder = better tier)
+      // Tier 1 = sortOrder 1, Tier 2 = sortOrder 2, Tier 3 = sortOrder 3, etc.
+      const customerTierSortOrder = customerTierForCategory?.sortOrder || 0;
+      const tier2SortOrder = tier2ForCategory?.sortOrder || 2;
+      const customerHasBetterTier = customerTierSortOrder > tier2SortOrder;
+      
       // Determine effective price
       let effectivePrice: number;
       let appliedTier: string;
       
-      if (qualifiesForTier2 && tier2ForCategory) {
-        // Cart has 5+ total cases - apply Tier 2 discount for this product's category
+      if (qualifiesForTier2 && tier2ForCategory && !customerHasBetterTier) {
+        // Cart has 5+ total cases AND customer's tier is worse than Tier 2
+        // Upgrade them to Tier 2 pricing
         const tier2Discount = parseFloat(tier2ForCategory.discountPercentage) / 100;
         effectivePrice = Number(product.price) * (1 - tier2Discount);
         appliedTier = 'Tier 2';
       } else {
         // Use customer's base tier price (already calculated by backend per category)
+        // This includes customers on Tier 3, 4, 5, 6 who should NOT be downgraded
         effectivePrice = product.tierPrice ? Number(product.tierPrice) : Number(product.price);
         appliedTier = currentTier || 'Retail';
       }
@@ -367,7 +391,7 @@ export default function CartPage() {
               <CardTitle className="font-serif">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {qualifiesForTier2 && (
+              {shouldShowTier2Upgrade && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-md">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
@@ -384,8 +408,8 @@ export default function CartPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Pricing Tier:</span>
-                  <Badge variant={qualifiesForTier2 ? "default" : "secondary"} data-testid="text-tier">
-                    {qualifiesForTier2 ? 'Tier 2' : (currentTier || 'Retail')}
+                  <Badge variant={shouldShowTier2Upgrade ? "default" : "secondary"} data-testid="text-tier">
+                    {shouldShowTier2Upgrade ? 'Tier 2' : (currentTier || 'Retail')}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">

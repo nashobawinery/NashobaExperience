@@ -77,6 +77,7 @@ export interface TierPricing {
   active: boolean;
   minOrderQuantity?: number;
   category?: string;
+  sortOrder?: number;
 }
 
 // Fetch active tiers only (public - for pricing page and approval dialog)
