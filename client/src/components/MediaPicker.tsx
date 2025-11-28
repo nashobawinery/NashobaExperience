@@ -257,7 +257,8 @@ export function MediaPicker({
                     )}
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                       {filteredMedia.map((item) => {
-                        const isSelected = value === `/api/media-library/${item.id}/file` || value === item.publicUrl || value === item.id;
+                        const imageUrl = `/api/media-library/${item.id}/file`;
+                        const isSelected = value === imageUrl || value === item.publicUrl || value === item.id;
                         return (
                           <button
                             key={item.id}
@@ -272,7 +273,7 @@ export function MediaPicker({
                             data-testid={`media-item-${item.id}`}
                           >
                             <img
-                              src={item.publicUrl}
+                              src={imageUrl}
                               alt={item.originalFilename}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -461,7 +462,8 @@ export function MediaPickerInline({
       {(mediaType === "image" || mediaType === "all") && filteredItems.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {filteredItems.map((item) => {
-            const isSelected = value === `/api/media-library/${item.id}/file` || value === item.publicUrl || value === item.id;
+            const imageUrl = `/api/media-library/${item.id}/file`;
+            const isSelected = value === imageUrl || value === item.publicUrl || value === item.id;
             return (
               <button
                 key={item.id}
@@ -476,7 +478,7 @@ export function MediaPickerInline({
                 data-testid={`media-item-${item.id}`}
               >
                 <img
-                  src={item.publicUrl}
+                  src={imageUrl}
                   alt={item.originalFilename}
                   className="w-full h-full object-cover"
                   loading="lazy"
