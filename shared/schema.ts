@@ -277,6 +277,7 @@ export const b2bSlideshowSlides = pgTable("b2b_slideshow_slides", {
   mediaUrl: text("media_url"), // Direct URL (e.g., /api/media-library/{id}/file) - like tasting app
   mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
   videoId: varchar("video_id").references(() => videos.id, { onDelete: "set null" }),
+  additionalMediaIds: text("additional_media_ids").array(), // Array of media library IDs for stacking images
   iconName: text("icon_name"),
   sortOrder: integer("sort_order").notNull().default(0),
   active: boolean("active").notNull().default(true),
