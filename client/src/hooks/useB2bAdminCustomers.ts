@@ -7,8 +7,19 @@ export interface B2bCustomer {
   emailAddress: string;
   phoneNumber: string;
   accountStatus: string;
-  tier?: string;
-  salesRep?: string;
+  tier?: {
+    id: string;
+    tierName: string;
+    discountPercentage?: string;
+    commitmentCases?: number;
+  } | null;
+  salesRep?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  salesRepId?: string | null;
   businessAddress?: string;
   businessType?: string;
   taxId?: string;
@@ -120,6 +131,7 @@ export function useUpdateB2bCustomer() {
     mutationFn: async ({
       customerId,
       data,
+      userType = "admin",
     }: {
       customerId: string;
       data: {
@@ -142,11 +154,17 @@ export function useUpdateB2bCustomer() {
         accountStatus?: string;
         notes?: string;
       };
+      userType?: "admin" | "sales_rep";
     }) => {
-      return apiRequest("PUT", `/api/b2b/admin/customers/${customerId}`, data);
+      // Use the appropriate endpoint based on user type
+      const endpoint = userType === "sales_rep" 
+        ? `/api/b2b/sales-rep/customers/${customerId}`
+        : `/api/b2b/admin/customers/${customerId}`;
+      return apiRequest("PUT", endpoint, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "sales-rep", "customers"] });
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tier-commitments"] });
     },
   });

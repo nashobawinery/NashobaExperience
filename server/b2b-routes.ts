@@ -1309,8 +1309,10 @@ router.put('/api/b2b/sales-rep/customers/:id', requireB2bSalesRep, async (req: R
     }
 
     // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
-    if (updateData.tierId) {
-      const tierError = await validateTierAssignment(updateData.tierId);
+    // Check both tierId and pricingTierId for compatibility with different field names
+    const tierIdToValidate = updateData.tierId || updateData.pricingTierId;
+    if (tierIdToValidate) {
+      const tierError = await validateTierAssignment(tierIdToValidate);
       if (tierError) {
         return res.status(400).json({ error: tierError });
       }

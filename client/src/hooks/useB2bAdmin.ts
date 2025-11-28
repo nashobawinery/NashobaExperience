@@ -13,6 +13,13 @@ export interface B2bOrder {
   total: string;
   orderDate: string;
   items?: B2bOrderItem[];
+  customer?: {
+    id: string;
+    accountName: string;
+    primaryContactName?: string;
+    emailAddress: string;
+    salesRepId?: string | null;
+  } | null;
 }
 
 export interface B2bOrderItem {
