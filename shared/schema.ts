@@ -530,6 +530,19 @@ export const b2bSettings = pgTable("b2b_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Role-based permissions for B2B users (admin, sales_rep, power_user, view_only)
+export const b2bRolePermissions = pgTable("b2b_role_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roleName: varchar("role_name").notNull().unique(), // admin, sales_rep, power_user, view_only
+  roleDisplayName: varchar("role_display_name").notNull(), // Admin, Sales Rep, Power User, View Only
+  roleDescription: text("role_description"),
+  tabPermissions: jsonb("tab_permissions").notNull(), // JSON object with tab permission config
+  specialPermissions: jsonb("special_permissions").notNull(), // JSON object with special ability flags
+  isDefault: boolean("is_default").notNull().default(false), // True for system-defined roles
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedByAdminId: varchar("updated_by_admin_id").references(() => b2bAdmins.id),
+});
+
 export const b2bPasswordResetTokens = pgTable("b2b_password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").notNull(),
@@ -629,6 +642,7 @@ export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: tru
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
+export const insertB2bRolePermissionSchema = createInsertSchema(b2bRolePermissions).omit({ id: true, updatedAt: true });
 export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
 export const insertB2bEmailTemplateSchema = createInsertSchema(b2bEmailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bEmailAutomationLogSchema = createInsertSchema(b2bEmailAutomationLogs).omit({ id: true, sentAt: true });
@@ -749,6 +763,9 @@ export type B2bCommission = typeof b2bCommissions.$inferSelect;
 
 export type InsertB2bSetting = z.infer<typeof insertB2bSettingSchema>;
 export type B2bSetting = typeof b2bSettings.$inferSelect;
+
+export type InsertB2bRolePermission = z.infer<typeof insertB2bRolePermissionSchema>;
+export type B2bRolePermission = typeof b2bRolePermissions.$inferSelect;
 
 export type InsertB2bPasswordResetToken = z.infer<typeof insertB2bPasswordResetTokenSchema>;
 export type B2bPasswordResetToken = typeof b2bPasswordResetTokens.$inferSelect;
