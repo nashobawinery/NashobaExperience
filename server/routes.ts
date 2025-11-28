@@ -1267,6 +1267,579 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Selective export - export only specified tables
+  app.post("/api/admin/data/export-selective", isAdmin, async (req, res) => {
+    try {
+      const { tables } = req.body;
+      if (!tables || !Array.isArray(tables) || tables.length === 0) {
+        return res.status(400).json({ message: "No tables specified" });
+      }
+
+      const tableSet = new Set(tables);
+      
+      // Fetch data for each selected table
+      const data: any = {
+        products: [],
+        filterOptions: [],
+        triviaQuestions: [],
+        slideshowImages: [],
+        appSettings: [],
+        mediaLibrary: [],
+        whitelistedEmails: [],
+        commercials: [],
+        videos: [],
+        triviaAchievements: [],
+        tierPricing: [],
+        salesReps: [],
+        b2bCustomers: [],
+        b2bCustomerLocations: [],
+        b2bCustomerManualProducts: [],
+        b2bOrders: [],
+        b2bOrderItems: [],
+        b2bSlideshowSlides: [],
+        b2bAdmins: [],
+        b2bSettings: [],
+        b2bCommissions: [],
+        b2bEmailTemplates: [],
+        b2bEmailAutomationLogs: [],
+      };
+
+      // Base app tables
+      if (tableSet.has('products')) {
+        data.products = await storage.getProducts({});
+      }
+      if (tableSet.has('filterOptions')) {
+        data.filterOptions = await storage.getFilterOptions();
+      }
+      if (tableSet.has('triviaQuestions')) {
+        data.triviaQuestions = await storage.getTriviaQuestions(false);
+      }
+      if (tableSet.has('slideshowImages')) {
+        data.slideshowImages = await storage.getSlideshowImages();
+      }
+      if (tableSet.has('appSettings')) {
+        try {
+          const discounts = await storage.getSetting('discount_tiers');
+          if (discounts) data.appSettings.push(discounts);
+          const cannedDiscounts = await storage.getSetting('canned_discount_tiers');
+          if (cannedDiscounts) data.appSettings.push(cannedDiscounts);
+        } catch (e) {}
+      }
+      if (tableSet.has('mediaLibrary')) {
+        data.mediaLibrary = await storage.getMediaLibraryFiles();
+      }
+      if (tableSet.has('whitelistedEmails')) {
+        data.whitelistedEmails = await storage.getAllWhitelistedEmails();
+      }
+      if (tableSet.has('commercials')) {
+        data.commercials = await storage.getCommercials();
+      }
+      if (tableSet.has('videos')) {
+        data.videos = await storage.getVideos();
+      }
+      if (tableSet.has('triviaAchievements')) {
+        data.triviaAchievements = await storage.getTriviaAchievements();
+      }
+
+      // B2B tables
+      if (tableSet.has('tierPricing')) {
+        data.tierPricing = await storage.getAllTierPricing();
+      }
+      if (tableSet.has('salesReps')) {
+        data.salesReps = await storage.getAllSalesReps();
+      }
+      if (tableSet.has('b2bCustomers')) {
+        data.b2bCustomers = await storage.getAllB2bCustomers();
+      }
+      if (tableSet.has('b2bCustomerLocations')) {
+        data.b2bCustomerLocations = await storage.getAllB2bCustomerLocations();
+      }
+      if (tableSet.has('b2bCustomerManualProducts')) {
+        const b2bCustomers = await storage.getAllB2bCustomers();
+        for (const customer of b2bCustomers) {
+          const manualProducts = await storage.getCustomerManualProducts(customer.id);
+          data.b2bCustomerManualProducts.push(...manualProducts.map(mp => {
+            const { product, ...core } = mp;
+            return { ...core, customerId: customer.id };
+          }));
+        }
+      }
+      if (tableSet.has('b2bOrders') || tableSet.has('b2bOrderItems')) {
+        const allOrders = await storage.getAllB2bOrders();
+        for (const orderWithCustomer of allOrders) {
+          const fullOrder = await storage.getB2bOrder(orderWithCustomer.id);
+          if (fullOrder) {
+            const { customer, items, ...coreOrder } = fullOrder;
+            if (tableSet.has('b2bOrders')) {
+              data.b2bOrders.push(coreOrder);
+            }
+            if (tableSet.has('b2bOrderItems')) {
+              data.b2bOrderItems.push(...items);
+            }
+          }
+        }
+      }
+      if (tableSet.has('b2bSlideshowSlides')) {
+        data.b2bSlideshowSlides = await storage.getAllB2bSlideshowSlides();
+      }
+      if (tableSet.has('b2bAdmins')) {
+        data.b2bAdmins = await storage.getAllB2bAdmins();
+      }
+      if (tableSet.has('b2bSettings')) {
+        data.b2bSettings = await storage.getAllB2bSettings();
+      }
+      if (tableSet.has('b2bCommissions')) {
+        data.b2bCommissions = await storage.getAllB2bCommissions();
+      }
+      if (tableSet.has('b2bEmailTemplates')) {
+        data.b2bEmailTemplates = await storage.getEmailTemplates();
+      }
+      if (tableSet.has('b2bEmailAutomationLogs')) {
+        data.b2bEmailAutomationLogs = await storage.getEmailAutomationLogs(undefined, 10000);
+      }
+
+      const { exportAllDataToExcel } = await import("./excel-import");
+      const buffer = exportAllDataToExcel(data);
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=nashoba-selective-${timestamp}.xlsx`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting selective data:", error);
+      res.status(500).json({ message: "Failed to export data" });
+    }
+  });
+
+  // Selective import - import only specified tables from Excel file
+  app.post("/api/admin/data/import-selective", upload.single('file'), isAdmin, async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const tables = req.body.tables ? JSON.parse(req.body.tables) : [];
+      if (!Array.isArray(tables) || tables.length === 0) {
+        return res.status(400).json({ message: "No tables specified" });
+      }
+
+      const tableSet = new Set(tables);
+      const { parseAllDataExcelFile } = await import("./excel-import");
+      const parseResult = parseAllDataExcelFile(req.file.buffer);
+
+      const results: any = {
+        summary: {},
+        errors: [...parseResult.errors],
+        warnings: [...parseResult.warnings],
+      };
+
+      // BASE APP TABLES
+      if (tableSet.has('products')) {
+        let success = 0, failed = 0;
+        for (const product of parseResult.products) {
+          try {
+            const existing = await storage.getProductBySku(product.sku);
+            if (existing) {
+              await storage.updateProduct(existing.id, product);
+            } else {
+              await storage.createProduct(product);
+            }
+            success++;
+          } catch (error) {
+            failed++;
+            results.errors.push(`Product "${product.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.products = success;
+      }
+
+      if (tableSet.has('filterOptions')) {
+        let success = 0;
+        for (const filter of parseResult.filterOptions) {
+          try {
+            await storage.upsertFilterOption(filter);
+            success++;
+          } catch (error) {
+            results.errors.push(`Filter "${filter.displayLabel}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.filterOptions = success;
+      }
+
+      if (tableSet.has('triviaQuestions')) {
+        let success = 0;
+        for (const trivia of parseResult.triviaQuestions) {
+          try {
+            await storage.upsertTriviaQuestion(trivia);
+            success++;
+          } catch (error) {
+            results.errors.push(`Trivia: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.triviaQuestions = success;
+      }
+
+      if (tableSet.has('slideshowImages')) {
+        let success = 0;
+        for (const image of parseResult.slideshowImages) {
+          try {
+            await storage.upsertSlideshowImage(image);
+            success++;
+          } catch (error) {
+            results.errors.push(`Slideshow "${image.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.slideshowImages = success;
+      }
+
+      if (tableSet.has('appSettings')) {
+        let success = 0;
+        for (const setting of parseResult.appSettings) {
+          try {
+            await storage.setSetting(setting.key, setting.value);
+            success++;
+          } catch (error) {
+            results.errors.push(`Setting "${setting.key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.appSettings = success;
+      }
+
+      if (tableSet.has('mediaLibrary')) {
+        let success = 0;
+        for (const media of parseResult.mediaLibrary) {
+          try {
+            await storage.upsertMediaLibraryFile(media);
+            success++;
+          } catch (error) {
+            results.errors.push(`Media "${media.filename}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.mediaLibrary = success;
+      }
+
+      if (tableSet.has('whitelistedEmails')) {
+        let success = 0;
+        for (const email of parseResult.whitelistedEmails) {
+          try {
+            await storage.upsertWhitelistedEmail(email);
+            success++;
+          } catch (error) {
+            results.errors.push(`Whitelisted email "${email.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.whitelistedEmails = success;
+      }
+
+      if (tableSet.has('commercials')) {
+        let success = 0;
+        for (const commercial of parseResult.commercials) {
+          try {
+            await storage.upsertCommercial(commercial);
+            success++;
+          } catch (error) {
+            results.errors.push(`Commercial "${commercial.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.commercials = success;
+      }
+
+      if (tableSet.has('videos')) {
+        let success = 0;
+        for (const video of parseResult.videos) {
+          try {
+            await storage.upsertVideo(video);
+            success++;
+          } catch (error) {
+            results.errors.push(`Video "${video.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.videos = success;
+      }
+
+      if (tableSet.has('triviaAchievements')) {
+        let success = 0;
+        for (const achievement of parseResult.triviaAchievements) {
+          try {
+            await storage.upsertTriviaAchievement(achievement);
+            success++;
+          } catch (error) {
+            results.errors.push(`Achievement: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.triviaAchievements = success;
+      }
+
+      // B2B TABLES - Process in dependency order
+      const tierNameToId = new Map<string, string>();
+      const salesRepEmailToId = new Map<string, string>();
+      const productSkuToId = new Map<string, string>();
+
+      // Build lookups if needed
+      if (tableSet.has('b2bCustomers') || tableSet.has('b2bOrders') || tableSet.has('b2bCustomerManualProducts')) {
+        const allProducts = await storage.getProducts({});
+        for (const prod of allProducts) {
+          if (prod.sku) productSkuToId.set(prod.sku.toLowerCase().trim(), prod.id);
+        }
+      }
+
+      if (tableSet.has('tierPricing')) {
+        let success = 0;
+        for (const tier of parseResult.tierPricing) {
+          try {
+            const { tierPricing: upserted } = await storage.upsertTierPricing(tier);
+            tierNameToId.set(tier.tierName.toLowerCase().trim(), upserted.id);
+            success++;
+          } catch (error) {
+            results.errors.push(`Tier "${tier.tierName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.tierPricing = success;
+      } else {
+        // Load existing tiers for FK resolution
+        const existingTiers = await storage.getAllTierPricing();
+        for (const tier of existingTiers) {
+          tierNameToId.set(tier.tierName.toLowerCase().trim(), tier.id);
+        }
+      }
+
+      if (tableSet.has('salesReps')) {
+        let success = 0;
+        for (const rep of parseResult.salesReps) {
+          try {
+            const existing = await storage.getSalesRepByEmailNormalized(rep.email);
+            if (existing) {
+              await storage.updateSalesRep(existing.id, {
+                firstName: rep.firstName,
+                lastName: rep.lastName,
+                phoneNumber: rep.phoneNumber || null,
+                active: rep.active !== undefined ? rep.active : true,
+              });
+              salesRepEmailToId.set(rep.email.toLowerCase().trim(), existing.id);
+              success++;
+            } else {
+              results.warnings.push(`Sales Rep "${rep.email}": New rep - create via admin UI`);
+            }
+          } catch (error) {
+            results.errors.push(`Sales Rep "${rep.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.salesReps = success;
+      } else {
+        // Load existing sales reps for FK resolution
+        const existingReps = await storage.getAllSalesReps();
+        for (const rep of existingReps) {
+          salesRepEmailToId.set(rep.email.toLowerCase().trim(), rep.id);
+        }
+      }
+
+      if (tableSet.has('b2bCustomers')) {
+        let success = 0;
+        for (const customer of parseResult.b2bCustomers) {
+          try {
+            let pricingTierId: string | null = null;
+            if (customer.pricingTierName) {
+              const tierId = tierNameToId.get(customer.pricingTierName.toLowerCase().trim());
+              if (tierId) pricingTierId = tierId;
+            }
+            let salesRepId: string | null = null;
+            if (customer.salesRepEmail) {
+              const repId = salesRepEmailToId.get(customer.salesRepEmail.toLowerCase().trim());
+              if (repId) salesRepId = repId;
+            }
+            const customerData = { ...customer, pricingTierId, salesRepId };
+            delete (customerData as any).pricingTierName;
+            delete (customerData as any).salesRepEmail;
+            await storage.upsertB2bCustomer(customerData);
+            success++;
+          } catch (error) {
+            results.errors.push(`B2B Customer "${customer.emailAddress}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bCustomers = success;
+      }
+
+      if (tableSet.has('b2bCustomerLocations')) {
+        let success = 0;
+        for (const location of parseResult.b2bCustomerLocations) {
+          try {
+            const customer = await storage.getB2bCustomerByEmail(location.customerEmail);
+            if (!customer) {
+              results.warnings.push(`Location "${location.storeName}": Customer not found`);
+              continue;
+            }
+            const existingLocations = await storage.getCustomerLocations(customer.id);
+            const existing = existingLocations.find(l => l.storeName?.toLowerCase().trim() === location.storeName?.toLowerCase().trim());
+            const locationData = { ...location, customerId: customer.id };
+            delete (locationData as any).customerEmail;
+            if (existing) {
+              await storage.updateCustomerLocation(existing.id, locationData);
+            } else {
+              await storage.createCustomerLocation(locationData);
+            }
+            success++;
+          } catch (error) {
+            results.errors.push(`Location "${location.storeName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bCustomerLocations = success;
+      }
+
+      if (tableSet.has('b2bCustomerManualProducts')) {
+        let success = 0;
+        for (const mp of parseResult.b2bCustomerManualProducts) {
+          try {
+            const customer = await storage.getB2bCustomerByEmail(mp.customerEmail);
+            if (!customer) continue;
+            const productId = productSkuToId.get(mp.productSku?.toLowerCase().trim());
+            if (!productId) continue;
+            const expiresAt = mp.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+            await storage.addCustomerManualProduct(customer.id, productId, expiresAt);
+            success++;
+          } catch (error) {
+            results.errors.push(`Featured Product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bCustomerManualProducts = success;
+      }
+
+      if (tableSet.has('b2bOrders') || tableSet.has('b2bOrderItems')) {
+        const itemsByOrder = new Map<string, any[]>();
+        for (const item of parseResult.b2bOrderItems) {
+          const key = item.orderNumber.toLowerCase().trim();
+          if (!itemsByOrder.has(key)) itemsByOrder.set(key, []);
+          itemsByOrder.get(key)!.push(item);
+        }
+
+        let orderSuccess = 0, itemSuccess = 0;
+        const allProducts = await storage.getProducts({});
+        
+        for (const order of parseResult.b2bOrders) {
+          try {
+            const customer = await storage.getB2bCustomerByEmail(order.customerEmail);
+            if (!customer) {
+              results.warnings.push(`Order "${order.orderNumber}": Customer not found`);
+              continue;
+            }
+            const orderData = { ...order, customerId: customer.id };
+            delete (orderData as any).customerEmail;
+
+            const rawItems = itemsByOrder.get(order.orderNumber.toLowerCase().trim()) || [];
+            const resolvedItems = [];
+            for (const item of rawItems) {
+              const productId = productSkuToId.get(item.productSku.toLowerCase().trim());
+              if (!productId) continue;
+              const product = allProducts.find(p => p.id === productId);
+              if (!product) continue;
+              resolvedItems.push({
+                productId,
+                productName: product.name,
+                sku: product.sku,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                retailPrice: item.retailPrice,
+                lineTotal: item.lineTotal,
+              });
+              itemSuccess++;
+            }
+
+            if (tableSet.has('b2bOrders')) {
+              await storage.upsertB2bOrder(orderData, resolvedItems);
+              orderSuccess++;
+            }
+          } catch (error) {
+            results.errors.push(`Order "${order.orderNumber}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        if (tableSet.has('b2bOrders')) results.summary.b2bOrders = orderSuccess;
+        if (tableSet.has('b2bOrderItems')) results.summary.b2bOrderItems = itemSuccess;
+      }
+
+      if (tableSet.has('b2bSlideshowSlides')) {
+        let success = 0;
+        for (const slide of parseResult.b2bSlideshowSlides) {
+          try {
+            await storage.upsertB2bSlideshowSlide(slide);
+            success++;
+          } catch (error) {
+            results.errors.push(`B2B Slide: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bSlideshowSlides = success;
+      }
+
+      if (tableSet.has('b2bAdmins')) {
+        let success = 0;
+        for (const admin of parseResult.b2bAdmins) {
+          try {
+            await storage.upsertB2bAdmin(admin);
+            success++;
+          } catch (error) {
+            results.errors.push(`B2B Admin "${admin.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bAdmins = success;
+      }
+
+      if (tableSet.has('b2bSettings')) {
+        let success = 0;
+        for (const setting of parseResult.b2bSettings) {
+          try {
+            await storage.setB2bSetting(setting.key, setting.value);
+            success++;
+          } catch (error) {
+            results.errors.push(`B2B Setting "${setting.key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bSettings = success;
+      }
+
+      if (tableSet.has('b2bCommissions')) {
+        let success = 0;
+        for (const commission of parseResult.b2bCommissions) {
+          try {
+            await storage.upsertB2bCommission(commission);
+            success++;
+          } catch (error) {
+            results.errors.push(`Commission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bCommissions = success;
+      }
+
+      if (tableSet.has('b2bEmailTemplates')) {
+        let success = 0;
+        for (const template of parseResult.b2bEmailTemplates) {
+          try {
+            await storage.upsertEmailTemplate(template);
+            success++;
+          } catch (error) {
+            results.errors.push(`Email Template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bEmailTemplates = success;
+      }
+
+      if (tableSet.has('b2bEmailAutomationLogs')) {
+        let success = 0;
+        for (const log of parseResult.b2bEmailAutomationLogs) {
+          try {
+            await storage.createEmailAutomationLog(log);
+            success++;
+          } catch (error) {
+            results.errors.push(`Email Log: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.b2bEmailAutomationLogs = success;
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error("Error importing selective data:", error);
+      res.status(500).json({ message: "Failed to import data", error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
   app.post("/api/admin/products/import", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
