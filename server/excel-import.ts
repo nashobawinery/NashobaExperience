@@ -641,6 +641,7 @@ export function exportAllDataToExcel(data: {
         email_address: customer.emailAddress, // Business key for upsert
         account_name: customer.accountName,
         account_status: customer.accountStatus,
+        customer_type: customer.customerType || '', // retail_liquor, restaurant, private_club, other
         pricing_tier_name: tier?.tierName || '', // Business key instead of UUID
         license_number: customer.licenseNumber || '',
         tax_id: customer.taxId || '',
@@ -1231,32 +1232,38 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     const rawCustomerData: any[] = XLSX.utils.sheet_to_json(customerSheet);
     
     // Parse with business keys, FK resolution happens in routes.ts
-    result.b2bCustomers = rawCustomerData.map((row: any) => ({
-      emailAddress: row.email_address?.trim() || '',
-      accountName: row.account_name?.trim() || '',
-      accountStatus: row.account_status?.trim() || 'pending',
-      pricingTierName: row.pricing_tier_name?.trim() || null, // Business key for FK
-      salesRepEmail: row.sales_rep_email?.trim() || null, // Business key for FK
-      licenseNumber: row.license_number?.trim() || null,
-      taxId: row.tax_id?.trim() || null,
-      creditTerms: row.credit_terms?.trim() || null,
-      creditLimit: toDecimal(row.credit_limit),
-      primaryContactName: row.primary_contact_name?.trim() || '',
-      primaryContactRole: row.primary_contact_role?.trim() || null,
-      phoneNumber: row.phone_number?.trim() || '',
-      altPhoneNumber: row.alt_phone_number?.trim() || null,
-      billingAddress: row.billing_address?.trim() || null,
-      billingCity: row.billing_city?.trim() || null,
-      billingState: row.billing_state?.trim() || null,
-      billingZipCode: row.billing_zip_code?.trim() || null,
-      shippingAddress: row.shipping_address?.trim() || null,
-      shippingCity: row.shipping_city?.trim() || null,
-      shippingState: row.shipping_state?.trim() || null,
-      shippingZipCode: row.shipping_zip_code?.trim() || null,
-      approvedAt: parseDate(row.approved_at),
-      notes: row.notes?.trim() || null,
-      acceptsMarketing: normalizeBool(row.accepts_marketing),
-    }));
+    const validCustomerTypes = ['retail_liquor', 'restaurant', 'private_club', 'other'];
+    result.b2bCustomers = rawCustomerData.map((row: any) => {
+      const rawCustomerType = row.customer_type?.trim() || '';
+      const customerType = validCustomerTypes.includes(rawCustomerType) ? rawCustomerType : null;
+      return {
+        emailAddress: row.email_address?.trim() || '',
+        accountName: row.account_name?.trim() || '',
+        accountStatus: row.account_status?.trim() || 'pending',
+        customerType: customerType, // retail_liquor, restaurant, private_club, other
+        pricingTierName: row.pricing_tier_name?.trim() || null, // Business key for FK
+        salesRepEmail: row.sales_rep_email?.trim() || null, // Business key for FK
+        licenseNumber: row.license_number?.trim() || null,
+        taxId: row.tax_id?.trim() || null,
+        creditTerms: row.credit_terms?.trim() || null,
+        creditLimit: toDecimal(row.credit_limit),
+        primaryContactName: row.primary_contact_name?.trim() || '',
+        primaryContactRole: row.primary_contact_role?.trim() || null,
+        phoneNumber: row.phone_number?.trim() || '',
+        altPhoneNumber: row.alt_phone_number?.trim() || null,
+        billingAddress: row.billing_address?.trim() || null,
+        billingCity: row.billing_city?.trim() || null,
+        billingState: row.billing_state?.trim() || null,
+        billingZipCode: row.billing_zip_code?.trim() || null,
+        shippingAddress: row.shipping_address?.trim() || null,
+        shippingCity: row.shipping_city?.trim() || null,
+        shippingState: row.shipping_state?.trim() || null,
+        shippingZipCode: row.shipping_zip_code?.trim() || null,
+        approvedAt: parseDate(row.approved_at),
+        notes: row.notes?.trim() || null,
+        acceptsMarketing: normalizeBool(row.accepts_marketing),
+      };
+    });
   }
 
   // Parse B2B Customer Locations sheet (uses customer email as business key)
