@@ -14,7 +14,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Building, ArrowLeft, Store, MapPin, User, Phone, Mail, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, Store, MapPin, User, Phone, Mail, FileText, AlertCircle } from "lucide-react";
+import logoUrl from "@assets/NVW logo no background_1762469370864.png";
 
 const registrationSchema = z.object({
   // Business Information
@@ -245,11 +246,28 @@ export default function RegistrationPage() {
 
         <Card>
           <CardHeader className="text-center pb-2">
-            <Building className="h-12 w-12 mx-auto mb-4 text-primary" />
+            <img 
+              src={logoUrl} 
+              alt="Nashoba Valley Winery" 
+              className="h-20 w-auto mx-auto mb-4"
+            />
             <CardTitle className="font-serif text-2xl md:text-3xl">Wholesale Account Application</CardTitle>
             <CardDescription className="text-base">
               Complete the form below to apply for a wholesale account with Nashoba Valley Winery
             </CardDescription>
+            
+            <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/10">
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+                <span className="font-semibold text-primary">Thank you for considering joining the Nashoba Valley Winery family!</span>
+                {" "}We're excited about the opportunity to partner with you. Our team is here to help you build our brand 
+                and bring the authentic taste of New England to your customers.
+              </p>
+              <p className="text-sm md:text-base text-muted-foreground leading-relaxed mt-3">
+                As a partner, you'll be among the stores and restaurants truly committed to local flavors, proudly pouring and 
+                serving beverages crafted by your neighbors. Your dedication to our farm helps keep our community thriving, 
+                one sip at a time. <span className="font-semibold text-primary">Every dollar your customers spend stays in our local economy.</span>
+              </p>
+            </div>
           </CardHeader>
           <CardContent>
             <Form {...form}>
