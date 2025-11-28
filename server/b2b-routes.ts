@@ -2047,6 +2047,41 @@ router.post('/api/b2b/admin/customers/:id/manual-products/cleanup', requireB2bAd
   }
 });
 
+// Admin: Bulk cleanup ALL orphaned manual products across ALL customers
+router.post('/api/b2b/admin/manual-products/cleanup-all', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    // Get all customers
+    const customers = await storage.getAllB2bCustomers();
+    
+    let totalDeleted = 0;
+    const affectedCustomers: { accountName: string; deletedCount: number }[] = [];
+
+    for (const customer of customers) {
+      const deletedCount = await storage.cleanupOrphanedManualProducts(customer.id);
+      if (deletedCount > 0) {
+        totalDeleted += deletedCount;
+        affectedCustomers.push({
+          accountName: customer.accountName,
+          deletedCount
+        });
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: totalDeleted > 0 
+        ? `Cleaned up ${totalDeleted} orphaned Featured Product record(s) across ${affectedCustomers.length} customer(s)` 
+        : 'No orphaned records found across any customers',
+      totalDeleted,
+      customersProcessed: customers.length,
+      affectedCustomers
+    });
+  } catch (error) {
+    console.error('Bulk cleanup orphaned manual products error:', error);
+    res.status(500).json({ error: 'Failed to cleanup orphaned manual products' });
+  }
+});
+
 // Admin: Reset customer password
 router.post('/api/b2b/admin/customers/:id/reset-password', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
