@@ -494,22 +494,143 @@ router.get('/api/b2b/pricing', async (req: Request, res: Response) => {
   }
 });
 
-// Public route: Customer registration
+// Public route: Customer registration (comprehensive application form)
 router.post('/api/b2b/register', async (req: Request, res: Response) => {
   try {
-    const validatedData = insertB2bCustomerSchema.parse(req.body);
+    const {
+      // Business Info
+      accountName,
+      customerType,
+      licenseNumber,
+      taxId,
+      // Contact Info
+      primaryContactName,
+      primaryContactRole,
+      emailAddress,
+      phoneNumber,
+      altPhoneNumber,
+      // Business Address
+      billingAddress,
+      billingCity,
+      billingState,
+      billingZipCode,
+      // Location questions
+      storeLocationSameAsBusiness,
+      hasMultipleLocations,
+      // Single store location (if different)
+      storeName,
+      storeAddress,
+      storeCity,
+      storeState,
+      storeZipCode,
+      storePhone,
+      storeEmail,
+      // Multiple locations note
+      multipleLocationsNote,
+      // Additional
+      notes,
+      acceptsMarketing,
+    } = req.body;
+
+    // Validate required fields
+    if (!accountName || !primaryContactName || !emailAddress || !phoneNumber) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    if (!billingAddress || !billingCity || !billingState || !billingZipCode) {
+      return res.status(400).json({ error: 'Business address is required' });
+    }
+    if (!customerType) {
+      return res.status(400).json({ error: 'Business type is required' });
+    }
     
     // Check if email already exists
-    const existing = await storage.getB2bCustomerByEmail(validatedData.emailAddress);
+    const existing = await storage.getB2bCustomerByEmail(emailAddress);
     if (existing) {
       return res.status(400).json({ error: 'Email address already registered' });
     }
 
-    const customer = await storage.createB2bCustomer(validatedData);
+    // Build notes with location info
+    let fullNotes = notes || '';
+    if (multipleLocationsNote) {
+      fullNotes = fullNotes 
+        ? `${fullNotes}\n\nMultiple Locations: ${multipleLocationsNote}`
+        : `Multiple Locations: ${multipleLocationsNote}`;
+    }
+    if (storeLocationSameAsBusiness === 'no' && hasMultipleLocations === 'yes') {
+      fullNotes = fullNotes
+        ? `${fullNotes}\n\n[Customer has multiple locations - admin to add after approval]`
+        : '[Customer has multiple locations - admin to add after approval]';
+    }
+
+    // Generate a unique customer number
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const customerNumber = `NVW-${timestamp}-${randomPart}`;
+
+    // Create the customer with all fields
+    const customerData = {
+      accountName,
+      customerType: customerType as any,
+      customerNumber,
+      licenseNumber: licenseNumber || null,
+      taxId: taxId || null,
+      primaryContactName,
+      primaryContactRole: primaryContactRole || null,
+      emailAddress,
+      phoneNumber,
+      altPhoneNumber: altPhoneNumber || null,
+      billingAddress,
+      billingCity,
+      billingState,
+      billingZipCode,
+      // Set shipping same as billing by default
+      shippingAddress: billingAddress,
+      shippingCity: billingCity,
+      shippingState: billingState,
+      shippingZipCode: billingZipCode,
+      notes: fullNotes || null,
+      acceptsMarketing: acceptsMarketing || false,
+      accountStatus: 'pending_approval' as const,
+    };
+
+    const customer = await storage.createB2bCustomer(customerData);
+
+    // If store location is same as business, create a location from business address
+    if (storeLocationSameAsBusiness === 'yes') {
+      // Create location from business address
+      await storage.createCustomerLocation({
+        customerId: customer.id,
+        storeName: accountName,
+        storeAddress: billingAddress,
+        storeCity: billingCity,
+        storeState: billingState,
+        storeZipCode: billingZipCode,
+        storePhone: phoneNumber,
+        storeEmail: emailAddress,
+        isPrimary: true,
+        showOnWhereToBuy: true,
+      });
+    } 
+    // If single different location provided, create it
+    else if (storeLocationSameAsBusiness === 'no' && hasMultipleLocations === 'no' && storeName && storeAddress) {
+      await storage.createCustomerLocation({
+        customerId: customer.id,
+        storeName,
+        storeAddress,
+        storeCity: storeCity || billingCity,
+        storeState: storeState || billingState,
+        storeZipCode: storeZipCode || billingZipCode,
+        storePhone: storePhone || null,
+        storeEmail: storeEmail || null,
+        isPrimary: true,
+        showOnWhereToBuy: true,
+      });
+    }
+    // For multiple locations, admin will add them after approval
     
     res.json({ 
       success: true,
-      message: 'Registration submitted successfully. You will be notified once your account is approved.',
+      message: 'Application submitted successfully. You will be notified once your account is approved.',
       customerId: customer.id 
     });
   } catch (error) {

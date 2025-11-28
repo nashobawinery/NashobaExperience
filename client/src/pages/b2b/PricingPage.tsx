@@ -295,88 +295,20 @@ export default function B2BPricingPage() {
             </div>
           </div>
 
-          {/* Request Access Code Dialog */}
+          {/* Apply for Wholesale Account */}
           <div className="mt-8 text-center">
             <p className="text-sm text-primary-foreground/70 mb-3">
-              Don't have an access code?
+              Want to become a wholesale partner?
             </p>
-            <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30 gap-2"
-                  data-testid="button-request-access"
-                >
-                  <Mail className="h-4 w-4" />
-                  Request Access Code
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Request Wholesale Access Code</DialogTitle>
-                  <DialogDescription>
-                    Fill out the form below and we'll send you an access code to view our wholesale pricing.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleRequestAccess} className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="request-name">Your Name *</Label>
-                    <Input
-                      id="request-name"
-                      data-testid="input-request-name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={requestForm.name}
-                      onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="request-business">Store/Restaurant Name *</Label>
-                    <Input
-                      id="request-business"
-                      data-testid="input-request-business"
-                      type="text"
-                      placeholder="My Restaurant & Bar"
-                      value={requestForm.businessName}
-                      onChange={(e) => setRequestForm({ ...requestForm, businessName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="request-email">Email Address *</Label>
-                    <Input
-                      id="request-email"
-                      data-testid="input-request-email"
-                      type="email"
-                      placeholder="you@yourbusiness.com"
-                      value={requestForm.email}
-                      onChange={(e) => setRequestForm({ ...requestForm, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setRequestDialogOpen(false)}
-                      className="flex-1"
-                      data-testid="button-cancel-request"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1"
-                      disabled={isSubmittingRequest}
-                      data-testid="button-submit-request"
-                    >
-                      {isSubmittingRequest ? "Sending..." : "Submit Request"}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button
+              variant="outline"
+              className="bg-background/20 backdrop-blur-sm border-primary-foreground/30 text-primary-foreground hover:bg-background/30 gap-2"
+              onClick={() => setLocation("/b2b/register")}
+              data-testid="button-apply-wholesale"
+            >
+              <Mail className="h-4 w-4" />
+              Apply for Wholesale Account
+            </Button>
           </div>
         </div>
       </div>
