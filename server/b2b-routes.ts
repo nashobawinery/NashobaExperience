@@ -1831,9 +1831,19 @@ router.get('/api/b2b/admin/customers/pending', requireB2bAdmin, async (req: Requ
 });
 
 // Admin/Sales Rep: Get all customers (any status)
+// Sales reps only see their assigned customers (server-side filtering)
 router.get('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const { status } = req.query;
+    
+    // For sales reps, use SQL-scoped query to only return their assigned customers
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      const salesRepId = (req.session as any).b2bUserId;
+      const customers = await storage.getB2bCustomersBySalesRep(salesRepId, status as string);
+      return res.json(customers);
+    }
+    
+    // For admins, return all customers
     const customers = await storage.getAllB2bCustomers(status as string);
     res.json(customers);
   } catch (error) {
@@ -1842,10 +1852,40 @@ router.get('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Re
   }
 });
 
-// Admin: Create new customer
-router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, res: Response) => {
+// Admin/Sales Rep: Create new customer
+// Sales reps can create customers that are auto-assigned to them (pending approval only)
+router.post('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
-    const { tierId, salesRepId, autoApprove, autoGeneratePassword = true, customPassword, ...customerData } = req.body;
+    const isSalesRep = (req.session as any).b2bUserType === 'sales_rep';
+    
+    // Extract and sanitize input based on role
+    const requestBody = req.body;
+    let effectiveSalesRepId = requestBody.salesRepId;
+    let effectiveAutoApprove = requestBody.autoApprove || false;
+    let effectiveTierId = requestBody.tierId;
+    const autoGeneratePassword = requestBody.autoGeneratePassword ?? true;
+    const customPassword = requestBody.customPassword;
+    const { tierId: _, salesRepId: __, autoApprove: ___, autoGeneratePassword: ____, customPassword: _____, ...customerData } = requestBody;
+    
+    // Sales rep authorization rules:
+    // 1. Can only assign customers to themselves
+    // 2. Cannot approve customers (only create pending accounts)
+    if (isSalesRep) {
+      // Force assignment to self
+      effectiveSalesRepId = (req.session as any).b2bUserId;
+      
+      // Reject any attempt to auto-approve
+      if (requestBody.autoApprove === true) {
+        return res.status(403).json({ error: 'Sales reps cannot approve customers. Create pending customers and an admin will review them.' });
+      }
+      effectiveAutoApprove = false;
+      effectiveTierId = undefined;
+      
+      // Reject attempt to assign to different sales rep
+      if (requestBody.salesRepId && requestBody.salesRepId !== (req.session as any).b2bUserId) {
+        return res.status(403).json({ error: 'You can only create customers assigned to yourself' });
+      }
+    }
     
     // Validate customer data
     const validatedData = insertB2bCustomerSchema.parse(customerData);
@@ -1859,10 +1899,16 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
     // Create customer with pending_approval status initially
     const customer = await storage.createB2bCustomer(validatedData);
     
+    // Immediately assign to sales rep if provided (before approval process)
+    if (effectiveSalesRepId) {
+      await storage.updateB2bCustomer(customer.id, { salesRepId: effectiveSalesRepId });
+    }
+    
     // If auto-approve is requested and tier is provided, approve immediately
-    if (autoApprove && tierId) {
+    // Note: Sales reps cannot reach this block due to guard clauses above
+    if (effectiveAutoApprove && effectiveTierId) {
       // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
-      const tierError = await validateTierAssignment(tierId);
+      const tierError = await validateTierAssignment(effectiveTierId);
       if (tierError) {
         return res.status(400).json({ error: tierError });
       }
@@ -1878,15 +1924,10 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
       
       const adminId = (req.session as any).b2bUserId;
       
-      // Update customer with sales rep if provided
-      if (salesRepId) {
-        await storage.updateB2bCustomer(customer.id, { salesRepId });
-      }
-      
       // Approve customer
       const approvedCustomer = await storage.approveB2bCustomer(
         customer.id,
-        tierId,
+        effectiveTierId,
         passwordHash,
         adminId
       );
@@ -1898,7 +1939,7 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
       // Send approval email with login credentials
       try {
         if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
-          const tier = await storage.getTierPricing(tierId);
+          const tier = await storage.getTierPricing(effectiveTierId);
           const emailHtml = `
             <html>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -1965,7 +2006,7 @@ router.post('/api/b2b/admin/customers', requireB2bAdmin, async (req: Request, re
 });
 
 // Admin: Update customer
-router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+router.put('/api/b2b/admin/customers/:id', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -1973,6 +2014,18 @@ router.put('/api/b2b/admin/customers/:id', requireB2bAdmin, async (req: Request,
     const existingCustomer = await storage.getB2bCustomer(id);
     if (!existingCustomer) {
       return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Authorization: Sales reps can only update their assigned customers
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      const salesRepId = (req.session as any).b2bUserId;
+      if (existingCustomer.salesRepId !== salesRepId) {
+        return res.status(403).json({ error: 'You can only update customers assigned to you' });
+      }
+      // Sales reps cannot change the salesRepId (reassign customers)
+      if (updateData.salesRepId && updateData.salesRepId !== salesRepId) {
+        return res.status(403).json({ error: 'You cannot reassign customers to other sales reps' });
+      }
     }
 
     // If email is being changed, check if new email is already in use
@@ -2712,6 +2765,14 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
+    
+    // Authorization: Sales reps can only create orders for their assigned customers
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      const salesRepId = (req.session as any).b2bUserId;
+      if (customer.salesRepId !== salesRepId) {
+        return res.status(403).json({ error: 'You can only create orders for customers assigned to you' });
+      }
+    }
 
     // Get customer's tier name (handle both tier object from join and missing tier)
     let customerTierName = '';
@@ -2824,9 +2885,18 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
   }
 });
 
-// Admin: Get all orders
+// Admin/Sales Rep: Get all orders
+// Sales reps only see orders from their assigned customers (server-side filtering)
 router.get('/api/b2b/admin/orders', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
+    // For sales reps, use SQL-scoped query to only return orders from their assigned customers
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      const salesRepId = (req.session as any).b2bUserId;
+      const orders = await storage.getB2bOrdersBySalesRep(salesRepId);
+      return res.json(orders);
+    }
+    
+    // For admins, return all orders
     const orders = await storage.getAllB2bOrders();
     res.json(orders);
   } catch (error) {
@@ -2835,13 +2905,21 @@ router.get('/api/b2b/admin/orders', requireB2bAdminOrSalesRep, async (req: Reque
   }
 });
 
-// Admin: Get single order with items
-router.get('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+// Admin/Sales Rep: Get single order with items
+router.get('/api/b2b/admin/orders/:id', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const order = await storage.getB2bOrder(req.params.id);
     
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // Authorization: Sales reps can only view orders for their assigned customers
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      const salesRepId = (req.session as any).b2bUserId;
+      if (order.customer?.salesRepId !== salesRepId) {
+        return res.status(403).json({ error: 'You can only view orders for your assigned customers' });
+      }
     }
 
     res.json(order);

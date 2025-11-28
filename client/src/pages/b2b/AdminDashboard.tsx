@@ -4,6 +4,7 @@ import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useC
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder, useDeleteB2bOrder } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
+import { useB2bPermissions } from "@/hooks/useB2bPermissions";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -369,6 +370,7 @@ function LocationForm({ location, customer, onSave, onCancel, isSaving }: Locati
 export default function AdminDashboard() {
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
+  const { can, isAdmin, isSalesRep, salesRepId } = useB2bPermissions();
   const { data: pendingCustomers, isLoading: loadingPending } = useB2bAdminCustomers("pending_approval");
   const { data: activeCustomers, isLoading: loadingActive } = useB2bAdminCustomers("active");
   const { data: inactiveCustomers, isLoading: loadingInactive } = useB2bAdminCustomers("inactive");
@@ -382,6 +384,55 @@ export default function AdminDashboard() {
   const manuallyAssignableTiers = useMemo(() => {
     return activeTiers?.filter(tier => tier.tierName !== 'Tier 2') || [];
   }, [activeTiers]);
+  
+  // Filter customers by assigned sales rep when user is a sales rep
+  const filteredPendingCustomers = useMemo(() => {
+    if (!pendingCustomers) return [];
+    if (isSalesRep && salesRepId) {
+      return pendingCustomers.filter(c => c.salesRepId === salesRepId);
+    }
+    return pendingCustomers;
+  }, [pendingCustomers, isSalesRep, salesRepId]);
+  
+  const filteredActiveCustomers = useMemo(() => {
+    if (!activeCustomers) return [];
+    if (isSalesRep && salesRepId) {
+      return activeCustomers.filter(c => c.salesRepId === salesRepId);
+    }
+    return activeCustomers;
+  }, [activeCustomers, isSalesRep, salesRepId]);
+  
+  const filteredInactiveCustomers = useMemo(() => {
+    if (!inactiveCustomers) return [];
+    if (isSalesRep && salesRepId) {
+      return inactiveCustomers.filter(c => c.salesRepId === salesRepId);
+    }
+    return inactiveCustomers;
+  }, [inactiveCustomers, isSalesRep, salesRepId]);
+  
+  // Filter orders by assigned customers for sales reps
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    if (isSalesRep && salesRepId) {
+      // Get all customer IDs assigned to this sales rep
+      const assignedCustomerIds = new Set([
+        ...(filteredPendingCustomers || []).map(c => c.id),
+        ...(filteredActiveCustomers || []).map(c => c.id),
+        ...(filteredInactiveCustomers || []).map(c => c.id),
+      ]);
+      return orders.filter(o => assignedCustomerIds.has(o.customerId));
+    }
+    return orders;
+  }, [orders, isSalesRep, salesRepId, filteredPendingCustomers, filteredActiveCustomers, filteredInactiveCustomers]);
+  
+  // Filter sales reps - sales reps only see their own profile
+  const filteredSalesReps = useMemo(() => {
+    if (!salesReps) return [];
+    if (isSalesRep && salesRepId) {
+      return salesReps.filter(sr => sr.id === salesRepId);
+    }
+    return salesReps;
+  }, [salesReps, isSalesRep, salesRepId]);
   const { data: adminProducts, isLoading: loadingProducts } = useB2bAdminProducts(); // Products for manual orders
   const { mutateAsync: approveCustomer, isPending: isApproving } = useB2bApproveCustomer();
   const { mutateAsync: rejectCustomer, isPending: isRejecting } = useB2bRejectCustomer();
@@ -1852,7 +1903,7 @@ export default function AdminDashboard() {
 
           <div className="pt-3 border-t flex gap-2 flex-wrap">
             {/* Approval/Rejection buttons - Admin only for pending customers */}
-            {isPending && currentUser?.type === 'admin' && (
+            {isPending && can.approveCustomers && (
               <>
                 <Button
                   size="sm"
@@ -1959,83 +2010,118 @@ export default function AdminDashboard() {
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Customer & Order Management</h3>
-              <TabsList className="grid w-full grid-cols-4 h-auto">
-                <TabsTrigger value="customers" data-testid="tab-customers" className="flex items-center justify-center gap-2">
-                  <Users className="w-4 h-4" />
-                  <span>Customers</span>
-                </TabsTrigger>
-                <TabsTrigger value="orders" data-testid="tab-orders" className="flex items-center justify-center gap-2">
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>Orders</span>
-                </TabsTrigger>
-                <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Tasks</span>
-                </TabsTrigger>
-                <TabsTrigger value="data" data-testid="tab-data" className="flex items-center justify-center gap-2">
-                  <Download className="w-4 h-4" />
-                  <span>Export/Import</span>
-                </TabsTrigger>
+              <TabsList className={`grid w-full h-auto ${can.viewTab('tasks') && can.viewTab('exportImport') ? 'grid-cols-4' : 'grid-cols-2'}`}>
+                {can.viewTab('customers') && (
+                  <TabsTrigger value="customers" data-testid="tab-customers" className="flex items-center justify-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <span>Customers</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('orders') && (
+                  <TabsTrigger value="orders" data-testid="tab-orders" className="flex items-center justify-center gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>Orders</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('tasks') && (
+                  <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Tasks</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('exportImport') && (
+                  <TabsTrigger value="data" data-testid="tab-data" className="flex items-center justify-center gap-2">
+                    <Download className="w-4 h-4" />
+                    <span>Export/Import</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           </Card>
 
+          {/* Marketing & Communications - Show if any tabs visible */}
+          {(can.viewTab('marketing') || can.viewTab('commitments') || can.viewTab('qrCodes')) && (
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Marketing & Communications</h3>
               <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="marketing" data-testid="tab-marketing" className="flex items-center justify-center gap-2">
-                  <Send className="w-4 h-4" />
-                  <span>Marketing</span>
-                </TabsTrigger>
-                <TabsTrigger value="commitments" data-testid="tab-commitments" className="flex items-center justify-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>Commitments</span>
-                </TabsTrigger>
-                <TabsTrigger value="qr-codes" data-testid="tab-qr-codes" className="flex items-center justify-center gap-2">
-                  <QrCode className="w-4 h-4" />
-                  <span>QR Codes</span>
-                </TabsTrigger>
+                {can.viewTab('marketing') && (
+                  <TabsTrigger value="marketing" data-testid="tab-marketing" className="flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" />
+                    <span>Marketing</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('commitments') && (
+                  <TabsTrigger value="commitments" data-testid="tab-commitments" className="flex items-center justify-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>Commitments</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('qrCodes') && (
+                  <TabsTrigger value="qr-codes" data-testid="tab-qr-codes" className="flex items-center justify-center gap-2">
+                    <QrCode className="w-4 h-4" />
+                    <span>QR Codes</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           </Card>
+          )}
 
+          {/* Content & Configuration - Show for non-sales-reps or if sales rep can view their profile */}
+          {(can.viewTab('slideshow') || can.viewTab('salesReps') || can.viewTab('settings')) && (
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Content & Configuration</h3>
-              <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="flex items-center justify-center gap-2">
-                  <Image className="w-4 h-4" />
-                  <span>Slideshow</span>
-                </TabsTrigger>
-                <TabsTrigger value="sales-reps" data-testid="tab-sales-reps" className="flex items-center justify-center gap-2">
-                  <UserCog className="w-4 h-4" />
-                  <span>Sales Reps</span>
-                </TabsTrigger>
-                <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
-                  <SettingsIcon className="w-4 h-4" />
-                  <span>Settings</span>
-                </TabsTrigger>
+              <TabsList className={`grid w-full h-auto ${!isSalesRep ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                {can.viewTab('slideshow') && (
+                  <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="flex items-center justify-center gap-2">
+                    <Image className="w-4 h-4" />
+                    <span>Slideshow</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('salesReps') && (
+                  <TabsTrigger value="sales-reps" data-testid="tab-sales-reps" className="flex items-center justify-center gap-2">
+                    <UserCog className="w-4 h-4" />
+                    <span>{isSalesRep ? 'My Profile' : 'Sales Reps'}</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('settings') && (
+                  <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
+                    <SettingsIcon className="w-4 h-4" />
+                    <span>Settings</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           </Card>
+          )}
 
+          {/* Finance & Payroll - Only show if user has access to any finance tabs */}
+          {(can.viewTab('payroll') || can.viewTab('commissions')) && (
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Finance & Payroll</h3>
-              <TabsList className="grid w-full grid-cols-2 h-auto">
-                <TabsTrigger value="payroll" data-testid="tab-payroll" className="flex items-center justify-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  <span>Payroll</span>
-                </TabsTrigger>
-                <TabsTrigger value="commissions" data-testid="tab-commissions" className="flex items-center justify-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  <span>Commissions</span>
-                </TabsTrigger>
+              <TabsList className={`grid w-full h-auto ${can.viewTab('payroll') && can.viewTab('commissions') ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {can.viewTab('payroll') && (
+                  <TabsTrigger value="payroll" data-testid="tab-payroll" className="flex items-center justify-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    <span>Payroll</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('commissions') && (
+                  <TabsTrigger value="commissions" data-testid="tab-commissions" className="flex items-center justify-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    <span>Commissions</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           </Card>
+          )}
 
+          {/* Improvements - Notes tab */}
+          {can.viewTab('notes') && (
           <Card className="p-4">
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Improvements</h3>
@@ -2047,10 +2133,19 @@ export default function AdminDashboard() {
               </TabsList>
             </div>
           </Card>
+          )}
         </div>
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
+          {/* Sales rep notice */}
+          {isSalesRep && (
+            <Alert>
+              <AlertDescription>
+                You are viewing only customers assigned to you. Contact an administrator to see or manage other customers.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-col sm:flex-row justify-between gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -2063,7 +2158,7 @@ export default function AdminDashboard() {
                 data-testid="input-customer-search"
               />
             </div>
-            {(currentUser?.type === 'admin' || currentUser?.type === 'sales_rep') && (
+            {can.create('customers') && (
               <Button
                 onClick={() => setCreateCustomerDialog(true)}
                 data-testid="button-create-customer"
@@ -2077,13 +2172,13 @@ export default function AdminDashboard() {
           <Tabs defaultValue="active" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3 max-w-lg">
               <TabsTrigger value="pending" data-testid="tab-pending">
-                Pending ({pendingCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
+                Pending ({filteredPendingCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
               <TabsTrigger value="active" data-testid="tab-active">
-                Active ({activeCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
+                Active ({filteredActiveCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
               <TabsTrigger value="inactive" data-testid="tab-inactive">
-                Inactive ({inactiveCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
+                Inactive ({filteredInactiveCustomers?.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length || 0})
               </TabsTrigger>
             </TabsList>
 
@@ -2098,7 +2193,7 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !pendingCustomers || pendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
+              ) : !filteredPendingCustomers || filteredPendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -2110,7 +2205,7 @@ export default function AdminDashboard() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, true))}
+                  {filteredPendingCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, true))}
                 </div>
               )}
             </TabsContent>
@@ -2126,7 +2221,7 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !activeCustomers || activeCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
+              ) : !filteredActiveCustomers || filteredActiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -2138,7 +2233,7 @@ export default function AdminDashboard() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activeCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
+                  {filteredActiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
                 </div>
               )}
             </TabsContent>
@@ -2154,7 +2249,7 @@ export default function AdminDashboard() {
                     </Card>
                   ))}
                 </div>
-              ) : !inactiveCustomers || inactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
+              ) : !filteredInactiveCustomers || filteredInactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -2166,7 +2261,7 @@ export default function AdminDashboard() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
+                  {filteredInactiveCustomers.filter(c => !customerSearch.trim() || c.accountName.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => renderCustomerCard(customer, false))}
                 </div>
               )}
             </TabsContent>
@@ -2175,19 +2270,34 @@ export default function AdminDashboard() {
 
         {/* ORDERS TAB */}
         <TabsContent value="orders" className="space-y-4">
-          <div className="flex justify-end mb-4">
-            <Button
-              onClick={() => setManualOrderDialog(true)}
-              data-testid="button-create-manual-order"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Manual Order
-            </Button>
-          </div>
+          {/* Sales rep notice */}
+          {isSalesRep && (
+            <Alert>
+              <AlertDescription>
+                You are viewing orders from your assigned customers only.
+              </AlertDescription>
+            </Alert>
+          )}
+          {/* Show Create Manual Order only if user can create orders AND (is admin OR has any assigned customers) */}
+          {can.create('orders') && (!isSalesRep || (
+            (filteredActiveCustomers && filteredActiveCustomers.length > 0) ||
+            (filteredPendingCustomers && filteredPendingCustomers.length > 0) ||
+            (filteredInactiveCustomers && filteredInactiveCustomers.length > 0)
+          )) && (
+            <div className="flex justify-end mb-4">
+              <Button
+                onClick={() => setManualOrderDialog(true)}
+                data-testid="button-create-manual-order"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Manual Order
+              </Button>
+            </div>
+          )}
           <Card>
             <CardHeader>
-              <CardTitle className="font-serif">All Orders</CardTitle>
-              <CardDescription>View all wholesale orders placed by customers</CardDescription>
+              <CardTitle className="font-serif">{isSalesRep ? 'My Customer Orders' : 'All Orders'}</CardTitle>
+              <CardDescription>{isSalesRep ? 'View orders from your assigned customers' : 'View all wholesale orders placed by customers'}</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingOrders ? (
@@ -2196,7 +2306,7 @@ export default function AdminDashboard() {
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : !orders || orders.length === 0 ? (
+              ) : !filteredOrders || filteredOrders.length === 0 ? (
                 <div className="py-12 text-center">
                   <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-medium mb-2">No Orders Yet</h3>
@@ -2206,7 +2316,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <div
                       key={order.id}
                       className="flex items-center justify-between p-4 rounded-lg border"
@@ -2355,7 +2465,7 @@ export default function AdminDashboard() {
 
         {/* SALES REPS TAB */}
         <TabsContent value="sales-reps" className="space-y-4">
-          {currentUser?.type === 'admin' && (
+          {can.create('salesReps') && (
             <div className="flex justify-end mb-4">
               <Button onClick={() => openSalesRepDialog()} data-testid="button-add-sales-rep">
                 <Plus className="h-4 w-4 mr-2" />
@@ -2366,27 +2476,27 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-serif">Sales Representatives</CardTitle>
-              <CardDescription>Manage your sales team</CardDescription>
+              <CardTitle className="font-serif">{isSalesRep ? 'My Profile' : 'Sales Representatives'}</CardTitle>
+              <CardDescription>{isSalesRep ? 'View your sales representative profile' : 'Manage your sales team'}</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingSalesReps ? (
                 <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
+                  {[...Array(isSalesRep ? 1 : 3)].map((_, i) => (
                     <Skeleton key={i} className="h-20 w-full" />
                   ))}
                 </div>
-              ) : !salesReps || salesReps.length === 0 ? (
+              ) : !filteredSalesReps || filteredSalesReps.length === 0 ? (
                 <div className="py-12 text-center">
                   <UserCog className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-medium mb-2">No Sales Representatives</h3>
+                  <h3 className="text-lg font-medium mb-2">{isSalesRep ? 'Profile Not Found' : 'No Sales Representatives'}</h3>
                   <p className="text-muted-foreground">
-                    Add sales representatives to manage customer accounts
+                    {isSalesRep ? 'Unable to load your profile' : 'Add sales representatives to manage customer accounts'}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {salesReps.map((rep) => (
+                  {filteredSalesReps.map((rep) => (
                     <div
                       key={rep.id}
                       className="flex items-center justify-between p-4 rounded-lg border"
@@ -2421,7 +2531,7 @@ export default function AdminDashboard() {
                           <DollarSign className="h-4 w-4 mr-2" />
                           Commissions
                         </Button>
-                        {currentUser?.type === 'admin' && (
+                        {can.edit('salesReps') && (
                           <Button
                             variant="outline"
                             size="sm"

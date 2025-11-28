@@ -2039,6 +2039,26 @@ export class DatabaseStorage implements IStorage {
 
     return results.map(r => ({ ...r.customer, tier: r.tier, salesRep: r.salesRep }));
   }
+  
+  // Scoped version - only returns customers assigned to a specific sales rep
+  async getB2bCustomersBySalesRep(salesRepId: string, status?: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null })[]> {
+    const query = db
+      .select({
+        customer: b2bCustomers,
+        tier: tierPricing,
+        salesRep: salesReps,
+      })
+      .from(b2bCustomers)
+      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .leftJoin(salesReps, eq(b2bCustomers.salesRepId, salesReps.id));
+
+    // Build where clause - always filter by salesRepId, optionally filter by status
+    const results = status
+      ? await query.where(and(eq(b2bCustomers.salesRepId, salesRepId), eq(b2bCustomers.accountStatus, status as any)))
+      : await query.where(eq(b2bCustomers.salesRepId, salesRepId));
+
+    return results.map(r => ({ ...r.customer, tier: r.tier, salesRep: r.salesRep }));
+  }
 
   async getB2bCustomer(id: string): Promise<(B2bCustomer & { tier?: TierPricing | null; salesRep?: SalesRep | null }) | undefined> {
     const [result] = await db
@@ -2329,6 +2349,21 @@ export class DatabaseStorage implements IStorage {
       })
       .from(b2bOrders)
       .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .orderBy(desc(b2bOrders.orderDate));
+
+    return results.map(r => ({ ...r.order, customer: r.customer }));
+  }
+  
+  // Scoped version - only returns orders for customers assigned to a specific sales rep
+  async getB2bOrdersBySalesRep(salesRepId: string): Promise<(B2bOrder & { customer: B2bCustomer })[]> {
+    const results = await db
+      .select({
+        order: b2bOrders,
+        customer: b2bCustomers,
+      })
+      .from(b2bOrders)
+      .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+      .where(eq(b2bCustomers.salesRepId, salesRepId))
       .orderBy(desc(b2bOrders.orderDate));
 
     return results.map(r => ({ ...r.order, customer: r.customer }));
