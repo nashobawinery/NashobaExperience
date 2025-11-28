@@ -211,15 +211,8 @@ export default function RegistrationPage() {
         throw new Error(result.error || "Registration failed");
       }
 
-      toast({
-        title: "Application Submitted!",
-        description: "Your wholesale account application is being reviewed. You'll receive an email once approved.",
-      });
-
-      // Redirect to pricing page
-      setTimeout(() => {
-        setLocation("/b2b");
-      }, 2000);
+      // Redirect to thank you page
+      setLocation("/b2b/application-submitted");
     } catch (error: any) {
       toast({
         title: "Submission Failed",
