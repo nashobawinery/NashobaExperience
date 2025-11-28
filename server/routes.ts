@@ -1707,10 +1707,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // 5. Import B2B slideshow slides (independent - no FK dependencies)
+      // 5. Import B2B slideshow slides (may have FK references to media library/videos)
+      // Build lookup dictionaries for FK resolution
+      const allMediaLibrary = await storage.getMediaLibraryFiles();
+      const allVideos = await storage.getVideos();
+      const mediaFilenameToId = new Map<string, string>(allMediaLibrary.map(m => [m.filename.toLowerCase(), m.id]));
+      const videoTitleToId = new Map<string, string>(allVideos.map(v => [v.title.toLowerCase(), v.id]));
+      
       for (const slide of parseResult.b2bSlideshowSlides) {
         try {
-          await storage.upsertB2bSlideshowSlide(slide);
+          // Resolve FK business keys to IDs
+          let resolvedMediaLibraryId: string | undefined = undefined;
+          let resolvedVideoId: string | undefined = undefined;
+          
+          if (slide.mediaLibraryFilename && slide.mediaLibraryFilename.trim()) {
+            resolvedMediaLibraryId = mediaFilenameToId.get(slide.mediaLibraryFilename.toLowerCase().trim());
+            if (!resolvedMediaLibraryId) {
+              results.warnings.push(`B2B Slideshow Slide "${slide.title}": Media library file "${slide.mediaLibraryFilename}" not found`);
+            }
+          }
+          
+          if (slide.videoName && slide.videoName.trim()) {
+            resolvedVideoId = videoTitleToId.get(slide.videoName.toLowerCase().trim());
+            if (!resolvedVideoId) {
+              results.warnings.push(`B2B Slideshow Slide "${slide.title}": Video "${slide.videoName}" not found`);
+            }
+          }
+          
+          // Create slide data with resolved FKs
+          const slideData = {
+            title: slide.title,
+            content: slide.content,
+            highlight: slide.highlight,
+            mediaType: slide.mediaType,
+            mediaUrl: slide.mediaUrl,
+            mediaLibraryId: resolvedMediaLibraryId || null,
+            videoId: resolvedVideoId || null,
+            iconName: slide.iconName,
+            sortOrder: slide.sortOrder,
+            active: slide.active,
+          };
+          
+          await storage.upsertB2bSlideshowSlide(slideData);
           results.b2bSlideshowSlides.success++;
         } catch (error) {
           results.b2bSlideshowSlides.failed++;

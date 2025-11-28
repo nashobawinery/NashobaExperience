@@ -757,16 +757,24 @@ export function exportAllDataToExcel(data: {
 
   // B2B Slideshow Slides sheet (if provided)
   if (data.b2bSlideshowSlides && data.b2bSlideshowSlides.length > 0) {
-    const slideshowData = data.b2bSlideshowSlides.map(slide => ({
-      title: slide.title,
-      content: slide.content || '',
-      highlight: slide.highlight || '',
-      media_type: slide.mediaType || 'none',
-      media_url: slide.mediaUrl || '',
-      icon_name: slide.iconName || '',
-      sort_order: slide.sortOrder,
-      active: slide.active ? 'Yes' : 'No',
-    }));
+    const slideshowData = data.b2bSlideshowSlides.map(slide => {
+      // Resolve FK references to business keys
+      const mediaLibraryItem = slide.mediaLibraryId ? data.mediaLibrary?.find((m: any) => m.id === slide.mediaLibraryId) : null;
+      const videoItem = slide.videoId ? data.videos?.find((v: any) => v.id === slide.videoId) : null;
+      
+      return {
+        title: slide.title,
+        content: slide.content || '',
+        highlight: slide.highlight || '',
+        media_type: slide.mediaType || 'none',
+        media_url: slide.mediaUrl || '',
+        media_library_filename: mediaLibraryItem?.filename || '', // Business key for media library
+        video_title: videoItem?.title || '', // Business key for video (uses 'title' not 'name')
+        icon_name: slide.iconName || '',
+        sort_order: slide.sortOrder,
+        active: slide.active ? 'Yes' : 'No',
+      };
+    });
     const slideshowSheet = XLSX.utils.json_to_sheet(slideshowData);
     XLSX.utils.book_append_sheet(workbook, slideshowSheet, 'B2bSlideshowSlides');
   }
@@ -1339,7 +1347,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     }));
   }
 
-  // Parse B2B Slideshow Slides sheet
+  // Parse B2B Slideshow Slides sheet (includes business keys for FK resolution)
   if (workbook.SheetNames.includes('B2bSlideshowSlides')) {
     const slideSheet = workbook.Sheets['B2bSlideshowSlides'];
     const rawSlideData: any[] = XLSX.utils.sheet_to_json(slideSheet);
@@ -1350,6 +1358,8 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
       highlight: row.highlight?.trim() || '',
       mediaType: row.media_type?.trim() || 'none',
       mediaUrl: row.media_url?.trim() || '',
+      mediaLibraryFilename: row.media_library_filename?.trim() || '', // Business key for FK
+      videoName: row.video_title?.trim() || row.video_name?.trim() || '', // Business key for FK (supports both column names)
       iconName: row.icon_name?.trim() || '',
       sortOrder: toNumber(row.sort_order, 0),
       active: normalizeBool(row.active),
