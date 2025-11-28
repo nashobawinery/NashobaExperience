@@ -2355,12 +2355,14 @@ export default function AdminDashboard() {
 
         {/* SALES REPS TAB */}
         <TabsContent value="sales-reps" className="space-y-4">
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => openSalesRepDialog()} data-testid="button-add-sales-rep">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Sales Rep
-            </Button>
-          </div>
+          {currentUser?.type === 'admin' && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => openSalesRepDialog()} data-testid="button-add-sales-rep">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Sales Rep
+              </Button>
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -2419,15 +2421,17 @@ export default function AdminDashboard() {
                           <DollarSign className="h-4 w-4 mr-2" />
                           Commissions
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openSalesRepDialog(rep)}
-                          data-testid={`button-edit-rep-${rep.id}`}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
+                        {currentUser?.type === 'admin' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openSalesRepDialog(rep)}
+                            data-testid={`button-edit-rep-${rep.id}`}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2459,6 +2463,13 @@ export default function AdminDashboard() {
 
         {/* PAYROLL TAB */}
         <TabsContent value="payroll" className="space-y-4">
+          {currentUser?.type === 'sales_rep' && (
+            <Alert>
+              <AlertDescription>
+                You can view payroll information, but only administrators can assign pay periods and process payroll.
+              </AlertDescription>
+            </Alert>
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
@@ -2483,7 +2494,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {selectedCommissionIds.size > 0 && (
+                  {currentUser?.type === 'admin' && selectedCommissionIds.size > 0 && (
                     <div className="bg-secondary p-4 rounded-lg flex items-center justify-between gap-4">
                       <p className="font-medium">{selectedCommissionIds.size} commission{selectedCommissionIds.size !== 1 ? 's' : ''} selected</p>
                       <div className="flex gap-2">
@@ -2512,22 +2523,24 @@ export default function AdminDashboard() {
                     <Card key={commission.id} className="border" data-testid={`payroll-commission-${commission.id}`}>
                       <CardContent className="pt-4">
                         <div className="flex gap-4 mb-4">
-                          <input
-                            type="checkbox"
-                            id={`commission-${commission.id}`}
-                            checked={selectedCommissionIds.has(commission.id)}
-                            onChange={(e) => {
-                              const newSet = new Set(selectedCommissionIds);
-                              if (e.target.checked) {
-                                newSet.add(commission.id);
-                              } else {
-                                newSet.delete(commission.id);
-                              }
-                              setSelectedCommissionIds(newSet);
-                            }}
-                            className="mt-1"
-                            data-testid={`checkbox-commission-${commission.id}`}
-                          />
+                          {currentUser?.type === 'admin' && (
+                            <input
+                              type="checkbox"
+                              id={`commission-${commission.id}`}
+                              checked={selectedCommissionIds.has(commission.id)}
+                              onChange={(e) => {
+                                const newSet = new Set(selectedCommissionIds);
+                                if (e.target.checked) {
+                                  newSet.add(commission.id);
+                                } else {
+                                  newSet.delete(commission.id);
+                                }
+                                setSelectedCommissionIds(newSet);
+                              }}
+                              className="mt-1"
+                              data-testid={`checkbox-commission-${commission.id}`}
+                            />
+                          )}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1">
                             <div>
                               <p className="text-xs text-muted-foreground">Sales Rep</p>
@@ -2547,49 +2560,51 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </div>
-                        {payrollCommissionId === commission.id ? (
-                          <div className="flex gap-2 items-end">
-                            <div className="flex-1">
-                              <Label htmlFor={`payperiod-${commission.id}`} className="text-xs mb-1 block">Pay Period (e.g., "Jan 2024" or "2024-01")</Label>
-                              <Input
-                                id={`payperiod-${commission.id}`}
-                                placeholder={nextPayrollDate}
-                                value={payrollPayPeriod || nextPayrollDate}
-                                onChange={(e) => setPayrollPayPeriod(e.target.value)}
-                                data-testid={`input-pay-period-${commission.id}`}
-                              />
+                        {currentUser?.type === 'admin' && (
+                          payrollCommissionId === commission.id ? (
+                            <div className="flex gap-2 items-end">
+                              <div className="flex-1">
+                                <Label htmlFor={`payperiod-${commission.id}`} className="text-xs mb-1 block">Pay Period (e.g., "Jan 2024" or "2024-01")</Label>
+                                <Input
+                                  id={`payperiod-${commission.id}`}
+                                  placeholder={nextPayrollDate}
+                                  value={payrollPayPeriod || nextPayrollDate}
+                                  onChange={(e) => setPayrollPayPeriod(e.target.value)}
+                                  data-testid={`input-pay-period-${commission.id}`}
+                                />
+                              </div>
+                              <Button
+                                onClick={() => updateCommissionPayPeriod.mutate({ commissionId: commission.id, payPeriod: payrollPayPeriod })}
+                                disabled={updateCommissionPayPeriod.isPending || !payrollPayPeriod}
+                                size="sm"
+                                data-testid={`button-confirm-pay-period-${commission.id}`}
+                              >
+                                {updateCommissionPayPeriod.isPending ? "Saving..." : "Mark Paid"}
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setPayrollCommissionId(null);
+                                  setPayrollPayPeriod("");
+                                }}
+                                variant="outline"
+                                size="sm"
+                                data-testid={`button-cancel-pay-period-${commission.id}`}
+                              >
+                                Cancel
+                              </Button>
                             </div>
-                            <Button
-                              onClick={() => updateCommissionPayPeriod.mutate({ commissionId: commission.id, payPeriod: payrollPayPeriod })}
-                              disabled={updateCommissionPayPeriod.isPending || !payrollPayPeriod}
-                              size="sm"
-                              data-testid={`button-confirm-pay-period-${commission.id}`}
-                            >
-                              {updateCommissionPayPeriod.isPending ? "Saving..." : "Mark Paid"}
-                            </Button>
+                          ) : (
                             <Button
                               onClick={() => {
-                                setPayrollCommissionId(null);
+                                setPayrollCommissionId(commission.id);
                                 setPayrollPayPeriod("");
                               }}
-                              variant="outline"
                               size="sm"
-                              data-testid={`button-cancel-pay-period-${commission.id}`}
+                              data-testid={`button-assign-pay-period-${commission.id}`}
                             >
-                              Cancel
+                              Assign to Pay Period
                             </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              setPayrollCommissionId(commission.id);
-                              setPayrollPayPeriod("");
-                            }}
-                            size="sm"
-                            data-testid={`button-assign-pay-period-${commission.id}`}
-                          >
-                            Assign to Pay Period
-                          </Button>
+                          )
                         )}
                       </CardContent>
                     </Card>
@@ -2700,7 +2715,8 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          {/* Payroll Settings Card */}
+          {/* Payroll Settings Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
@@ -2803,8 +2819,10 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+          )}
 
-          {/* Commission Backfill Card */}
+          {/* Commission Backfill Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
@@ -2828,8 +2846,10 @@ export default function AdminDashboard() {
               </Button>
             </CardContent>
           </Card>
+          )}
 
-          {/* Welcome Statement Card */}
+          {/* Welcome Statement Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
@@ -2866,8 +2886,10 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+          )}
 
-          {/* Tier Management Card */}
+          {/* Tier Management Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">
@@ -2962,8 +2984,10 @@ export default function AdminDashboard() {
               </Tabs>
             </CardContent>
           </Card>
+          )}
 
-          {/* Admin Management Card */}
+          {/* Admin Management Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -3065,6 +3089,7 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+          )}
         </TabsContent>
       </Tabs>
 
