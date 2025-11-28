@@ -940,9 +940,13 @@ export default function AdminDashboard() {
 
   // Fetch customer locations when edit dialog opens
   const { data: fetchedLocations, refetch: refetchLocations } = useQuery<any[]>({
-    queryKey: ['/api/b2b/admin/customers', editCustomerDialog.customer?.id, 'locations'],
+    queryKey: ['b2b', isSalesRep ? 'sales-rep' : 'admin', 'customers', editCustomerDialog.customer?.id, 'locations'],
     queryFn: async () => {
-      const res = await fetch(`/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/locations`, {
+      // Use the appropriate endpoint based on user role
+      const endpoint = isSalesRep 
+        ? `/api/b2b/sales-rep/customers/${editCustomerDialog.customer?.id}/locations`
+        : `/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/locations`;
+      const res = await fetch(endpoint, {
         credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to fetch locations');
@@ -1636,9 +1640,14 @@ export default function AdminDashboard() {
 
     setIsSavingLocation(true);
     try {
-      const url = locationDialog.location
-        ? `/api/b2b/admin/customers/${locationDialog.customerId}/locations/${locationDialog.location.id}`
+      // Use the appropriate endpoint based on user role
+      const baseEndpoint = isSalesRep 
+        ? `/api/b2b/sales-rep/customers/${locationDialog.customerId}/locations`
         : `/api/b2b/admin/customers/${locationDialog.customerId}/locations`;
+      
+      const url = locationDialog.location
+        ? `${baseEndpoint}/${locationDialog.location.id}`
+        : baseEndpoint;
       
       const response = await fetch(url, {
         method: locationDialog.location ? 'PUT' : 'POST',
@@ -1673,9 +1682,12 @@ export default function AdminDashboard() {
     if (!editCustomerDialog.customer?.id) return;
 
     try {
-      const response = await fetch(
-        `/api/b2b/admin/customers/${editCustomerDialog.customer.id}/locations/${locationId}`,
-        {
+      // Use the appropriate endpoint based on user role
+      const endpoint = isSalesRep 
+        ? `/api/b2b/sales-rep/customers/${editCustomerDialog.customer.id}/locations/${locationId}`
+        : `/api/b2b/admin/customers/${editCustomerDialog.customer.id}/locations/${locationId}`;
+      
+      const response = await fetch(endpoint, {
           method: 'DELETE',
           credentials: 'include',
         }
