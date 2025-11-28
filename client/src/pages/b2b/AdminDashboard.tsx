@@ -46,6 +46,7 @@ import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
 import { EmailTemplateManager } from "@/components/b2b/EmailTemplateManager";
 import B2bQRCodes from "@/components/b2b/B2bQRCodes";
+import { PermissionsManager } from "@/components/b2b/PermissionsManager";
 import TierCommitmentPage from "./TierCommitmentPage";
 import TasksPage from "./TasksPage";
 import NotesManager from "@/components/NotesManager";
@@ -3199,6 +3200,11 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Role Permissions Manager - Admin Only */}
+          {currentUser?.type === 'admin' && (
+            <PermissionsManager />
           )}
         </TabsContent>
       </Tabs>
