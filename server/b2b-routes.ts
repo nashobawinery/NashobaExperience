@@ -4070,8 +4070,8 @@ router.post('/api/b2b/admin/settings/welcome', requireB2bAdmin, async (req: Requ
 
 // ======= ROLE PERMISSIONS API =======
 
-// Get all role permissions (admin only)
-router.get('/api/b2b/role-permissions', requireB2bAdmin, async (req: Request, res: Response) => {
+// Get all role permissions (accessible to all authenticated B2B users)
+router.get('/api/b2b/role-permissions', requireB2bAuth, async (req: Request, res: Response) => {
   try {
     const permissions = await storage.getAllB2bRolePermissions();
     
@@ -4089,8 +4089,8 @@ router.get('/api/b2b/role-permissions', requireB2bAdmin, async (req: Request, re
   }
 });
 
-// Get single role permission
-router.get('/api/b2b/role-permissions/:roleName', requireB2bAdmin, async (req: Request, res: Response) => {
+// Get single role permission (accessible to all authenticated B2B users)
+router.get('/api/b2b/role-permissions/:roleName', requireB2bAuth, async (req: Request, res: Response) => {
   try {
     const { roleName } = req.params;
     const permission = await storage.getB2bRolePermission(roleName);
