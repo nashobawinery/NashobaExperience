@@ -47,7 +47,9 @@ export function ProtectedRoute({
       return;
     }
 
-    if (requireAdmin && !isAdmin) {
+    // Allow both admins and sales reps to access admin dashboard
+    // Sales reps have restricted functionality within the dashboard
+    if (requireAdmin && !isAdmin && !isSalesRep) {
       setLocation("/b2b/login/admin");
       return;
     }
@@ -78,7 +80,8 @@ export function ProtectedRoute({
     return null;
   }
 
-  if (requireAdmin && !isAdmin) {
+  // Allow both admins and sales reps to access admin dashboard
+  if (requireAdmin && !isAdmin && !isSalesRep) {
     return null;
   }
 
