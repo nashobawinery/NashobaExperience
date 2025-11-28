@@ -424,9 +424,10 @@ export default function B2BPricingPage() {
                         <h3 className="text-2xl md:text-3xl font-serif font-light mb-4">
                           {slides[currentSlide].title}
                         </h3>
-                        <p className="text-base md:text-lg text-muted-foreground mb-6 leading-relaxed">
-                          {slides[currentSlide].content}
-                        </p>
+                        <div 
+                          className="text-base md:text-lg text-muted-foreground mb-6 leading-relaxed prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: slides[currentSlide].content || '' }}
+                        />
                         {slides[currentSlide].highlight && (
                           <div className="inline-block bg-primary/10 border border-primary/20 rounded-lg px-6 py-3">
                             <p className="text-sm md:text-base font-medium text-primary">
