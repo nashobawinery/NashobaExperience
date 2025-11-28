@@ -1743,6 +1743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             mediaUrl: slide.mediaUrl,
             mediaLibraryId: resolvedMediaLibraryId || null,
             videoId: resolvedVideoId || null,
+            additionalMediaIds: slide.additionalMediaIds || null,
             iconName: slide.iconName,
             sortOrder: slide.sortOrder,
             active: slide.active,

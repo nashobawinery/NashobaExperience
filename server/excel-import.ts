@@ -1352,18 +1352,29 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     const slideSheet = workbook.Sheets['B2bSlideshowSlides'];
     const rawSlideData: any[] = XLSX.utils.sheet_to_json(slideSheet);
     
-    result.b2bSlideshowSlides = rawSlideData.map((row: any) => ({
-      title: row.title?.trim() || '',
-      content: row.content?.trim() || '',
-      highlight: row.highlight?.trim() || '',
-      mediaType: row.media_type?.trim() || 'none',
-      mediaUrl: row.media_url?.trim() || '',
-      mediaLibraryFilename: row.media_library_filename?.trim() || '', // Business key for FK
-      videoName: row.video_title?.trim() || row.video_name?.trim() || '', // Business key for FK (supports both column names)
-      iconName: row.icon_name?.trim() || '',
-      sortOrder: toNumber(row.sort_order, 0),
-      active: normalizeBool(row.active),
-    }));
+    result.b2bSlideshowSlides = rawSlideData.map((row: any) => {
+      let additionalMediaIds: string[] | null = null;
+      if (row.additional_media_ids) {
+        const ids = row.additional_media_ids.toString().trim();
+        if (ids) {
+          additionalMediaIds = ids.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+        }
+      }
+      
+      return {
+        title: row.title?.trim() || '',
+        content: row.content?.trim() || '',
+        highlight: row.highlight?.trim() || '',
+        mediaType: row.media_type?.trim() || 'none',
+        mediaUrl: row.media_url?.trim() || '',
+        mediaLibraryFilename: row.media_library_filename?.trim() || '', // Business key for FK
+        videoName: row.video_title?.trim() || row.video_name?.trim() || '', // Business key for FK (supports both column names)
+        additionalMediaIds,
+        iconName: row.icon_name?.trim() || '',
+        sortOrder: toNumber(row.sort_order, 0),
+        active: normalizeBool(row.active),
+      };
+    });
   }
 
   // Parse B2B Admins sheet (email is business key)
