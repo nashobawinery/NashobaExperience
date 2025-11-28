@@ -24,8 +24,8 @@ export function ProtectedRoute({
   useEffect(() => {
     if (isLoading) return;
 
-    // Check if admin is impersonating a customer
-    const isAdminImpersonating = isAdmin && localStorage.getItem('admin_impersonating');
+    // Check if admin OR sales rep is impersonating a customer
+    const isImpersonating = (isAdmin || isSalesRep) && localStorage.getItem('admin_impersonating');
 
     // Check if authentication is required but user is not logged in
     if (requireAuth && !user) {
@@ -41,8 +41,8 @@ export function ProtectedRoute({
     }
 
     // Check role-specific requirements
-    // Allow admin impersonation to bypass customer-only checks
-    if (requireCustomer && !isCustomer && !isAdminImpersonating) {
+    // Allow admin or sales rep impersonation to bypass customer-only checks
+    if (requireCustomer && !isCustomer && !isImpersonating) {
       setLocation("/b2b/login/customer");
       return;
     }
@@ -72,11 +72,11 @@ export function ProtectedRoute({
     return null;
   }
 
-  // Check if admin is impersonating a customer
-  const isAdminImpersonating = isAdmin && localStorage.getItem('admin_impersonating');
+  // Check if admin OR sales rep is impersonating a customer
+  const isImpersonating = (isAdmin || isSalesRep) && localStorage.getItem('admin_impersonating');
 
-  // Allow admin impersonation to bypass customer-only checks
-  if (requireCustomer && !isCustomer && !isAdminImpersonating) {
+  // Allow admin or sales rep impersonation to bypass customer-only checks
+  if (requireCustomer && !isCustomer && !isImpersonating) {
     return null;
   }
 
