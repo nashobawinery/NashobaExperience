@@ -83,6 +83,7 @@ import {
   b2bOrderItems,
   b2bCommissions,
   b2bSettings,
+  b2bRolePermissions,
   b2bSlideshowSlides,
   b2bEmailTemplates,
   b2bEmailAutomationLogs,
@@ -108,6 +109,8 @@ import {
   type B2bCommission,
   type InsertB2bSetting,
   type B2bSetting,
+  type InsertB2bRolePermission,
+  type B2bRolePermission,
   type InsertB2bSlideshowSlide,
   type B2bSlideshowSlide,
   type InsertB2bEmailTemplate,
@@ -383,6 +386,12 @@ export interface IStorage {
   getB2bSetting(key: string): Promise<B2bSetting | undefined>;
   setB2bSetting(key: string, value: string): Promise<B2bSetting>;
   getAllB2bSettings(): Promise<B2bSetting[]>;
+  
+  // B2B - Role Permissions
+  getAllB2bRolePermissions(): Promise<B2bRolePermission[]>;
+  getB2bRolePermission(roleName: string): Promise<B2bRolePermission | undefined>;
+  upsertB2bRolePermission(data: InsertB2bRolePermission): Promise<B2bRolePermission>;
+  initializeDefaultRolePermissions(): Promise<void>;
   
   // B2B - Slideshow Slides
   getAllB2bSlideshowSlides(): Promise<B2bSlideshowSlide[]>;
@@ -2626,6 +2635,175 @@ export class DatabaseStorage implements IStorage {
 
   async getAllB2bSettings(): Promise<B2bSetting[]> {
     return db.select().from(b2bSettings);
+  }
+  
+  // B2B Role Permissions implementations
+  async getAllB2bRolePermissions(): Promise<B2bRolePermission[]> {
+    return db.select().from(b2bRolePermissions);
+  }
+  
+  async getB2bRolePermission(roleName: string): Promise<B2bRolePermission | undefined> {
+    const [permission] = await db
+      .select()
+      .from(b2bRolePermissions)
+      .where(eq(b2bRolePermissions.roleName, roleName));
+    return permission;
+  }
+  
+  async upsertB2bRolePermission(data: InsertB2bRolePermission): Promise<B2bRolePermission> {
+    const [permission] = await db
+      .insert(b2bRolePermissions)
+      .values(data)
+      .onConflictDoUpdate({
+        target: b2bRolePermissions.roleName,
+        set: {
+          roleDisplayName: data.roleDisplayName,
+          roleDescription: data.roleDescription,
+          tabPermissions: data.tabPermissions,
+          specialPermissions: data.specialPermissions,
+          updatedAt: new Date(),
+          updatedByAdminId: data.updatedByAdminId,
+        },
+      })
+      .returning();
+    return permission;
+  }
+  
+  async initializeDefaultRolePermissions(): Promise<void> {
+    const defaultRoles = [
+      {
+        roleName: 'admin',
+        roleDisplayName: 'Admin',
+        roleDescription: 'Full access to all features and settings',
+        tabPermissions: {
+          customers: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          orders: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          tasks: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          exportImport: { canView: true, canCreate: true, canEdit: true },
+          marketing: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          commitments: { canView: true, canCreate: true, canEdit: true },
+          qrCodes: { canView: true, canCreate: true },
+          slideshow: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          notes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          payroll: { canView: true, canCreate: true, canEdit: true },
+          commissions: { canView: true, canCreate: true, canEdit: true },
+          salesReps: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          settings: { canView: true, canCreate: true, canEdit: true },
+        },
+        specialPermissions: {
+          canApproveCustomers: true,
+          canManageAdmins: true,
+          canManageTiers: true,
+          canChangePayrollSettings: true,
+          canSendPayroll: true,
+          canAssignPayPeriods: true,
+          canEditWelcomeStatement: true,
+          canImpersonateCustomers: true,
+          canManagePermissions: true,
+        },
+        isDefault: true,
+      },
+      {
+        roleName: 'sales_rep',
+        roleDisplayName: 'Sales Rep',
+        roleDescription: 'Limited access focused on assigned customers and orders',
+        tabPermissions: {
+          customers: { canView: true, canCreate: true, canEdit: true, canDelete: false, scopeToAssigned: true },
+          orders: { canView: true, canCreate: true, canEdit: false, canDelete: false, scopeToAssigned: true },
+          tasks: { canView: false },
+          exportImport: { canView: false },
+          marketing: { canView: true, canCreate: false, canEdit: false },
+          commitments: { canView: true, canCreate: false, canEdit: false },
+          qrCodes: { canView: true, canCreate: false },
+          slideshow: { canView: false },
+          notes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          payroll: { canView: false },
+          commissions: { canView: true, canCreate: false, canEdit: false, scopeToAssigned: true },
+          salesReps: { canView: true, canCreate: false, canEdit: false, viewOwnOnly: true },
+          settings: { canView: false },
+        },
+        specialPermissions: {
+          canApproveCustomers: false,
+          canManageAdmins: false,
+          canManageTiers: false,
+          canChangePayrollSettings: false,
+          canSendPayroll: false,
+          canAssignPayPeriods: false,
+          canEditWelcomeStatement: false,
+          canImpersonateCustomers: false,
+          canManagePermissions: false,
+        },
+        isDefault: true,
+      },
+      {
+        roleName: 'power_user',
+        roleDisplayName: 'Power User',
+        roleDescription: 'Extended access but cannot manage other users or sensitive settings',
+        tabPermissions: {
+          customers: { canView: true, canCreate: true, canEdit: true, canDelete: false },
+          orders: { canView: true, canCreate: true, canEdit: true, canDelete: false },
+          tasks: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          exportImport: { canView: true, canCreate: true, canEdit: true },
+          marketing: { canView: true, canCreate: true, canEdit: true, canDelete: false },
+          commitments: { canView: true, canCreate: true, canEdit: true },
+          qrCodes: { canView: true, canCreate: true },
+          slideshow: { canView: true, canCreate: true, canEdit: true, canDelete: false },
+          notes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+          payroll: { canView: true, canCreate: false, canEdit: false },
+          commissions: { canView: true, canCreate: false, canEdit: false },
+          salesReps: { canView: true, canCreate: false, canEdit: false },
+          settings: { canView: true, canCreate: false, canEdit: false },
+        },
+        specialPermissions: {
+          canApproveCustomers: true,
+          canManageAdmins: false,
+          canManageTiers: false,
+          canChangePayrollSettings: false,
+          canSendPayroll: false,
+          canAssignPayPeriods: false,
+          canEditWelcomeStatement: false,
+          canImpersonateCustomers: true,
+          canManagePermissions: false,
+        },
+        isDefault: true,
+      },
+      {
+        roleName: 'view_only',
+        roleDisplayName: 'View Only',
+        roleDescription: 'Read-only access across the platform',
+        tabPermissions: {
+          customers: { canView: true, canCreate: false, canEdit: false, canDelete: false },
+          orders: { canView: true, canCreate: false, canEdit: false, canDelete: false },
+          tasks: { canView: true, canCreate: false, canEdit: false, canDelete: false },
+          exportImport: { canView: false },
+          marketing: { canView: true, canCreate: false, canEdit: false },
+          commitments: { canView: true, canCreate: false, canEdit: false },
+          qrCodes: { canView: true, canCreate: false },
+          slideshow: { canView: true, canCreate: false, canEdit: false },
+          notes: { canView: true, canCreate: false, canEdit: false },
+          payroll: { canView: true, canCreate: false, canEdit: false },
+          commissions: { canView: true, canCreate: false, canEdit: false },
+          salesReps: { canView: true, canCreate: false, canEdit: false },
+          settings: { canView: true, canCreate: false, canEdit: false },
+        },
+        specialPermissions: {
+          canApproveCustomers: false,
+          canManageAdmins: false,
+          canManageTiers: false,
+          canChangePayrollSettings: false,
+          canSendPayroll: false,
+          canAssignPayPeriods: false,
+          canEditWelcomeStatement: false,
+          canImpersonateCustomers: false,
+          canManagePermissions: false,
+        },
+        isDefault: true,
+      },
+    ];
+    
+    for (const role of defaultRoles) {
+      await this.upsertB2bRolePermission(role);
+    }
   }
   
   async getAllB2bSlideshowSlides(): Promise<B2bSlideshowSlide[]> {
