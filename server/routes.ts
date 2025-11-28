@@ -2273,6 +2273,239 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Media Library Sync - Download from external URLs and re-upload to current environment's Object Storage
+  app.post("/api/admin/media-library/sync", isAdmin, async (req, res) => {
+    try {
+      const { dryRun = false, mediaIds } = req.body;
+      const objectStorageService = new ObjectStorageService();
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      
+      if (!bucketId) {
+        return res.status(500).json({ error: "Object storage not configured" });
+      }
+
+      // Get all media library files (or specific ones if mediaIds provided)
+      const allMedia = await storage.getMediaLibraryFiles();
+      const mediaToSync = mediaIds 
+        ? allMedia.filter(m => mediaIds.includes(m.id))
+        : allMedia;
+
+      console.log(`Media sync: Processing ${mediaToSync.length} files (dryRun: ${dryRun})`);
+
+      const results: Array<{
+        id: string;
+        filename: string;
+        status: 'synced' | 'skipped' | 'failed';
+        message: string;
+        newUrl?: string;
+      }> = [];
+
+      for (const media of mediaToSync) {
+        try {
+          // Check if file already exists in current bucket
+          const objectPath = media.objectPath;
+          let fileExists = false;
+          
+          try {
+            const bucket = objectStorageClient.bucket(bucketId);
+            const [exists] = await bucket.file(objectPath).exists();
+            fileExists = exists;
+          } catch {
+            fileExists = false;
+          }
+
+          if (fileExists) {
+            // File exists, just update the URL to point to current bucket
+            const newPublicUrl = `https://storage.googleapis.com/${bucketId}/${objectPath}`;
+            
+            if (media.publicUrl !== newPublicUrl) {
+              if (!dryRun) {
+                await storage.updateMediaLibraryFile(media.id, { publicUrl: newPublicUrl });
+              }
+              results.push({
+                id: media.id,
+                filename: media.filename,
+                status: 'synced',
+                message: 'URL updated to current bucket',
+                newUrl: newPublicUrl,
+              });
+            } else {
+              results.push({
+                id: media.id,
+                filename: media.filename,
+                status: 'skipped',
+                message: 'File already exists with correct URL',
+              });
+            }
+            continue;
+          }
+
+          // File doesn't exist - try to download from original URL
+          if (!media.publicUrl) {
+            results.push({
+              id: media.id,
+              filename: media.filename,
+              status: 'failed',
+              message: 'No source URL available',
+            });
+            continue;
+          }
+
+          if (dryRun) {
+            results.push({
+              id: media.id,
+              filename: media.filename,
+              status: 'synced',
+              message: `[DRY RUN] Would download from ${media.publicUrl}`,
+            });
+            continue;
+          }
+
+          // Download the file from the source URL
+          console.log(`  Downloading: ${media.filename} from ${media.publicUrl}`);
+          const response = await fetch(media.publicUrl);
+          
+          if (!response.ok) {
+            results.push({
+              id: media.id,
+              filename: media.filename,
+              status: 'failed',
+              message: `Download failed: ${response.status} ${response.statusText}`,
+            });
+            continue;
+          }
+
+          const fileBuffer = Buffer.from(await response.arrayBuffer());
+          const contentType = response.headers.get('content-type') || media.mimeType;
+
+          // Upload to current bucket
+          const bucket = objectStorageClient.bucket(bucketId);
+          const file = bucket.file(objectPath);
+          
+          await file.save(fileBuffer, {
+            metadata: { contentType },
+          });
+
+          // Set public ACL
+          const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+            owner: 'system',
+            visibility: 'public',
+          });
+
+          // Update the media library record with new URL
+          const newPublicUrl = `https://storage.googleapis.com/${bucketId}/${normalizedPath}`;
+          await storage.updateMediaLibraryFile(media.id, { 
+            publicUrl: newPublicUrl,
+            objectPath: normalizedPath,
+          });
+
+          console.log(`  ✓ Synced: ${media.filename}`);
+          results.push({
+            id: media.id,
+            filename: media.filename,
+            status: 'synced',
+            message: 'Downloaded and uploaded successfully',
+            newUrl: newPublicUrl,
+          });
+
+        } catch (error) {
+          console.error(`  ✗ Failed: ${media.filename}`, error);
+          results.push({
+            id: media.id,
+            filename: media.filename,
+            status: 'failed',
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      const summary = {
+        total: results.length,
+        synced: results.filter(r => r.status === 'synced').length,
+        skipped: results.filter(r => r.status === 'skipped').length,
+        failed: results.filter(r => r.status === 'failed').length,
+      };
+
+      console.log(`Media sync complete: ${summary.synced} synced, ${summary.skipped} skipped, ${summary.failed} failed`);
+
+      res.json({ 
+        success: true, 
+        dryRun,
+        summary,
+        results 
+      });
+    } catch (error) {
+      console.error('Media sync error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Media sync failed' 
+      });
+    }
+  });
+
+  // Check media library sync status - shows which files are missing from current bucket
+  app.get("/api/admin/media-library/sync-status", isAdmin, async (req, res) => {
+    try {
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      
+      if (!bucketId) {
+        return res.status(500).json({ error: "Object storage not configured" });
+      }
+
+      const allMedia = await storage.getMediaLibraryFiles();
+      
+      const statusResults: Array<{
+        id: string;
+        filename: string;
+        objectPath: string;
+        publicUrl: string;
+        existsInBucket: boolean;
+        urlMatchesBucket: boolean;
+      }> = [];
+
+      for (const media of allMedia) {
+        let existsInBucket = false;
+        
+        try {
+          const bucket = objectStorageClient.bucket(bucketId);
+          const [exists] = await bucket.file(media.objectPath).exists();
+          existsInBucket = exists;
+        } catch {
+          existsInBucket = false;
+        }
+
+        const expectedUrl = `https://storage.googleapis.com/${bucketId}/${media.objectPath}`;
+        const urlMatchesBucket = media.publicUrl === expectedUrl;
+
+        statusResults.push({
+          id: media.id,
+          filename: media.filename,
+          objectPath: media.objectPath,
+          publicUrl: media.publicUrl,
+          existsInBucket,
+          urlMatchesBucket,
+        });
+      }
+
+      const summary = {
+        total: statusResults.length,
+        existingInBucket: statusResults.filter(r => r.existsInBucket).length,
+        missingFromBucket: statusResults.filter(r => !r.existsInBucket).length,
+        urlMismatch: statusResults.filter(r => !r.urlMatchesBucket).length,
+      };
+
+      res.json({
+        bucketId,
+        summary,
+        files: statusResults,
+      });
+    } catch (error) {
+      console.error('Media sync status error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to check sync status' 
+      });
+    }
+  });
+
   // Product Image Migration
   app.post("/api/admin/migrate-product-images", isAdmin, async (req, res) => {
     try {
