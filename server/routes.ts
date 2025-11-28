@@ -1719,6 +1719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Resolve FK business keys to IDs
           let resolvedMediaLibraryId: string | undefined = undefined;
           let resolvedVideoId: string | undefined = undefined;
+          let resolvedAdditionalMediaIds: string[] | null = null;
           
           if (slide.mediaLibraryFilename && slide.mediaLibraryFilename.trim()) {
             resolvedMediaLibraryId = mediaFilenameToId.get(slide.mediaLibraryFilename.toLowerCase().trim());
@@ -1734,6 +1735,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Resolve additional media filenames to IDs (if provided as filenames)
+          if (slide.additionalMediaFilenames && slide.additionalMediaFilenames.length > 0) {
+            resolvedAdditionalMediaIds = [];
+            for (const filename of slide.additionalMediaFilenames) {
+              const mediaId = mediaFilenameToId.get(filename.toLowerCase().trim());
+              if (mediaId) {
+                resolvedAdditionalMediaIds.push(mediaId);
+              } else {
+                results.warnings.push(`B2B Slideshow Slide "${slide.title}": Additional media file "${filename}" not found`);
+              }
+            }
+            if (resolvedAdditionalMediaIds.length === 0) {
+              resolvedAdditionalMediaIds = null;
+            }
+          } else if (slide.additionalMediaIds && slide.additionalMediaIds.length > 0) {
+            // Use direct IDs if provided (and no filenames)
+            resolvedAdditionalMediaIds = slide.additionalMediaIds;
+          }
+          
           // Create slide data with resolved FKs
           const slideData = {
             title: slide.title,
@@ -1743,7 +1763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             mediaUrl: slide.mediaUrl,
             mediaLibraryId: resolvedMediaLibraryId || null,
             videoId: resolvedVideoId || null,
-            additionalMediaIds: slide.additionalMediaIds || null,
+            additionalMediaIds: resolvedAdditionalMediaIds,
             iconName: slide.iconName,
             sortOrder: slide.sortOrder,
             active: slide.active,

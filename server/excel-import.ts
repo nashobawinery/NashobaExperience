@@ -762,6 +762,15 @@ export function exportAllDataToExcel(data: {
       const mediaLibraryItem = slide.mediaLibraryId ? data.mediaLibrary?.find((m: any) => m.id === slide.mediaLibraryId) : null;
       const videoItem = slide.videoId ? data.videos?.find((v: any) => v.id === slide.videoId) : null;
       
+      // Convert additional_media_ids array to comma-separated string of filenames
+      let additionalMediaFilenames = '';
+      if (slide.additionalMediaIds && Array.isArray(slide.additionalMediaIds) && slide.additionalMediaIds.length > 0) {
+        const filenames = slide.additionalMediaIds
+          .map((id: string) => data.mediaLibrary?.find((m: any) => m.id === id)?.filename)
+          .filter((f: string | undefined) => f);
+        additionalMediaFilenames = filenames.join(',');
+      }
+      
       return {
         title: slide.title,
         content: slide.content || '',
@@ -770,6 +779,7 @@ export function exportAllDataToExcel(data: {
         media_url: slide.mediaUrl || '',
         media_library_filename: mediaLibraryItem?.filename || '', // Business key for media library
         video_title: videoItem?.title || '', // Business key for video (uses 'title' not 'name')
+        additional_media_filenames: additionalMediaFilenames, // Comma-separated filenames for stacked images
         icon_name: slide.iconName || '',
         sort_order: slide.sortOrder,
         active: slide.active ? 'Yes' : 'No',
@@ -1353,11 +1363,23 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     const rawSlideData: any[] = XLSX.utils.sheet_to_json(slideSheet);
     
     result.b2bSlideshowSlides = rawSlideData.map((row: any) => {
+      // Parse additional media - can be IDs or filenames (for resolution later)
       let additionalMediaIds: string[] | null = null;
+      let additionalMediaFilenames: string[] | null = null;
+      
+      // Check for direct IDs first
       if (row.additional_media_ids) {
         const ids = row.additional_media_ids.toString().trim();
         if (ids) {
           additionalMediaIds = ids.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+        }
+      }
+      
+      // Check for filenames (business keys that need resolution)
+      if (row.additional_media_filenames) {
+        const filenames = row.additional_media_filenames.toString().trim();
+        if (filenames) {
+          additionalMediaFilenames = filenames.split(',').map((f: string) => f.trim()).filter((f: string) => f);
         }
       }
       
@@ -1370,6 +1392,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
         mediaLibraryFilename: row.media_library_filename?.trim() || '', // Business key for FK
         videoName: row.video_title?.trim() || row.video_name?.trim() || '', // Business key for FK (supports both column names)
         additionalMediaIds,
+        additionalMediaFilenames, // Business keys for resolution
         iconName: row.icon_name?.trim() || '',
         sortOrder: toNumber(row.sort_order, 0),
         active: normalizeBool(row.active),
