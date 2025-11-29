@@ -71,6 +71,7 @@ Added to `platform_modules` table:
 8. **Operations** - Adult beverage manufacturing tracking (Not Started)
 9. **Daily Procedures** - Opening/closing checklists (Not Started)
 10. **Customer Support** - Email ticketing with AI responses and social media management (Not Started)
+11. **Apple Game** - Interactive apple picking experience with orchard exploration and mystery hunt adventures (Not Started)
 
 ## Compliance Module
 
