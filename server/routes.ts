@@ -4737,30 +4737,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Helper to convert empty strings to null
+      const nullIfEmpty = (val: any) => (val === '' || val === undefined) ? null : val;
+      const numericOrNull = (val: any) => (val === '' || val === undefined || val === null) ? null : Number(val);
+
       // Build dynamic update using SQL fragments
       const setFragments: ReturnType<typeof sql>[] = [];
 
-      if (updates.taskName !== undefined) setFragments.push(sql`task_name = ${updates.taskName}`);
-      if (updates.description !== undefined) setFragments.push(sql`description = ${updates.description}`);
-      if (updates.category !== undefined) setFragments.push(sql`category = ${updates.category}`);
-      if (updates.subcategory !== undefined) setFragments.push(sql`subcategory = ${updates.subcategory}`);
-      if (updates.jurisdiction !== undefined) setFragments.push(sql`jurisdiction = ${updates.jurisdiction}`);
-      if (updates.regulatoryBody !== undefined) setFragments.push(sql`regulatory_body = ${updates.regulatoryBody}`);
-      if (updates.recurrence !== undefined) setFragments.push(sql`recurrence = ${updates.recurrence}`);
-      if (updates.customRecurrenceDays !== undefined) setFragments.push(sql`custom_recurrence_days = ${updates.customRecurrenceDays}`);
-      if (updates.dueDate !== undefined) setFragments.push(sql`due_date = ${updates.dueDate}`);
-      if (updates.assignedToName !== undefined) setFragments.push(sql`assigned_to_name = ${updates.assignedToName}`);
-      if (updates.assignedToEmail !== undefined) setFragments.push(sql`assigned_to_email = ${updates.assignedToEmail}`);
-      if (updates.status !== undefined) setFragments.push(sql`status = ${updates.status}`);
-      if (updates.priority !== undefined) setFragments.push(sql`priority = ${updates.priority}`);
-      if (updates.portalUrl !== undefined) setFragments.push(sql`portal_url = ${updates.portalUrl}`);
-      if (updates.portalUsername !== undefined) setFragments.push(sql`portal_username = ${updates.portalUsername}`);
-      if (updates.portalNotes !== undefined) setFragments.push(sql`portal_notes = ${updates.portalNotes}`);
-      if (updates.estimatedCost !== undefined) setFragments.push(sql`estimated_cost = ${updates.estimatedCost}`);
-      if (updates.actualCost !== undefined) setFragments.push(sql`actual_cost = ${updates.actualCost}`);
-      if (updates.penaltyAmount !== undefined) setFragments.push(sql`penalty_amount = ${updates.penaltyAmount}`);
-      if (updates.completionNotes !== undefined) setFragments.push(sql`completion_notes = ${updates.completionNotes}`);
-      if (updates.confirmationNumber !== undefined) setFragments.push(sql`confirmation_number = ${updates.confirmationNumber}`);
+      if (updates.taskName !== undefined) setFragments.push(sql`task_name = ${nullIfEmpty(updates.taskName)}`);
+      if (updates.description !== undefined) setFragments.push(sql`description = ${nullIfEmpty(updates.description)}`);
+      if (updates.category !== undefined) setFragments.push(sql`category = ${nullIfEmpty(updates.category)}`);
+      if (updates.subcategory !== undefined) setFragments.push(sql`subcategory = ${nullIfEmpty(updates.subcategory)}`);
+      if (updates.jurisdiction !== undefined) setFragments.push(sql`jurisdiction = ${nullIfEmpty(updates.jurisdiction)}`);
+      if (updates.regulatoryBody !== undefined) setFragments.push(sql`regulatory_body = ${nullIfEmpty(updates.regulatoryBody)}`);
+      if (updates.recurrence !== undefined) setFragments.push(sql`recurrence = ${nullIfEmpty(updates.recurrence)}`);
+      if (updates.customRecurrenceDays !== undefined) setFragments.push(sql`custom_recurrence_days = ${numericOrNull(updates.customRecurrenceDays)}`);
+      if (updates.dueDate !== undefined) setFragments.push(sql`due_date = ${nullIfEmpty(updates.dueDate)}`);
+      if (updates.assignedToName !== undefined) setFragments.push(sql`assigned_to_name = ${nullIfEmpty(updates.assignedToName)}`);
+      if (updates.assignedToEmail !== undefined) setFragments.push(sql`assigned_to_email = ${nullIfEmpty(updates.assignedToEmail)}`);
+      if (updates.status !== undefined) setFragments.push(sql`status = ${nullIfEmpty(updates.status)}`);
+      if (updates.priority !== undefined) setFragments.push(sql`priority = ${nullIfEmpty(updates.priority)}`);
+      if (updates.portalUrl !== undefined) setFragments.push(sql`portal_url = ${nullIfEmpty(updates.portalUrl)}`);
+      if (updates.portalUsername !== undefined) setFragments.push(sql`portal_username = ${nullIfEmpty(updates.portalUsername)}`);
+      if (updates.portalNotes !== undefined) setFragments.push(sql`portal_notes = ${nullIfEmpty(updates.portalNotes)}`);
+      if (updates.estimatedCost !== undefined) setFragments.push(sql`estimated_cost = ${numericOrNull(updates.estimatedCost)}`);
+      if (updates.actualCost !== undefined) setFragments.push(sql`actual_cost = ${numericOrNull(updates.actualCost)}`);
+      if (updates.penaltyAmount !== undefined) setFragments.push(sql`penalty_amount = ${numericOrNull(updates.penaltyAmount)}`);
+      if (updates.completionNotes !== undefined) setFragments.push(sql`completion_notes = ${nullIfEmpty(updates.completionNotes)}`);
+      if (updates.confirmationNumber !== undefined) setFragments.push(sql`confirmation_number = ${nullIfEmpty(updates.confirmationNumber)}`);
       if (updates.isActive !== undefined) setFragments.push(sql`is_active = ${updates.isActive}`);
 
       // Handle encrypted password
