@@ -596,6 +596,143 @@ export const improvementNotes = pgTable("improvement_notes", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ============================================================================
+// PLATFORM FOUNDATION TABLES
+// Central infrastructure for multi-module operations platform
+// ============================================================================
+
+// Module status enum for tracking module lifecycle
+export const moduleStatusEnum = pgEnum("module_status", ["active", "development", "planned", "inactive"]);
+
+// Global role enum for platform-wide access control
+export const globalRoleEnum = pgEnum("global_role", ["super_admin", "admin", "manager", "staff", "viewer"]);
+
+// Module Registry - tracks all platform modules and their status
+export const platformModules = pgTable("platform_modules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  moduleKey: varchar("module_key").notNull().unique(), // e.g., 'tasting', 'b2b', 'lms', 'sop'
+  moduleName: varchar("module_name").notNull(), // e.g., 'Tasting Experience', 'B2B Wholesale'
+  description: text("description"),
+  icon: varchar("icon"), // Lucide icon name
+  color: varchar("color"), // Tailwind color class
+  routePrefix: varchar("route_prefix").notNull(), // e.g., '/app', '/b2b', '/lms'
+  status: moduleStatusEnum("status").notNull().default("planned"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  launchDate: timestamp("launch_date"),
+  settings: jsonb("settings"), // Module-specific configuration
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Platform Users - unified user management across all modules
+export const platformUsers = pgTable("platform_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull().unique(),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  passwordHash: varchar("password_hash"),
+  profileImageUrl: varchar("profile_image_url"),
+  globalRole: globalRoleEnum("global_role").notNull().default("viewer"),
+  department: varchar("department"),
+  jobTitle: varchar("job_title"),
+  phoneNumber: varchar("phone_number"),
+  active: boolean("active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Platform User Module Access - maps users to specific modules with roles
+export const platformUserModuleAccess = pgTable("platform_user_module_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  moduleId: varchar("module_id").notNull().references(() => platformModules.id, { onDelete: 'cascade' }),
+  moduleRole: varchar("module_role").notNull(), // Module-specific role (e.g., 'trainer', 'technician')
+  permissions: jsonb("permissions"), // Fine-grained permission overrides
+  grantedAt: timestamp("granted_at").notNull().defaultNow(),
+  grantedBy: varchar("granted_by").references(() => platformUsers.id),
+}, (table) => [
+  unique().on(table.userId, table.moduleId),
+  index("idx_user_module_user").on(table.userId),
+  index("idx_user_module_module").on(table.moduleId),
+]);
+
+// Shared Locations - physical locations used across modules
+export const sharedLocations = pgTable("shared_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationName: varchar("location_name").notNull(),
+  locationType: varchar("location_type").notNull(), // 'winery', 'tasting_room', 'warehouse', 'office'
+  address: text("address"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  phoneNumber: varchar("phone_number"),
+  managerUserId: varchar("manager_user_id").references(() => platformUsers.id),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Shared Equipment - assets tracked across operations and maintenance modules
+export const sharedEquipment = pgTable("shared_equipment", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  equipmentName: varchar("equipment_name").notNull(),
+  equipmentType: varchar("equipment_type").notNull(), // 'fermenter', 'press', 'bottler', 'forklift', etc.
+  manufacturer: varchar("manufacturer"),
+  model: varchar("model"),
+  serialNumber: varchar("serial_number"),
+  locationId: varchar("location_id").references(() => sharedLocations.id),
+  purchaseDate: timestamp("purchase_date"),
+  warrantyExpiry: timestamp("warranty_expiry"),
+  status: varchar("status").notNull().default("operational"), // 'operational', 'maintenance', 'retired'
+  maintenanceSchedule: jsonb("maintenance_schedule"), // Recurring maintenance config
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Shared Documents - SOPs, manuals, guides used across modules
+export const sharedDocuments = pgTable("shared_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  documentType: varchar("document_type").notNull(), // 'sop', 'manual', 'guide', 'policy', 'checklist'
+  category: varchar("category"), // e.g., 'safety', 'quality', 'operations', 'hr'
+  version: varchar("version").notNull().default("1.0"),
+  content: text("content"), // Markdown or HTML content
+  fileUrl: text("file_url"), // URL to attached file
+  moduleId: varchar("module_id").references(() => platformModules.id), // Optional: module-specific doc
+  locationId: varchar("location_id").references(() => sharedLocations.id), // Optional: location-specific
+  authorId: varchar("author_id").references(() => platformUsers.id),
+  approvedById: varchar("approved_by_id").references(() => platformUsers.id),
+  approvedAt: timestamp("approved_at"),
+  effectiveDate: timestamp("effective_date"),
+  reviewDate: timestamp("review_date"), // Next review due date
+  status: varchar("status").notNull().default("draft"), // 'draft', 'pending_review', 'approved', 'archived'
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Audit Log - tracks important actions across all modules
+export const platformAuditLog = pgTable("platform_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => platformUsers.id),
+  moduleId: varchar("module_id").references(() => platformModules.id),
+  action: varchar("action").notNull(), // 'create', 'update', 'delete', 'login', 'logout', etc.
+  entityType: varchar("entity_type").notNull(), // Table/entity name
+  entityId: varchar("entity_id"), // ID of affected record
+  changes: jsonb("changes"), // Before/after values for updates
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_audit_user").on(table.userId),
+  index("idx_audit_module").on(table.moduleId),
+  index("idx_audit_created").on(table.createdAt),
+  index("idx_audit_module_action").on(table.moduleId, table.action),
+  index("idx_audit_module_created").on(table.moduleId, table.createdAt),
+]);
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -647,6 +784,15 @@ export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordR
 export const insertB2bEmailTemplateSchema = createInsertSchema(b2bEmailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bEmailAutomationLogSchema = createInsertSchema(b2bEmailAutomationLogs).omit({ id: true, sentAt: true });
 export const insertImprovementNoteSchema = createInsertSchema(improvementNotes).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+
+// Platform Foundation Insert schemas
+export const insertPlatformModuleSchema = createInsertSchema(platformModules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPlatformUserSchema = createInsertSchema(platformUsers).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
+export const insertPlatformUserModuleAccessSchema = createInsertSchema(platformUserModuleAccess).omit({ id: true, grantedAt: true });
+export const insertSharedLocationSchema = createInsertSchema(sharedLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSharedEquipmentSchema = createInsertSchema(sharedEquipment).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSharedDocumentSchema = createInsertSchema(sharedDocuments).omit({ id: true, createdAt: true, updatedAt: true, approvedAt: true });
+export const insertPlatformAuditLogSchema = createInsertSchema(platformAuditLog).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -778,3 +924,25 @@ export type B2bEmailAutomationLog = typeof b2bEmailAutomationLogs.$inferSelect;
 
 export type InsertImprovementNote = z.infer<typeof insertImprovementNoteSchema>;
 export type ImprovementNote = typeof improvementNotes.$inferSelect;
+
+// Platform Foundation Types
+export type InsertPlatformModule = z.infer<typeof insertPlatformModuleSchema>;
+export type PlatformModule = typeof platformModules.$inferSelect;
+
+export type InsertPlatformUser = z.infer<typeof insertPlatformUserSchema>;
+export type PlatformUser = typeof platformUsers.$inferSelect;
+
+export type InsertPlatformUserModuleAccess = z.infer<typeof insertPlatformUserModuleAccessSchema>;
+export type PlatformUserModuleAccess = typeof platformUserModuleAccess.$inferSelect;
+
+export type InsertSharedLocation = z.infer<typeof insertSharedLocationSchema>;
+export type SharedLocation = typeof sharedLocations.$inferSelect;
+
+export type InsertSharedEquipment = z.infer<typeof insertSharedEquipmentSchema>;
+export type SharedEquipment = typeof sharedEquipment.$inferSelect;
+
+export type InsertSharedDocument = z.infer<typeof insertSharedDocumentSchema>;
+export type SharedDocument = typeof sharedDocuments.$inferSelect;
+
+export type InsertPlatformAuditLog = z.infer<typeof insertPlatformAuditLogSchema>;
+export type PlatformAuditLog = typeof platformAuditLog.$inferSelect;
