@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
 import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder, useDeleteB2bOrder } from "@/hooks/useB2bAdmin";
@@ -387,6 +388,7 @@ function LocationForm({ location, customer, formValues, onSave, onCancel, isSavi
 }
 
 export default function AdminDashboard() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user: currentUser } = useB2bAuth();
   const { can, isAdmin, isSalesRep, salesRepId } = useB2bPermissions();
@@ -2015,7 +2017,7 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
-            onClick={() => window.location.href = '/admin-hub'} 
+            onClick={() => setLocation('/admin-hub')} 
             data-testid="button-go-to-hub"
           >
             <Home className="w-4 h-4 mr-2" />
@@ -2023,7 +2025,7 @@ export default function AdminDashboard() {
           </Button>
           <Button 
             variant="outline" 
-            onClick={() => window.location.href = '/admin'} 
+            onClick={() => setLocation('/admin')} 
             data-testid="button-switch-to-base-app"
           >
             <Wine className="w-4 h-4 mr-2" />

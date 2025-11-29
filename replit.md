@@ -9,14 +9,14 @@ The Nashoba Valley Operations Platform is a modular monolith architecture design
 - **Access**: Admin authentication required via Replit Auth
 - **Navigation**: Hub button added to Tasting Admin and B2B Admin dashboards
 
-### Platform Foundation Tables
-- **platform_modules**: Registry of all modules with status, icons, routes, and launch dates
-- **platform_users**: Unified user management with global roles (super_admin, admin, manager, staff, viewer)
-- **platform_user_module_access**: Module-specific role assignments and permissions
-- **platform_audit_log**: Cross-module action tracking with indexed queries
-- **shared_locations**: Shared location data for equipment and procedures
-- **shared_equipment**: Equipment registry for maintenance and operations modules
-- **shared_documents**: Cross-module document storage with version control
+### Platform Foundation Tables (schema.ts)
+- **platformModules**: Registry of all modules with status, icons, routes, and launch dates
+- **platformUsers**: Unified user management linking to Replit Auth with global roles (super_admin, admin, manager, staff, viewer)
+- **platformUserModuleAccess**: Module-specific role assignments (admin, manager, editor, viewer) with moduleId foreign key
+- **platformAuditLog**: Cross-module action tracking with user, module, action, and details (indexed on userId and moduleId)
+- **sharedLocations**: Shared location data for equipment and procedures
+- **sharedEquipment**: Equipment registry for maintenance and operations modules  
+- **sharedDocuments**: Cross-module document storage with version control
 
 ### Active Modules
 1. **Tasting Experience** (`/app`) - Guest-facing wine tasting app
