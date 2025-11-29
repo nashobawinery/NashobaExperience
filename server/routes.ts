@@ -31,6 +31,10 @@ import {
   insertVideoSchema,
   insertCommercialSchema,
   categoryEnum,
+  insertLmsCategorySchema,
+  insertLmsCourseSchema,
+  insertLmsLessonSchema,
+  insertLmsQuizQuestionSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -3821,6 +3825,631 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching platform KPIs:', error);
       res.status(500).json({ message: 'Failed to fetch KPIs' });
+    }
+  });
+
+  // =====================================================
+  // LMS (LEARNING MANAGEMENT SYSTEM) ROUTES
+  // =====================================================
+
+  // --- LMS Categories ---
+  app.get('/api/lms/categories', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM lms_categories 
+        WHERE active = true
+        ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.get('/api/lms/admin/categories', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM lms_categories 
+        ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.post('/api/lms/admin/categories', isAdmin, async (req, res) => {
+    try {
+      const { name, description, icon, color, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_categories (name, description, icon, color, sort_order)
+        VALUES (${name}, ${description}, ${icon}, ${color}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating LMS category:', error);
+      res.status(500).json({ message: 'Failed to create category' });
+    }
+  });
+
+  app.put('/api/lms/admin/categories/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, icon, color, sortOrder, active } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_categories 
+        SET name = ${name}, description = ${description}, icon = ${icon}, 
+            color = ${color}, sort_order = ${sortOrder || 0}, active = ${active ?? true},
+            updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating LMS category:', error);
+      res.status(500).json({ message: 'Failed to update category' });
+    }
+  });
+
+  app.delete('/api/lms/admin/categories/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_categories WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS category:', error);
+      res.status(500).json({ message: 'Failed to delete category' });
+    }
+  });
+
+  // --- LMS Courses ---
+  app.get('/api/lms/courses', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT c.*, cat.name as category_name, cat.icon as category_icon, cat.color as category_color,
+               (SELECT COUNT(*) FROM lms_lessons WHERE course_id = c.id AND active = true) as lesson_count,
+               (SELECT COUNT(*) FROM lms_quiz_questions WHERE course_id = c.id AND active = true) as question_count
+        FROM lms_courses c
+        LEFT JOIN lms_categories cat ON c.category_id = cat.id
+        WHERE c.status = 'published'
+        ORDER BY c.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS courses:', error);
+      res.status(500).json({ message: 'Failed to fetch courses' });
+    }
+  });
+
+  app.get('/api/lms/admin/courses', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT c.*, cat.name as category_name, cat.icon as category_icon, cat.color as category_color,
+               (SELECT COUNT(*) FROM lms_lessons WHERE course_id = c.id) as lesson_count,
+               (SELECT COUNT(*) FROM lms_quiz_questions WHERE course_id = c.id) as question_count,
+               (SELECT COUNT(*) FROM lms_enrollments WHERE course_id = c.id) as enrollment_count
+        FROM lms_courses c
+        LEFT JOIN lms_categories cat ON c.category_id = cat.id
+        ORDER BY c.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS courses:', error);
+      res.status(500).json({ message: 'Failed to fetch courses' });
+    }
+  });
+
+  app.get('/api/lms/courses/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const courseResult = await db.execute(sql`
+        SELECT c.*, cat.name as category_name, cat.icon as category_icon
+        FROM lms_courses c
+        LEFT JOIN lms_categories cat ON c.category_id = cat.id
+        WHERE c.id = ${id}
+      `);
+      if (courseResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      
+      const lessonsResult = await db.execute(sql`
+        SELECT * FROM lms_lessons WHERE course_id = ${id} AND active = true ORDER BY sort_order ASC
+      `);
+      
+      const quizResult = await db.execute(sql`
+        SELECT * FROM lms_quiz_questions WHERE course_id = ${id} AND active = true ORDER BY sort_order ASC
+      `);
+
+      res.json({
+        ...courseResult.rows[0],
+        lessons: lessonsResult.rows,
+        quizQuestions: quizResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching LMS course:', error);
+      res.status(500).json({ message: 'Failed to fetch course' });
+    }
+  });
+
+  app.post('/api/lms/admin/courses', isAdmin, async (req, res) => {
+    try {
+      const { title, description, thumbnailUrl, categoryId, difficulty, estimatedMinutes, 
+              requiredForRoles, prerequisiteCourseIds, passingScore, certificateEnabled, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_courses (
+          title, description, thumbnail_url, category_id, difficulty, estimated_minutes,
+          required_for_roles, prerequisite_course_ids, passing_score, certificate_enabled, sort_order
+        )
+        VALUES (
+          ${title}, ${description}, ${thumbnailUrl}, ${categoryId}, ${difficulty || 'beginner'}, 
+          ${estimatedMinutes || 15}, ${requiredForRoles || null}, ${prerequisiteCourseIds || null},
+          ${passingScore || 80}, ${certificateEnabled ?? false}, ${sortOrder || 0}
+        )
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating LMS course:', error);
+      res.status(500).json({ message: 'Failed to create course' });
+    }
+  });
+
+  app.put('/api/lms/admin/courses/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, thumbnailUrl, categoryId, status, difficulty, estimatedMinutes,
+              requiredForRoles, prerequisiteCourseIds, passingScore, certificateEnabled, sortOrder } = req.body;
+      
+      let publishedAt = null;
+      if (status === 'published') {
+        const existingCourse = await db.execute(sql`SELECT published_at FROM lms_courses WHERE id = ${id}`);
+        publishedAt = existingCourse.rows[0]?.published_at || new Date().toISOString();
+      }
+      
+      const result = await db.execute(sql`
+        UPDATE lms_courses SET
+          title = ${title}, description = ${description}, thumbnail_url = ${thumbnailUrl},
+          category_id = ${categoryId}, status = ${status || 'draft'}, difficulty = ${difficulty || 'beginner'},
+          estimated_minutes = ${estimatedMinutes || 15}, required_for_roles = ${requiredForRoles || null},
+          prerequisite_course_ids = ${prerequisiteCourseIds || null}, passing_score = ${passingScore || 80},
+          certificate_enabled = ${certificateEnabled ?? false}, sort_order = ${sortOrder || 0},
+          published_at = ${publishedAt}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating LMS course:', error);
+      res.status(500).json({ message: 'Failed to update course' });
+    }
+  });
+
+  app.delete('/api/lms/admin/courses/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_courses WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS course:', error);
+      res.status(500).json({ message: 'Failed to delete course' });
+    }
+  });
+
+  // --- LMS Lessons ---
+  app.get('/api/lms/courses/:courseId/lessons', async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_lessons WHERE course_id = ${courseId} AND active = true ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS lessons:', error);
+      res.status(500).json({ message: 'Failed to fetch lessons' });
+    }
+  });
+
+  app.post('/api/lms/admin/courses/:courseId/lessons', isAdmin, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const { title, description, lessonType, content, videoUrl, documentUrl, estimatedMinutes, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_lessons (course_id, title, description, lesson_type, content, video_url, document_url, estimated_minutes, sort_order)
+        VALUES (${courseId}, ${title}, ${description}, ${lessonType || 'text'}, ${content}, ${videoUrl}, ${documentUrl}, ${estimatedMinutes || 5}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to create lesson' });
+    }
+  });
+
+  app.put('/api/lms/admin/lessons/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, lessonType, content, videoUrl, documentUrl, estimatedMinutes, sortOrder, active } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_lessons SET
+          title = ${title}, description = ${description}, lesson_type = ${lessonType || 'text'},
+          content = ${content}, video_url = ${videoUrl}, document_url = ${documentUrl},
+          estimated_minutes = ${estimatedMinutes || 5}, sort_order = ${sortOrder || 0},
+          active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to update lesson' });
+    }
+  });
+
+  app.delete('/api/lms/admin/lessons/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_lessons WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to delete lesson' });
+    }
+  });
+
+  // --- LMS Quiz Questions ---
+  app.get('/api/lms/courses/:courseId/quiz', async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_quiz_questions WHERE course_id = ${courseId} AND active = true ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS quiz questions:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz questions' });
+    }
+  });
+
+  app.post('/api/lms/admin/courses/:courseId/quiz', isAdmin, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const { lessonId, question, questionType, options, explanation, points, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_quiz_questions (course_id, lesson_id, question, question_type, options, explanation, points, sort_order)
+        VALUES (${courseId}, ${lessonId || null}, ${question}, ${questionType || 'multiple_choice'}, 
+                ${JSON.stringify(options)}, ${explanation}, ${points || 1}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating LMS quiz question:', error);
+      res.status(500).json({ message: 'Failed to create quiz question' });
+    }
+  });
+
+  app.put('/api/lms/admin/quiz/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { lessonId, question, questionType, options, explanation, points, sortOrder, active } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_quiz_questions SET
+          lesson_id = ${lessonId || null}, question = ${question}, question_type = ${questionType || 'multiple_choice'},
+          options = ${JSON.stringify(options)}, explanation = ${explanation}, points = ${points || 1},
+          sort_order = ${sortOrder || 0}, active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating LMS quiz question:', error);
+      res.status(500).json({ message: 'Failed to update quiz question' });
+    }
+  });
+
+  app.delete('/api/lms/admin/quiz/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_quiz_questions WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS quiz question:', error);
+      res.status(500).json({ message: 'Failed to delete quiz question' });
+    }
+  });
+
+  // --- LMS Enrollments ---
+  app.get('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.claims?.email;
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Get platform user by email
+      const userResult = await db.execute(sql`
+        SELECT id FROM platform_users WHERE email = ${userEmail}
+      `);
+      if (userResult.rows.length === 0) {
+        return res.json([]);
+      }
+      const userId = userResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        SELECT e.*, c.title as course_title, c.thumbnail_url as course_thumbnail,
+               c.estimated_minutes as course_minutes, c.difficulty as course_difficulty,
+               cat.name as category_name, cat.icon as category_icon,
+               (SELECT COUNT(*) FROM lms_lessons WHERE course_id = c.id AND active = true) as total_lessons,
+               (SELECT COUNT(*) FROM lms_lesson_progress lp 
+                WHERE lp.enrollment_id = e.id AND lp.completed = true) as completed_lessons
+        FROM lms_enrollments e
+        JOIN lms_courses c ON e.course_id = c.id
+        LEFT JOIN lms_categories cat ON c.category_id = cat.id
+        WHERE e.user_id = ${userId}
+        ORDER BY e.enrolled_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS enrollments:', error);
+      res.status(500).json({ message: 'Failed to fetch enrollments' });
+    }
+  });
+
+  app.post('/api/lms/enroll/:courseId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Get or create platform user
+      let userResult = await db.execute(sql`
+        SELECT id FROM platform_users WHERE email = ${userEmail}
+      `);
+      
+      let userId;
+      if (userResult.rows.length === 0) {
+        // Create platform user from Replit auth
+        const firstName = req.user?.claims?.first_name || 'User';
+        const lastName = req.user?.claims?.last_name || '';
+        const newUser = await db.execute(sql`
+          INSERT INTO platform_users (email, first_name, last_name, global_role)
+          VALUES (${userEmail}, ${firstName}, ${lastName}, 'staff')
+          RETURNING id
+        `);
+        userId = newUser.rows[0].id;
+      } else {
+        userId = userResult.rows[0].id;
+      }
+      
+      // Check if already enrolled
+      const existingEnrollment = await db.execute(sql`
+        SELECT id FROM lms_enrollments WHERE user_id = ${userId} AND course_id = ${courseId}
+      `);
+      if (existingEnrollment.rows.length > 0) {
+        return res.status(400).json({ message: 'Already enrolled in this course' });
+      }
+      
+      const result = await db.execute(sql`
+        INSERT INTO lms_enrollments (user_id, course_id, status)
+        VALUES (${userId}, ${courseId}, 'enrolled')
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error enrolling in LMS course:', error);
+      res.status(500).json({ message: 'Failed to enroll in course' });
+    }
+  });
+
+  // --- LMS Progress Tracking ---
+  app.get('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { enrollmentId } = req.params;
+      
+      const result = await db.execute(sql`
+        SELECT lp.*, l.title as lesson_title, l.lesson_type, l.estimated_minutes
+        FROM lms_lesson_progress lp
+        JOIN lms_lessons l ON lp.lesson_id = l.id
+        WHERE lp.enrollment_id = ${enrollmentId}
+        ORDER BY l.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS progress:', error);
+      res.status(500).json({ message: 'Failed to fetch progress' });
+    }
+  });
+
+  app.post('/api/lms/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { enrollmentId, lessonId, completed, timeSpentSeconds, videoProgress } = req.body;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Get user ID
+      const userResult = await db.execute(sql`
+        SELECT id FROM platform_users WHERE email = ${userEmail}
+      `);
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const userId = userResult.rows[0].id;
+      
+      // Upsert progress
+      const result = await db.execute(sql`
+        INSERT INTO lms_lesson_progress (user_id, lesson_id, enrollment_id, completed, time_spent_seconds, video_progress, completed_at)
+        VALUES (${userId}, ${lessonId}, ${enrollmentId}, ${completed ?? false}, ${timeSpentSeconds || 0}, ${videoProgress || null},
+                ${completed ? new Date().toISOString() : null})
+        ON CONFLICT (user_id, lesson_id) DO UPDATE SET
+          completed = ${completed ?? false},
+          time_spent_seconds = lms_lesson_progress.time_spent_seconds + ${timeSpentSeconds || 0},
+          video_progress = COALESCE(${videoProgress}, lms_lesson_progress.video_progress),
+          completed_at = CASE WHEN ${completed} THEN NOW() ELSE lms_lesson_progress.completed_at END
+        RETURNING *
+      `);
+      
+      // Update enrollment status if started
+      if (!completed) {
+        await db.execute(sql`
+          UPDATE lms_enrollments SET status = 'in_progress', started_at = COALESCE(started_at, NOW())
+          WHERE id = ${enrollmentId} AND status = 'enrolled'
+        `);
+      }
+      
+      // Check if all lessons completed
+      if (completed) {
+        const completionCheck = await db.execute(sql`
+          SELECT 
+            (SELECT COUNT(*) FROM lms_lessons WHERE course_id = e.course_id AND active = true) as total,
+            (SELECT COUNT(*) FROM lms_lesson_progress lp 
+             JOIN lms_lessons l ON lp.lesson_id = l.id 
+             WHERE lp.enrollment_id = ${enrollmentId} AND lp.completed = true AND l.active = true) as completed
+          FROM lms_enrollments e WHERE e.id = ${enrollmentId}
+        `);
+        
+        if (completionCheck.rows[0]?.total === completionCheck.rows[0]?.completed) {
+          await db.execute(sql`
+            UPDATE lms_enrollments SET status = 'completed', completed_at = NOW()
+            WHERE id = ${enrollmentId}
+          `);
+        }
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating LMS progress:', error);
+      res.status(500).json({ message: 'Failed to update progress' });
+    }
+  });
+
+  // --- LMS Quiz Attempts ---
+  app.post('/api/lms/quiz/submit', isAuthenticated, async (req: any, res) => {
+    try {
+      const { enrollmentId, courseId, answers } = req.body;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Get user ID
+      const userResult = await db.execute(sql`
+        SELECT id FROM platform_users WHERE email = ${userEmail}
+      `);
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const userId = userResult.rows[0].id;
+      
+      // Get quiz questions for scoring
+      const questionsResult = await db.execute(sql`
+        SELECT id, options, points FROM lms_quiz_questions WHERE course_id = ${courseId} AND active = true
+      `);
+      
+      let score = 0;
+      let maxScore = 0;
+      const gradedAnswers = answers.map((answer: any) => {
+        const question = questionsResult.rows.find((q: any) => q.id === answer.questionId);
+        if (!question) return { ...answer, correct: false, pointsEarned: 0 };
+        
+        const options = question.options as any[];
+        maxScore += question.points;
+        
+        const correctOptionIds = options.filter((o: any) => o.isCorrect).map((o: any) => o.id);
+        const isCorrect = JSON.stringify(answer.selectedOptionIds?.sort()) === JSON.stringify(correctOptionIds.sort());
+        
+        if (isCorrect) score += question.points;
+        
+        return { ...answer, correct: isCorrect, pointsEarned: isCorrect ? question.points : 0 };
+      });
+      
+      // Get course passing score
+      const courseResult = await db.execute(sql`
+        SELECT passing_score FROM lms_courses WHERE id = ${courseId}
+      `);
+      const passingScore = courseResult.rows[0]?.passing_score || 80;
+      const scorePercent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+      const passed = scorePercent >= passingScore;
+      
+      // Get attempt number
+      const attemptCountResult = await db.execute(sql`
+        SELECT COUNT(*)::integer as count FROM lms_quiz_attempts WHERE enrollment_id = ${enrollmentId}
+      `);
+      const attemptNumber = (attemptCountResult.rows[0]?.count || 0) + 1;
+      
+      // Save attempt
+      const result = await db.execute(sql`
+        INSERT INTO lms_quiz_attempts (user_id, course_id, enrollment_id, attempt_number, score, max_score, passed, answers, completed_at)
+        VALUES (${userId}, ${courseId}, ${enrollmentId}, ${attemptNumber}, ${score}, ${maxScore}, ${passed}, ${JSON.stringify(gradedAnswers)}, NOW())
+        RETURNING *
+      `);
+      
+      // Update enrollment final score if passed
+      if (passed) {
+        await db.execute(sql`
+          UPDATE lms_enrollments SET final_score = ${scorePercent}, status = 'completed', completed_at = NOW()
+          WHERE id = ${enrollmentId}
+        `);
+      }
+      
+      res.json({
+        ...result.rows[0],
+        scorePercent,
+        passed,
+        passingScore
+      });
+    } catch (error) {
+      console.error('Error submitting LMS quiz:', error);
+      res.status(500).json({ message: 'Failed to submit quiz' });
+    }
+  });
+
+  // --- LMS Admin Stats ---
+  app.get('/api/lms/admin/stats', isAdmin, async (req, res) => {
+    try {
+      const stats = await db.execute(sql`
+        SELECT 
+          (SELECT COUNT(*)::integer FROM lms_courses WHERE status = 'published') as published_courses,
+          (SELECT COUNT(*)::integer FROM lms_courses WHERE status = 'draft') as draft_courses,
+          (SELECT COUNT(*)::integer FROM lms_enrollments) as total_enrollments,
+          (SELECT COUNT(*)::integer FROM lms_enrollments WHERE status = 'completed') as completed_enrollments,
+          (SELECT COUNT(*)::integer FROM lms_enrollments WHERE status = 'in_progress') as in_progress_enrollments,
+          (SELECT COUNT(*)::integer FROM lms_quiz_attempts WHERE passed = true) as passed_quizzes,
+          (SELECT COUNT(*)::integer FROM lms_certificates) as certificates_issued
+      `);
+      res.json(stats.rows[0]);
+    } catch (error) {
+      console.error('Error fetching LMS stats:', error);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // --- LMS Admin Enrollments Management ---
+  app.get('/api/lms/admin/enrollments', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT e.*, 
+               c.title as course_title,
+               pu.email as user_email, pu.first_name, pu.last_name,
+               (SELECT COUNT(*) FROM lms_lessons WHERE course_id = c.id AND active = true) as total_lessons,
+               (SELECT COUNT(*) FROM lms_lesson_progress lp WHERE lp.enrollment_id = e.id AND lp.completed = true) as completed_lessons
+        FROM lms_enrollments e
+        JOIN lms_courses c ON e.course_id = c.id
+        JOIN platform_users pu ON e.user_id = pu.id
+        ORDER BY e.enrolled_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching LMS enrollments:', error);
+      res.status(500).json({ message: 'Failed to fetch enrollments' });
     }
   });
 
