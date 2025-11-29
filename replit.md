@@ -64,10 +64,44 @@ Added to `platform_modules` table:
 1. **Tasting Experience** - Guest-facing wine tasting app (Launched)
 2. **B2B Wholesale** - Wholesale customer and order management (Launched)
 3. **LMS** - Employee training and certification system (Launched)
-4. **SOP** - Standard operating procedures documentation (Not Started)
-5. **Experience Library** - Case studies and best practices (Not Started)
-6. **Maintenance & Requests** - Equipment maintenance and work orders (Not Started)
-7. **Operations** - Adult beverage manufacturing tracking (Not Started)
-8. **Daily Procedures** - Opening/closing checklists (Not Started)
-9. **Customer Support** - Email ticketing with AI responses and social media management (Not Started)
-10. **Compliance** - Business compliance calendar for tax filings, licensing renewals, and regulatory requirements (Not Started)
+4. **Compliance** - Business compliance calendar for tax filings, licensing renewals, and regulatory requirements (Launched)
+5. **SOP** - Standard operating procedures documentation (Not Started)
+6. **Experience Library** - Case studies and best practices (Not Started)
+7. **Maintenance & Requests** - Equipment maintenance and work orders (Not Started)
+8. **Operations** - Adult beverage manufacturing tracking (Not Started)
+9. **Daily Procedures** - Opening/closing checklists (Not Started)
+10. **Customer Support** - Email ticketing with AI responses and social media management (Not Started)
+
+## Compliance Module
+
+### Overview
+The Compliance module is a calendar-based task management system for tracking tax filings, licensing renewals, regulatory requirements, and administrative deadlines. Accessible at `/compliance/admin` by admins.
+
+### Features
+- **Dashboard Overview**: Stats cards showing total tasks, overdue items, due this week/month, and completed tasks
+- **Task Management**: Full CRUD operations for compliance tasks with filtering by category, status, and priority
+- **Calendar View**: Visual timeline of overdue, due this week, and due this month tasks
+- **Email Reminders**: SendGrid-powered email notifications sent to assigned team members
+- **Recurrence Patterns**: Support for one-time, daily, weekly, monthly, quarterly, semi-annual, annual, and custom recurrence
+- **Audit History**: Complete history tracking of all task changes with timestamps and user attribution
+- **Portal Integration**: Store portal URLs, usernames, and notes for quick access to filing systems
+- **Cost Tracking**: Track estimated vs actual costs and potential penalties for compliance tasks
+
+### Database Schema
+- `compliance_tasks`: Main table for compliance task records with all task details
+- `compliance_task_history`: Audit log of all changes made to tasks
+- `compliance_reminders`: Log of sent reminder notifications
+- `compliance_attachments`: Document attachments for tasks (filing confirmations, etc.)
+
+### Categories
+Tax, Licensing, Regulatory, Insurance, Environmental, Health & Safety, Payroll, Privacy, Security, Administrative, Other
+
+### API Endpoints
+- `GET /api/compliance/tasks` - List all tasks with optional filters
+- `GET /api/compliance/tasks/:id` - Get task details with history and reminders
+- `POST /api/compliance/tasks` - Create new task
+- `PATCH /api/compliance/tasks/:id` - Update task
+- `DELETE /api/compliance/tasks/:id` - Soft delete task
+- `POST /api/compliance/tasks/:id/send-reminder` - Send reminder email
+- `GET /api/compliance/stats` - Get dashboard statistics
+- `GET /api/compliance/upcoming` - Get upcoming deadlines
