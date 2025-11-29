@@ -5062,6 +5062,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newJurisdiction = jurisdiction !== undefined ? jurisdiction : originalTask.jurisdiction;
       const newRegulatoryBody = regulatoryBody !== undefined ? regulatoryBody : originalTask.regulatory_body;
 
+      // Format array fields for PostgreSQL
+      const reminderDaysArray = originalTask.reminder_days 
+        ? `{${Array.isArray(originalTask.reminder_days) ? originalTask.reminder_days.join(',') : originalTask.reminder_days}}`
+        : null;
+      const tagsArray = originalTask.tags 
+        ? `{${Array.isArray(originalTask.tags) ? originalTask.tags.map((t: string) => `"${t.replace(/"/g, '\\"')}"`).join(',') : originalTask.tags}}`
+        : null;
+
       const newTaskResult = await db.execute(sql`
         INSERT INTO compliance_tasks (
           task_name, description, category, subcategory, jurisdiction, regulatory_body,
@@ -5079,7 +5087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${originalTask.recurrence},
           ${originalTask.custom_recurrence_days},
           ${originalTask.due_date},
-          ${originalTask.reminder_days},
+          ${reminderDaysArray}::integer[],
           ${originalTask.assigned_to_name},
           ${originalTask.assigned_to_email},
           'pending',
@@ -5090,7 +5098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${originalTask.portal_notes},
           ${originalTask.estimated_cost},
           ${originalTask.penalty_amount},
-          ${originalTask.tags},
+          ${tagsArray}::text[],
           ${userId || null},
           true
         )
