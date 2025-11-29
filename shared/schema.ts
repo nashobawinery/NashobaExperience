@@ -987,6 +987,7 @@ export const complianceTasks = pgTable("compliance_tasks", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   createdById: varchar("created_by_id").references(() => users.id),
   isActive: boolean("is_active").notNull().default(true),
+  archivedAt: timestamp("archived_at"), // When task was archived (stops recurrence)
 }, (table) => [
   index("idx_compliance_category").on(table.category),
   index("idx_compliance_status").on(table.status),
@@ -1119,7 +1120,8 @@ export const insertComplianceTaskSchema = createInsertSchema(complianceTasks).om
   createdAt: true, 
   updatedAt: true,
   completedAt: true,
-  lastReminderSent: true
+  lastReminderSent: true,
+  archivedAt: true
 });
 export const insertComplianceTaskHistorySchema = createInsertSchema(complianceTaskHistory).omit({ id: true, createdAt: true });
 export const insertComplianceReminderSchema = createInsertSchema(complianceReminders).omit({ id: true, sentAt: true });
