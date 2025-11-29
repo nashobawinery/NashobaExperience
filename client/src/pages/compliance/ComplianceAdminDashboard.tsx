@@ -114,15 +114,16 @@ interface TaskFormData {
 }
 
 const categoryOptions = [
-  { value: "tax_filing", label: "Tax Filing" },
+  { value: "tax", label: "Tax" },
   { value: "licensing", label: "Licensing" },
   { value: "regulatory", label: "Regulatory" },
-  { value: "permits", label: "Permits" },
   { value: "insurance", label: "Insurance" },
-  { value: "hr_employment", label: "HR & Employment" },
   { value: "environmental", label: "Environmental" },
   { value: "health_safety", label: "Health & Safety" },
-  { value: "financial_reporting", label: "Financial Reporting" },
+  { value: "payroll", label: "Payroll" },
+  { value: "privacy", label: "Privacy" },
+  { value: "security", label: "Security" },
+  { value: "administrative", label: "Administrative" },
   { value: "other", label: "Other" },
 ];
 
