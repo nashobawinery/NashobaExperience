@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
 import { z } from "zod";
@@ -4535,7 +4536,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           due_date ASC NULLS LAST
       `;
       const result = await db.execute(query);
-      res.json(result.rows);
+      const tasksWithDecryptedPasswords = result.rows.map((task: any) => ({
+        ...task,
+        portal_password: task.portal_password ? decryptPassword(task.portal_password) : null
+      }));
+      res.json(tasksWithDecryptedPasswords);
     } catch (error) {
       console.error('Error fetching compliance tasks:', error);
       res.status(500).json({ message: 'Failed to fetch compliance tasks' });
@@ -4552,6 +4557,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (taskResult.rows.length === 0) {
         return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const task = taskResult.rows[0] as any;
+      if (task.portal_password) {
+        task.portal_password = decryptPassword(task.portal_password);
       }
 
       const historyResult = await db.execute(sql`
@@ -4573,7 +4583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
 
       res.json({
-        ...taskResult.rows[0],
+        ...task,
         history: historyResult.rows,
         reminders: remindersResult.rows,
         attachments: attachmentsResult.rows
@@ -4600,7 +4610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           task_name, description, category, subcategory, jurisdiction, regulatory_body,
           recurrence, custom_recurrence_days, due_date, reminder_days,
           assigned_to_name, assigned_to_email, assigned_by_id,
-          status, priority, portal_url, portal_username, portal_notes,
+          status, priority, portal_url, portal_username, portal_password, portal_notes,
           estimated_cost, actual_cost, penalty_amount, tags, created_by_id
         ) VALUES (
           ${parsed.data.taskName},
@@ -4620,6 +4630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${parsed.data.priority || 'medium'},
           ${parsed.data.portalUrl || null},
           ${parsed.data.portalUsername || null},
+          ${parsed.data.portalPassword ? encryptPassword(parsed.data.portalPassword) : null},
           ${parsed.data.portalNotes || null},
           ${parsed.data.estimatedCost || null},
           ${parsed.data.actualCost || null},
@@ -4683,6 +4694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: 'priority',
         portalUrl: 'portal_url',
         portalUsername: 'portal_username',
+        portalPassword: 'portal_password',
         portalNotes: 'portal_notes',
         estimatedCost: 'estimated_cost',
         actualCost: 'actual_cost',

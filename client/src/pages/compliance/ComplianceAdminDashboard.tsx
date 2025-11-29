@@ -62,6 +62,7 @@ interface ComplianceTask {
   priority: string;
   portal_url: string | null;
   portal_username: string | null;
+  portal_password: string | null;
   portal_notes: string | null;
   estimated_cost: string | null;
   actual_cost: string | null;
@@ -104,6 +105,7 @@ interface TaskFormData {
   priority: string;
   portalUrl: string;
   portalUsername: string;
+  portalPassword: string;
   portalNotes: string;
   estimatedCost: string;
   actualCost: string;
@@ -156,7 +158,7 @@ const recurrenceOptions = [
 const defaultFormData: TaskFormData = {
   taskName: "",
   description: "",
-  category: "tax_filing",
+  category: "tax",
   subcategory: "",
   jurisdiction: "",
   regulatoryBody: "",
@@ -170,6 +172,7 @@ const defaultFormData: TaskFormData = {
   priority: "medium",
   portalUrl: "",
   portalUsername: "",
+  portalPassword: "",
   portalNotes: "",
   estimatedCost: "",
   actualCost: "",
@@ -291,6 +294,7 @@ export default function ComplianceAdminDashboard() {
       priority: task.priority,
       portalUrl: task.portal_url || "",
       portalUsername: task.portal_username || "",
+      portalPassword: task.portal_password || "",
       portalNotes: task.portal_notes || "",
       estimatedCost: task.estimated_cost || "",
       actualCost: task.actual_cost || "",
@@ -945,6 +949,30 @@ export default function ComplianceAdminDashboard() {
                 placeholder="https://..."
                 data-testid="input-portal-url"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="portalUsername">Portal Username</Label>
+                <Input
+                  id="portalUsername"
+                  value={formData.portalUsername}
+                  onChange={(e) => setFormData(prev => ({ ...prev, portalUsername: e.target.value }))}
+                  placeholder="Username for portal login"
+                  data-testid="input-portal-username"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="portalPassword">Portal Password</Label>
+                <Input
+                  id="portalPassword"
+                  type="password"
+                  value={formData.portalPassword}
+                  onChange={(e) => setFormData(prev => ({ ...prev, portalPassword: e.target.value }))}
+                  placeholder="Password for portal login"
+                  data-testid="input-portal-password"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">

@@ -965,6 +965,7 @@ export const complianceTasks = pgTable("compliance_tasks", {
   // Portal/credential info (encrypted in practice)
   portalUrl: text("portal_url"),
   portalUsername: text("portal_username"),
+  portalPassword: text("portal_password"),
   portalNotes: text("portal_notes"), // General notes about accessing the portal
   
   // Financial tracking
