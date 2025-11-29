@@ -4727,14 +4727,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedById = userId;
       }
 
-      // Handle array fields - convert to proper format for PostgreSQL
-      const reminderDaysArray = updates.reminderDays ? 
-        (Array.isArray(updates.reminderDays) ? updates.reminderDays : null) : null;
-      const tagsArray = updates.tags ? 
-        (Array.isArray(updates.tags) ? updates.tags : null) : null;
-
       // Handle portal password encryption if provided
-      let encryptedPassword = null;
+      let encryptedPassword: string | null = null;
       if (updates.portalPassword !== undefined && updates.portalPassword !== null && updates.portalPassword !== '') {
         try {
           encryptedPassword = encryptPortalPassword(updates.portalPassword);
@@ -4743,39 +4737,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const result = await db.execute(sql`
-        UPDATE compliance_tasks SET
-          task_name = COALESCE(${updates.taskName}, task_name),
-          description = COALESCE(${updates.description}, description),
-          category = COALESCE(${updates.category}, category),
-          subcategory = COALESCE(${updates.subcategory}, subcategory),
-          jurisdiction = COALESCE(${updates.jurisdiction}, jurisdiction),
-          regulatory_body = COALESCE(${updates.regulatoryBody}, regulatory_body),
-          recurrence = COALESCE(${updates.recurrence}, recurrence),
-          custom_recurrence_days = COALESCE(${updates.customRecurrenceDays}, custom_recurrence_days),
-          due_date = COALESCE(${updates.dueDate}, due_date),
-          reminder_days = CASE WHEN ${reminderDaysArray !== null} THEN ${reminderDaysArray}::integer[] ELSE reminder_days END,
-          assigned_to_name = COALESCE(${updates.assignedToName}, assigned_to_name),
-          assigned_to_email = COALESCE(${updates.assignedToEmail}, assigned_to_email),
-          status = COALESCE(${updates.status}, status),
-          priority = COALESCE(${updates.priority}, priority),
-          portal_url = COALESCE(${updates.portalUrl}, portal_url),
-          portal_username = COALESCE(${updates.portalUsername}, portal_username),
-          portal_password = CASE WHEN ${encryptedPassword !== null} THEN ${encryptedPassword} ELSE portal_password END,
-          portal_notes = COALESCE(${updates.portalNotes}, portal_notes),
-          estimated_cost = COALESCE(${updates.estimatedCost}, estimated_cost),
-          actual_cost = COALESCE(${updates.actualCost}, actual_cost),
-          penalty_amount = COALESCE(${updates.penaltyAmount}, penalty_amount),
-          completion_notes = COALESCE(${updates.completionNotes}, completion_notes),
-          confirmation_number = COALESCE(${updates.confirmationNumber}, confirmation_number),
-          tags = CASE WHEN ${tagsArray !== null} THEN ${tagsArray}::text[] ELSE tags END,
-          is_active = COALESCE(${updates.isActive}, is_active),
-          completed_at = COALESCE(${completedAt}, completed_at),
-          completed_by_id = COALESCE(${completedById}, completed_by_id),
-          updated_at = NOW()
-        WHERE id = ${id}
-        RETURNING *
-      `);
+      // Build dynamic update - only update fields that are provided
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      const addField = (fieldName: string, value: any) => {
+        if (value !== undefined) {
+          setClauses.push(`${fieldName} = $${paramIndex}`);
+          values.push(value);
+          paramIndex++;
+        }
+      };
+
+      addField('task_name', updates.taskName);
+      addField('description', updates.description);
+      addField('category', updates.category);
+      addField('subcategory', updates.subcategory);
+      addField('jurisdiction', updates.jurisdiction);
+      addField('regulatory_body', updates.regulatoryBody);
+      addField('recurrence', updates.recurrence);
+      addField('custom_recurrence_days', updates.customRecurrenceDays);
+      addField('due_date', updates.dueDate);
+      addField('assigned_to_name', updates.assignedToName);
+      addField('assigned_to_email', updates.assignedToEmail);
+      addField('status', updates.status);
+      addField('priority', updates.priority);
+      addField('portal_url', updates.portalUrl);
+      addField('portal_username', updates.portalUsername);
+      addField('portal_notes', updates.portalNotes);
+      addField('estimated_cost', updates.estimatedCost);
+      addField('actual_cost', updates.actualCost);
+      addField('penalty_amount', updates.penaltyAmount);
+      addField('completion_notes', updates.completionNotes);
+      addField('confirmation_number', updates.confirmationNumber);
+      addField('is_active', updates.isActive);
+
+      // Handle encrypted password
+      if (encryptedPassword) {
+        setClauses.push(`portal_password = $${paramIndex}`);
+        values.push(encryptedPassword);
+        paramIndex++;
+      }
+
+      // Handle completed status
+      if (completedAt) {
+        setClauses.push(`completed_at = $${paramIndex}`);
+        values.push(completedAt);
+        paramIndex++;
+        setClauses.push(`completed_by_id = $${paramIndex}`);
+        values.push(completedById);
+        paramIndex++;
+      }
+
+      // Handle array fields specially
+      if (updates.reminderDays !== undefined && Array.isArray(updates.reminderDays)) {
+        setClauses.push(`reminder_days = $${paramIndex}::integer[]`);
+        values.push(updates.reminderDays);
+        paramIndex++;
+      }
+
+      if (updates.tags !== undefined && Array.isArray(updates.tags)) {
+        setClauses.push(`tags = $${paramIndex}::text[]`);
+        values.push(updates.tags);
+        paramIndex++;
+      }
+
+      // Always update timestamp
+      setClauses.push('updated_at = NOW()');
+
+      // Add the id parameter
+      values.push(id);
+
+      const queryText = `UPDATE compliance_tasks SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+      const result = await db.execute(sql.raw(queryText, values));
 
       // Log changes to history
       for (const entry of logEntries) {
