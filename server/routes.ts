@@ -4740,6 +4740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Helper to convert empty strings to null
       const nullIfEmpty = (val: any) => (val === '' || val === undefined) ? null : val;
       const numericOrNull = (val: any) => (val === '' || val === undefined || val === null) ? null : Number(val);
+      // Note: numericOrNull kept for potential future use with customRecurrenceDays
 
       // Build dynamic update using SQL fragments
       const setFragments: ReturnType<typeof sql>[] = [];
@@ -4760,9 +4761,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (updates.portalUrl !== undefined) setFragments.push(sql`portal_url = ${nullIfEmpty(updates.portalUrl)}`);
       if (updates.portalUsername !== undefined) setFragments.push(sql`portal_username = ${nullIfEmpty(updates.portalUsername)}`);
       if (updates.portalNotes !== undefined) setFragments.push(sql`portal_notes = ${nullIfEmpty(updates.portalNotes)}`);
-      if (updates.estimatedCost !== undefined) setFragments.push(sql`estimated_cost = ${numericOrNull(updates.estimatedCost)}`);
-      if (updates.actualCost !== undefined) setFragments.push(sql`actual_cost = ${numericOrNull(updates.actualCost)}`);
-      if (updates.penaltyAmount !== undefined) setFragments.push(sql`penalty_amount = ${numericOrNull(updates.penaltyAmount)}`);
       if (updates.completionNotes !== undefined) setFragments.push(sql`completion_notes = ${nullIfEmpty(updates.completionNotes)}`);
       if (updates.confirmationNumber !== undefined) setFragments.push(sql`confirmation_number = ${nullIfEmpty(updates.confirmationNumber)}`);
       if (updates.isActive !== undefined) setFragments.push(sql`is_active = ${updates.isActive}`);
