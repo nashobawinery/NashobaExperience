@@ -34,7 +34,10 @@ import {
   Filter,
   Search,
   MoreVertical,
-  Eye
+  Eye,
+  Archive,
+  Copy,
+  CheckSquare
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -266,6 +269,57 @@ export default function ComplianceAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error?.message || "Failed to send reminder", variant: "destructive" });
+    },
+  });
+
+  const archiveTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/compliance/tasks/${id}/archive`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/upcoming'] });
+      toast({ title: "Success", description: "Task archived - it will no longer recur" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to archive task", variant: "destructive" });
+    },
+  });
+
+  const completeTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/compliance/tasks/${id}/complete`);
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/upcoming'] });
+      if (data.nextCycle) {
+        toast({ 
+          title: "Task Completed", 
+          description: `Moved to next cycle. New due date: ${new Date(data.nextDueDate).toLocaleDateString()}` 
+        });
+      } else {
+        toast({ title: "Task Completed", description: "One-time task marked as complete" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to complete task", variant: "destructive" });
+    },
+  });
+
+  const duplicateTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/compliance/tasks/${id}/duplicate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/stats'] });
+      toast({ title: "Success", description: "Task duplicated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to duplicate task", variant: "destructive" });
     },
   });
 
@@ -701,9 +755,37 @@ export default function ComplianceAdminDashboard() {
                                       Open Portal
                                     </DropdownMenuItem>
                                   )}
+                                  {task.status !== 'completed' && (
+                                    <DropdownMenuItem 
+                                      onClick={() => completeTaskMutation.mutate(task.id)}
+                                      disabled={completeTaskMutation.isPending}
+                                      data-testid={`button-complete-${task.id}`}
+                                    >
+                                      <CheckSquare className="h-4 w-4 mr-2" />
+                                      {task.recurrence === 'one_time' ? 'Complete' : 'Complete & Next Cycle'}
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem 
+                                    onClick={() => duplicateTaskMutation.mutate(task.id)}
+                                    disabled={duplicateTaskMutation.isPending}
+                                    data-testid={`button-duplicate-${task.id}`}
+                                  >
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => archiveTaskMutation.mutate(task.id)}
+                                    disabled={archiveTaskMutation.isPending}
+                                    className="text-amber-600"
+                                    data-testid={`button-archive-${task.id}`}
+                                  >
+                                    <Archive className="h-4 w-4 mr-2" />
+                                    Archive
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem 
                                     onClick={() => deleteTaskMutation.mutate(task.id)}
                                     className="text-red-600"
+                                    data-testid={`button-delete-${task.id}`}
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
                                     Delete

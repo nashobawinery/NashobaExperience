@@ -81,11 +81,15 @@ The Compliance module is a calendar-based task management system for tracking ta
 - **Dashboard Overview**: Stats cards showing total tasks, overdue items, due this week/month, and completed tasks
 - **Task Management**: Full CRUD operations for compliance tasks with filtering by category, status, and priority
 - **Calendar View**: Visual timeline of overdue, due this week, and due this month tasks
-- **Email Reminders**: SendGrid-powered email notifications sent to assigned team members
+- **Email Reminders**: SendGrid-powered email notifications sent to assigned team members with configurable reminder days
 - **Recurrence Patterns**: Support for one-time, daily, weekly, monthly, quarterly, semi-annual, annual, and custom recurrence
 - **Audit History**: Complete history tracking of all task changes with timestamps and user attribution
-- **Portal Integration**: Store portal URLs, usernames, and notes for quick access to filing systems
+- **Portal Integration**: Store portal URLs, usernames, and encrypted passwords for quick access to filing systems
 - **Cost Tracking**: Track estimated vs actual costs and potential penalties for compliance tasks
+- **Task Actions**:
+  - **Archive**: Stop a recurring task from generating new instances
+  - **Complete & Next Cycle**: Mark a task complete and automatically schedule the next occurrence based on recurrence pattern
+  - **Duplicate**: Create a copy of an existing task for similar compliance requirements (useful for multiple licenses)
 
 ### Database Schema
 - `compliance_tasks`: Main table for compliance task records with all task details
@@ -103,5 +107,8 @@ Tax, Licensing, Regulatory, Insurance, Environmental, Health & Safety, Payroll, 
 - `PATCH /api/compliance/tasks/:id` - Update task
 - `DELETE /api/compliance/tasks/:id` - Soft delete task
 - `POST /api/compliance/tasks/:id/send-reminder` - Send reminder email
+- `POST /api/compliance/tasks/:id/archive` - Archive task (stops recurrence)
+- `POST /api/compliance/tasks/:id/complete` - Complete task and move to next cycle
+- `POST /api/compliance/tasks/:id/duplicate` - Duplicate task for similar requirements
 - `GET /api/compliance/stats` - Get dashboard statistics
 - `GET /api/compliance/upcoming` - Get upcoming deadlines
