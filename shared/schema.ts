@@ -26,6 +26,36 @@ export const spiritTypeEnum = pgEnum("spirit_type", ["whiskey", "vodka", "gin", 
 export const spiritAgingEnum = pgEnum("spirit_aging", ["unaged", "young", "aged", "extra_aged"]);
 export const spiritFlavorEnum = pgEnum("spirit_flavor", ["smooth", "bold", "sweet", "spicy", "fruity", "smoky", "herbal", "citrus"]);
 
+// Compliance module enums
+export const complianceCategoryEnum = pgEnum("compliance_category", [
+  "tax",
+  "licensing",
+  "payroll",
+  "privacy",
+  "security",
+  "environmental",
+  "health_safety",
+  "regulatory",
+  "administrative",
+  "insurance",
+  "other"
+]);
+
+export const complianceRecurrenceEnum = pgEnum("compliance_recurrence", [
+  "one_time",
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "semi_annual",
+  "annual",
+  "custom"
+]);
+
+export const compliancePriorityEnum = pgEnum("compliance_priority", ["low", "medium", "high", "critical"]);
+
+export const complianceStatusEnum = pgEnum("compliance_status", ["pending", "in_progress", "completed", "overdue", "cancelled"]);
+
 // Session storage table for authentication
 export const sessions = pgTable(
   "sessions",
@@ -900,6 +930,117 @@ export const lmsCertificates = pgTable("lms_certificates", {
   index("idx_lms_certs_course").on(table.courseId),
 ]);
 
+// ============================================
+// COMPLIANCE MODULE TABLES
+// ============================================
+
+// Compliance Tasks - Main table for tracking compliance obligations
+export const complianceTasks = pgTable("compliance_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskName: text("task_name").notNull(),
+  description: text("description"),
+  category: complianceCategoryEnum("category").notNull(),
+  subcategory: text("subcategory"),
+  jurisdiction: text("jurisdiction"), // e.g., "Federal", "Massachusetts", "Local"
+  regulatoryBody: text("regulatory_body"), // e.g., "IRS", "TTB", "State ABC"
+  
+  // Recurrence settings
+  recurrence: complianceRecurrenceEnum("recurrence").notNull().default("one_time"),
+  customRecurrenceDays: integer("custom_recurrence_days"), // For custom recurrence patterns
+  
+  // Deadline management
+  dueDate: timestamp("due_date"),
+  reminderDays: integer("reminder_days").array(), // e.g., [30, 14, 7, 1] days before
+  lastReminderSent: timestamp("last_reminder_sent"),
+  
+  // Assignment
+  assignedToName: text("assigned_to_name"),
+  assignedToEmail: text("assigned_to_email"),
+  assignedById: varchar("assigned_by_id").references(() => users.id),
+  
+  // Status and priority
+  status: complianceStatusEnum("status").notNull().default("pending"),
+  priority: compliancePriorityEnum("priority").notNull().default("medium"),
+  
+  // Portal/credential info (encrypted in practice)
+  portalUrl: text("portal_url"),
+  portalUsername: text("portal_username"),
+  portalNotes: text("portal_notes"), // General notes about accessing the portal
+  
+  // Financial tracking
+  estimatedCost: decimal("estimated_cost", { precision: 10, scale: 2 }),
+  actualCost: decimal("actual_cost", { precision: 10, scale: 2 }),
+  penaltyAmount: decimal("penalty_amount", { precision: 10, scale: 2 }),
+  
+  // Completion tracking
+  completedAt: timestamp("completed_at"),
+  completedById: varchar("completed_by_id").references(() => users.id),
+  completionNotes: text("completion_notes"),
+  confirmationNumber: text("confirmation_number"),
+  
+  // Tags for flexible categorization
+  tags: text("tags").array(),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdById: varchar("created_by_id").references(() => users.id),
+  isActive: boolean("is_active").notNull().default(true),
+}, (table) => [
+  index("idx_compliance_category").on(table.category),
+  index("idx_compliance_status").on(table.status),
+  index("idx_compliance_due_date").on(table.dueDate),
+  index("idx_compliance_assigned").on(table.assignedToEmail),
+]);
+
+// Compliance Task History - Audit log for changes
+export const complianceTaskHistory = pgTable("compliance_task_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => complianceTasks.id, { onDelete: 'cascade' }),
+  changedById: varchar("changed_by_id").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  action: text("action").notNull(), // e.g., "created", "updated", "completed", "status_changed"
+  fieldChanged: text("field_changed"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_compliance_history_task").on(table.taskId),
+  index("idx_compliance_history_date").on(table.createdAt),
+]);
+
+// Compliance Reminders - Log of sent reminders
+export const complianceReminders = pgTable("compliance_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => complianceTasks.id, { onDelete: 'cascade' }),
+  sentToEmail: text("sent_to_email").notNull(),
+  sentToName: text("sent_to_name"),
+  method: text("method").notNull().default("email"), // email, calendar_invite, push
+  subject: text("subject"),
+  status: text("status").notNull().default("sent"), // sent, failed, opened
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  daysBeforeDue: integer("days_before_due"),
+}, (table) => [
+  index("idx_compliance_reminders_task").on(table.taskId),
+  index("idx_compliance_reminders_date").on(table.sentAt),
+]);
+
+// Compliance Attachments - Documents attached to tasks
+export const complianceAttachments = pgTable("compliance_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => complianceTasks.id, { onDelete: 'cascade' }),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type"),
+  fileSize: integer("file_size"),
+  uploadedById: varchar("uploaded_by_id").references(() => users.id),
+  uploadedByName: text("uploaded_by_name"),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_compliance_attachments_task").on(table.taskId),
+]);
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -970,6 +1111,18 @@ export const insertLmsEnrollmentSchema = createInsertSchema(lmsEnrollments).omit
 export const insertLmsLessonProgressSchema = createInsertSchema(lmsLessonProgress).omit({ id: true, startedAt: true, completedAt: true });
 export const insertLmsQuizAttemptSchema = createInsertSchema(lmsQuizAttempts).omit({ id: true, startedAt: true, completedAt: true });
 export const insertLmsCertificateSchema = createInsertSchema(lmsCertificates).omit({ id: true, issuedAt: true });
+
+// Compliance Insert schemas
+export const insertComplianceTaskSchema = createInsertSchema(complianceTasks).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  completedAt: true,
+  lastReminderSent: true
+});
+export const insertComplianceTaskHistorySchema = createInsertSchema(complianceTaskHistory).omit({ id: true, createdAt: true });
+export const insertComplianceReminderSchema = createInsertSchema(complianceReminders).omit({ id: true, sentAt: true });
+export const insertComplianceAttachmentSchema = createInsertSchema(complianceAttachments).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -1160,4 +1313,24 @@ export type LmsEnrollmentWithDetails = LmsEnrollment & {
   course: LmsCourse;
   progress: LmsLessonProgress[];
   quizAttempts: LmsQuizAttempt[];
+};
+
+// Compliance Types
+export type InsertComplianceTask = z.infer<typeof insertComplianceTaskSchema>;
+export type ComplianceTask = typeof complianceTasks.$inferSelect;
+
+export type InsertComplianceTaskHistory = z.infer<typeof insertComplianceTaskHistorySchema>;
+export type ComplianceTaskHistory = typeof complianceTaskHistory.$inferSelect;
+
+export type InsertComplianceReminder = z.infer<typeof insertComplianceReminderSchema>;
+export type ComplianceReminder = typeof complianceReminders.$inferSelect;
+
+export type InsertComplianceAttachment = z.infer<typeof insertComplianceAttachmentSchema>;
+export type ComplianceAttachment = typeof complianceAttachments.$inferSelect;
+
+// Extended Compliance types with relations
+export type ComplianceTaskWithDetails = ComplianceTask & {
+  history?: ComplianceTaskHistory[];
+  reminders?: ComplianceReminder[];
+  attachments?: ComplianceAttachment[];
 };
