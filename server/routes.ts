@@ -35,7 +35,13 @@ import {
   insertLmsCourseSchema,
   insertLmsLessonSchema,
   insertLmsQuizQuestionSchema,
+  insertComplianceTaskSchema,
+  complianceTasks,
+  complianceTaskHistory,
+  complianceReminders,
+  complianceAttachments,
 } from "@shared/schema";
+import sgMail from "@sendgrid/mail";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Mount B2B routes FIRST (before main session middleware) to ensure session isolation
@@ -4501,8 +4507,476 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // COMPLIANCE MODULE ROUTES
+  // ============================================
+
+  // Initialize SendGrid for compliance emails
+  if (process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  }
+
+  // Get all compliance tasks
+  app.get('/api/compliance/tasks', isAdmin, async (req, res) => {
+    try {
+      const { status, category, priority } = req.query;
+      let query = sql`
+        SELECT * FROM compliance_tasks 
+        WHERE is_active = true
+        ${status ? sql` AND status = ${status}` : sql``}
+        ${category ? sql` AND category = ${category}` : sql``}
+        ${priority ? sql` AND priority = ${priority}` : sql``}
+        ORDER BY 
+          CASE WHEN status = 'overdue' THEN 1
+               WHEN status = 'pending' AND due_date < NOW() THEN 2
+               WHEN status = 'in_progress' THEN 3
+               WHEN status = 'pending' THEN 4
+               ELSE 5 END,
+          due_date ASC NULLS LAST
+      `;
+      const result = await db.execute(query);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching compliance tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch compliance tasks' });
+    }
+  });
+
+  // Get single compliance task with details
+  app.get('/api/compliance/tasks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+      
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const historyResult = await db.execute(sql`
+        SELECT * FROM compliance_task_history 
+        WHERE task_id = ${id} 
+        ORDER BY created_at DESC
+      `);
+
+      const remindersResult = await db.execute(sql`
+        SELECT * FROM compliance_reminders 
+        WHERE task_id = ${id} 
+        ORDER BY sent_at DESC
+      `);
+
+      const attachmentsResult = await db.execute(sql`
+        SELECT * FROM compliance_attachments 
+        WHERE task_id = ${id} 
+        ORDER BY created_at DESC
+      `);
+
+      res.json({
+        ...taskResult.rows[0],
+        history: historyResult.rows,
+        reminders: remindersResult.rows,
+        attachments: attachmentsResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching compliance task:', error);
+      res.status(500).json({ message: 'Failed to fetch compliance task' });
+    }
+  });
+
+  // Create compliance task
+  app.post('/api/compliance/tasks', isAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertComplianceTaskSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid task data', errors: parsed.error.errors });
+      }
+
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+      
+      const result = await db.execute(sql`
+        INSERT INTO compliance_tasks (
+          task_name, description, category, subcategory, jurisdiction, regulatory_body,
+          recurrence, custom_recurrence_days, due_date, reminder_days,
+          assigned_to_name, assigned_to_email, assigned_by_id,
+          status, priority, portal_url, portal_username, portal_notes,
+          estimated_cost, actual_cost, penalty_amount, tags, created_by_id
+        ) VALUES (
+          ${parsed.data.taskName},
+          ${parsed.data.description || null},
+          ${parsed.data.category},
+          ${parsed.data.subcategory || null},
+          ${parsed.data.jurisdiction || null},
+          ${parsed.data.regulatoryBody || null},
+          ${parsed.data.recurrence || 'one_time'},
+          ${parsed.data.customRecurrenceDays || null},
+          ${parsed.data.dueDate || null},
+          ${parsed.data.reminderDays || null},
+          ${parsed.data.assignedToName || null},
+          ${parsed.data.assignedToEmail || null},
+          ${userId || null},
+          ${parsed.data.status || 'pending'},
+          ${parsed.data.priority || 'medium'},
+          ${parsed.data.portalUrl || null},
+          ${parsed.data.portalUsername || null},
+          ${parsed.data.portalNotes || null},
+          ${parsed.data.estimatedCost || null},
+          ${parsed.data.actualCost || null},
+          ${parsed.data.penaltyAmount || null},
+          ${parsed.data.tags || null},
+          ${userId || null}
+        ) RETURNING *
+      `);
+
+      // Log creation in history
+      const task = result.rows[0];
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (task_id, changed_by_id, changed_by_name, action, new_value)
+        VALUES (${task.id}, ${userId || null}, ${userName}, 'created', ${parsed.data.taskName})
+      `);
+
+      res.status(201).json(task);
+    } catch (error) {
+      console.error('Error creating compliance task:', error);
+      res.status(500).json({ message: 'Failed to create compliance task' });
+    }
+  });
+
+  // Update compliance task
+  app.patch('/api/compliance/tasks/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+
+      // Get existing task
+      const existingResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+      
+      if (existingResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const existing = existingResult.rows[0] as any;
+
+      // Build dynamic update
+      const updateFields: string[] = [];
+      const logEntries: Array<{field: string, oldValue: any, newValue: any}> = [];
+
+      const fieldMapping: Record<string, string> = {
+        taskName: 'task_name',
+        description: 'description',
+        category: 'category',
+        subcategory: 'subcategory',
+        jurisdiction: 'jurisdiction',
+        regulatoryBody: 'regulatory_body',
+        recurrence: 'recurrence',
+        customRecurrenceDays: 'custom_recurrence_days',
+        dueDate: 'due_date',
+        reminderDays: 'reminder_days',
+        assignedToName: 'assigned_to_name',
+        assignedToEmail: 'assigned_to_email',
+        status: 'status',
+        priority: 'priority',
+        portalUrl: 'portal_url',
+        portalUsername: 'portal_username',
+        portalNotes: 'portal_notes',
+        estimatedCost: 'estimated_cost',
+        actualCost: 'actual_cost',
+        penaltyAmount: 'penalty_amount',
+        completionNotes: 'completion_notes',
+        confirmationNumber: 'confirmation_number',
+        tags: 'tags',
+        isActive: 'is_active'
+      };
+
+      // Track changes for history
+      for (const [key, dbField] of Object.entries(fieldMapping)) {
+        if (updates[key] !== undefined) {
+          const camelKey = dbField.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
+          if (existing[camelKey] !== updates[key]) {
+            logEntries.push({
+              field: key,
+              oldValue: existing[camelKey],
+              newValue: updates[key]
+            });
+          }
+        }
+      }
+
+      // Handle status change to completed
+      let completedAt = null;
+      let completedById = null;
+      if (updates.status === 'completed' && existing.status !== 'completed') {
+        completedAt = new Date();
+        completedById = userId;
+      }
+
+      const result = await db.execute(sql`
+        UPDATE compliance_tasks SET
+          task_name = COALESCE(${updates.taskName}, task_name),
+          description = COALESCE(${updates.description}, description),
+          category = COALESCE(${updates.category}, category),
+          subcategory = COALESCE(${updates.subcategory}, subcategory),
+          jurisdiction = COALESCE(${updates.jurisdiction}, jurisdiction),
+          regulatory_body = COALESCE(${updates.regulatoryBody}, regulatory_body),
+          recurrence = COALESCE(${updates.recurrence}, recurrence),
+          custom_recurrence_days = COALESCE(${updates.customRecurrenceDays}, custom_recurrence_days),
+          due_date = COALESCE(${updates.dueDate}, due_date),
+          reminder_days = COALESCE(${updates.reminderDays}, reminder_days),
+          assigned_to_name = COALESCE(${updates.assignedToName}, assigned_to_name),
+          assigned_to_email = COALESCE(${updates.assignedToEmail}, assigned_to_email),
+          status = COALESCE(${updates.status}, status),
+          priority = COALESCE(${updates.priority}, priority),
+          portal_url = COALESCE(${updates.portalUrl}, portal_url),
+          portal_username = COALESCE(${updates.portalUsername}, portal_username),
+          portal_notes = COALESCE(${updates.portalNotes}, portal_notes),
+          estimated_cost = COALESCE(${updates.estimatedCost}, estimated_cost),
+          actual_cost = COALESCE(${updates.actualCost}, actual_cost),
+          penalty_amount = COALESCE(${updates.penaltyAmount}, penalty_amount),
+          completion_notes = COALESCE(${updates.completionNotes}, completion_notes),
+          confirmation_number = COALESCE(${updates.confirmationNumber}, confirmation_number),
+          tags = COALESCE(${updates.tags}, tags),
+          is_active = COALESCE(${updates.isActive}, is_active),
+          completed_at = COALESCE(${completedAt}, completed_at),
+          completed_by_id = COALESCE(${completedById}, completed_by_id),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+
+      // Log changes to history
+      for (const entry of logEntries) {
+        await db.execute(sql`
+          INSERT INTO compliance_task_history (
+            task_id, changed_by_id, changed_by_name, action, field_changed, old_value, new_value
+          ) VALUES (
+            ${id}, ${userId || null}, ${userName}, 'updated', 
+            ${entry.field}, ${String(entry.oldValue)}, ${String(entry.newValue)}
+          )
+        `);
+      }
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating compliance task:', error);
+      res.status(500).json({ message: 'Failed to update compliance task' });
+    }
+  });
+
+  // Delete compliance task (soft delete)
+  app.delete('/api/compliance/tasks/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+
+      await db.execute(sql`
+        UPDATE compliance_tasks SET is_active = false, updated_at = NOW() WHERE id = ${id}
+      `);
+
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (task_id, changed_by_id, changed_by_name, action)
+        VALUES (${id}, ${userId || null}, ${userName}, 'deleted')
+      `);
+
+      res.json({ message: 'Task deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting compliance task:', error);
+      res.status(500).json({ message: 'Failed to delete compliance task' });
+    }
+  });
+
+  // Send compliance reminder email
+  app.post('/api/compliance/tasks/:id/send-reminder', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+      
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const task = taskResult.rows[0] as any;
+
+      if (!task.assigned_to_email) {
+        return res.status(400).json({ message: 'No assignee email configured for this task' });
+      }
+
+      if (!process.env.SENDGRID_API_KEY) {
+        return res.status(500).json({ message: 'Email service not configured' });
+      }
+
+      // Calculate days until due
+      const dueDate = task.due_date ? new Date(task.due_date) : null;
+      const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+      const subject = `Compliance Reminder: ${task.task_name}`;
+      const html = generateComplianceReminderEmail(task, daysUntilDue);
+
+      const msg = {
+        to: task.assigned_to_email,
+        from: 'support@nasobawinery.com',
+        subject,
+        html,
+        text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}`
+      };
+
+      await sgMail.send(msg);
+
+      // Log the reminder
+      await db.execute(sql`
+        INSERT INTO compliance_reminders (task_id, sent_to_email, sent_to_name, method, subject, status, days_before_due)
+        VALUES (${id}, ${task.assigned_to_email}, ${task.assigned_to_name || null}, 'email', ${subject}, 'sent', ${daysUntilDue || null})
+      `);
+
+      // Update last reminder sent
+      await db.execute(sql`
+        UPDATE compliance_tasks SET last_reminder_sent = NOW() WHERE id = ${id}
+      `);
+
+      res.json({ message: 'Reminder sent successfully' });
+    } catch (error) {
+      console.error('Error sending compliance reminder:', error);
+      res.status(500).json({ message: 'Failed to send reminder' });
+    }
+  });
+
+  // Get compliance dashboard stats
+  app.get('/api/compliance/stats', isAdmin, async (req, res) => {
+    try {
+      const stats = await db.execute(sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE is_active = true) as total_tasks,
+          COUNT(*) FILTER (WHERE status = 'pending' AND is_active = true) as pending,
+          COUNT(*) FILTER (WHERE status = 'in_progress' AND is_active = true) as in_progress,
+          COUNT(*) FILTER (WHERE status = 'completed' AND is_active = true) as completed,
+          COUNT(*) FILTER (WHERE status = 'overdue' AND is_active = true) as overdue,
+          COUNT(*) FILTER (WHERE due_date < NOW() AND status NOT IN ('completed', 'cancelled') AND is_active = true) as past_due,
+          COUNT(*) FILTER (WHERE due_date BETWEEN NOW() AND NOW() + INTERVAL '7 days' AND status NOT IN ('completed', 'cancelled') AND is_active = true) as due_this_week,
+          COUNT(*) FILTER (WHERE due_date BETWEEN NOW() AND NOW() + INTERVAL '30 days' AND status NOT IN ('completed', 'cancelled') AND is_active = true) as due_this_month
+        FROM compliance_tasks
+      `);
+      res.json(stats.rows[0]);
+    } catch (error) {
+      console.error('Error fetching compliance stats:', error);
+      res.status(500).json({ message: 'Failed to fetch compliance stats' });
+    }
+  });
+
+  // Get upcoming deadlines
+  app.get('/api/compliance/upcoming', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM compliance_tasks 
+        WHERE is_active = true 
+          AND status NOT IN ('completed', 'cancelled')
+          AND due_date IS NOT NULL
+          AND due_date >= NOW()
+        ORDER BY due_date ASC
+        LIMIT 10
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching upcoming deadlines:', error);
+      res.status(500).json({ message: 'Failed to fetch upcoming deadlines' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function to generate compliance reminder email
+function generateComplianceReminderEmail(task: any, daysUntilDue: number | null): string {
+  const priorityColors: Record<string, string> = {
+    low: '#22c55e',
+    medium: '#f59e0b',
+    high: '#ef4444',
+    critical: '#dc2626'
+  };
+
+  const priorityColor = priorityColors[task.priority] || '#6b7280';
+  const dueDateDisplay = task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }) : 'Not set';
+
+  const urgencyMessage = daysUntilDue !== null 
+    ? daysUntilDue <= 0 
+      ? '<p style="color: #dc2626; font-weight: bold;">This task is OVERDUE!</p>'
+      : daysUntilDue <= 7 
+        ? `<p style="color: #f59e0b; font-weight: bold;">Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}</p>`
+        : `<p style="color: #22c55e;">Due in ${daysUntilDue} days</p>`
+    : '';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .header { background-color: #4f46e5; color: white; padding: 20px; text-align: center; }
+    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+    .task-box { background-color: #f3f4f6; border-left: 4px solid ${priorityColor}; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+    .priority-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; background-color: ${priorityColor}; color: white; text-transform: uppercase; }
+    .detail-row { margin: 10px 0; }
+    .detail-label { font-weight: bold; color: #4f46e5; }
+    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Compliance Task Reminder</h1>
+  </div>
+  <div class="content">
+    <p>Hello ${task.assigned_to_name || 'Team Member'},</p>
+    
+    <p>This is a reminder about an upcoming compliance task that requires your attention.</p>
+    
+    ${urgencyMessage}
+    
+    <div class="task-box">
+      <h2 style="margin-top: 0;">${task.task_name}</h2>
+      <span class="priority-badge">${task.priority} Priority</span>
+      
+      <div class="detail-row">
+        <span class="detail-label">Category:</span> ${task.category.replace('_', ' ').toUpperCase()}
+      </div>
+      
+      <div class="detail-row">
+        <span class="detail-label">Due Date:</span> ${dueDateDisplay}
+      </div>
+      
+      ${task.jurisdiction ? `<div class="detail-row"><span class="detail-label">Jurisdiction:</span> ${task.jurisdiction}</div>` : ''}
+      
+      ${task.regulatory_body ? `<div class="detail-row"><span class="detail-label">Regulatory Body:</span> ${task.regulatory_body}</div>` : ''}
+      
+      ${task.description ? `<div class="detail-row"><span class="detail-label">Description:</span><br>${task.description}</div>` : ''}
+      
+      ${task.portal_url ? `<div class="detail-row"><span class="detail-label">Portal URL:</span> <a href="${task.portal_url}">${task.portal_url}</a></div>` : ''}
+      
+      ${task.estimated_cost ? `<div class="detail-row"><span class="detail-label">Estimated Cost:</span> $${parseFloat(task.estimated_cost).toFixed(2)}</div>` : ''}
+    </div>
+    
+    <p>Please ensure this task is completed before the deadline to maintain compliance.</p>
+    
+    <div class="footer">
+      <p>Nashoba Valley Winery Compliance System</p>
+      <p>This is an automated reminder. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
 }
 
 function parseObjectPath(path: string): {
