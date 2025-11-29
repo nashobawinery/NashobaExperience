@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
-  Home, Settings, Bell, LayoutGrid, Headphones
+  Home, Settings, Bell, LayoutGrid, Headphones, Scale
 } from "lucide-react";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
@@ -35,6 +35,7 @@ const iconMap: Record<string, any> = {
   Factory,
   ClipboardCheck,
   Headphones,
+  Scale,
 };
 
 const statusColors: Record<ModuleStatus, string> = {

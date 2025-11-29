@@ -40,6 +40,9 @@ import B2bCustomerDataPage from "@/pages/b2b/CustomerDataPage";
 import LmsAdminDashboard from "@/pages/lms/LmsAdminDashboard";
 import LmsLearnerPortal from "@/pages/lms/LmsLearnerPortal";
 
+// Compliance Imports
+import ComplianceAdminDashboard from "@/pages/compliance/ComplianceAdminDashboard";
+
 // Platform Management Imports
 import ModuleDirectory from "@/pages/ModuleDirectory";
 
@@ -143,6 +146,24 @@ function ModuleDirectoryRoute() {
   }
 
   return <ModuleDirectory />;
+}
+
+function ComplianceAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <ComplianceAdminDashboard />;
 }
 
 // B2B Routes Component
@@ -264,6 +285,7 @@ function Router() {
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/lms" component={LmsLearnerPortal} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
+        <Route path="/compliance/admin" component={ComplianceAdminRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>
