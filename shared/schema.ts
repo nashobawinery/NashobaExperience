@@ -604,6 +604,9 @@ export const improvementNotes = pgTable("improvement_notes", {
 // Module status enum for tracking module lifecycle
 export const moduleStatusEnum = pgEnum("module_status", ["active", "development", "planned", "inactive"]);
 
+// Module progress enum for tracking development progress
+export const moduleProgressEnum = pgEnum("module_progress", ["not_started", "in_progress", "in_beta", "launched", "complete"]);
+
 // Global role enum for platform-wide access control
 export const globalRoleEnum = pgEnum("global_role", ["super_admin", "admin", "manager", "staff", "viewer"]);
 
@@ -617,9 +620,11 @@ export const platformModules = pgTable("platform_modules", {
   color: varchar("color"), // Tailwind color class
   routePrefix: varchar("route_prefix").notNull(), // e.g., '/app', '/b2b', '/lms'
   status: moduleStatusEnum("status").notNull().default("planned"),
+  progress: moduleProgressEnum("progress").notNull().default("not_started"), // Development progress tracking
   sortOrder: integer("sort_order").notNull().default(0),
   launchDate: timestamp("launch_date"),
   settings: jsonb("settings"), // Module-specific configuration
+  notes: text("notes"), // Admin notes and ideas for this module
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
-  Home, Settings, Bell
+  Home, Settings, Bell, LayoutGrid, Headphones
 } from "lucide-react";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
@@ -34,6 +34,7 @@ const iconMap: Record<string, any> = {
   Wrench,
   Factory,
   ClipboardCheck,
+  Headphones,
 };
 
 const statusColors: Record<ModuleStatus, string> = {
@@ -97,6 +98,15 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
           </div>
           
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setLocation('/modules')}
+              data-testid="button-module-directory"
+            >
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Module Directory
+            </Button>
             <Button variant="ghost" size="icon" data-testid="button-notifications">
               <Bell className="h-5 w-5" />
             </Button>

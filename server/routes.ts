@@ -3749,8 +3749,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           color,
           route_prefix as "routePrefix",
           status,
+          progress,
           sort_order as "sortOrder",
-          launch_date as "launchDate"
+          launch_date as "launchDate",
+          notes
         FROM platform_modules
         ORDER BY sort_order ASC
       `);
@@ -3758,6 +3760,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching platform modules:', error);
       res.status(500).json({ message: 'Failed to fetch modules' });
+    }
+  });
+
+  // Update a platform module (notes, progress)
+  app.patch('/api/platform/modules/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes, progress } = req.body;
+
+      if (notes === undefined && progress === undefined) {
+        return res.status(400).json({ message: 'No updates provided' });
+      }
+
+      // Build dynamic update based on what's provided
+      let result;
+      if (notes !== undefined && progress !== undefined) {
+        result = await db.execute(sql`
+          UPDATE platform_modules 
+          SET notes = ${notes}, progress = ${progress}, updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING *
+        `);
+      } else if (notes !== undefined) {
+        result = await db.execute(sql`
+          UPDATE platform_modules 
+          SET notes = ${notes}, updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING *
+        `);
+      } else {
+        result = await db.execute(sql`
+          UPDATE platform_modules 
+          SET progress = ${progress}, updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING *
+        `);
+      }
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Module not found' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating module:', error);
+      res.status(500).json({ message: 'Failed to update module' });
     }
   });
 
