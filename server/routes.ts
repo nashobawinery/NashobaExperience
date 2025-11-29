@@ -4731,86 +4731,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let encryptedPassword: string | null = null;
       if (updates.portalPassword !== undefined && updates.portalPassword !== null && updates.portalPassword !== '') {
         try {
-          encryptedPassword = encryptPortalPassword(updates.portalPassword);
+          encryptedPassword = encryptPassword(updates.portalPassword);
         } catch (e) {
           console.error('Password encryption failed:', e);
         }
       }
 
-      // Build dynamic update - only update fields that are provided
-      const setClauses: string[] = [];
-      const values: any[] = [];
-      let paramIndex = 1;
+      // Build dynamic update using SQL fragments
+      const setFragments: ReturnType<typeof sql>[] = [];
 
-      const addField = (fieldName: string, value: any) => {
-        if (value !== undefined) {
-          setClauses.push(`${fieldName} = $${paramIndex}`);
-          values.push(value);
-          paramIndex++;
-        }
-      };
-
-      addField('task_name', updates.taskName);
-      addField('description', updates.description);
-      addField('category', updates.category);
-      addField('subcategory', updates.subcategory);
-      addField('jurisdiction', updates.jurisdiction);
-      addField('regulatory_body', updates.regulatoryBody);
-      addField('recurrence', updates.recurrence);
-      addField('custom_recurrence_days', updates.customRecurrenceDays);
-      addField('due_date', updates.dueDate);
-      addField('assigned_to_name', updates.assignedToName);
-      addField('assigned_to_email', updates.assignedToEmail);
-      addField('status', updates.status);
-      addField('priority', updates.priority);
-      addField('portal_url', updates.portalUrl);
-      addField('portal_username', updates.portalUsername);
-      addField('portal_notes', updates.portalNotes);
-      addField('estimated_cost', updates.estimatedCost);
-      addField('actual_cost', updates.actualCost);
-      addField('penalty_amount', updates.penaltyAmount);
-      addField('completion_notes', updates.completionNotes);
-      addField('confirmation_number', updates.confirmationNumber);
-      addField('is_active', updates.isActive);
+      if (updates.taskName !== undefined) setFragments.push(sql`task_name = ${updates.taskName}`);
+      if (updates.description !== undefined) setFragments.push(sql`description = ${updates.description}`);
+      if (updates.category !== undefined) setFragments.push(sql`category = ${updates.category}`);
+      if (updates.subcategory !== undefined) setFragments.push(sql`subcategory = ${updates.subcategory}`);
+      if (updates.jurisdiction !== undefined) setFragments.push(sql`jurisdiction = ${updates.jurisdiction}`);
+      if (updates.regulatoryBody !== undefined) setFragments.push(sql`regulatory_body = ${updates.regulatoryBody}`);
+      if (updates.recurrence !== undefined) setFragments.push(sql`recurrence = ${updates.recurrence}`);
+      if (updates.customRecurrenceDays !== undefined) setFragments.push(sql`custom_recurrence_days = ${updates.customRecurrenceDays}`);
+      if (updates.dueDate !== undefined) setFragments.push(sql`due_date = ${updates.dueDate}`);
+      if (updates.assignedToName !== undefined) setFragments.push(sql`assigned_to_name = ${updates.assignedToName}`);
+      if (updates.assignedToEmail !== undefined) setFragments.push(sql`assigned_to_email = ${updates.assignedToEmail}`);
+      if (updates.status !== undefined) setFragments.push(sql`status = ${updates.status}`);
+      if (updates.priority !== undefined) setFragments.push(sql`priority = ${updates.priority}`);
+      if (updates.portalUrl !== undefined) setFragments.push(sql`portal_url = ${updates.portalUrl}`);
+      if (updates.portalUsername !== undefined) setFragments.push(sql`portal_username = ${updates.portalUsername}`);
+      if (updates.portalNotes !== undefined) setFragments.push(sql`portal_notes = ${updates.portalNotes}`);
+      if (updates.estimatedCost !== undefined) setFragments.push(sql`estimated_cost = ${updates.estimatedCost}`);
+      if (updates.actualCost !== undefined) setFragments.push(sql`actual_cost = ${updates.actualCost}`);
+      if (updates.penaltyAmount !== undefined) setFragments.push(sql`penalty_amount = ${updates.penaltyAmount}`);
+      if (updates.completionNotes !== undefined) setFragments.push(sql`completion_notes = ${updates.completionNotes}`);
+      if (updates.confirmationNumber !== undefined) setFragments.push(sql`confirmation_number = ${updates.confirmationNumber}`);
+      if (updates.isActive !== undefined) setFragments.push(sql`is_active = ${updates.isActive}`);
 
       // Handle encrypted password
       if (encryptedPassword) {
-        setClauses.push(`portal_password = $${paramIndex}`);
-        values.push(encryptedPassword);
-        paramIndex++;
+        setFragments.push(sql`portal_password = ${encryptedPassword}`);
       }
 
       // Handle completed status
       if (completedAt) {
-        setClauses.push(`completed_at = $${paramIndex}`);
-        values.push(completedAt);
-        paramIndex++;
-        setClauses.push(`completed_by_id = $${paramIndex}`);
-        values.push(completedById);
-        paramIndex++;
+        setFragments.push(sql`completed_at = ${completedAt}`);
+        setFragments.push(sql`completed_by_id = ${completedById}`);
       }
 
-      // Handle array fields specially
+      // Handle array fields - convert to PostgreSQL array format
       if (updates.reminderDays !== undefined && Array.isArray(updates.reminderDays)) {
-        setClauses.push(`reminder_days = $${paramIndex}::integer[]`);
-        values.push(updates.reminderDays);
-        paramIndex++;
+        const arrayStr = `{${updates.reminderDays.join(',')}}`;
+        setFragments.push(sql`reminder_days = ${arrayStr}::integer[]`);
       }
 
       if (updates.tags !== undefined && Array.isArray(updates.tags)) {
-        setClauses.push(`tags = $${paramIndex}::text[]`);
-        values.push(updates.tags);
-        paramIndex++;
+        const arrayStr = `{${updates.tags.map((t: string) => `"${t.replace(/"/g, '\\"')}"`).join(',')}}`;
+        setFragments.push(sql`tags = ${arrayStr}::text[]`);
       }
 
       // Always update timestamp
-      setClauses.push('updated_at = NOW()');
+      setFragments.push(sql`updated_at = NOW()`);
 
-      // Add the id parameter
-      values.push(id);
-
-      const queryText = `UPDATE compliance_tasks SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-      const result = await db.execute(sql.raw(queryText, values));
+      // Build the complete query using sql.join
+      const setClause = sql.join(setFragments, sql`, `);
+      const result = await db.execute(sql`UPDATE compliance_tasks SET ${setClause} WHERE id = ${id} RETURNING *`);
 
       // Log changes to history
       for (const entry of logEntries) {
