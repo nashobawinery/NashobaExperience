@@ -43,3 +43,30 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Authentication**: `openid-client`, `express-session`, `connect-pg-simple`.
 - **Database**: PostgreSQL (via Neon serverless).
 - **File Storage**: `@google-cloud/storage`, `@uppy/core`, `@uppy/dashboard`, `@uppy/react`, `@uppy/aws-s3`.
+
+## Module Directory
+
+### Overview
+Central dashboard for tracking all platform modules and their development progress. Accessible at `/modules` by admins.
+
+### Features
+- **Progress Tracking**: Five status levels - Not Started, In Progress, In Beta, Launched, Complete
+- **Editable Notes**: Admin can add notes, ideas, and thoughts for each module
+- **Quick Navigation**: Click module title to access admin dashboard (when module is started)
+- **Access Point**: Module Directory button in Admin Hub header
+
+### Database Schema
+Added to `platform_modules` table:
+- `progress` - Enum: not_started, in_progress, in_beta, launched, complete
+- `notes` - Text field for admin notes
+
+### Current Modules
+1. **Tasting Experience** - Guest-facing wine tasting app (Launched)
+2. **B2B Wholesale** - Wholesale customer and order management (Launched)
+3. **LMS** - Employee training and certification system (Launched)
+4. **SOP** - Standard operating procedures documentation (Not Started)
+5. **Experience Library** - Case studies and best practices (Not Started)
+6. **Maintenance & Requests** - Equipment maintenance and work orders (Not Started)
+7. **Operations** - Adult beverage manufacturing tracking (Not Started)
+8. **Daily Procedures** - Opening/closing checklists (Not Started)
+9. **Customer Support** - Email ticketing with AI responses and social media management (Not Started)
