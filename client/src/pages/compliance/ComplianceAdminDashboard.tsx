@@ -892,6 +892,28 @@ export default function ComplianceAdminDashboard() {
               </div>
 
               <div className="grid gap-2">
+                <Label htmlFor="reminderDays">Email Reminder Days (before due date)</Label>
+                <Input
+                  id="reminderDays"
+                  value={formData.reminderDays.join(', ')}
+                  onChange={(e) => {
+                    const days = e.target.value
+                      .split(',')
+                      .map(d => parseInt(d.trim()))
+                      .filter(d => !isNaN(d) && d > 0);
+                    setFormData(prev => ({ ...prev, reminderDays: days }));
+                  }}
+                  placeholder="e.g., 7, 3, 1"
+                  data-testid="input-reminder-days"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated days before due date to send email reminders
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
                 <Label htmlFor="jurisdiction">Jurisdiction</Label>
                 <Input
                   id="jurisdiction"
