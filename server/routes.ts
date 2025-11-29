@@ -7,7 +7,7 @@ import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
@@ -3725,6 +3725,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting note:', error);
       res.status(500).json({ message: 'Failed to delete note' });
+    }
+  });
+
+  // =====================================================
+  // PLATFORM MODULE MANAGEMENT ROUTES
+  // =====================================================
+
+  // Get all platform modules
+  app.get('/api/platform/modules', async (req, res) => {
+    try {
+      const modules = await db.execute(sql`
+        SELECT 
+          id,
+          module_key as "moduleKey",
+          module_name as "moduleName",
+          description,
+          icon,
+          color,
+          route_prefix as "routePrefix",
+          status,
+          sort_order as "sortOrder",
+          launch_date as "launchDate"
+        FROM platform_modules
+        ORDER BY sort_order ASC
+      `);
+      res.json(modules.rows);
+    } catch (error) {
+      console.error('Error fetching platform modules:', error);
+      res.status(500).json({ message: 'Failed to fetch modules' });
+    }
+  });
+
+  // Get platform KPIs (cross-module metrics)
+  app.get('/api/platform/kpis', async (req, res) => {
+    try {
+      // Get total guest sessions (today)
+      const guestResult = await db.execute(sql`
+        SELECT COUNT(*)::integer as count 
+        FROM guest_sessions
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+      const totalGuests = Number(guestResult.rows[0]?.count || 0);
+
+      // Get today's orders (tasting app orders from carts that are checked out)
+      const ordersResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT session_id)::integer as count 
+        FROM cart_items
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+      const todayOrders = Number(ordersResult.rows[0]?.count || 0);
+
+      // Get active products count (available and in stock)
+      const productsResult = await db.execute(sql`
+        SELECT COUNT(*)::integer as count 
+        FROM products
+        WHERE available = true AND stock_quantity > 0
+      `);
+      const activeProducts = Number(productsResult.rows[0]?.count || 0);
+
+      // Get B2B customers count (active ones)
+      const b2bResult = await db.execute(sql`
+        SELECT COUNT(*)::integer as count 
+        FROM b2b_customers
+        WHERE account_status = 'active'
+      `);
+      const b2bCustomers = Number(b2bResult.rows[0]?.count || 0);
+
+      // Get pending approvals (B2B customers awaiting approval)
+      const pendingResult = await db.execute(sql`
+        SELECT COUNT(*)::integer as count 
+        FROM b2b_customers
+        WHERE account_status = 'pending_approval'
+      `);
+      const pendingApprovals = Number(pendingResult.rows[0]?.count || 0);
+
+      // Get recent activity (24h - sessions and cart items)
+      const activityResult = await db.execute(sql`
+        SELECT 
+          (
+            (SELECT COUNT(*) FROM guest_sessions WHERE created_at > NOW() - INTERVAL '24 hours') +
+            (SELECT COUNT(*) FROM cart_items WHERE created_at > NOW() - INTERVAL '24 hours')
+          )::integer as count
+      `);
+      const recentActivity = Number(activityResult.rows[0]?.count || 0);
+
+      res.json({
+        totalGuests,
+        todayOrders,
+        activeProducts,
+        b2bCustomers,
+        pendingApprovals,
+        recentActivity,
+      });
+    } catch (error) {
+      console.error('Error fetching platform KPIs:', error);
+      res.status(500).json({ message: 'Failed to fetch KPIs' });
     }
   });
 

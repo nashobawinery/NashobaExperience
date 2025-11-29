@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import GuestApp from "@/pages/GuestApp";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminHub from "@/pages/AdminHub";
 import DatabaseSync from "@/pages/DatabaseSync";
 import Landing from "@/pages/Landing";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,25 @@ function DatabaseSyncRoute() {
       <DatabaseSync />
     </div>
   );
+}
+
+function AdminHubRoute() {
+  const [, setLocation] = useLocation();
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <AdminHub onBackToGuest={() => setLocation("/")} />;
 }
 
 // B2B Routes Component
@@ -195,6 +215,7 @@ function Router() {
       </div>
       <Switch>
         <Route path="/" component={GuestApp} />
+        <Route path="/admin-hub" component={AdminHubRoute} />
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
         <Route component={NotFound} />
