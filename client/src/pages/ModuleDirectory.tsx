@@ -111,6 +111,8 @@ export default function ModuleDirectory() {
 
   const handleProgressChange = (moduleId: string, value: string) => {
     setEditingProgress(prev => ({ ...prev, [moduleId]: value }));
+    // Auto-save progress changes immediately
+    updateModuleMutation.mutate({ id: moduleId, progress: value });
   };
 
   const saveModuleChanges = (module: PlatformModule) => {
