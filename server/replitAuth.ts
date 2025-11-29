@@ -229,3 +229,109 @@ export const isAdmin: RequestHandler = async (req, res, next) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Platform-level middleware for module-based access control
+// This middleware checks if a user has access to a specific module
+export const requireModuleAccess = (moduleKey: string): RequestHandler => {
+  return async (req, res, next) => {
+    const user = req.user as any;
+
+    if (!req.isAuthenticated() || !user.expires_at) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Check token expiry
+    const now = Math.floor(Date.now() / 1000);
+    if (now > user.expires_at) {
+      const refreshToken = user.refresh_token;
+      if (!refreshToken) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      try {
+        const config = await getOidcConfig();
+        const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
+        updateUserSession(user, tokenResponse);
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+    }
+
+    try {
+      const userId = user.claims.sub;
+      const dbUser = await storage.getUser(userId);
+      
+      if (!dbUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Super admins (those with 'admin' role) have access to all modules
+      if (dbUser.role === 'admin') {
+        return next();
+      }
+
+      // For non-admins, check module-specific access
+      // This will be expanded when platform_user_module_access is fully integrated
+      // For now, only admins can access platform modules
+      return res.status(403).json({ 
+        message: `Forbidden - Access to ${moduleKey} module required` 
+      });
+    } catch (error) {
+      console.error("Error checking module access:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  };
+};
+
+// Middleware to check if user has a specific global role
+export const requireGlobalRole = (roles: ('super_admin' | 'admin' | 'manager' | 'staff' | 'viewer')[]): RequestHandler => {
+  return async (req, res, next) => {
+    const user = req.user as any;
+
+    if (!req.isAuthenticated() || !user.expires_at) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Check token expiry
+    const now = Math.floor(Date.now() / 1000);
+    if (now > user.expires_at) {
+      const refreshToken = user.refresh_token;
+      if (!refreshToken) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      try {
+        const config = await getOidcConfig();
+        const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
+        updateUserSession(user, tokenResponse);
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+    }
+
+    try {
+      const userId = user.claims.sub;
+      const dbUser = await storage.getUser(userId);
+      
+      if (!dbUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Map old role system to new global roles
+      // 'admin' in old system maps to both 'super_admin' and 'admin'
+      // 'viewer' in old system maps to 'viewer'
+      const effectiveRole = dbUser.role === 'admin' ? 'admin' : 'viewer';
+      
+      if (roles.includes(effectiveRole as any)) {
+        return next();
+      }
+
+      return res.status(403).json({ 
+        message: `Forbidden - One of the following roles required: ${roles.join(', ')}` 
+      });
+    } catch (error) {
+      console.error("Error checking global role:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  };
+};

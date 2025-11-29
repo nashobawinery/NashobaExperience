@@ -1,7 +1,36 @@
-# Nashoba Tasting Experience App
+# Nashoba Valley Operations Platform
 
 ## Overview
-The Nashoba Tasting Experience App is a mobile-first digital companion designed to enrich the wine tasting experience for winery guests. It provides product education, personalized AI-powered recommendations, engaging trivia, and a streamlined purchasing process, while collecting valuable guest feedback. The app aims to be a sophisticated, elegant, and practical tool that complements the physical wine tasting journey, enhancing guest engagement and providing valuable data for the winery.
+The Nashoba Valley Operations Platform is a modular monolith architecture designed to support multiple business modules within a unified codebase. The platform includes the original Tasting Experience App, B2B Wholesale Platform, and foundation infrastructure for future modules (LMS, SOP, Maintenance, Operations, Procedures, Experience).
+
+### Central Admin Hub
+- **Location**: `/admin-hub` - Central navigation point for all platform modules
+- **Features**: Module tiles with status indicators, cross-module KPIs, quick actions
+- **Access**: Admin authentication required via Replit Auth
+- **Navigation**: Hub button added to Tasting Admin and B2B Admin dashboards
+
+### Platform Foundation Tables
+- **platform_modules**: Registry of all modules with status, icons, routes, and launch dates
+- **platform_users**: Unified user management with global roles (super_admin, admin, manager, staff, viewer)
+- **platform_user_module_access**: Module-specific role assignments and permissions
+- **platform_audit_log**: Cross-module action tracking with indexed queries
+- **shared_locations**: Shared location data for equipment and procedures
+- **shared_equipment**: Equipment registry for maintenance and operations modules
+- **shared_documents**: Cross-module document storage with version control
+
+### Active Modules
+1. **Tasting Experience** (`/app`) - Guest-facing wine tasting app
+2. **B2B Wholesale** (`/b2b`) - Wholesale customer and order management
+
+### Planned Modules
+- **LMS** (`/lms`) - Employee training and certification
+- **SOP** (`/sop`) - Standard operating procedures documentation
+- **Experience** (`/experience`) - Case studies and best practices library
+- **Maintenance** (`/maintenance`) - Equipment maintenance and work orders
+- **Operations** (`/operations`) - Adult beverage manufacturing tracking
+- **Procedures** (`/procedures`) - Opening/closing checklists and daily tasks
+
+## Tasting Experience Module
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

@@ -30,7 +30,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database, Home } from "lucide-react";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -62,6 +63,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
@@ -750,6 +752,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               <p className="text-muted-foreground">Manage your tasting experience</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setLocation('/admin-hub')}
+                data-testid="button-go-to-hub"
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Hub
+              </Button>
               {onBackToGuest && (
                 <Button variant="outline" onClick={onBackToGuest} data-testid="button-back-to-guest">
                   <ArrowLeft className="w-4 h-4 mr-2" />
