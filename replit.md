@@ -1,142 +1,44 @@
 # Nashoba Valley Operations Platform
 
 ## Overview
-The Nashoba Valley Operations Platform is a modular monolith architecture designed to support multiple business modules within a unified codebase. The platform includes the original Tasting Experience App, B2B Wholesale Platform, and foundation infrastructure for future modules (LMS, SOP, Maintenance, Operations, Procedures, Experience).
-
-### Central Admin Hub
-- **Location**: `/admin-hub` - Central navigation point for all platform modules
-- **Features**: Module tiles with status indicators, cross-module KPIs, quick actions
-- **Access**: Admin authentication required via Replit Auth
-- **Navigation**: Hub button added to Tasting Admin and B2B Admin dashboards
-
-### Platform Foundation Tables (schema.ts)
-- **platformModules**: Registry of all modules with status, icons, routes, and launch dates
-- **platformUsers**: Unified user management linking to Replit Auth with global roles (super_admin, admin, manager, staff, viewer)
-- **platformUserModuleAccess**: Module-specific role assignments (admin, manager, editor, viewer) with moduleId foreign key
-- **platformAuditLog**: Cross-module action tracking with user, module, action, and details (indexed on userId and moduleId)
-- **sharedLocations**: Shared location data for equipment and procedures
-- **sharedEquipment**: Equipment registry for maintenance and operations modules  
-- **sharedDocuments**: Cross-module document storage with version control
-
-### Active Modules
-1. **Tasting Experience** (`/app`) - Guest-facing wine tasting app
-2. **B2B Wholesale** (`/b2b`) - Wholesale customer and order management
-
-### Planned Modules
-- **LMS** (`/lms`) - Employee training and certification
-- **SOP** (`/sop`) - Standard operating procedures documentation
-- **Experience** (`/experience`) - Case studies and best practices library
-- **Maintenance** (`/maintenance`) - Equipment maintenance and work orders
-- **Operations** (`/operations`) - Adult beverage manufacturing tracking
-- **Procedures** (`/procedures`) - Opening/closing checklists and daily tasks
-
-## Tasting Experience Module
+The Nashoba Valley Operations Platform is a modular monolith designed to unify various business operations, including a guest-facing Tasting Experience App, a B2B Wholesale Platform, and an LMS (Learning Management System). The platform is built to support future modules such as SOP, Experience, Maintenance, Operations, and Procedures, centralizing administrative functions and data. Its purpose is to streamline operations, enhance user experience for both internal staff and external customers, and provide a scalable foundation for growth within the adult beverage industry.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend
-- **Framework**: React with TypeScript (Vite).
-- **UI**: shadcn/ui (Radix UI) and Tailwind CSS for a mobile-first, responsive design with custom theming.
-- **State Management**: TanStack Query for server state, `useState` for UI state.
+### UI/UX Decisions
+The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CSS for a mobile-first, responsive design with custom theming. The Central Admin Hub provides a unified navigation point with module tiles, status indicators, and cross-module KPIs. The LMS module specifically focuses on a mobile-first microlearning experience inspired by Opus.so, featuring swipeable lesson cards and media-rich content.
 
-### Backend
-- **Server**: Express.js with TypeScript, implementing a RESTful API.
-- **Data Layer**: Drizzle ORM for type-safe PostgreSQL queries (Neon serverless driver).
-- **Database Schema**: Comprehensive schema including users, products, guest sessions, orders, and dedicated B2B tables.
-- **Business Logic**: Tier-based discount calculation, trivia credit rewards, and a multi-algorithm product recommendation engine.
-- **Dynamic Filtering**: Database-driven system supporting 5 customizable filter types.
+### Technical Implementations
+- **Frontend**: React with TypeScript, Vite, TanStack Query for server state management.
+- **Backend**: Express.js with TypeScript, RESTful API.
+- **Database**: PostgreSQL with Drizzle ORM for type-safe queries (using Neon serverless driver).
+- **Authentication**: Replit Auth (OpenID Connect) for the tasting app and platform users; separate email/password authentication for the B2B platform. PostgreSQL-backed sessions using `express-session`.
+- **Modularity**: Designed as a modular monolith, allowing independent development and deployment of modules within a shared codebase and infrastructure.
+- **Data Synchronization**: An environment sync tool supports selective export/import of database tables and synchronization of object storage between development and production environments, using business keys for cross-environment portability and Zod-based validation.
 
-### AI Integration
-- **OpenAI**: Utilizes GPT-4o-mini for a recommendation engine that provides sommelier-style product matching with natural language explanations based on guest preferences and a preference questionnaire.
+### Feature Specifications
+- **Central Admin Hub**: Unified entry point for all modules with cross-module KPIs and quick actions.
+- **Platform Foundation**: Shared tables for module registry, unified user management with global roles, module-specific access controls, cross-module audit logging, shared locations, equipment, and document storage.
+- **LMS Module**: Mobile-first microlearning platform with course catalog, lesson viewing, quiz taking, progress tracking, and certification. Admin dashboard for course creation, content management, and enrollment monitoring.
+- **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations (sommelier-style via GPT-4o-mini), shopping cart with tier-based discounts, and comprehensive tasting surveys. Admin dashboard for CRUD operations, QR code generation, and media management.
+- **B2B Wholesale Platform**: Customer and order management with dedicated authentication, category-specific tier pricing, multi-location support for customers, and advanced features like "Where to Buy" visibility controls and featured product management. Admin dashboard includes customer, order, tier commitment, and sales rep management with impersonation capabilities.
 
-### Email System
-- **Email Service**: SendGrid API for transactional emails (order confirmations, notifications, password resets).
-- **Templates**: Server-side HTML email templates with branding.
-
-### Key Features
-- **Guest Experience**: Interactive slideshow, product browsing, educational content, AI recommendations, shopping cart with tier-based discounts, and comprehensive tasting surveys.
-- **Admin Dashboard**: Comprehensive CRUD operations for products, inventory, dynamic content, trivia, QR code generation, media library, and bulk import/export.
-- **Media Library**: Cloud-based storage (Replit App Storage/Google Cloud Storage) for managing and serving media files, with bulk operations and an Object Storage Manager for direct bucket access.
-
-### Authentication & Security
-- **Authentication**: Replit Auth (OpenID Connect) for the tasting app; separate email/password authentication for the B2B platform.
-- **User Roles**: Viewer, Admin (tasting app); B2B Admins, Sales Representatives, B2B Customers (B2B platform).
-- **Session Management**: PostgreSQL-backed sessions using `express-session` with isolated session cookies.
-- **Protected Endpoints**: All admin and sensitive operations require authentication and role verification.
-
-### B2B Wholesale Platform
-- **Architecture**: A separate full-stack platform with its own authentication, sessions, and routes (`/b2b/*`).
-- **Landing Page**: Features dynamic slideshow, pricing information, and account setup options.
-- **User Types**: Dedicated roles for B2B Admins, Sales Representatives, and B2B Customers.
-- **Category-Specific Tier Pricing**: Independent tier pricing (24%-60% wholesale discounts) for 6 beverage categories, with active/inactive toggles and editable details.
-- **Pricing Sheet**: Comprehensive wholesale pricing display by category with profit margin calculations.
-- **Customer Workflow**: Self-service registration with admin approval, or direct admin-created accounts, both with email notifications and password setup.
-- **Case Pricing**: All orders calculated by case with tier-based discounts.
-- **Admin Dashboard**: 6-tab dashboard for managing customers, orders, tier commitments, sales reps, slideshow, and settings. Includes admin impersonation for placing customer orders.
-- **Multi-Location Support**: 
-  - Each B2B customer account can have multiple store locations (e.g., a restaurant chain with 5 locations)
-  - Locations stored in `b2bCustomerLocations` table with: storeName, storeAddress, storeCity, storeState, storeZipCode, storePhone, storeEmail
-  - Each location has its own phone number and email address for location-specific contact information
-  - "Copy from Main Address" button in location form to quickly populate address, phone, and email from the customer's main contact info
-  - All locations share the parent customer's pricing tier and product purchase history
-  - Admin can add/edit/delete locations via the Edit Customer dialog's "Store Locations" section
-  - Each location can be individually toggled to show/hide on the Where to Buy page (showOnWhereToBuy field)
-- **Customer Privacy Controls**: 
-  - **Archive Status**: Customers can be marked as "Archived" (in addition to Active, Pending Approval, and Inactive) to preserve records while removing them from active lists
-  - **Where to Buy Visibility**: Individual location-level toggle to hide specific store locations from the public Where to Buy page
-- **Tier Commitment Tracking**: Monitors annual case commitments, calculates progress, and provides renewal reminders.
-- **Where to Buy**: Public page displaying individual store locations for consumers with ZIP code proximity search and product name search. Features storeName prominently with accountName as subtitle. Shows products purchased in the last 12 months. Includes celebratory header with animated fireworks and community appreciation messaging.
-- **Featured Products System**: 
-  - Allows admins to manually assign products to customers for the "Where to Buy" page before actual orders exist
-  - Useful for launch day when customers carry products but haven't ordered through B2B yet
-  - Separate from actual orders - does not affect sales data, invoicing, or commission tracking
-  - Stored in `b2bCustomerManualProducts` table with automatic 12-month expiration
-  - Products from both orders and manual assignments are merged and deduplicated on Where to Buy page
-  - UI in Edit Customer dialog under "Featured Products" section (only shown for retail_liquor and restaurant customers)
-  - Multi-select dropdown for quick product assignment with badge-based display
-- **Password Management**: "Forgot Password?" functionality with secure one-time tokens for all B2B user types.
-
-### Environment Sync Tool
-- **Location**: Admin Dashboard → Import tab → "Open Environment Sync Tool" button, or navigate directly to `/admin/database-sync`
-- **Two-Tab Interface**:
-  - **Database Tables Tab**: Selective export/import of 23 database tables (10 Base App + 13 B2B)
-  - **Object Storage Tab**: Sync media files between development and production Object Storage buckets
-
-### Database Synchronization
-- **Process**: Comprehensive Excel-based export/import system for synchronizing ALL database data between environments using multi-sheet workbooks.
-- **Selective Table Sync**: Choose exactly which tables to export/import using checkboxes with quick-select buttons (Select All, None, Base App Only, B2B Only)
-- **Complete Data Coverage**: 
-  - **Core Tables** (10): Products, Filter Options, Trivia, Slideshow, App Settings, Media Library, Whitelisted Emails, Commercials, Videos, Achievements
-  - **B2B Tables** (13): Tier Pricing, Sales Reps, Customers, Customer Locations, Customer Manual Products (Featured Products), Orders, Order Items, Slideshow Slides, Admins, Settings, Commissions, Email Templates, Email Automation Logs
-  - **All Fields Exported**: Every field in every table is captured during export to ensure complete data fidelity
-- **Cross-Environment Portability**: Uses portable business keys (email, order_number, etc.) instead of UUIDs for seamless data synchronization.
-- **Upsert Logic**: ID-first upsert strategy with natural business key fallback; handles partial updates correctly.
-- **FK Resolution**: Cross-sheet lookup dictionaries for resolving business keys to database IDs.
-- **Validation**: Zod-based validation pipeline with detailed error/warning reporting for data import.
-- **Sales Rep Import**: Only updates existing sales reps (preserves passwords); new sales reps must be created via admin UI since passwords are not exported for security.
-- **Commissions**: Full sync including order_total, commission_percentage, status, pay_period, paid_to_sales_rep tracking, and timestamps
-- **Email System**: Complete sync of email templates and automation logs with all content, trigger types, and delivery status
-
-### Object Storage Synchronization
-- **Purpose**: Ensures both development and production environments have the same media files in their Object Storage buckets
-- **How It Works**:
-  1. Checks which files from the Media Library database are present in the current environment's bucket
-  2. For missing files, downloads from their source URLs and re-uploads to the current bucket
-  3. Updates Media Library database records with URLs pointing to the current bucket
-- **Status Display**: Shows total files, files in bucket, missing files, and URL mismatches
-- **Preview Mode**: "Dry Run" option shows what would be synced without making changes
-- **Sync Workflow**: After syncing database tables (including Media Library), run Object Storage sync to ensure all images are available
-- **Deployment Note**: After code changes, the app must be republished for changes to take effect in production. Complete synchronization ensures both database and media files are consistent between environments.
+### System Design Choices
+- **Microservices-inspired Modularity**: While a monolith, each module is designed with clear boundaries and independent concerns.
+- **API-First Approach**: All functionalities are exposed via RESTful APIs.
+- **Security**: Robust authentication and authorization with role-based access control, protected endpoints, and secure password management.
+- **Scalability**: Utilizing serverless PostgreSQL (Neon) and cloud-based object storage for media.
+- **AI Integration**: OpenAI's GPT-4o-mini powers the sommelier-style product recommendation engine in the Tasting Experience app.
 
 ## External Dependencies
-- **Core**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
-- **UI**: `@radix-ui/*`, `tailwindcss`, `shadcn/ui`, `lucide-react`, `embla-carousel-react`, `framer-motion`.
-- **Form Handling**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
+- **Core Technologies**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
+- **UI/Styling**: `@radix-ui/*`, `tailwindcss`, `shadcn/ui`, `lucide-react`, `embla-carousel-react`, `framer-motion`.
+- **Form Management**: `react-hook-form`, `@hookform/resolvers`, `zod`, `drizzle-zod`.
 - **Utilities**: `date-fns`, `wouter`, `nanoid`, `ws`, `qrcode`, `xlsx`.
-- **AI/ML**: `openai`.
+- **Artificial Intelligence**: `openai` (for GPT-4o-mini).
 - **Email Service**: `@sendgrid/mail`.
 - **Authentication**: `openid-client`, `express-session`, `connect-pg-simple`.
 - **Database**: PostgreSQL (via Neon serverless).

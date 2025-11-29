@@ -36,6 +36,10 @@ import B2bWhereToBuyPage from "@/pages/b2b/WhereToBuyPage";
 import B2bSalesRepDashboard from "@/pages/b2b/SalesRepDashboard";
 import B2bCustomerDataPage from "@/pages/b2b/CustomerDataPage";
 
+// LMS Imports
+import LmsAdminDashboard from "@/pages/lms/LmsAdminDashboard";
+import LmsLearnerPortal from "@/pages/lms/LmsLearnerPortal";
+
 function AdminRoute() {
   const [, setLocation] = useLocation();
   const { isLoading, isAdmin } = useAuth();
@@ -100,6 +104,24 @@ function AdminHubRoute() {
   }
 
   return <AdminHub onBackToGuest={() => setLocation("/")} />;
+}
+
+function LmsAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <LmsAdminDashboard />;
 }
 
 // B2B Routes Component
@@ -218,6 +240,8 @@ function Router() {
         <Route path="/admin-hub" component={AdminHubRoute} />
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
+        <Route path="/lms" component={LmsLearnerPortal} />
+        <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>
