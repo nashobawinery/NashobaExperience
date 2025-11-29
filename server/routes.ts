@@ -4860,6 +4860,227 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Archive compliance task (stops recurrence)
+  app.post('/api/compliance/tasks/:id/archive', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      await db.execute(sql`
+        UPDATE compliance_tasks 
+        SET is_active = false, 
+            status = 'cancelled',
+            archived_at = NOW(),
+            updated_at = NOW() 
+        WHERE id = ${id}
+      `);
+
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (task_id, changed_by_id, changed_by_name, action)
+        VALUES (${id}, ${userId || null}, ${userName}, 'archived')
+      `);
+
+      res.json({ message: 'Task archived successfully' });
+    } catch (error) {
+      console.error('Error archiving compliance task:', error);
+      res.status(500).json({ message: 'Failed to archive compliance task' });
+    }
+  });
+
+  // Complete compliance task and move to next cycle
+  app.post('/api/compliance/tasks/:id/complete', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { completionNotes, confirmationNumber, actualCost } = req.body;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const task = taskResult.rows[0] as any;
+      const currentDueDate = task.due_date ? new Date(task.due_date) : new Date();
+      const recurrence = task.recurrence as string;
+      const customRecurrenceDays = task.custom_recurrence_days;
+
+      // Calculate next due date based on recurrence
+      let nextDueDate: Date | null = null;
+      switch (recurrence) {
+        case "daily":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setDate(nextDueDate.getDate() + 1);
+          break;
+        case "weekly":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setDate(nextDueDate.getDate() + 7);
+          break;
+        case "monthly":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+          break;
+        case "quarterly":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setMonth(nextDueDate.getMonth() + 3);
+          break;
+        case "semi_annual":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setMonth(nextDueDate.getMonth() + 6);
+          break;
+        case "annual":
+          nextDueDate = new Date(currentDueDate);
+          nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+          break;
+        case "custom":
+          if (customRecurrenceDays && customRecurrenceDays > 0) {
+            nextDueDate = new Date(currentDueDate);
+            nextDueDate.setDate(nextDueDate.getDate() + customRecurrenceDays);
+          }
+          break;
+      }
+
+      // Log completion to history
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (
+          task_id, changed_by_id, changed_by_name, action, 
+          field_changed, old_value, new_value
+        )
+        VALUES (
+          ${id}, ${userId || null}, ${userName}, 'completed',
+          'completed_cycle', ${currentDueDate.toISOString()}, ${nextDueDate ? nextDueDate.toISOString() : 'one_time_completed'}
+        )
+      `);
+
+      if (recurrence === "one_time" || !nextDueDate) {
+        // One-time task: just mark as completed
+        await db.execute(sql`
+          UPDATE compliance_tasks 
+          SET status = 'completed',
+              completed_at = NOW(),
+              completed_by_id = ${userId || null},
+              completion_notes = ${completionNotes || null},
+              confirmation_number = ${confirmationNumber || null},
+              actual_cost = ${actualCost || null},
+              updated_at = NOW()
+          WHERE id = ${id}
+        `);
+        res.json({ message: 'Task completed successfully', nextCycle: false });
+      } else {
+        // Recurring task: reset for next cycle
+        await db.execute(sql`
+          UPDATE compliance_tasks 
+          SET status = 'pending',
+              due_date = ${nextDueDate},
+              completed_at = NULL,
+              completed_by_id = NULL,
+              completion_notes = NULL,
+              confirmation_number = NULL,
+              actual_cost = NULL,
+              last_reminder_sent = NULL,
+              updated_at = NOW()
+          WHERE id = ${id}
+        `);
+        res.json({ 
+          message: 'Task completed and moved to next cycle', 
+          nextCycle: true,
+          nextDueDate: nextDueDate.toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('Error completing compliance task:', error);
+      res.status(500).json({ message: 'Failed to complete compliance task' });
+    }
+  });
+
+  // Duplicate compliance task
+  app.post('/api/compliance/tasks/:id/duplicate', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { taskName, jurisdiction, regulatoryBody } = req.body; // Optional overrides
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.email || 'Admin';
+
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${id}
+      `);
+
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const originalTask = taskResult.rows[0] as any;
+
+      // Create duplicate with optional overrides
+      const newTaskName = taskName || `${originalTask.task_name} (Copy)`;
+      const newJurisdiction = jurisdiction !== undefined ? jurisdiction : originalTask.jurisdiction;
+      const newRegulatoryBody = regulatoryBody !== undefined ? regulatoryBody : originalTask.regulatory_body;
+
+      const newTaskResult = await db.execute(sql`
+        INSERT INTO compliance_tasks (
+          task_name, description, category, subcategory, jurisdiction, regulatory_body,
+          recurrence, custom_recurrence_days, due_date, reminder_days,
+          assigned_to_name, assigned_to_email, status, priority,
+          portal_url, portal_username, portal_password, portal_notes,
+          estimated_cost, penalty_amount, tags, created_by_id, is_active
+        ) VALUES (
+          ${newTaskName},
+          ${originalTask.description},
+          ${originalTask.category},
+          ${originalTask.subcategory},
+          ${newJurisdiction},
+          ${newRegulatoryBody},
+          ${originalTask.recurrence},
+          ${originalTask.custom_recurrence_days},
+          ${originalTask.due_date},
+          ${originalTask.reminder_days},
+          ${originalTask.assigned_to_name},
+          ${originalTask.assigned_to_email},
+          'pending',
+          ${originalTask.priority},
+          ${originalTask.portal_url},
+          ${originalTask.portal_username},
+          ${originalTask.portal_password},
+          ${originalTask.portal_notes},
+          ${originalTask.estimated_cost},
+          ${originalTask.penalty_amount},
+          ${originalTask.tags},
+          ${userId || null},
+          true
+        )
+        RETURNING *
+      `);
+
+      const newTask = newTaskResult.rows[0] as any;
+
+      // Log the duplication
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (task_id, changed_by_id, changed_by_name, action, field_changed, old_value, new_value)
+        VALUES (${newTask.id}, ${userId || null}, ${userName}, 'created', 'duplicated_from', ${id}, ${newTask.id})
+      `);
+
+      res.json({ 
+        message: 'Task duplicated successfully',
+        task: newTask
+      });
+    } catch (error) {
+      console.error('Error duplicating compliance task:', error);
+      res.status(500).json({ message: 'Failed to duplicate compliance task' });
+    }
+  });
+
   // Get compliance dashboard stats
   app.get('/api/compliance/stats', isAdmin, async (req, res) => {
     try {
