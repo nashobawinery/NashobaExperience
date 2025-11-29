@@ -1,0 +1,233 @@
+Here is a comprehensive, future-proof list of database fields (table columns) you should include when building your Business Compliance Calendar / Task Manager app. This structure will handle daily, monthly, quarterly, semi-annual, annual, and one-time or custom recurring tasks while storing sensitive data, credentials, reminders, and assignments securely.
+Core Compliance Task Table (main table)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Field NameData TypeDescription / Why it's future-prooftask_idUUID or Auto-incUnique identifier for each compliance tasktask_nameTexte.g., "File Sales Tax Return", "Renew Business License", "PCI DSS Self-Assessment"descriptionLong TextDetailed instructions or notes about what exactly needs to be donecategoryText or Foreigne.g., Tax, Licensing, Payroll, Privacy (GDPR/CCPA), Security, Environmental, Health & Safety, etc.subcategoryTextMore granular (e.g., "State Sales Tax", "Federal 941", "SOC 2", "OSHA 300A")jurisdictionTextCountry, State/Province, City (e.g., "California", "EU", "New York City")regulating_authorityTextName of the agency (e.g., IRS, California FTB, SEC, FDA, EPA)authority_websiteURLOfficial website of the regulating authoritycompliance_portal_urlURLDirect login or filing portal URLusernameEncrypted TextLogin username or account numberpasswordEncrypted TextLogin password (must be encrypted at rest + never logged)secondary_auth_methodTextMFA type (App, SMS, Hardware key, etc.)recovery_codesEncrypted TextBackup recovery codes or answers to security questionslicense_permit_numberTextBusiness license #, EIN, DUNS, Permit #, Certificate #, etc.reference_document_urlURL (multiple)Link to your own saved PDF, scan, or internal document (use a separate table if many)frequencyEnum / TextDaily, Weekly, Semi-monthly, Monthly, Quarterly, Semi-annually, Annually, Custom, One-timecustom_cron_expressionTextFor complex schedules (e.g., "0 9 15,28 * *" for semi-monthly) — very future-proofdue_day_of_monthInteger (array)For monthly/quarterly (e.g., [15] or [10,25] for semi-monthly)due_monthsInteger (array)For annual/semi-annual (e.g., [3,9] for March & September)due_day_of_weekInteger0=Sunday … 6=Saturday (for weekly tasks)specific_due_dateDateFor one-time or annual tasks that fall on a fixed calendar date (e.g., April 15)grace_period_daysIntegerHow many days after due date it’s still acceptable (some filings allow 30-day grace)lead_time_daysIntegerHow many days in advance you want reminders (e.g., 14 or 30 days)estimated_time_minutesIntegerHow long the task usually takes (useful for scheduling)cost_estimateDecimalFiling fees, penalties, accountant fees, etc.statusEnumPending, In Progress, Completed, Overdue, Waived, Not Applicableassigned_to_user_idForeign KeyPerson responsible (links to Users table)assigned_to_emailEmailDenormalized for quick reminder emails (or keep only FK)backup_person_user_idForeign KeySecondary assigneelast_completed_dateDateTimeWhen it was actually marked done last timelast_completed_byForeign KeyWho marked it completednext_due_dateDateTimeCalculated field — the actual next date the task is due (very useful for dashboard)completed_notesLong TextProof of completion, filing confirmation number, receipt URL, etc.is_activeBooleanEasily deactivate old tasks without deletingcreated_atDateTimeAudit trailupdated_atDateTimeAudit trailcreated_byForeign KeyWho added the task
+Supporting Tables You Will Likely Need
+
+Users / Team Members
+user_id, full_name, email, phone, calendar_url (iCal/Google/Outlook link), notification preferences
+
+Task History / Audit Log
+history_id, task_id, changed_by, changed_at, field_changed, old_value, new_value, completion_proof_url
+
+Reminders Log
+reminder_id, task_id, sent_to_email, sent_at, method (email, calendar invite, push), status
+
+Attachments
+attachment_id, task_id, file_name, file_url (stored in secure storage), uploaded_by, uploaded_at
+
+Tags (many-to-many)
+For extra flexibility (e.g., "High Risk", "Finance Team", "Requires CPA")
+
+
+Reminder & Calendar Integration Features (fields/buttons)
+
+Button/Action: “Send Reminder Now” → uses assigned_to_email and creates .ics file or Google/Outlook invite
+Auto-generated iCal/.ics URL per task or per user (so they can subscribe to their own compliance calendar)
+Field: reminder_template_text (customizable email body)
+Field: calendar_event_duration_minutes (default 60)
+Field: include_login_credentials_in_reminder (Yes/No — most will say No for security, but some solo owners want it)
+
+Security & Best-Practice Notes (very important)
+
+Encrypt username, password, recovery_codes at rest (use AES-256 or your framework’s best practice)
+Never log passwords or send them in plain-text emails
+Offer optional password manager integration later (Bitwarden, 1Password, LastPass API)
+Role-based access (Owner, Admin, Viewer, Assignee)
+Two-factor authentication on your app itself
+
+This schema will comfortably support a single-person business today and scale to a 100-person company with multiple jurisdictions and hundreds of recurring compliance obligations tomorrow without needing a major redesign. Good luck with your app — it’s a hugely valuable tool!

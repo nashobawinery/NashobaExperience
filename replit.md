@@ -70,3 +70,4 @@ Added to `platform_modules` table:
 7. **Operations** - Adult beverage manufacturing tracking (Not Started)
 8. **Daily Procedures** - Opening/closing checklists (Not Started)
 9. **Customer Support** - Email ticketing with AI responses and social media management (Not Started)
+10. **Compliance** - Business compliance calendar for tax filings, licensing renewals, and regulatory requirements (Not Started)
