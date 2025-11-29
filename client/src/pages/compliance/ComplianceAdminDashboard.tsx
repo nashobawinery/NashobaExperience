@@ -29,7 +29,6 @@ import {
   RefreshCw,
   FileText,
   Building2,
-  DollarSign,
   Bell,
   Filter,
   Search,
@@ -1079,47 +1078,6 @@ export default function ComplianceAdminDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="estimatedCost">Estimated Cost ($)</Label>
-                <Input
-                  id="estimatedCost"
-                  type="number"
-                  step="0.01"
-                  value={formData.estimatedCost}
-                  onChange={(e) => setFormData(prev => ({ ...prev, estimatedCost: e.target.value }))}
-                  placeholder="0.00"
-                  data-testid="input-estimated-cost"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="actualCost">Actual Cost ($)</Label>
-                <Input
-                  id="actualCost"
-                  type="number"
-                  step="0.01"
-                  value={formData.actualCost}
-                  onChange={(e) => setFormData(prev => ({ ...prev, actualCost: e.target.value }))}
-                  placeholder="0.00"
-                  data-testid="input-actual-cost"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="penaltyAmount">Penalty Amount ($)</Label>
-                <Input
-                  id="penaltyAmount"
-                  type="number"
-                  step="0.01"
-                  value={formData.penaltyAmount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, penaltyAmount: e.target.value }))}
-                  placeholder="0.00"
-                  data-testid="input-penalty-amount"
-                />
-              </div>
-            </div>
-
             {selectedTask && (
               <>
                 <div className="grid gap-2">
@@ -1234,32 +1192,6 @@ export default function ComplianceAdminDashboard() {
                   </div>
                 )}
               </div>
-
-              {(selectedTask.estimated_cost || selectedTask.actual_cost || selectedTask.penalty_amount) && (
-                <div className="grid grid-cols-3 gap-4">
-                  {selectedTask.estimated_cost && (
-                    <div>
-                      <h4 className="font-semibold mb-1 flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        Estimated Cost
-                      </h4>
-                      <p>${parseFloat(selectedTask.estimated_cost).toFixed(2)}</p>
-                    </div>
-                  )}
-                  {selectedTask.actual_cost && (
-                    <div>
-                      <h4 className="font-semibold mb-1">Actual Cost</h4>
-                      <p>${parseFloat(selectedTask.actual_cost).toFixed(2)}</p>
-                    </div>
-                  )}
-                  {selectedTask.penalty_amount && (
-                    <div>
-                      <h4 className="font-semibold mb-1 text-red-600">Penalty Amount</h4>
-                      <p className="text-red-600">${parseFloat(selectedTask.penalty_amount).toFixed(2)}</p>
-                    </div>
-                  )}
-                </div>
-              )}
 
               {selectedTask.portal_url && (
                 <div>
