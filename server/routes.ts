@@ -4727,6 +4727,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedById = userId;
       }
 
+      // Handle array fields - convert to proper format for PostgreSQL
+      const reminderDaysArray = updates.reminderDays ? 
+        (Array.isArray(updates.reminderDays) ? updates.reminderDays : null) : null;
+      const tagsArray = updates.tags ? 
+        (Array.isArray(updates.tags) ? updates.tags : null) : null;
+
+      // Handle portal password encryption if provided
+      let encryptedPassword = null;
+      if (updates.portalPassword !== undefined && updates.portalPassword !== null && updates.portalPassword !== '') {
+        try {
+          encryptedPassword = encryptPortalPassword(updates.portalPassword);
+        } catch (e) {
+          console.error('Password encryption failed:', e);
+        }
+      }
+
       const result = await db.execute(sql`
         UPDATE compliance_tasks SET
           task_name = COALESCE(${updates.taskName}, task_name),
@@ -4738,20 +4754,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recurrence = COALESCE(${updates.recurrence}, recurrence),
           custom_recurrence_days = COALESCE(${updates.customRecurrenceDays}, custom_recurrence_days),
           due_date = COALESCE(${updates.dueDate}, due_date),
-          reminder_days = COALESCE(${updates.reminderDays}, reminder_days),
+          reminder_days = CASE WHEN ${reminderDaysArray !== null} THEN ${reminderDaysArray}::integer[] ELSE reminder_days END,
           assigned_to_name = COALESCE(${updates.assignedToName}, assigned_to_name),
           assigned_to_email = COALESCE(${updates.assignedToEmail}, assigned_to_email),
           status = COALESCE(${updates.status}, status),
           priority = COALESCE(${updates.priority}, priority),
           portal_url = COALESCE(${updates.portalUrl}, portal_url),
           portal_username = COALESCE(${updates.portalUsername}, portal_username),
+          portal_password = CASE WHEN ${encryptedPassword !== null} THEN ${encryptedPassword} ELSE portal_password END,
           portal_notes = COALESCE(${updates.portalNotes}, portal_notes),
           estimated_cost = COALESCE(${updates.estimatedCost}, estimated_cost),
           actual_cost = COALESCE(${updates.actualCost}, actual_cost),
           penalty_amount = COALESCE(${updates.penaltyAmount}, penalty_amount),
           completion_notes = COALESCE(${updates.completionNotes}, completion_notes),
           confirmation_number = COALESCE(${updates.confirmationNumber}, confirmation_number),
-          tags = COALESCE(${updates.tags}, tags),
+          tags = CASE WHEN ${tagsArray !== null} THEN ${tagsArray}::text[] ELSE tags END,
           is_active = COALESCE(${updates.isActive}, is_active),
           completed_at = COALESCE(${completedAt}, completed_at),
           completed_by_id = COALESCE(${completedById}, completed_by_id),
