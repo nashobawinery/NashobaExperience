@@ -4085,6 +4085,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a new platform user
+  app.post('/api/rbac/users', isAdmin, async (req, res) => {
+    try {
+      const { email, firstName, lastName, globalRole, department, jobTitle, phoneNumber } = req.body;
+      
+      if (!email || !firstName || !lastName) {
+        return res.status(400).json({ message: 'Email, first name, and last name are required' });
+      }
+
+      // Check if user already exists
+      const existingUser = await db.execute(sql`
+        SELECT id FROM platform_users WHERE email = ${email}
+      `);
+      
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ message: 'A user with this email already exists' });
+      }
+
+      const result = await db.execute(sql`
+        INSERT INTO platform_users (email, first_name, last_name, global_role, department, job_title, phone_number)
+        VALUES (${email}, ${firstName}, ${lastName}, ${globalRole || 'viewer'}, ${department || null}, ${jobTitle || null}, ${phoneNumber || null})
+        RETURNING *
+      `);
+
+      res.status(201).json(result.rows[0]);
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      if (error.code === '23505') {
+        return res.status(400).json({ message: 'A user with this email already exists' });
+      }
+      res.status(500).json({ message: 'Failed to create user' });
+    }
+  });
+
+  // Update a platform user
+  app.patch('/api/rbac/users/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email, firstName, lastName, globalRole, department, jobTitle, phoneNumber, active } = req.body;
+
+      // Check if user exists
+      const existingUser = await db.execute(sql`
+        SELECT id FROM platform_users WHERE id = ${id}
+      `);
+      
+      if (existingUser.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const result = await db.execute(sql`
+        UPDATE platform_users
+        SET 
+          email = COALESCE(${email}, email),
+          first_name = COALESCE(${firstName}, first_name),
+          last_name = COALESCE(${lastName}, last_name),
+          global_role = COALESCE(${globalRole}, global_role),
+          department = COALESCE(${department}, department),
+          job_title = COALESCE(${jobTitle}, job_title),
+          phone_number = COALESCE(${phoneNumber}, phone_number),
+          active = COALESCE(${active}, active),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      if (error.code === '23505') {
+        return res.status(400).json({ message: 'A user with this email already exists' });
+      }
+      res.status(500).json({ message: 'Failed to update user' });
+    }
+  });
+
+  // Delete a platform user
+  app.delete('/api/rbac/users/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if user exists
+      const existingUser = await db.execute(sql`
+        SELECT id FROM platform_users WHERE id = ${id}
+      `);
+      
+      if (existingUser.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Delete user (cascades to group memberships)
+      await db.execute(sql`
+        DELETE FROM platform_users WHERE id = ${id}
+      `);
+
+      res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ message: 'Failed to delete user' });
+    }
+  });
+
+  // Get a single platform user with their groups
+  app.get('/api/rbac/users/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const result = await db.execute(sql`
+        SELECT 
+          pu.*,
+          COALESCE(
+            json_agg(
+              json_build_object('id', ug.id, 'name', ug.name, 'color', ug.color)
+            ) FILTER (WHERE ug.id IS NOT NULL),
+            '[]'
+          ) as groups
+        FROM platform_users pu
+        LEFT JOIN group_memberships gm ON pu.id = gm.user_id
+        LEFT JOIN user_groups ug ON gm.group_id = ug.id
+        WHERE pu.id = ${id}
+        GROUP BY pu.id
+      `);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      res.status(500).json({ message: 'Failed to fetch user' });
+    }
+  });
+
   // Get current user's permissions (for frontend to check access)
   app.get('/api/rbac/my-permissions', isAuthenticated, async (req: any, res) => {
     try {
