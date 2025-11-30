@@ -93,7 +93,21 @@ interface PlatformUser {
   first_name: string;
   last_name: string;
   global_role: string;
+  department: string | null;
+  job_title: string | null;
+  phone_number: string | null;
+  active: boolean;
   groups: { id: string; name: string; color: string }[];
+}
+
+interface UserFormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  globalRole: string;
+  department: string;
+  jobTitle: string;
+  phoneNumber: string;
 }
 
 interface SyncStatus {
@@ -123,6 +137,16 @@ const groupColors = [
   { value: "gray", label: "Gray", class: "bg-gray-500" },
 ];
 
+const defaultUserForm: UserFormData = {
+  email: "",
+  firstName: "",
+  lastName: "",
+  globalRole: "viewer",
+  department: "",
+  jobTitle: "",
+  phoneNumber: ""
+};
+
 export default function AccessControl() {
   const { toast } = useToast();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -133,6 +157,14 @@ export default function AccessControl() {
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
   const [newGroupColor, setNewGroupColor] = useState("blue");
+  
+  // User management state
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [showEditUserDialog, setShowEditUserDialog] = useState(false);
+  const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
+  const [showManageGroupsDialog, setShowManageGroupsDialog] = useState(false);
+  const [editingUser, setEditingUser] = useState<PlatformUser | null>(null);
+  const [userForm, setUserForm] = useState<UserFormData>(defaultUserForm);
 
   // Fetch all user groups
   const { data: groups = [], isLoading: loadingGroups } = useQuery<UserGroup[]>({
@@ -256,6 +288,87 @@ export default function AccessControl() {
     }
   });
 
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (data: UserFormData) => {
+      return apiRequest('POST', '/api/rbac/users', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      setShowCreateUserDialog(false);
+      setUserForm(defaultUserForm);
+      toast({ title: "User created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create user", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Partial<UserFormData>) => {
+      return apiRequest('PATCH', `/api/rbac/users/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
+      setShowEditUserDialog(false);
+      setEditingUser(null);
+      setUserForm(defaultUserForm);
+      toast({ title: "User updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update user", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/rbac/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      setShowDeleteUserDialog(false);
+      setEditingUser(null);
+      toast({ title: "User deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete user", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Add user to group mutation
+  const addUserToGroupMutation = useMutation({
+    mutationFn: async ({ userId, groupId }: { userId: string; groupId: string }) => {
+      return apiRequest('POST', `/api/rbac/users/${userId}/groups/${groupId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      toast({ title: "User added to group" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add user to group", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Remove user from group mutation
+  const removeUserFromGroupMutation = useMutation({
+    mutationFn: async ({ userId, groupId }: { userId: string; groupId: string }) => {
+      return apiRequest('DELETE', `/api/rbac/users/${userId}/groups/${groupId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      toast({ title: "User removed from group" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to remove user from group", description: error.message, variant: "destructive" });
+    }
+  });
+
   const handleCreateGroup = () => {
     if (!newGroupName.trim()) {
       toast({ title: "Group name is required", variant: "destructive" });
@@ -276,6 +389,47 @@ export default function AccessControl() {
       description: editingGroup.description || undefined,
       color: editingGroup.color || undefined
     });
+  };
+
+  const handleCreateUser = () => {
+    if (!userForm.email.trim() || !userForm.firstName.trim() || !userForm.lastName.trim()) {
+      toast({ title: "Email, first name, and last name are required", variant: "destructive" });
+      return;
+    }
+    createUserMutation.mutate(userForm);
+  };
+
+  const handleUpdateUser = () => {
+    if (!editingUser) return;
+    updateUserMutation.mutate({
+      id: editingUser.id,
+      email: userForm.email,
+      firstName: userForm.firstName,
+      lastName: userForm.lastName,
+      globalRole: userForm.globalRole,
+      department: userForm.department || undefined,
+      jobTitle: userForm.jobTitle || undefined,
+      phoneNumber: userForm.phoneNumber || undefined
+    });
+  };
+
+  const openEditUserDialog = (user: PlatformUser) => {
+    setEditingUser(user);
+    setUserForm({
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      globalRole: user.global_role,
+      department: user.department || "",
+      jobTitle: user.job_title || "",
+      phoneNumber: user.phone_number || ""
+    });
+    setShowEditUserDialog(true);
+  };
+
+  const openManageGroupsDialog = (user: PlatformUser) => {
+    setEditingUser(user);
+    setShowManageGroupsDialog(true);
   };
 
   // Group features by module for display, preserving module order from moduleAccess
@@ -564,14 +718,39 @@ export default function AccessControl() {
                 <UserCog className="h-5 w-5" />
                 Platform Users
               </CardTitle>
-              <CardDescription>View users and their group memberships</CardDescription>
+              <CardDescription>Manage users and their group memberships</CardDescription>
             </div>
+            <Button 
+              size="sm" 
+              onClick={() => {
+                setUserForm(defaultUserForm);
+                setShowCreateUserDialog(true);
+              }}
+              data-testid="button-create-user"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add User
+            </Button>
           </CardHeader>
           <CardContent>
             {loadingUsers ? (
               <div className="text-center py-4 text-muted-foreground">Loading users...</div>
             ) : users.length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground">No users found</div>
+              <div className="text-center py-4 text-muted-foreground">
+                <p>No users found</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => {
+                    setUserForm(defaultUserForm);
+                    setShowCreateUserDialog(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Create First User
+                </Button>
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -580,6 +759,7 @@ export default function AccessControl() {
                     <TableHead>Email</TableHead>
                     <TableHead>Global Role</TableHead>
                     <TableHead>Groups</TableHead>
+                    <TableHead className="w-[150px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -587,6 +767,9 @@ export default function AccessControl() {
                     <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                       <TableCell className="font-medium">
                         {user.first_name} {user.last_name}
+                        {user.active === false && (
+                          <Badge variant="secondary" className="ml-2 text-xs">Inactive</Badge>
+                        )}
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
@@ -607,6 +790,41 @@ export default function AccessControl() {
                           ) : (
                             <span className="text-muted-foreground text-sm">No groups</span>
                           )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditUserDialog(user)}
+                            title="Edit user"
+                            data-testid={`button-edit-user-${user.id}`}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openManageGroupsDialog(user)}
+                            title="Manage groups"
+                            data-testid={`button-manage-groups-${user.id}`}
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setEditingUser(user);
+                              setShowDeleteUserDialog(true);
+                            }}
+                            title="Delete user"
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -761,6 +979,305 @@ export default function AccessControl() {
               data-testid="button-confirm-delete"
             >
               {deleteGroupMutation.isPending ? "Deleting..." : "Delete Group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Add a new platform user with their details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-firstName">First Name *</Label>
+                <Input
+                  id="user-firstName"
+                  value={userForm.firstName}
+                  onChange={(e) => setUserForm({ ...userForm, firstName: e.target.value })}
+                  placeholder="John"
+                  data-testid="input-user-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-lastName">Last Name *</Label>
+                <Input
+                  id="user-lastName"
+                  value={userForm.lastName}
+                  onChange={(e) => setUserForm({ ...userForm, lastName: e.target.value })}
+                  placeholder="Doe"
+                  data-testid="input-user-lastname"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-email">Email *</Label>
+              <Input
+                id="user-email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                placeholder="john.doe@example.com"
+                data-testid="input-user-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-role">Global Role</Label>
+              <Select
+                value={userForm.globalRole}
+                onValueChange={(value) => setUserForm({ ...userForm, globalRole: value })}
+              >
+                <SelectTrigger data-testid="select-user-role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-department">Department</Label>
+                <Input
+                  id="user-department"
+                  value={userForm.department}
+                  onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
+                  placeholder="e.g., Operations"
+                  data-testid="input-user-department"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-jobTitle">Job Title</Label>
+                <Input
+                  id="user-jobTitle"
+                  value={userForm.jobTitle}
+                  onChange={(e) => setUserForm({ ...userForm, jobTitle: e.target.value })}
+                  placeholder="e.g., Manager"
+                  data-testid="input-user-jobtitle"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-phone">Phone Number</Label>
+              <Input
+                id="user-phone"
+                type="tel"
+                value={userForm.phoneNumber}
+                onChange={(e) => setUserForm({ ...userForm, phoneNumber: e.target.value })}
+                placeholder="(555) 123-4567"
+                data-testid="input-user-phone"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateUserDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateUser}
+              disabled={createUserMutation.isPending}
+              data-testid="button-confirm-create-user"
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditUserDialog} onOpenChange={setShowEditUserDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user details for {editingUser?.first_name} {editingUser?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-user-firstName">First Name *</Label>
+                <Input
+                  id="edit-user-firstName"
+                  value={userForm.firstName}
+                  onChange={(e) => setUserForm({ ...userForm, firstName: e.target.value })}
+                  data-testid="input-edit-user-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-user-lastName">Last Name *</Label>
+                <Input
+                  id="edit-user-lastName"
+                  value={userForm.lastName}
+                  onChange={(e) => setUserForm({ ...userForm, lastName: e.target.value })}
+                  data-testid="input-edit-user-lastname"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-email">Email *</Label>
+              <Input
+                id="edit-user-email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                data-testid="input-edit-user-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-role">Global Role</Label>
+              <Select
+                value={userForm.globalRole}
+                onValueChange={(value) => setUserForm({ ...userForm, globalRole: value })}
+              >
+                <SelectTrigger data-testid="select-edit-user-role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-user-department">Department</Label>
+                <Input
+                  id="edit-user-department"
+                  value={userForm.department}
+                  onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
+                  data-testid="input-edit-user-department"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-user-jobTitle">Job Title</Label>
+                <Input
+                  id="edit-user-jobTitle"
+                  value={userForm.jobTitle}
+                  onChange={(e) => setUserForm({ ...userForm, jobTitle: e.target.value })}
+                  data-testid="input-edit-user-jobtitle"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-phone">Phone Number</Label>
+              <Input
+                id="edit-user-phone"
+                type="tel"
+                value={userForm.phoneNumber}
+                onChange={(e) => setUserForm({ ...userForm, phoneNumber: e.target.value })}
+                data-testid="input-edit-user-phone"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditUserDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateUser}
+              disabled={updateUserMutation.isPending}
+              data-testid="button-confirm-edit-user"
+            >
+              {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog open={showDeleteUserDialog} onOpenChange={setShowDeleteUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{editingUser?.first_name} {editingUser?.last_name}"? 
+              This will also remove all their group memberships. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteUserDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => editingUser && deleteUserMutation.mutate(editingUser.id)}
+              disabled={deleteUserMutation.isPending}
+              data-testid="button-confirm-delete-user"
+            >
+              {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Groups Dialog */}
+      <Dialog open={showManageGroupsDialog} onOpenChange={setShowManageGroupsDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Group Memberships</DialogTitle>
+            <DialogDescription>
+              Assign {editingUser?.first_name} {editingUser?.last_name} to groups
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {groups.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                No groups available. Create a group first.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {groups.map((group) => {
+                  const isMember = editingUser?.groups?.some(g => g.id === group.id) || false;
+                  return (
+                    <div 
+                      key={group.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: group.color || '#6b7280' }}
+                        />
+                        <span className="font-medium">{group.name}</span>
+                        {group.is_system_group && (
+                          <Badge variant="secondary" className="text-xs">System</Badge>
+                        )}
+                      </div>
+                      <Switch
+                        checked={isMember}
+                        onCheckedChange={(checked) => {
+                          if (editingUser) {
+                            if (checked) {
+                              addUserToGroupMutation.mutate({ userId: editingUser.id, groupId: group.id });
+                            } else {
+                              removeUserFromGroupMutation.mutate({ userId: editingUser.id, groupId: group.id });
+                            }
+                          }
+                        }}
+                        disabled={addUserToGroupMutation.isPending || removeUserFromGroupMutation.isPending}
+                        data-testid={`switch-group-${group.id}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowManageGroupsDialog(false)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
