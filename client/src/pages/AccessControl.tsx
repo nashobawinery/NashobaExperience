@@ -278,20 +278,17 @@ export default function AccessControl() {
     });
   };
 
-  // Group features by module for display
-  const featuresByModule = groupDetails?.featurePermissions.reduce((acc, feature) => {
-    if (!acc[feature.module_id]) {
-      const moduleAccess = groupDetails.moduleAccess.find(m => m.module_id === feature.module_id);
-      acc[feature.module_id] = {
-        moduleKey: moduleAccess?.module_key || '',
-        moduleName: moduleAccess?.module_name || '',
-        hasAccess: moduleAccess?.has_access || false,
-        features: []
-      };
-    }
-    acc[feature.module_id].features.push(feature);
-    return acc;
-  }, {} as Record<string, { moduleKey: string; moduleName: string; hasAccess: boolean; features: FeaturePermission[] }>);
+  // Group features by module for display, preserving module order from moduleAccess
+  const featuresByModule = groupDetails?.moduleAccess.map((module) => {
+    const features = groupDetails.featurePermissions.filter(f => f.module_id === module.module_id);
+    return {
+      moduleId: module.module_id,
+      moduleKey: module.module_key,
+      moduleName: module.module_name,
+      hasAccess: module.has_access,
+      features
+    };
+  }).filter(m => m.features.length > 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -496,8 +493,8 @@ export default function AccessControl() {
 
                     <TabsContent value="features">
                       <div className="space-y-6">
-                        {featuresByModule && Object.entries(featuresByModule).map(([moduleId, moduleData]) => (
-                          <div key={moduleId} className="border rounded-lg overflow-hidden">
+                        {featuresByModule && featuresByModule.map((moduleData) => (
+                          <div key={moduleData.moduleId} className="border rounded-lg overflow-hidden">
                             <div className="bg-muted/50 px-4 py-2 flex items-center justify-between">
                               <h3 className="font-medium">{moduleData.moduleName}</h3>
                               <Badge variant={moduleData.hasAccess ? "default" : "secondary"}>
