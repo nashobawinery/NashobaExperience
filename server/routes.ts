@@ -9,6 +9,7 @@ import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
+import bcrypt from "bcrypt";
 import { 
   getUserPermissions, 
   isGlobalAdmin,
