@@ -97,7 +97,7 @@ function DatabaseSyncRoute() {
 
 function AdminHubRoute() {
   const [, setLocation] = useLocation();
-  const { isLoading, isAdmin } = useAuth();
+  const { isLoading, isAdmin, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -107,8 +107,64 @@ function AdminHubRoute() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-serif font-semibold mb-2">Nashoba Operations Hub</h1>
+            <p className="text-muted-foreground">Sign in to access the administration platform</p>
+          </div>
+          <div className="bg-card border rounded-lg p-6 space-y-4">
+            <Button 
+              className="w-full" 
+              onClick={() => window.location.href = '/api/login'}
+              data-testid="button-login"
+            >
+              Sign in with Replit
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              You must have an authorized platform account to access the Admin Hub.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
-    return <Redirect to="/" />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-serif font-semibold mb-2">Access Denied</h1>
+            <p className="text-muted-foreground">You don't have permission to access the Admin Hub.</p>
+          </div>
+          <div className="bg-card border rounded-lg p-6 space-y-4">
+            <p className="text-sm text-center">
+              Logged in as: <span className="font-medium">{user.email}</span>
+            </p>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                className="flex-1" 
+                onClick={() => window.location.href = '/api/logout'}
+                data-testid="button-logout"
+              >
+                Sign Out
+              </Button>
+              <Button 
+                className="flex-1" 
+                onClick={() => setLocation('/')}
+                data-testid="button-go-home"
+              >
+                Go Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return <AdminHub onBackToGuest={() => setLocation("/")} />;
