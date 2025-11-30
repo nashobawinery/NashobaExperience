@@ -768,6 +768,20 @@ export const platformAuditLog = pgTable("platform_audit_log", {
   index("idx_audit_module_created").on(table.moduleId, table.createdAt),
 ]);
 
+// Password Reset Tokens - for platform user password recovery
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  token: varchar("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_reset_token_user").on(table.userId),
+  index("idx_reset_token_token").on(table.token),
+  index("idx_reset_token_expires").on(table.expiresAt),
+]);
+
 // ============================================================================
 // ROLE-BASED ACCESS CONTROL (RBAC) TABLES
 // User groups with granular permissions per module and feature
@@ -1195,6 +1209,7 @@ export const insertSharedLocationSchema = createInsertSchema(sharedLocations).om
 export const insertSharedEquipmentSchema = createInsertSchema(sharedEquipment).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSharedDocumentSchema = createInsertSchema(sharedDocuments).omit({ id: true, createdAt: true, updatedAt: true, approvedAt: true });
 export const insertPlatformAuditLogSchema = createInsertSchema(platformAuditLog).omit({ id: true, createdAt: true });
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true, usedAt: true });
 
 // RBAC Insert schemas
 export const insertUserGroupSchema = createInsertSchema(userGroups).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1379,6 +1394,9 @@ export type SharedDocument = typeof sharedDocuments.$inferSelect;
 
 export type InsertPlatformAuditLog = z.infer<typeof insertPlatformAuditLogSchema>;
 export type PlatformAuditLog = typeof platformAuditLog.$inferSelect;
+
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 
 // RBAC Types
 export type InsertUserGroup = z.infer<typeof insertUserGroupSchema>;
