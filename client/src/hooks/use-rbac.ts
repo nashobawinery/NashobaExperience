@@ -95,8 +95,8 @@ export function useRbac() {
 }
 
 export const MODULE_KEYS = {
-  TASTING: 'tasting_experience',
-  B2B: 'b2b_wholesale',
+  TASTING: 'tasting',
+  B2B: 'b2b',
   LMS: 'lms',
   COMPLIANCE: 'compliance',
   SOP: 'sop',
@@ -110,35 +110,46 @@ export const MODULE_KEYS = {
 
 export const FEATURE_KEYS = {
   TASTING: {
-    PRODUCTS: 'product_management',
-    MEDIA: 'media_management',
+    PRODUCTS: 'products',
+    PRODUCTS_MANAGE: 'products_manage',
+    MEDIA: 'media',
     QR_CODES: 'qr_codes',
-    SURVEYS: 'survey_management',
-    DISCOUNTS: 'discount_management',
-    TRIVIA: 'trivia_management',
-    SETTINGS: 'settings',
-    ANALYTICS: 'analytics'
+    SURVEYS: 'surveys',
+    RECOMMENDATIONS: 'recommendations',
+    SETTINGS: 'settings'
   },
   B2B: {
-    CUSTOMERS: 'customer_management',
-    ORDERS: 'order_management',
-    PRODUCTS: 'product_catalog',
-    PRICING: 'pricing_tiers',
-    SALES_REPS: 'sales_rep_management',
-    REPORTS: 'reports'
+    CUSTOMERS: 'customers',
+    CUSTOMERS_MANAGE: 'customers_manage',
+    ORDERS: 'orders',
+    ORDERS_MANAGE: 'orders_manage',
+    PRICING: 'pricing',
+    PRICING_MANAGE: 'pricing_manage',
+    SALES_REPS: 'sales_reps',
+    IMPERSONATION: 'impersonation',
+    SETTINGS: 'settings'
   },
   LMS: {
-    COURSES: 'course_management',
-    ENROLLMENTS: 'enrollment_management',
-    QUIZZES: 'quiz_management',
-    CERTIFICATES: 'certificate_management',
-    PROGRESS: 'progress_tracking',
-    REPORTS: 'reports'
+    COURSES: 'courses',
+    COURSES_MANAGE: 'courses_manage',
+    LESSONS: 'lessons',
+    LESSONS_MANAGE: 'lessons_manage',
+    QUIZZES: 'quizzes',
+    QUIZZES_MANAGE: 'quizzes_manage',
+    CERTIFICATES: 'certificates',
+    ENROLLMENTS: 'enrollments',
+    REPORTS: 'reports',
+    SETTINGS: 'settings'
   },
   COMPLIANCE: {
-    TASKS: 'task_management',
-    REMINDERS: 'reminder_management',
-    DOCUMENTS: 'document_management',
-    REPORTS: 'reports'
+    TASKS: 'tasks',
+    TASKS_MANAGE: 'tasks_manage',
+    CALENDAR: 'calendar',
+    REMINDERS: 'reminders',
+    HISTORY: 'history',
+    ARCHIVE: 'archive',
+    PORTAL_CREDENTIALS: 'portal_credentials',
+    REPORTS: 'reports',
+    SETTINGS: 'settings'
   }
 } as const;
