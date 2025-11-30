@@ -1500,3 +1500,367 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
 
   return result;
 }
+
+// ============================================================================
+// REGISTRY-DRIVEN EXPORT/IMPORT UTILITIES
+// ============================================================================
+// These utilities use the sync registry for a data-driven approach to export/import
+// supporting all modules (Tasting, B2B, LMS, Compliance, RBAC, Platform)
+
+import { getTableConfig, getTablesByModule, getTablesByDependencyOrder, type SyncTableConfig, type SyncModule } from './syncRegistry';
+
+// Convert camelCase to snake_case for Excel headers
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+// Convert snake_case to camelCase for JS objects
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// Table-specific adapters for non-trivial transformations
+interface TableAdapter {
+  toExportRow?: (record: any, lookups?: Record<string, any[]>) => Record<string, any>;
+  fromImportRow?: (row: any) => Record<string, any>;
+  resolveFK?: (record: any, lookups: Record<string, any[]>) => Record<string, any>;
+}
+
+// Registry of table-specific adapters for complex transformations
+const TABLE_ADAPTERS: Record<string, TableAdapter> = {
+  // LMS adapters
+  courses: {
+    toExportRow: (record, lookups) => {
+      const category = lookups?.courseCategories?.find((c: any) => c.id === record.categoryId);
+      return {
+        ...record,
+        categoryName: category?.name || '',
+      };
+    },
+    fromImportRow: (row) => ({
+      title: row.title?.trim() || '',
+      description: row.description?.trim() || null,
+      thumbnailUrl: row.thumbnail_url?.trim() || row.thumbnailUrl?.trim() || null,
+      duration: row.duration?.trim() || null,
+      difficulty: row.difficulty?.trim() || 'beginner',
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+      isPublished: normalizeBool(row.is_published ?? row.isPublished ?? false),
+      sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+      passingScore: toNumber(row.passing_score ?? row.passingScore, 70),
+      requiresQuiz: normalizeBool(row.requires_quiz ?? row.requiresQuiz ?? false),
+      certificateTemplate: row.certificate_template?.trim() || row.certificateTemplate?.trim() || null,
+      categoryName: row.category_name?.trim() || row.categoryName?.trim() || null,
+    }),
+  },
+  lessons: {
+    toExportRow: (record, lookups) => {
+      const course = lookups?.courses?.find((c: any) => c.id === record.courseId);
+      return {
+        ...record,
+        courseTitle: course?.title || '',
+      };
+    },
+    fromImportRow: (row) => ({
+      courseTitle: row.course_title?.trim() || row.courseTitle?.trim() || '',
+      title: row.title?.trim() || '',
+      description: row.description?.trim() || null,
+      content: row.content?.trim() || null,
+      videoUrl: row.video_url?.trim() || row.videoUrl?.trim() || null,
+      thumbnailUrl: row.thumbnail_url?.trim() || row.thumbnailUrl?.trim() || null,
+      duration: row.duration?.trim() || null,
+      sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+      isPublished: normalizeBool(row.is_published ?? row.isPublished ?? false),
+    }),
+  },
+  quizQuestions: {
+    toExportRow: (record, lookups) => {
+      const course = lookups?.courses?.find((c: any) => c.id === record.courseId);
+      const lesson = lookups?.lessons?.find((l: any) => l.id === record.lessonId);
+      return {
+        ...record,
+        courseTitle: course?.title || '',
+        lessonTitle: lesson?.title || '',
+        options: Array.isArray(record.options) ? JSON.stringify(record.options) : record.options,
+      };
+    },
+    fromImportRow: (row) => {
+      let options = row.options;
+      if (typeof options === 'string') {
+        try { options = JSON.parse(options); } catch { options = []; }
+      }
+      return {
+        courseTitle: row.course_title?.trim() || row.courseTitle?.trim() || '',
+        lessonTitle: row.lesson_title?.trim() || row.lessonTitle?.trim() || null,
+        question: row.question?.trim() || '',
+        questionType: row.question_type?.trim() || row.questionType?.trim() || 'multiple_choice',
+        options: options || [],
+        correctAnswer: row.correct_answer?.trim() || row.correctAnswer?.trim() || '',
+        explanation: row.explanation?.trim() || null,
+        points: toNumber(row.points, 1),
+        sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+        isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+      };
+    },
+  },
+  courseCategories: {
+    fromImportRow: (row) => ({
+      name: row.name?.trim() || '',
+      description: row.description?.trim() || null,
+      sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+    }),
+  },
+
+  // Compliance adapters
+  complianceTasks: {
+    toExportRow: (record) => ({
+      ...record,
+      dueDate: record.dueDate ? new Date(record.dueDate).toISOString() : null,
+      completedDate: record.completedDate ? new Date(record.completedDate).toISOString() : null,
+      recurrenceEndDate: record.recurrenceEndDate ? new Date(record.recurrenceEndDate).toISOString() : null,
+    }),
+    fromImportRow: (row) => ({
+      title: row.title?.trim() || '',
+      description: row.description?.trim() || null,
+      category: row.category?.trim() || 'other',
+      status: row.status?.trim() || 'pending',
+      priority: row.priority?.trim() || 'medium',
+      dueDate: parseDate(row.due_date ?? row.dueDate),
+      completedDate: parseDate(row.completed_date ?? row.completedDate),
+      recurrencePattern: row.recurrence_pattern?.trim() || row.recurrencePattern?.trim() || 'once',
+      recurrenceInterval: toNumber(row.recurrence_interval ?? row.recurrenceInterval, 1),
+      recurrenceEndDate: parseDate(row.recurrence_end_date ?? row.recurrenceEndDate),
+      estimatedCost: toCurrencyString(row.estimated_cost ?? row.estimatedCost),
+      actualCost: toCurrencyString(row.actual_cost ?? row.actualCost),
+      penaltyAmount: toCurrencyString(row.penalty_amount ?? row.penaltyAmount),
+      portalUrl: row.portal_url?.trim() || row.portalUrl?.trim() || null,
+      portalUsername: row.portal_username?.trim() || row.portalUsername?.trim() || null,
+      notes: row.notes?.trim() || null,
+      isArchived: normalizeBool(row.is_archived ?? row.isArchived ?? false),
+    }),
+  },
+
+  // RBAC adapters
+  userGroups: {
+    fromImportRow: (row) => ({
+      name: row.name?.trim() || '',
+      description: row.description?.trim() || null,
+      color: row.color?.trim() || '#6366f1',
+      isSystem: normalizeBool(row.is_system ?? row.isSystem ?? false),
+    }),
+  },
+  moduleFeatures: {
+    toExportRow: (record, lookups) => {
+      const module = lookups?.platformModules?.find((m: any) => m.id === record.moduleId);
+      return {
+        ...record,
+        moduleKey: module?.moduleKey || '',
+      };
+    },
+    fromImportRow: (row) => ({
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      featureKey: row.feature_key?.trim() || row.featureKey?.trim() || '',
+      featureName: row.feature_name?.trim() || row.featureName?.trim() || '',
+      description: row.description?.trim() || null,
+    }),
+  },
+
+  // Platform adapters
+  platformModules: {
+    fromImportRow: (row) => ({
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      moduleName: row.module_name?.trim() || row.moduleName?.trim() || '',
+      description: row.description?.trim() || null,
+      icon: row.icon?.trim() || null,
+      route: row.route?.trim() || null,
+      sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+      progress: row.progress?.trim() || 'not_started',
+      notes: row.notes?.trim() || null,
+    }),
+  },
+};
+
+// Generic export function using registry metadata
+export function exportTableToSheet(
+  tableId: string,
+  records: any[],
+  lookups?: Record<string, any[]>
+): { sheetName: string; data: any[] } | null {
+  const config = getTableConfig(tableId);
+  if (!config || config.excludeFromSync) return null;
+
+  const adapter = TABLE_ADAPTERS[tableId];
+  const exportFields = config.exportFields;
+
+  const data = records.map(record => {
+    // Apply adapter if available
+    let processedRecord = adapter?.toExportRow 
+      ? adapter.toExportRow(record, lookups)
+      : record;
+
+    // Build export row using only the specified fields
+    const row: Record<string, any> = {};
+    for (const field of exportFields) {
+      const snakeField = toSnakeCase(field);
+      let value = processedRecord[field];
+      
+      // Handle special types
+      if (value instanceof Date) {
+        value = value.toISOString();
+      } else if (Array.isArray(value)) {
+        value = JSON.stringify(value);
+      } else if (typeof value === 'boolean') {
+        value = value ? 'Yes' : 'No';
+      } else if (value === null || value === undefined) {
+        value = '';
+      }
+      
+      row[snakeField] = value;
+    }
+    return row;
+  });
+
+  return { sheetName: config.sheetName, data };
+}
+
+// Generic import function using registry metadata
+export function importSheetToRecords(
+  tableId: string,
+  rows: any[]
+): { records: any[]; errors: string[] } {
+  const config = getTableConfig(tableId);
+  if (!config || config.excludeFromSync) {
+    return { records: [], errors: [`Table ${tableId} not found in registry or excluded from sync`] };
+  }
+
+  const adapter = TABLE_ADAPTERS[tableId];
+  const records: any[] = [];
+  const errors: string[] = [];
+
+  rows.forEach((row, index) => {
+    const rowNum = index + 2;
+    try {
+      let record: any;
+      
+      if (adapter?.fromImportRow) {
+        record = adapter.fromImportRow(row);
+      } else {
+        // Default transformation: convert snake_case to camelCase
+        record = {};
+        for (const [key, value] of Object.entries(row)) {
+          const camelKey = toCamelCase(key);
+          let processedValue = value;
+          
+          // Try to parse JSON strings
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              try { processedValue = JSON.parse(trimmed); } catch {}
+            } else if (trimmed.toLowerCase() === 'yes' || trimmed.toLowerCase() === 'true') {
+              processedValue = true;
+            } else if (trimmed.toLowerCase() === 'no' || trimmed.toLowerCase() === 'false') {
+              processedValue = false;
+            }
+          }
+          
+          record[camelKey] = processedValue;
+        }
+      }
+
+      // Validate against schema if available
+      if (config.schema) {
+        const result = config.schema.safeParse(record);
+        if (result.success) {
+          records.push(result.data);
+        } else {
+          const fieldErrors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+          errors.push(`${config.sheetName} Row ${rowNum}: ${fieldErrors}`);
+        }
+      } else {
+        records.push(record);
+      }
+    } catch (error) {
+      errors.push(`${config.sheetName} Row ${rowNum}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+
+  return { records, errors };
+}
+
+// Export multiple tables to a workbook using the registry
+export function exportModulesToWorkbook(
+  modules: SyncModule[],
+  dataByTable: Record<string, any[]>,
+  lookups?: Record<string, any[]>
+): XLSX.WorkBook {
+  const workbook = XLSX.utils.book_new();
+  
+  // Get tables in dependency order
+  const orderedTables = getTablesByDependencyOrder();
+  
+  for (const config of orderedTables) {
+    if (!modules.includes(config.module)) continue;
+    if (config.excludeFromSync) continue;
+    
+    const tableData = dataByTable[config.id];
+    if (!tableData || tableData.length === 0) continue;
+    
+    const result = exportTableToSheet(config.id, tableData, lookups);
+    if (result && result.data.length > 0) {
+      const sheet = XLSX.utils.json_to_sheet(result.data);
+      XLSX.utils.book_append_sheet(workbook, sheet, result.sheetName);
+    }
+  }
+  
+  return workbook;
+}
+
+// Parse a workbook and extract records for all tables in the registry
+export function parseWorkbookByRegistry(
+  buffer: Buffer
+): { 
+  recordsByTable: Record<string, any[]>; 
+  errors: string[]; 
+  warnings: string[];
+} {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const recordsByTable: Record<string, any[]> = {};
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Get tables in dependency order
+  const orderedTables = getTablesByDependencyOrder();
+  
+  for (const config of orderedTables) {
+    if (config.excludeFromSync) continue;
+    
+    if (workbook.SheetNames.includes(config.sheetName)) {
+      const sheet = workbook.Sheets[config.sheetName];
+      const rawData: any[] = XLSX.utils.sheet_to_json(sheet);
+      
+      const result = importSheetToRecords(config.id, rawData);
+      recordsByTable[config.id] = result.records;
+      errors.push(...result.errors);
+    } else {
+      warnings.push(`Sheet "${config.sheetName}" not found for table ${config.id}`);
+    }
+  }
+  
+  return { recordsByTable, errors, warnings };
+}
+
+// Get list of tables that require confirmation before import
+export function getTablesRequiringConfirmation(): string[] {
+  const orderedTables = getTablesByDependencyOrder();
+  return orderedTables
+    .filter(t => t.requiresConfirmation)
+    .map(t => t.id);
+}
+
+// Get sensitive fields that should be excluded or encrypted
+export function getSensitiveFields(tableId: string): string[] {
+  const config = getTableConfig(tableId);
+  return config?.sensitiveFields || [];
+}
