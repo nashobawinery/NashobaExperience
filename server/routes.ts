@@ -4127,24 +4127,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if user exists
       const existingUser = await db.execute(sql`
-        SELECT id FROM platform_users WHERE id = ${id}
+        SELECT * FROM platform_users WHERE id = ${id}
       `);
       
       if (existingUser.rows.length === 0) {
         return res.status(404).json({ message: 'User not found' });
       }
 
+      const current = existingUser.rows[0] as any;
+      
+      // Convert empty strings to null for optional fields, use current value if undefined
+      const safeEmail = email || current.email;
+      const safeFirstName = firstName || current.first_name;
+      const safeLastName = lastName || current.last_name;
+      const safeGlobalRole = globalRole || current.global_role;
+      const safeDepartment = department === '' ? null : (department !== undefined ? department : current.department);
+      const safeJobTitle = jobTitle === '' ? null : (jobTitle !== undefined ? jobTitle : current.job_title);
+      const safePhoneNumber = phoneNumber === '' ? null : (phoneNumber !== undefined ? phoneNumber : current.phone_number);
+      const safeActive = active !== undefined ? active : current.active;
+
       const result = await db.execute(sql`
         UPDATE platform_users
         SET 
-          email = COALESCE(${email}, email),
-          first_name = COALESCE(${firstName}, first_name),
-          last_name = COALESCE(${lastName}, last_name),
-          global_role = COALESCE(${globalRole}, global_role),
-          department = COALESCE(${department}, department),
-          job_title = COALESCE(${jobTitle}, job_title),
-          phone_number = COALESCE(${phoneNumber}, phone_number),
-          active = COALESCE(${active}, active),
+          email = ${safeEmail},
+          first_name = ${safeFirstName},
+          last_name = ${safeLastName},
+          global_role = ${safeGlobalRole},
+          department = ${safeDepartment},
+          job_title = ${safeJobTitle},
+          phone_number = ${safePhoneNumber},
+          active = ${safeActive},
           updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
