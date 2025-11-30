@@ -287,26 +287,26 @@ export async function getGroupWithPermissions(groupId: string): Promise<any> {
 
   const group = groupResult.rows[0];
 
-  // Get module access
+  // Get module access with camelCase aliases for frontend
   const moduleAccessResult = await db.execute(sql`
     SELECT 
-      pm.id as module_id,
-      pm.module_key,
-      pm.module_name,
-      COALESCE(gma.has_access, false) as has_access
+      pm.id as "moduleId",
+      pm.module_key as "moduleKey",
+      pm.module_name as "moduleName",
+      COALESCE(gma.has_access, false) as "hasAccess"
     FROM platform_modules pm
     LEFT JOIN group_module_access gma ON pm.id = gma.module_id AND gma.group_id = ${groupId}
     ORDER BY pm.sort_order
   `);
 
-  // Get feature permissions by module
+  // Get feature permissions by module with camelCase aliases for frontend
   const featurePermsResult = await db.execute(sql`
     SELECT 
-      mf.id as feature_id,
-      mf.module_id,
-      mf.feature_key,
-      mf.feature_name,
-      COALESCE(gfp.permission_level, 'none') as permission_level
+      mf.id as "featureId",
+      mf.module_id as "moduleId",
+      mf.feature_key as "featureKey",
+      mf.feature_name as "featureName",
+      COALESCE(gfp.permission_level, 'none') as "permissionLevel"
     FROM module_features mf
     LEFT JOIN group_feature_permissions gfp ON mf.id = gfp.feature_id AND gfp.group_id = ${groupId}
     WHERE mf.active = true
