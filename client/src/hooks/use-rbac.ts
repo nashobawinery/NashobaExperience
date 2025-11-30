@@ -34,9 +34,9 @@ export function useRbac() {
   const rbac = user?.rbac;
 
   const hasModuleAccess = (moduleKey: string): boolean => {
+    if (user?.role === 'admin') return true;
     if (!rbac) return false;
     if (rbac.isGlobalAdmin) return true;
-    if (user?.role === 'admin') return true;
     return rbac.moduleAccess[moduleKey] === true;
   };
 
@@ -45,9 +45,9 @@ export function useRbac() {
     featureKey: string, 
     requiredLevel: PermissionLevel = 'view'
   ): boolean => {
+    if (user?.role === 'admin') return true;
     if (!rbac) return false;
     if (rbac.isGlobalAdmin) return true;
-    if (user?.role === 'admin') return true;
     
     if (!hasModuleAccess(moduleKey)) return false;
     

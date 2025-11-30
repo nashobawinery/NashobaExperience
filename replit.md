@@ -174,3 +174,36 @@ Admins can manually trigger a sync from the Access Control page if entries are m
 ### Implementation Files
 - `server/rbac.ts` - Permission computation service, database operations, and auto-sync functions
 - `client/src/pages/AccessControl.tsx` - Admin UI for managing access control with sync status
+- `client/src/hooks/useAuth.ts` - Authentication hook with RBAC integration (provides `hasModuleAccess`, `canView`, `canEdit`, `canAdmin`)
+- `client/src/hooks/use-rbac.ts` - Standalone RBAC hook with module/feature key constants
+
+### Frontend RBAC Integration
+The RBAC system is now integrated into the frontend authentication:
+
+**Usage in Components:**
+```typescript
+import { useAuth } from '@/hooks/useAuth';
+import { MODULE_KEYS, FEATURE_KEYS } from '@/hooks/use-rbac';
+
+function MyComponent() {
+  const { hasModuleAccess, canView, canEdit, canAdmin, isAdmin } = useAuth();
+  
+  // Check module access
+  if (hasModuleAccess('compliance')) { /* show module */ }
+  
+  // Check feature permissions
+  if (canView('compliance', 'tasks')) { /* show tasks */ }
+  if (canEdit('compliance', 'tasks_manage')) { /* allow editing */ }
+  if (canAdmin('compliance', 'settings')) { /* show settings */ }
+}
+```
+
+**Backward Compatibility:**
+- Existing `isAdmin` checks continue to work
+- Users with `role === 'admin'` bypass RBAC checks automatically
+- RBAC permissions are additive - old admin role takes precedence
+- Backend routes use `isAdmin` middleware; frontend uses RBAC for UI visibility
+
+**Module Keys:** tasting, b2b, lms, compliance, sop, maintenance, operations, daily_procedures, customer_support, apple_game, experience_library
+
+**Feature Key Format:** `{module}.{feature}` (e.g., `compliance.tasks_manage`, `tasting.products`)
