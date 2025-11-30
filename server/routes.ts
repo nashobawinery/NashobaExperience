@@ -4086,6 +4086,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get security sync status
+  app.get('/api/rbac/sync-status', isAdmin, async (req, res) => {
+    try {
+      const status = await rbac.getSecuritySyncStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Error fetching sync status:', error);
+      res.status(500).json({ message: 'Failed to fetch sync status' });
+    }
+  });
+
+  // Sync all security entries (fill in missing module access and feature permissions)
+  app.post('/api/rbac/sync', isAdmin, async (req, res) => {
+    try {
+      const result = await rbac.syncAllSecurityEntries();
+      console.log(`[RBAC Sync] Created ${result.moduleAccessCreated} module access entries, ${result.featurePermissionsCreated} feature permission entries`);
+      res.json({
+        message: 'Security entries synchronized successfully',
+        ...result
+      });
+    } catch (error) {
+      console.error('Error syncing security entries:', error);
+      res.status(500).json({ message: 'Failed to sync security entries' });
+    }
+  });
+
+  // Add a new module with auto-generated security entries
+  app.post('/api/rbac/modules', isAdmin, async (req, res) => {
+    try {
+      const { moduleKey, moduleName, description, icon, color, routePrefix, status } = req.body;
+      
+      if (!moduleKey || !moduleName) {
+        return res.status(400).json({ message: 'moduleKey and moduleName are required' });
+      }
+
+      const newModule = await rbac.addModuleWithSecurity({
+        moduleKey,
+        moduleName,
+        description,
+        icon,
+        color,
+        routePrefix,
+        status
+      });
+
+      res.status(201).json(newModule);
+    } catch (error) {
+      console.error('Error creating module:', error);
+      res.status(500).json({ message: 'Failed to create module' });
+    }
+  });
+
+  // Add a new feature with auto-generated security entries
+  app.post('/api/rbac/features', isAdmin, async (req, res) => {
+    try {
+      const { moduleId, featureKey, featureName, description } = req.body;
+      
+      if (!moduleId || !featureKey || !featureName) {
+        return res.status(400).json({ message: 'moduleId, featureKey, and featureName are required' });
+      }
+
+      const newFeature = await rbac.addFeatureWithSecurity({
+        moduleId,
+        featureKey,
+        featureName,
+        description
+      });
+
+      res.status(201).json(newFeature);
+    } catch (error) {
+      console.error('Error creating feature:', error);
+      res.status(500).json({ message: 'Failed to create feature' });
+    }
+  });
+
   // =====================================================
   // LMS (LEARNING MANAGEMENT SYSTEM) ROUTES
   // =====================================================

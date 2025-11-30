@@ -145,10 +145,18 @@ The platform features a comprehensive Role-Based Access Control system for manag
 - Global Admin group has admin access to all modules/features by default
 - Session-based permission caching for performance
 
+### Auto-Sync Security
+The RBAC system automatically generates security entries when:
+- **New Group Created**: Automatically creates module access (default: disabled) and feature permissions (default: none) for all existing modules and features
+- **New Module Added**: Automatically creates module access entries for all existing groups (Global Admin gets enabled by default)
+- **New Feature Added**: Automatically creates feature permission entries for all existing groups (Global Admin gets admin permission by default)
+
+Admins can manually trigger a sync from the Access Control page if entries are missing.
+
 ### API Endpoints
 - `GET /api/rbac/groups` - List all groups with member counts
 - `GET /api/rbac/groups/:id` - Get group with module access and feature permissions
-- `POST /api/rbac/groups` - Create new group
+- `POST /api/rbac/groups` - Create new group (auto-generates security entries)
 - `PATCH /api/rbac/groups/:id` - Update group details
 - `DELETE /api/rbac/groups/:id` - Delete group (soft delete)
 - `PUT /api/rbac/groups/:groupId/modules/:moduleId` - Set module access
@@ -158,7 +166,11 @@ The platform features a comprehensive Role-Based Access Control system for manag
 - `DELETE /api/rbac/users/:userId/groups/:groupId` - Remove user from group
 - `GET /api/rbac/my-permissions` - Get current user's computed permissions
 - `GET /api/rbac/features` - List all module features
+- `GET /api/rbac/sync-status` - Check for missing security entries
+- `POST /api/rbac/sync` - Sync all missing security entries
+- `POST /api/rbac/modules` - Add module with auto-generated security
+- `POST /api/rbac/features` - Add feature with auto-generated security
 
 ### Implementation Files
-- `server/rbac.ts` - Permission computation service and database operations
-- `client/src/pages/AccessControl.tsx` - Admin UI for managing access control
+- `server/rbac.ts` - Permission computation service, database operations, and auto-sync functions
+- `client/src/pages/AccessControl.tsx` - Admin UI for managing access control with sync status

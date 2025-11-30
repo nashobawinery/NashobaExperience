@@ -401,7 +401,16 @@ export async function createUserGroup(data: {
     VALUES (${data.name}, ${data.description || null}, ${data.color || null})
     RETURNING *
   `);
-  return result.rows[0];
+  
+  const newGroup = result.rows[0] as any;
+  
+  // Auto-generate security entries for all modules and features
+  const modulesCreated = await syncModulesForNewGroup(newGroup.id, false);
+  const featuresCreated = await syncFeaturesForNewGroup(newGroup.id, false);
+  
+  console.log(`[RBAC] Created group "${data.name}" with ${modulesCreated} module access entries, ${featuresCreated} feature permission entries`);
+  
+  return newGroup;
 }
 
 export async function updateUserGroup(groupId: string, data: {
@@ -470,4 +479,263 @@ export async function getAllPlatformUsers(): Promise<any[]> {
     ORDER BY pu.last_name, pu.first_name
   `);
   return result.rows;
+}
+
+// =====================================
+// AUTO-SYNC SECURITY ENTRIES
+// =====================================
+
+/**
+ * Sync module access entries for a specific module across all groups.
+ * Creates missing group_module_access entries with has_access = false by default.
+ * Global Admin group gets has_access = true automatically.
+ */
+export async function syncModuleAccessForAllGroups(moduleId: string): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO group_module_access (group_id, module_id, has_access)
+    SELECT 
+      ug.id as group_id,
+      ${moduleId} as module_id,
+      CASE WHEN ug.name = 'Global Admin' THEN true ELSE false END as has_access
+    FROM user_groups ug
+    WHERE ug.active = true
+      AND NOT EXISTS (
+        SELECT 1 FROM group_module_access gma 
+        WHERE gma.group_id = ug.id AND gma.module_id = ${moduleId}
+      )
+    RETURNING *
+  `);
+  return result.rows.length;
+}
+
+/**
+ * Sync feature permission entries for a specific feature across all groups.
+ * Creates missing group_feature_permissions entries with permission_level = 'none' by default.
+ * Global Admin group gets permission_level = 'admin' automatically.
+ */
+export async function syncFeaturePermissionsForAllGroups(featureId: string): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO group_feature_permissions (group_id, feature_id, permission_level)
+    SELECT 
+      ug.id as group_id,
+      ${featureId} as feature_id,
+      CASE WHEN ug.name = 'Global Admin' THEN 'admin' ELSE 'none' END as permission_level
+    FROM user_groups ug
+    WHERE ug.active = true
+      AND NOT EXISTS (
+        SELECT 1 FROM group_feature_permissions gfp 
+        WHERE gfp.group_id = ug.id AND gfp.feature_id = ${featureId}
+      )
+    RETURNING *
+  `);
+  return result.rows.length;
+}
+
+/**
+ * Sync all module access entries for a new group.
+ * Creates group_module_access entries for all modules.
+ */
+export async function syncModulesForNewGroup(groupId: string, isGlobalAdmin: boolean = false): Promise<number> {
+  const result = await db.execute(sql`
+    INSERT INTO group_module_access (group_id, module_id, has_access)
+    SELECT 
+      ${groupId} as group_id,
+      pm.id as module_id,
+      ${isGlobalAdmin} as has_access
+    FROM platform_modules pm
+    WHERE NOT EXISTS (
+      SELECT 1 FROM group_module_access gma 
+      WHERE gma.group_id = ${groupId} AND gma.module_id = pm.id
+    )
+    RETURNING *
+  `);
+  return result.rows.length;
+}
+
+/**
+ * Sync all feature permissions for a new group.
+ * Creates group_feature_permissions entries for all active features.
+ */
+export async function syncFeaturesForNewGroup(groupId: string, isGlobalAdmin: boolean = false): Promise<number> {
+  const defaultLevel = isGlobalAdmin ? 'admin' : 'none';
+  const result = await db.execute(sql`
+    INSERT INTO group_feature_permissions (group_id, feature_id, permission_level)
+    SELECT 
+      ${groupId} as group_id,
+      mf.id as feature_id,
+      ${defaultLevel} as permission_level
+    FROM module_features mf
+    WHERE mf.active = true
+      AND NOT EXISTS (
+        SELECT 1 FROM group_feature_permissions gfp 
+        WHERE gfp.group_id = ${groupId} AND gfp.feature_id = mf.id
+      )
+    RETURNING *
+  `);
+  return result.rows.length;
+}
+
+/**
+ * Comprehensive sync of all security entries.
+ * Ensures every active group has entries for every module and feature.
+ * Called after adding new modules, features, or groups.
+ */
+export async function syncAllSecurityEntries(): Promise<{
+  moduleAccessCreated: number;
+  featurePermissionsCreated: number;
+}> {
+  // Sync module access: create missing entries for all group/module combinations
+  const moduleAccessResult = await db.execute(sql`
+    INSERT INTO group_module_access (group_id, module_id, has_access)
+    SELECT 
+      ug.id as group_id,
+      pm.id as module_id,
+      CASE WHEN ug.name = 'Global Admin' THEN true ELSE false END as has_access
+    FROM user_groups ug
+    CROSS JOIN platform_modules pm
+    WHERE ug.active = true
+      AND NOT EXISTS (
+        SELECT 1 FROM group_module_access gma 
+        WHERE gma.group_id = ug.id AND gma.module_id = pm.id
+      )
+    RETURNING *
+  `);
+
+  // Sync feature permissions: create missing entries for all group/feature combinations
+  const featurePermsResult = await db.execute(sql`
+    INSERT INTO group_feature_permissions (group_id, feature_id, permission_level)
+    SELECT 
+      ug.id as group_id,
+      mf.id as feature_id,
+      CASE WHEN ug.name = 'Global Admin' THEN 'admin' ELSE 'none' END as permission_level
+    FROM user_groups ug
+    CROSS JOIN module_features mf
+    WHERE ug.active = true
+      AND mf.active = true
+      AND NOT EXISTS (
+        SELECT 1 FROM group_feature_permissions gfp 
+        WHERE gfp.group_id = ug.id AND gfp.feature_id = mf.id
+      )
+    RETURNING *
+  `);
+
+  return {
+    moduleAccessCreated: moduleAccessResult.rows.length,
+    featurePermissionsCreated: featurePermsResult.rows.length
+  };
+}
+
+/**
+ * Add a new module and automatically generate security entries for all groups.
+ */
+export async function addModuleWithSecurity(moduleData: {
+  moduleKey: string;
+  moduleName: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  routePrefix?: string;
+  status?: string;
+}): Promise<any> {
+  // Insert the new module
+  const moduleResult = await db.execute(sql`
+    INSERT INTO platform_modules (
+      module_key, module_name, description, icon, color, route_prefix, status, sort_order
+    )
+    VALUES (
+      ${moduleData.moduleKey},
+      ${moduleData.moduleName},
+      ${moduleData.description || null},
+      ${moduleData.icon || 'FileText'},
+      ${moduleData.color || 'bg-gray-500'},
+      ${moduleData.routePrefix || `/${moduleData.moduleKey}`},
+      ${moduleData.status || 'planning'},
+      (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM platform_modules)
+    )
+    RETURNING *
+  `);
+
+  const newModule = moduleResult.rows[0] as any;
+
+  // Auto-generate security entries for all groups
+  await syncModuleAccessForAllGroups(newModule.id);
+
+  console.log(`[RBAC] Created module "${moduleData.moduleName}" with auto-generated security entries`);
+
+  return newModule;
+}
+
+/**
+ * Add a new feature and automatically generate security entries for all groups.
+ */
+export async function addFeatureWithSecurity(featureData: {
+  moduleId: string;
+  featureKey: string;
+  featureName: string;
+  description?: string;
+}): Promise<any> {
+  // Insert the new feature
+  const featureResult = await db.execute(sql`
+    INSERT INTO module_features (
+      module_id, feature_key, feature_name, description, sort_order
+    )
+    VALUES (
+      ${featureData.moduleId},
+      ${featureData.featureKey},
+      ${featureData.featureName},
+      ${featureData.description || null},
+      (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM module_features WHERE module_id = ${featureData.moduleId})
+    )
+    RETURNING *
+  `);
+
+  const newFeature = featureResult.rows[0] as any;
+
+  // Auto-generate security entries for all groups
+  await syncFeaturePermissionsForAllGroups(newFeature.id);
+
+  console.log(`[RBAC] Created feature "${featureData.featureName}" with auto-generated security entries`);
+
+  return newFeature;
+}
+
+/**
+ * Get sync status showing any modules/features without complete security entries.
+ */
+export async function getSecuritySyncStatus(): Promise<{
+  totalModules: number;
+  totalFeatures: number;
+  totalGroups: number;
+  missingModuleAccess: number;
+  missingFeaturePermissions: number;
+  needsSync: boolean;
+}> {
+  const statsResult = await db.execute(sql`
+    WITH stats AS (
+      SELECT 
+        (SELECT COUNT(*) FROM platform_modules) as total_modules,
+        (SELECT COUNT(*) FROM module_features WHERE active = true) as total_features,
+        (SELECT COUNT(*) FROM user_groups WHERE active = true) as total_groups,
+        (SELECT COUNT(*) FROM group_module_access) as current_module_access,
+        (SELECT COUNT(*) FROM group_feature_permissions) as current_feature_perms
+    )
+    SELECT 
+      total_modules,
+      total_features,
+      total_groups,
+      (total_modules * total_groups) - current_module_access as missing_module_access,
+      (total_features * total_groups) - current_feature_perms as missing_feature_permissions
+    FROM stats
+  `);
+
+  const stats = statsResult.rows[0] as any;
+
+  return {
+    totalModules: parseInt(stats.total_modules),
+    totalFeatures: parseInt(stats.total_features),
+    totalGroups: parseInt(stats.total_groups),
+    missingModuleAccess: parseInt(stats.missing_module_access),
+    missingFeaturePermissions: parseInt(stats.missing_feature_permissions),
+    needsSync: parseInt(stats.missing_module_access) > 0 || parseInt(stats.missing_feature_permissions) > 0
+  };
 }

@@ -15,7 +15,11 @@ import {
   X,
   Eye,
   Pencil,
-  UserCog
+  UserCog,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -92,6 +96,15 @@ interface PlatformUser {
   groups: { id: string; name: string; color: string }[];
 }
 
+interface SyncStatus {
+  totalModules: number;
+  totalFeatures: number;
+  totalGroups: number;
+  missingModuleAccess: number;
+  missingFeaturePermissions: number;
+  needsSync: boolean;
+}
+
 const permissionColors: Record<string, string> = {
   none: "bg-gray-100 text-gray-600",
   view: "bg-blue-100 text-blue-700",
@@ -130,6 +143,33 @@ export default function AccessControl() {
   const { data: groupDetails, isLoading: loadingDetails } = useQuery<GroupWithPermissions>({
     queryKey: ['/api/rbac/groups', selectedGroup],
     enabled: !!selectedGroup,
+  });
+
+  // Fetch sync status
+  const { data: syncStatus } = useQuery<SyncStatus>({
+    queryKey: ['/api/rbac/sync-status'],
+  });
+
+  // Sync security entries mutation
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/rbac/sync');
+    },
+    onSuccess: (data: any) => {
+      // Invalidate all RBAC-related queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/sync-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      if (selectedGroup) {
+        queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups', selectedGroup] });
+      }
+      toast({ 
+        title: "Sync Complete", 
+        description: `Created ${data.moduleAccessCreated} module access entries and ${data.featurePermissionsCreated} feature permission entries.` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Sync Failed", description: error.message, variant: "destructive" });
+    }
   });
 
   // Fetch all users
@@ -266,6 +306,37 @@ export default function AccessControl() {
           <div className="flex-1">
             <h1 className="text-2xl font-bold" data-testid="text-page-title">Access Control</h1>
             <p className="text-muted-foreground">Manage user groups and permissions across all modules</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {syncStatus && (
+              syncStatus.needsSync ? (
+                <div className="flex items-center gap-2 text-amber-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm">
+                    {syncStatus.missingModuleAccess + syncStatus.missingFeaturePermissions} missing entries
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="text-sm">Synced</span>
+                </div>
+              )
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              data-testid="button-sync-security"
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sync Security
+            </Button>
           </div>
         </div>
 
