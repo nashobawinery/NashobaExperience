@@ -3884,6 +3884,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // =====================================================
+  // RBAC (ROLE-BASED ACCESS CONTROL) ROUTES
+  // =====================================================
+  
+  const rbac = await import('./rbac');
+
+  // Get all user groups
+  app.get('/api/rbac/groups', isAdmin, async (req, res) => {
+    try {
+      const groups = await rbac.getAllUserGroups();
+      res.json(groups);
+    } catch (error) {
+      console.error('Error fetching user groups:', error);
+      res.status(500).json({ message: 'Failed to fetch user groups' });
+    }
+  });
+
+  // Get a single group with all its permissions
+  app.get('/api/rbac/groups/:id', isAdmin, async (req, res) => {
+    try {
+      const group = await rbac.getGroupWithPermissions(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: 'Group not found' });
+      }
+      res.json(group);
+    } catch (error) {
+      console.error('Error fetching group:', error);
+      res.status(500).json({ message: 'Failed to fetch group' });
+    }
+  });
+
+  // Create a new user group
+  app.post('/api/rbac/groups', isAdmin, async (req, res) => {
+    try {
+      const { name, description, color } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: 'Group name is required' });
+      }
+      const group = await rbac.createUserGroup({ name, description, color });
+      res.status(201).json(group);
+    } catch (error: any) {
+      console.error('Error creating group:', error);
+      if (error.code === '23505') { // Unique constraint violation
+        return res.status(400).json({ message: 'A group with this name already exists' });
+      }
+      res.status(500).json({ message: 'Failed to create group' });
+    }
+  });
+
+  // Update a user group
+  app.patch('/api/rbac/groups/:id', isAdmin, async (req, res) => {
+    try {
+      const { name, description, color, sortOrder } = req.body;
+      const group = await rbac.updateUserGroup(req.params.id, { name, description, color, sortOrder });
+      if (!group) {
+        return res.status(404).json({ message: 'Group not found' });
+      }
+      res.json(group);
+    } catch (error: any) {
+      console.error('Error updating group:', error);
+      if (error.code === '23505') {
+        return res.status(400).json({ message: 'A group with this name already exists' });
+      }
+      res.status(500).json({ message: 'Failed to update group' });
+    }
+  });
+
+  // Delete a user group
+  app.delete('/api/rbac/groups/:id', isAdmin, async (req, res) => {
+    try {
+      const deleted = await rbac.deleteUserGroup(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Group not found' });
+      }
+      res.json({ message: 'Group deleted successfully' });
+    } catch (error: any) {
+      console.error('Error deleting group:', error);
+      if (error.message === 'Cannot delete system groups') {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: 'Failed to delete group' });
+    }
+  });
+
+  // Get group members
+  app.get('/api/rbac/groups/:id/members', isAdmin, async (req, res) => {
+    try {
+      const members = await rbac.getGroupMembers(req.params.id);
+      res.json(members);
+    } catch (error) {
+      console.error('Error fetching group members:', error);
+      res.status(500).json({ message: 'Failed to fetch group members' });
+    }
+  });
+
+  // Update group module access
+  app.put('/api/rbac/groups/:groupId/modules/:moduleId', isAdmin, async (req, res) => {
+    try {
+      const { hasAccess } = req.body;
+      await rbac.updateGroupModuleAccess(req.params.groupId, req.params.moduleId, hasAccess);
+      res.json({ message: 'Module access updated' });
+    } catch (error) {
+      console.error('Error updating module access:', error);
+      res.status(500).json({ message: 'Failed to update module access' });
+    }
+  });
+
+  // Update group feature permission
+  app.put('/api/rbac/groups/:groupId/features/:featureId', isAdmin, async (req, res) => {
+    try {
+      const { permissionLevel } = req.body;
+      if (!['none', 'view', 'edit', 'admin'].includes(permissionLevel)) {
+        return res.status(400).json({ message: 'Invalid permission level' });
+      }
+      await rbac.updateGroupFeaturePermission(req.params.groupId, req.params.featureId, permissionLevel);
+      res.json({ message: 'Feature permission updated' });
+    } catch (error) {
+      console.error('Error updating feature permission:', error);
+      res.status(500).json({ message: 'Failed to update feature permission' });
+    }
+  });
+
+  // Get all platform users with their group memberships
+  app.get('/api/rbac/users', isAdmin, async (req, res) => {
+    try {
+      const users = await rbac.getAllPlatformUsers();
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  });
+
+  // Get user's group memberships
+  app.get('/api/rbac/users/:userId/groups', isAdmin, async (req, res) => {
+    try {
+      const groups = await rbac.getUserGroupMemberships(req.params.userId);
+      res.json(groups);
+    } catch (error) {
+      console.error('Error fetching user groups:', error);
+      res.status(500).json({ message: 'Failed to fetch user groups' });
+    }
+  });
+
+  // Add user to group
+  app.post('/api/rbac/users/:userId/groups/:groupId', isAdmin, async (req: any, res) => {
+    try {
+      const assignedBy = req.user?.claims?.sub;
+      await rbac.addUserToGroup(req.params.userId, req.params.groupId, assignedBy);
+      res.json({ message: 'User added to group' });
+    } catch (error) {
+      console.error('Error adding user to group:', error);
+      res.status(500).json({ message: 'Failed to add user to group' });
+    }
+  });
+
+  // Remove user from group
+  app.delete('/api/rbac/users/:userId/groups/:groupId', isAdmin, async (req, res) => {
+    try {
+      await rbac.removeUserFromGroup(req.params.userId, req.params.groupId);
+      res.json({ message: 'User removed from group' });
+    } catch (error) {
+      console.error('Error removing user from group:', error);
+      res.status(500).json({ message: 'Failed to remove user from group' });
+    }
+  });
+
+  // Get current user's permissions (for frontend to check access)
+  app.get('/api/rbac/my-permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const permissions = await rbac.getUserPermissions(req);
+      res.json(permissions || { groups: [], moduleAccess: {}, featurePermissions: {} });
+    } catch (error) {
+      console.error('Error fetching user permissions:', error);
+      res.status(500).json({ message: 'Failed to fetch permissions' });
+    }
+  });
+
+  // Get all module features (for permission matrix UI)
+  app.get('/api/rbac/features', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          mf.id,
+          mf.module_id,
+          mf.feature_key,
+          mf.feature_name,
+          mf.description,
+          mf.sort_order,
+          pm.module_key,
+          pm.module_name
+        FROM module_features mf
+        INNER JOIN platform_modules pm ON mf.module_id = pm.id
+        WHERE mf.active = true
+        ORDER BY pm.sort_order, mf.sort_order
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching features:', error);
+      res.status(500).json({ message: 'Failed to fetch features' });
+    }
+  });
+
+  // =====================================================
   // LMS (LEARNING MANAGEMENT SYSTEM) ROUTES
   // =====================================================
 

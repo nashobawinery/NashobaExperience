@@ -45,6 +45,7 @@ import ComplianceAdminDashboard from "@/pages/compliance/ComplianceAdminDashboar
 
 // Platform Management Imports
 import ModuleDirectory from "@/pages/ModuleDirectory";
+import AccessControl from "@/pages/AccessControl";
 
 function AdminRoute() {
   const [, setLocation] = useLocation();
@@ -146,6 +147,24 @@ function ModuleDirectoryRoute() {
   }
 
   return <ModuleDirectory />;
+}
+
+function AccessControlRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <AccessControl />;
 }
 
 function ComplianceAdminRoute() {
@@ -283,6 +302,7 @@ function Router() {
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
         <Route path="/modules" component={ModuleDirectoryRoute} />
+        <Route path="/access-control" component={AccessControlRoute} />
         <Route path="/lms" component={LmsLearnerPortal} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />

@@ -30,6 +30,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Shield,
 } from "lucide-react";
 import type { PlatformModule } from "@shared/schema";
 
@@ -170,6 +171,14 @@ export default function ModuleDirectory() {
                 </p>
               </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/access-control")}
+              data-testid="button-access-control"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Access Control
+            </Button>
           </div>
         </div>
       </header>

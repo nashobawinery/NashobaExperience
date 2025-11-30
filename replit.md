@@ -113,3 +113,52 @@ Tax, Licensing, Regulatory, Insurance, Environmental, Health & Safety, Payroll, 
 - `POST /api/compliance/tasks/:id/duplicate` - Duplicate task for similar requirements
 - `GET /api/compliance/stats` - Get dashboard statistics
 - `GET /api/compliance/upcoming` - Get upcoming deadlines
+
+## Role-Based Access Control (RBAC)
+
+### Overview
+The platform features a comprehensive Role-Based Access Control system for managing user permissions across all modules. Accessible at `/access-control` by admins, with a link from the Module Directory header.
+
+### Features
+- **User Groups**: Create and manage groups with custom names, descriptions, and colors
+- **Module Access**: Toggle access to entire modules per group
+- **Feature Permissions**: Granular permission levels (none/view/edit/admin) for individual features within modules
+- **User Management**: View all platform users and their group memberships
+- **Default Groups**: Pre-seeded groups include Global Admin, Director, Manager, Staff, and Viewer
+
+### Permission Levels
+- **none**: No access to the feature
+- **view**: Read-only access
+- **edit**: Can modify data
+- **admin**: Full control including management functions
+
+### Database Schema
+- `user_groups`: User group definitions with name, description, color, and system flags
+- `group_memberships`: Links users to groups (many-to-many)
+- `group_module_access`: Module-level access grants per group
+- `group_feature_permissions`: Feature-level permission assignments per group
+- `module_features`: Catalog of all module features (35 features across 4 modules)
+
+### Permission Computation
+- Users inherit permissions from all groups they belong to
+- When a user belongs to multiple groups, the highest permission level wins
+- Global Admin group has admin access to all modules/features by default
+- Session-based permission caching for performance
+
+### API Endpoints
+- `GET /api/rbac/groups` - List all groups with member counts
+- `GET /api/rbac/groups/:id` - Get group with module access and feature permissions
+- `POST /api/rbac/groups` - Create new group
+- `PATCH /api/rbac/groups/:id` - Update group details
+- `DELETE /api/rbac/groups/:id` - Delete group (soft delete)
+- `PUT /api/rbac/groups/:groupId/modules/:moduleId` - Set module access
+- `PUT /api/rbac/groups/:groupId/features/:featureId` - Set feature permission
+- `GET /api/rbac/users` - List all users with their groups
+- `POST /api/rbac/users/:userId/groups/:groupId` - Add user to group
+- `DELETE /api/rbac/users/:userId/groups/:groupId` - Remove user from group
+- `GET /api/rbac/my-permissions` - Get current user's computed permissions
+- `GET /api/rbac/features` - List all module features
+
+### Implementation Files
+- `server/rbac.ts` - Permission computation service and database operations
+- `client/src/pages/AccessControl.tsx` - Admin UI for managing access control

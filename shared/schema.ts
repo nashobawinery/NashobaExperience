@@ -769,6 +769,98 @@ export const platformAuditLog = pgTable("platform_audit_log", {
 ]);
 
 // ============================================================================
+// ROLE-BASED ACCESS CONTROL (RBAC) TABLES
+// User groups with granular permissions per module and feature
+// ============================================================================
+
+// Permission level enum - defines access levels for features
+export const permissionLevelEnum = pgEnum("permission_level", ["none", "view", "edit", "admin"]);
+
+// User Groups - role-based groupings (e.g., "Director", "Staff", "Maintenance")
+export const userGroups = pgTable("user_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  description: text("description"),
+  color: varchar("color"), // For UI display
+  isSystemGroup: boolean("is_system_group").notNull().default(false), // Prevents deletion of built-in groups
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Group Memberships - links users to groups (many-to-many)
+export const groupMemberships = pgTable("group_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  groupId: varchar("group_id").notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  assignedBy: varchar("assigned_by").references(() => platformUsers.id),
+}, (table) => [
+  unique().on(table.userId, table.groupId),
+  index("idx_group_membership_user").on(table.userId),
+  index("idx_group_membership_group").on(table.groupId),
+]);
+
+// Module Features - catalog of features within each module
+export const moduleFeatures = pgTable("module_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  moduleId: varchar("module_id").notNull().references(() => platformModules.id, { onDelete: 'cascade' }),
+  featureKey: varchar("feature_key").notNull(), // e.g., 'tasks', 'archive', 'reports'
+  featureName: varchar("feature_name").notNull(), // e.g., 'Manage Tasks', 'Archive Tasks'
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.moduleId, table.featureKey),
+  index("idx_module_feature_module").on(table.moduleId),
+]);
+
+// Group Module Access - controls whether a group can access a module at all
+export const groupModuleAccess = pgTable("group_module_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  moduleId: varchar("module_id").notNull().references(() => platformModules.id, { onDelete: 'cascade' }),
+  hasAccess: boolean("has_access").notNull().default(false), // ON/OFF toggle for module
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.groupId, table.moduleId),
+  index("idx_group_module_group").on(table.groupId),
+  index("idx_group_module_module").on(table.moduleId),
+]);
+
+// Group Feature Permissions - granular permissions per feature within a module
+export const groupFeaturePermissions = pgTable("group_feature_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  featureId: varchar("feature_id").notNull().references(() => moduleFeatures.id, { onDelete: 'cascade' }),
+  permissionLevel: permissionLevelEnum("permission_level").notNull().default("none"), // none, view, edit, admin
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.groupId, table.featureId),
+  index("idx_group_feature_group").on(table.groupId),
+  index("idx_group_feature_feature").on(table.featureId),
+]);
+
+// User Permission Overrides - allows individual user overrides (optional, for exceptions)
+export const userPermissionOverrides = pgTable("user_permission_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  featureId: varchar("feature_id").notNull().references(() => moduleFeatures.id, { onDelete: 'cascade' }),
+  permissionLevel: permissionLevelEnum("permission_level").notNull(),
+  reason: text("reason"), // Why this override exists
+  grantedBy: varchar("granted_by").references(() => platformUsers.id),
+  expiresAt: timestamp("expires_at"), // Optional expiration for temporary access
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.userId, table.featureId),
+  index("idx_user_override_user").on(table.userId),
+]);
+
+// ============================================================================
 // LMS (LEARNING MANAGEMENT SYSTEM) TABLES
 // Mobile-first, microlearning-focused training platform
 // Inspired by hospitality LMS platforms like Opus.so
@@ -1104,6 +1196,14 @@ export const insertSharedEquipmentSchema = createInsertSchema(sharedEquipment).o
 export const insertSharedDocumentSchema = createInsertSchema(sharedDocuments).omit({ id: true, createdAt: true, updatedAt: true, approvedAt: true });
 export const insertPlatformAuditLogSchema = createInsertSchema(platformAuditLog).omit({ id: true, createdAt: true });
 
+// RBAC Insert schemas
+export const insertUserGroupSchema = createInsertSchema(userGroups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGroupMembershipSchema = createInsertSchema(groupMemberships).omit({ id: true, assignedAt: true });
+export const insertModuleFeatureSchema = createInsertSchema(moduleFeatures).omit({ id: true, createdAt: true });
+export const insertGroupModuleAccessSchema = createInsertSchema(groupModuleAccess).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGroupFeaturePermissionSchema = createInsertSchema(groupFeaturePermissions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserPermissionOverrideSchema = createInsertSchema(userPermissionOverrides).omit({ id: true, createdAt: true });
+
 // LMS Insert schemas
 export const insertLmsCategorySchema = createInsertSchema(lmsCategories).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLmsCourseSchema = createInsertSchema(lmsCourses).omit({ id: true, createdAt: true, updatedAt: true, publishedAt: true });
@@ -1279,6 +1379,25 @@ export type SharedDocument = typeof sharedDocuments.$inferSelect;
 
 export type InsertPlatformAuditLog = z.infer<typeof insertPlatformAuditLogSchema>;
 export type PlatformAuditLog = typeof platformAuditLog.$inferSelect;
+
+// RBAC Types
+export type InsertUserGroup = z.infer<typeof insertUserGroupSchema>;
+export type UserGroup = typeof userGroups.$inferSelect;
+
+export type InsertGroupMembership = z.infer<typeof insertGroupMembershipSchema>;
+export type GroupMembership = typeof groupMemberships.$inferSelect;
+
+export type InsertModuleFeature = z.infer<typeof insertModuleFeatureSchema>;
+export type ModuleFeature = typeof moduleFeatures.$inferSelect;
+
+export type InsertGroupModuleAccess = z.infer<typeof insertGroupModuleAccessSchema>;
+export type GroupModuleAccess = typeof groupModuleAccess.$inferSelect;
+
+export type InsertGroupFeaturePermission = z.infer<typeof insertGroupFeaturePermissionSchema>;
+export type GroupFeaturePermission = typeof groupFeaturePermissions.$inferSelect;
+
+export type InsertUserPermissionOverride = z.infer<typeof insertUserPermissionOverrideSchema>;
+export type UserPermissionOverride = typeof userPermissionOverrides.$inferSelect;
 
 // LMS Types
 export type InsertLmsCategory = z.infer<typeof insertLmsCategorySchema>;
