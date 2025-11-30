@@ -59,9 +59,11 @@ interface AdminHubProps {
 export default function AdminHub({ onBackToGuest }: AdminHubProps) {
   const [, setLocation] = useLocation();
 
-  const { data: modules, isLoading: modulesLoading } = useQuery<PlatformModule[]>({
+  const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
     queryKey: ['/api/platform/modules'],
   });
+
+  console.log('AdminHub modules:', { modules, modulesLoading, modulesError, count: modules?.length });
 
   const { data: kpis, isLoading: kpisLoading } = useQuery<{
     totalGuests: number;

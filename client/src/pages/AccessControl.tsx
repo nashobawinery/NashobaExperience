@@ -70,18 +70,18 @@ interface UserGroup {
 }
 
 interface ModuleAccess {
-  module_id: string;
-  module_key: string;
-  module_name: string;
-  has_access: boolean;
+  moduleId: string;
+  moduleKey: string;
+  moduleName: string;
+  hasAccess: boolean;
 }
 
 interface FeaturePermission {
-  feature_id: string;
-  module_id: string;
-  feature_key: string;
-  feature_name: string;
-  permission_level: 'none' | 'view' | 'edit' | 'admin';
+  featureId: string;
+  moduleId: string;
+  featureKey: string;
+  featureName: string;
+  permissionLevel: 'none' | 'view' | 'edit' | 'admin';
 }
 
 interface GroupWithPermissions extends UserGroup {
@@ -489,12 +489,12 @@ export default function AccessControl() {
 
   // Group features by module for display, preserving module order from moduleAccess
   const featuresByModule = groupDetails?.moduleAccess.map((module) => {
-    const features = groupDetails.featurePermissions.filter(f => f.module_id === module.module_id);
+    const features = groupDetails.featurePermissions.filter(f => f.moduleId === module.moduleId);
     return {
-      moduleId: module.module_id,
-      moduleKey: module.module_key,
-      moduleName: module.module_name,
-      hasAccess: module.has_access,
+      moduleId: module.moduleId,
+      moduleKey: module.moduleKey,
+      moduleName: module.moduleName,
+      hasAccess: module.hasAccess,
       features
     };
   }).filter(m => m.features.length > 0);
@@ -675,25 +675,25 @@ export default function AccessControl() {
                       <div className="space-y-3">
                         {groupDetails.moduleAccess.map((module) => (
                           <div 
-                            key={module.module_id}
+                            key={module.moduleId}
                             className="flex items-center justify-between p-3 border rounded-lg"
-                            data-testid={`module-access-${module.module_key}`}
+                            data-testid={`module-access-${module.moduleKey}`}
                           >
                             <div>
-                              <p className="font-medium">{module.module_name}</p>
-                              <p className="text-sm text-muted-foreground">{module.module_key}</p>
+                              <p className="font-medium">{module.moduleName}</p>
+                              <p className="text-sm text-muted-foreground">{module.moduleKey}</p>
                             </div>
                             <Switch
-                              checked={module.has_access}
+                              checked={module.hasAccess}
                               onCheckedChange={(checked) => {
                                 updateModuleAccessMutation.mutate({
                                   groupId: selectedGroup,
-                                  moduleId: module.module_id,
+                                  moduleId: module.moduleId,
                                   hasAccess: checked
                                 });
                               }}
                               disabled={updateModuleAccessMutation.isPending}
-                              data-testid={`switch-module-${module.module_key}`}
+                              data-testid={`switch-module-${module.moduleKey}`}
                             />
                           </div>
                         ))}
@@ -722,29 +722,29 @@ export default function AccessControl() {
                               </TableHeader>
                               <TableBody>
                                 {moduleData.features.map((feature) => (
-                                  <TableRow key={feature.feature_id}>
+                                  <TableRow key={feature.featureId}>
                                     <TableCell>
-                                      <span className="font-medium">{feature.feature_name}</span>
+                                      <span className="font-medium">{feature.featureName}</span>
                                     </TableCell>
                                     {(['none', 'view', 'edit', 'admin'] as const).map((level) => (
                                       <TableCell key={level} className="text-center">
                                         <button
                                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                            feature.permission_level === level
+                                            feature.permissionLevel === level
                                               ? 'border-primary bg-primary text-primary-foreground'
                                               : 'border-muted-foreground/30 hover:border-primary/50'
                                           }`}
                                           onClick={() => {
                                             updateFeaturePermissionMutation.mutate({
                                               groupId: selectedGroup,
-                                              featureId: feature.feature_id,
+                                              featureId: feature.featureId,
                                               permissionLevel: level
                                             });
                                           }}
                                           disabled={updateFeaturePermissionMutation.isPending}
-                                          data-testid={`permission-${feature.feature_key}-${level}`}
+                                          data-testid={`permission-${feature.featureKey}-${level}`}
                                         >
-                                          {feature.permission_level === level && (
+                                          {feature.permissionLevel === level && (
                                             <Check className="h-4 w-4" />
                                           )}
                                         </button>
