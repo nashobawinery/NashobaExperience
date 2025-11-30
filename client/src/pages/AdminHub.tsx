@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
-  Home, Settings, Bell, LayoutGrid, Headphones, Scale
+  Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield
 } from "lucide-react";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
@@ -107,6 +107,15 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
             >
               <LayoutGrid className="h-4 w-4 mr-2" />
               Module Directory
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setLocation('/access-control')}
+              data-testid="button-access-control"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Access Control
             </Button>
             <Button variant="ghost" size="icon" data-testid="button-notifications">
               <Bell className="h-5 w-5" />
