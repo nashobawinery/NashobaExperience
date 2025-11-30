@@ -118,7 +118,7 @@ function AdminHubRoute() {
           <div className="bg-card border rounded-lg p-6 space-y-4">
             <Button 
               className="w-full" 
-              onClick={() => window.location.href = '/api/login'}
+              onClick={() => window.location.href = '/api/login?returnTo=/admin-hub'}
               data-testid="button-login"
             >
               Sign in with Replit
