@@ -869,6 +869,99 @@ export function exportAllDataToExcel(data: {
     XLSX.utils.book_append_sheet(workbook, logSheet, 'B2bEmailAutomationLogs');
   }
 
+  // RBAC: User Groups sheet (if provided)
+  if ((data as any).userGroups && (data as any).userGroups.length > 0) {
+    const groupData = (data as any).userGroups.map((group: any) => ({
+      name: group.name,
+      description: group.description || '',
+      color: group.color || '',
+      is_system: group.is_system_group || group.isSystem ? 'Yes' : 'No',
+    }));
+    const groupSheet = XLSX.utils.json_to_sheet(groupData);
+    XLSX.utils.book_append_sheet(workbook, groupSheet, 'UserGroups');
+  }
+
+  // RBAC: Platform Users sheet (if provided)
+  if ((data as any).platformUsers && (data as any).platformUsers.length > 0) {
+    const userData = (data as any).platformUsers.map((user: any) => ({
+      email: user.email,
+      display_name: user.display_name || user.displayName || '',
+      first_name: user.first_name || user.firstName || '',
+      last_name: user.last_name || user.lastName || '',
+      role: user.global_role || user.globalRole || 'staff',
+      is_active: (user.active !== false && user.isActive !== false) ? 'Yes' : 'No',
+    }));
+    const userSheet = XLSX.utils.json_to_sheet(userData);
+    XLSX.utils.book_append_sheet(workbook, userSheet, 'PlatformUsers');
+  }
+
+  // RBAC: Platform Modules sheet (if provided)
+  if ((data as any).platformModules && (data as any).platformModules.length > 0) {
+    const moduleData = (data as any).platformModules.map((mod: any) => ({
+      module_key: mod.module_key || mod.moduleKey,
+      module_name: mod.module_name || mod.moduleName,
+      description: mod.description || '',
+      icon: mod.icon || '',
+      route: mod.route || '',
+      sort_order: mod.sort_order || mod.sortOrder || 0,
+      is_active: (mod.is_active !== false && mod.isActive !== false) ? 'Yes' : 'No',
+      progress: mod.progress || 'not_started',
+      notes: mod.notes || '',
+    }));
+    const moduleSheet = XLSX.utils.json_to_sheet(moduleData);
+    XLSX.utils.book_append_sheet(workbook, moduleSheet, 'PlatformModules');
+  }
+
+  // RBAC: Module Features sheet (if provided) - uses lookups for natural key
+  if ((data as any).moduleFeatures && (data as any).moduleFeatures.length > 0) {
+    const lookups = (data as any)._lookups || {};
+    const featureData = (data as any).moduleFeatures.map((feat: any) => {
+      const mod = lookups.platformModules?.find((m: any) => m.id === feat.moduleId || m.id === feat.module_id);
+      return {
+        module_key: mod?.module_key || mod?.moduleKey || '',
+        feature_key: feat.feature_key || feat.featureKey,
+        feature_name: feat.feature_name || feat.featureName,
+        description: feat.description || '',
+      };
+    });
+    const featureSheet = XLSX.utils.json_to_sheet(featureData);
+    XLSX.utils.book_append_sheet(workbook, featureSheet, 'ModuleFeatures');
+  }
+
+  // RBAC: Group Module Access sheet (if provided) - uses lookups for natural keys
+  if ((data as any).groupModuleAccess && (data as any).groupModuleAccess.length > 0) {
+    const lookups = (data as any)._lookups || {};
+    const accessData = (data as any).groupModuleAccess.map((access: any) => {
+      const group = lookups.userGroups?.find((g: any) => g.id === access.groupId || g.id === access.group_id);
+      const mod = lookups.platformModules?.find((m: any) => m.id === access.moduleId || m.id === access.module_id);
+      return {
+        group_name: group?.name || '',
+        module_key: mod?.module_key || mod?.moduleKey || '',
+        has_access: (access.hasAccess || access.has_access) ? 'Yes' : 'No',
+      };
+    });
+    const accessSheet = XLSX.utils.json_to_sheet(accessData);
+    XLSX.utils.book_append_sheet(workbook, accessSheet, 'GroupModuleAccess');
+  }
+
+  // RBAC: Group Feature Permissions sheet (if provided) - uses lookups for natural keys
+  if ((data as any).groupFeaturePermissions && (data as any).groupFeaturePermissions.length > 0) {
+    const lookups = (data as any)._lookups || {};
+    const permData = (data as any).groupFeaturePermissions.map((perm: any) => {
+      const group = lookups.userGroups?.find((g: any) => g.id === perm.groupId || g.id === perm.group_id);
+      const feature = lookups.moduleFeatures?.find((f: any) => f.id === perm.featureId || f.id === perm.feature_id);
+      const mod = feature ? lookups.platformModules?.find((m: any) => m.id === feature.moduleId || m.id === feature.module_id) : null;
+      return {
+        group_name: group?.name || '',
+        module_key: mod?.module_key || mod?.moduleKey || '',
+        feature_key: feature?.feature_key || feature?.featureKey || '',
+        permission_level: perm.permissionLevel || perm.permission_level || 'none',
+      };
+    });
+    const permSheet = XLSX.utils.json_to_sheet(permData);
+    XLSX.utils.book_append_sheet(workbook, permSheet, 'GroupFeaturePermissions');
+  }
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -897,6 +990,12 @@ export interface ParseAllDataResult {
   b2bCommissions: any[];
   b2bEmailTemplates: any[];
   b2bEmailAutomationLogs: any[];
+  userGroups: any[];
+  platformUsers: any[];
+  platformModules: any[];
+  moduleFeatures: any[];
+  groupModuleAccess: any[];
+  groupFeaturePermissions: any[];
   errors: string[];
   warnings: string[];
 }
@@ -927,6 +1026,12 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     b2bCommissions: [],
     b2bEmailTemplates: [],
     b2bEmailAutomationLogs: [],
+    userGroups: [],
+    platformUsers: [],
+    platformModules: [],
+    moduleFeatures: [],
+    groupModuleAccess: [],
+    groupFeaturePermissions: [],
     errors: [],
     warnings: [],
   };
@@ -1498,6 +1603,84 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
     }));
   }
 
+  // Parse RBAC: User Groups sheet
+  if (workbook.SheetNames.includes('UserGroups')) {
+    const sheet = workbook.Sheets['UserGroups'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.userGroups = rows.filter(row => row.name?.trim()).map(row => ({
+      name: row.name?.trim() || '',
+      description: row.description?.trim() || null,
+      color: row.color?.trim() || '#6366f1',
+      isSystem: normalizeBool(row.is_system ?? row.isSystem ?? false),
+    }));
+  }
+
+  // Parse RBAC: Platform Users sheet
+  if (workbook.SheetNames.includes('PlatformUsers')) {
+    const sheet = workbook.Sheets['PlatformUsers'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.platformUsers = rows.filter(row => row.email?.trim()).map(row => ({
+      email: row.email?.trim() || '',
+      displayName: row.display_name?.trim() || row.displayName?.trim() || null,
+      firstName: row.first_name?.trim() || row.firstName?.trim() || null,
+      lastName: row.last_name?.trim() || row.lastName?.trim() || null,
+      globalRole: row.role?.trim() || row.global_role?.trim() || row.globalRole?.trim() || 'staff',
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? row.active ?? true),
+    }));
+  }
+
+  // Parse RBAC: Platform Modules sheet
+  if (workbook.SheetNames.includes('PlatformModules')) {
+    const sheet = workbook.Sheets['PlatformModules'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.platformModules = rows.filter(row => row.module_key?.trim() || row.moduleKey?.trim()).map(row => ({
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      moduleName: row.module_name?.trim() || row.moduleName?.trim() || '',
+      description: row.description?.trim() || null,
+      icon: row.icon?.trim() || null,
+      route: row.route?.trim() || null,
+      sortOrder: toNumber(row.sort_order ?? row.sortOrder, 0),
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? true),
+      progress: row.progress?.trim() || 'not_started',
+      notes: row.notes?.trim() || null,
+    }));
+  }
+
+  // Parse RBAC: Module Features sheet
+  if (workbook.SheetNames.includes('ModuleFeatures')) {
+    const sheet = workbook.Sheets['ModuleFeatures'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.moduleFeatures = rows.filter(row => row.feature_key?.trim() || row.featureKey?.trim()).map(row => ({
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      featureKey: row.feature_key?.trim() || row.featureKey?.trim() || '',
+      featureName: row.feature_name?.trim() || row.featureName?.trim() || '',
+      description: row.description?.trim() || null,
+    }));
+  }
+
+  // Parse RBAC: Group Module Access sheet
+  if (workbook.SheetNames.includes('GroupModuleAccess')) {
+    const sheet = workbook.Sheets['GroupModuleAccess'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.groupModuleAccess = rows.filter(row => (row.group_name?.trim() || row.groupName?.trim()) && (row.module_key?.trim() || row.moduleKey?.trim())).map(row => ({
+      groupName: row.group_name?.trim() || row.groupName?.trim() || '',
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      hasAccess: normalizeBool(row.has_access ?? row.hasAccess ?? false),
+    }));
+  }
+
+  // Parse RBAC: Group Feature Permissions sheet
+  if (workbook.SheetNames.includes('GroupFeaturePermissions')) {
+    const sheet = workbook.Sheets['GroupFeaturePermissions'];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    result.groupFeaturePermissions = rows.filter(row => (row.group_name?.trim() || row.groupName?.trim()) && (row.feature_key?.trim() || row.featureKey?.trim())).map(row => ({
+      groupName: row.group_name?.trim() || row.groupName?.trim() || '',
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      featureKey: row.feature_key?.trim() || row.featureKey?.trim() || '',
+      permissionLevel: row.permission_level?.trim() || row.permissionLevel?.trim() || 'none',
+    }));
+  }
+
   return result;
 }
 
@@ -1648,6 +1831,51 @@ const TABLE_ADAPTERS: Record<string, TableAdapter> = {
       description: row.description?.trim() || null,
       color: row.color?.trim() || '#6366f1',
       isSystem: normalizeBool(row.is_system ?? row.isSystem ?? false),
+    }),
+  },
+  platformUsers: {
+    fromImportRow: (row) => ({
+      email: row.email?.trim() || '',
+      displayName: row.display_name?.trim() || row.displayName?.trim() || null,
+      firstName: row.first_name?.trim() || row.firstName?.trim() || null,
+      lastName: row.last_name?.trim() || row.lastName?.trim() || null,
+      globalRole: row.global_role?.trim() || row.globalRole?.trim() || row.role?.trim() || 'staff',
+      isActive: normalizeBool(row.is_active ?? row.isActive ?? row.active ?? true),
+    }),
+  },
+  groupModuleAccess: {
+    toExportRow: (record, lookups) => {
+      const group = lookups?.userGroups?.find((g: any) => g.id === record.groupId);
+      const module = lookups?.platformModules?.find((m: any) => m.id === record.moduleId);
+      return {
+        groupName: group?.name || '',
+        moduleKey: module?.moduleKey || '',
+        hasAccess: record.hasAccess,
+      };
+    },
+    fromImportRow: (row) => ({
+      groupName: row.group_name?.trim() || row.groupName?.trim() || '',
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      hasAccess: normalizeBool(row.has_access ?? row.hasAccess ?? false),
+    }),
+  },
+  groupFeaturePermissions: {
+    toExportRow: (record, lookups) => {
+      const group = lookups?.userGroups?.find((g: any) => g.id === record.groupId);
+      const feature = lookups?.moduleFeatures?.find((f: any) => f.id === record.featureId);
+      const module = feature ? lookups?.platformModules?.find((m: any) => m.id === feature.moduleId) : null;
+      return {
+        groupName: group?.name || '',
+        moduleKey: module?.moduleKey || '',
+        featureKey: feature?.featureKey || '',
+        permissionLevel: record.permissionLevel,
+      };
+    },
+    fromImportRow: (row) => ({
+      groupName: row.group_name?.trim() || row.groupName?.trim() || '',
+      moduleKey: row.module_key?.trim() || row.moduleKey?.trim() || '',
+      featureKey: row.feature_key?.trim() || row.featureKey?.trim() || '',
+      permissionLevel: row.permission_level?.trim() || row.permissionLevel?.trim() || 'none',
     }),
   },
   moduleFeatures: {

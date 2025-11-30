@@ -742,3 +742,216 @@ export async function getSecuritySyncStatus(): Promise<{
     needsSync: parseInt(stats.missing_module_access) > 0 || parseInt(stats.missing_feature_permissions) > 0
   };
 }
+
+/**
+ * Get all platform modules for sync export
+ */
+export async function getAllPlatformModules(): Promise<any[]> {
+  const result = await db.execute(sql`
+    SELECT * FROM platform_modules ORDER BY sort_order, module_name
+  `);
+  return result.rows;
+}
+
+/**
+ * Get all module features for sync export
+ */
+export async function getAllModuleFeatures(): Promise<any[]> {
+  const result = await db.execute(sql`
+    SELECT * FROM module_features ORDER BY module_id, sort_order, feature_name
+  `);
+  return result.rows;
+}
+
+/**
+ * Get all group module access entries for sync export
+ */
+export async function getAllGroupModuleAccess(): Promise<any[]> {
+  const result = await db.execute(sql`
+    SELECT 
+      gma.id,
+      gma.group_id as "groupId",
+      gma.module_id as "moduleId",
+      gma.has_access as "hasAccess",
+      gma.created_at as "createdAt",
+      gma.updated_at as "updatedAt"
+    FROM group_module_access gma
+  `);
+  return result.rows;
+}
+
+/**
+ * Get all group feature permissions for sync export
+ */
+export async function getAllGroupFeaturePermissions(): Promise<any[]> {
+  const result = await db.execute(sql`
+    SELECT 
+      gfp.id,
+      gfp.group_id as "groupId",
+      gfp.feature_id as "featureId",
+      gfp.permission_level as "permissionLevel",
+      gfp.created_at as "createdAt",
+      gfp.updated_at as "updatedAt"
+    FROM group_feature_permissions gfp
+  `);
+  return result.rows;
+}
+
+/**
+ * Upsert a platform user by email (for sync import)
+ */
+export async function upsertPlatformUserByEmail(data: {
+  email: string;
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  globalRole?: string;
+  isActive?: boolean;
+}): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO platform_users (email, first_name, last_name, global_role, active)
+    VALUES (${data.email}, ${data.firstName || null}, ${data.lastName || null}, ${data.globalRole || 'staff'}, ${data.isActive !== false})
+    ON CONFLICT (email) DO UPDATE SET
+      first_name = COALESCE(EXCLUDED.first_name, platform_users.first_name),
+      last_name = COALESCE(EXCLUDED.last_name, platform_users.last_name),
+      global_role = EXCLUDED.global_role,
+      active = EXCLUDED.active,
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Upsert a user group by name (for sync import)
+ */
+export async function upsertUserGroupByName(data: {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  isSystem?: boolean;
+}): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO user_groups (name, description, color, is_system_group)
+    VALUES (${data.name}, ${data.description || null}, ${data.color || '#6366f1'}, ${data.isSystem || false})
+    ON CONFLICT (name) DO UPDATE SET
+      description = COALESCE(EXCLUDED.description, user_groups.description),
+      color = COALESCE(EXCLUDED.color, user_groups.color),
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Upsert a platform module by key (for sync import)
+ */
+export async function upsertPlatformModuleByKey(data: {
+  moduleKey: string;
+  moduleName: string;
+  description?: string | null;
+  icon?: string | null;
+  route?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  progress?: string | null;
+  notes?: string | null;
+}): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO platform_modules (module_key, module_name, description, icon, route, sort_order, is_active, progress, notes)
+    VALUES (${data.moduleKey}, ${data.moduleName}, ${data.description || null}, ${data.icon || null}, ${data.route || null}, ${data.sortOrder || 0}, ${data.isActive !== false}, ${data.progress || 'not_started'}, ${data.notes || null})
+    ON CONFLICT (module_key) DO UPDATE SET
+      module_name = EXCLUDED.module_name,
+      description = COALESCE(EXCLUDED.description, platform_modules.description),
+      icon = COALESCE(EXCLUDED.icon, platform_modules.icon),
+      route = COALESCE(EXCLUDED.route, platform_modules.route),
+      sort_order = EXCLUDED.sort_order,
+      is_active = EXCLUDED.is_active,
+      progress = COALESCE(EXCLUDED.progress, platform_modules.progress),
+      notes = COALESCE(EXCLUDED.notes, platform_modules.notes),
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Upsert a module feature by key (for sync import)
+ */
+export async function upsertModuleFeatureByKey(moduleId: string, data: {
+  featureKey: string;
+  featureName: string;
+  description?: string | null;
+}): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO module_features (module_id, feature_key, feature_name, description)
+    VALUES (${moduleId}, ${data.featureKey}, ${data.featureName}, ${data.description || null})
+    ON CONFLICT (feature_key) DO UPDATE SET
+      module_id = EXCLUDED.module_id,
+      feature_name = EXCLUDED.feature_name,
+      description = COALESCE(EXCLUDED.description, module_features.description),
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Upsert group module access by group and module (for sync import)
+ */
+export async function upsertGroupModuleAccessByKeys(groupId: string, moduleId: string, hasAccess: boolean): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO group_module_access (group_id, module_id, has_access)
+    VALUES (${groupId}, ${moduleId}, ${hasAccess})
+    ON CONFLICT (group_id, module_id) DO UPDATE SET
+      has_access = EXCLUDED.has_access,
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Upsert group feature permission by group and feature (for sync import)
+ */
+export async function upsertGroupFeaturePermissionByKeys(groupId: string, featureId: string, permissionLevel: string): Promise<any> {
+  const result = await db.execute(sql`
+    INSERT INTO group_feature_permissions (group_id, feature_id, permission_level)
+    VALUES (${groupId}, ${featureId}, ${permissionLevel})
+    ON CONFLICT (group_id, feature_id) DO UPDATE SET
+      permission_level = EXCLUDED.permission_level,
+      updated_at = NOW()
+    RETURNING *
+  `);
+  return result.rows[0];
+}
+
+/**
+ * Get group ID by name (for sync import FK resolution)
+ */
+export async function getGroupIdByName(name: string): Promise<string | null> {
+  const result = await db.execute(sql`
+    SELECT id FROM user_groups WHERE LOWER(name) = LOWER(${name})
+  `);
+  return result.rows[0]?.id || null;
+}
+
+/**
+ * Get module ID by key (for sync import FK resolution)
+ */
+export async function getModuleIdByKey(moduleKey: string): Promise<string | null> {
+  const result = await db.execute(sql`
+    SELECT id FROM platform_modules WHERE LOWER(module_key) = LOWER(${moduleKey})
+  `);
+  return result.rows[0]?.id || null;
+}
+
+/**
+ * Get feature ID by key (for sync import FK resolution)
+ */
+export async function getFeatureIdByKey(featureKey: string): Promise<string | null> {
+  const result = await db.execute(sql`
+    SELECT id FROM module_features WHERE LOWER(feature_key) = LOWER(${featureKey})
+  `);
+  return result.rows[0]?.id || null;
+}

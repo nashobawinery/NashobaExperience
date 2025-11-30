@@ -1445,8 +1445,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data.b2bEmailAutomationLogs = await storage.getEmailAutomationLogs(undefined, 10000);
       }
 
+      // RBAC tables - need lookups for natural key resolution
+      const rbac = await import('./rbac');
+      let rbacLookups: any = {};
+      
+      // Always load lookups if any RBAC permission tables are requested
+      if (tableSet.has('groupModuleAccess') || tableSet.has('groupFeaturePermissions') || tableSet.has('moduleFeatures')) {
+        rbacLookups.userGroups = await rbac.getAllUserGroups();
+        rbacLookups.platformModules = await rbac.getAllPlatformModules();
+        rbacLookups.moduleFeatures = await rbac.getAllModuleFeatures();
+      }
+      
+      if (tableSet.has('userGroups')) {
+        data.userGroups = await rbac.getAllUserGroups();
+      }
+      if (tableSet.has('platformUsers')) {
+        data.platformUsers = await rbac.getAllPlatformUsers();
+      }
+      if (tableSet.has('platformModules')) {
+        data.platformModules = await rbac.getAllPlatformModules();
+      }
+      if (tableSet.has('moduleFeatures')) {
+        const features = await rbac.getAllModuleFeatures();
+        data.moduleFeatures = features;
+        data._lookups = { ...data._lookups, platformModules: rbacLookups.platformModules };
+      }
+      if (tableSet.has('groupModuleAccess')) {
+        const allModuleAccess = await rbac.getAllGroupModuleAccess();
+        data.groupModuleAccess = allModuleAccess;
+        data._lookups = { 
+          ...data._lookups, 
+          userGroups: rbacLookups.userGroups,
+          platformModules: rbacLookups.platformModules 
+        };
+      }
+      if (tableSet.has('groupFeaturePermissions')) {
+        const allFeaturePerms = await rbac.getAllGroupFeaturePermissions();
+        data.groupFeaturePermissions = allFeaturePerms;
+        data._lookups = { 
+          ...data._lookups, 
+          userGroups: rbacLookups.userGroups,
+          platformModules: rbacLookups.platformModules,
+          moduleFeatures: rbacLookups.moduleFeatures
+        };
+      }
+
       const { exportAllDataToExcel } = await import("./excel-import");
-      const buffer = exportAllDataToExcel(data);
+      const buffer = exportAllDataToExcel(data, data._lookups);
       
       const timestamp = new Date().toISOString().split('T')[0];
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1878,6 +1923,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         results.summary.b2bEmailAutomationLogs = success;
+      }
+
+      // RBAC TABLES - Import with natural key resolution
+      const rbacImport = await import('./rbac');
+
+      // Import platform modules first (needed for feature FK resolution)
+      if (tableSet.has('platformModules')) {
+        let success = 0;
+        for (const mod of parseResult.platformModules) {
+          try {
+            await rbacImport.upsertPlatformModuleByKey(mod);
+            success++;
+          } catch (error) {
+            results.errors.push(`Module "${mod.moduleKey}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.platformModules = success;
+      }
+
+      // Import user groups (needed for access/permission FK resolution)
+      if (tableSet.has('userGroups')) {
+        let success = 0;
+        for (const group of parseResult.userGroups) {
+          try {
+            await rbacImport.upsertUserGroupByName(group);
+            success++;
+          } catch (error) {
+            results.errors.push(`Group "${group.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.userGroups = success;
+      }
+
+      // Import platform users
+      if (tableSet.has('platformUsers')) {
+        let success = 0;
+        for (const user of parseResult.platformUsers) {
+          try {
+            await rbacImport.upsertPlatformUserByEmail(user);
+            success++;
+          } catch (error) {
+            results.errors.push(`User "${user.email}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.platformUsers = success;
+      }
+
+      // Import module features (with FK resolution to module)
+      if (tableSet.has('moduleFeatures')) {
+        let success = 0;
+        for (const feature of parseResult.moduleFeatures) {
+          try {
+            const moduleId = await rbacImport.getModuleIdByKey(feature.moduleKey);
+            if (!moduleId) {
+              results.warnings.push(`Feature "${feature.featureKey}": Module "${feature.moduleKey}" not found`);
+              continue;
+            }
+            await rbacImport.upsertModuleFeatureByKey(moduleId, feature);
+            success++;
+          } catch (error) {
+            results.errors.push(`Feature "${feature.featureKey}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.moduleFeatures = success;
+      }
+
+      // Import group module access (with FK resolution)
+      if (tableSet.has('groupModuleAccess')) {
+        let success = 0;
+        for (const access of parseResult.groupModuleAccess) {
+          try {
+            const groupId = await rbacImport.getGroupIdByName(access.groupName);
+            const moduleId = await rbacImport.getModuleIdByKey(access.moduleKey);
+            if (!groupId) {
+              results.warnings.push(`Module Access: Group "${access.groupName}" not found`);
+              continue;
+            }
+            if (!moduleId) {
+              results.warnings.push(`Module Access: Module "${access.moduleKey}" not found`);
+              continue;
+            }
+            await rbacImport.upsertGroupModuleAccessByKeys(groupId, moduleId, access.hasAccess);
+            success++;
+          } catch (error) {
+            results.errors.push(`Module Access for "${access.groupName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.groupModuleAccess = success;
+      }
+
+      // Import group feature permissions (with FK resolution)
+      if (tableSet.has('groupFeaturePermissions')) {
+        let success = 0;
+        for (const perm of parseResult.groupFeaturePermissions) {
+          try {
+            const groupId = await rbacImport.getGroupIdByName(perm.groupName);
+            const featureId = await rbacImport.getFeatureIdByKey(perm.featureKey);
+            if (!groupId) {
+              results.warnings.push(`Feature Permission: Group "${perm.groupName}" not found`);
+              continue;
+            }
+            if (!featureId) {
+              results.warnings.push(`Feature Permission: Feature "${perm.featureKey}" not found`);
+              continue;
+            }
+            await rbacImport.upsertGroupFeaturePermissionByKeys(groupId, featureId, perm.permissionLevel);
+            success++;
+          } catch (error) {
+            results.errors.push(`Feature Permission for "${perm.groupName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        results.summary.groupFeaturePermissions = success;
       }
 
       res.json(results);
