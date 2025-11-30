@@ -4230,6 +4230,219 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Set password for a platform user (admin only)
+  app.post('/api/rbac/users/:id/set-password', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+
+      if (!password || password.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      }
+
+      // Check if user exists
+      const existingUser = await db.execute(sql`
+        SELECT id, email FROM platform_users WHERE id = ${id}
+      `);
+      
+      if (existingUser.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Hash the password
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      await db.execute(sql`
+        UPDATE platform_users
+        SET password_hash = ${passwordHash}, updated_at = NOW()
+        WHERE id = ${id}
+      `);
+
+      res.json({ message: 'Password set successfully' });
+    } catch (error) {
+      console.error('Error setting password:', error);
+      res.status(500).json({ message: 'Failed to set password' });
+    }
+  });
+
+  // Request password reset (public endpoint)
+  app.post('/api/auth/request-password-reset', async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+      }
+
+      // Check if user exists
+      const userResult = await db.execute(sql`
+        SELECT id, email, first_name FROM platform_users WHERE email = ${email}
+      `);
+      
+      if (userResult.rows.length === 0) {
+        // Don't reveal if user exists - always return success
+        return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+      }
+
+      const user = userResult.rows[0] as { id: string; email: string; first_name: string };
+
+      // Generate a secure random token
+      const token = crypto.randomUUID() + '-' + crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Delete any existing tokens for this user
+      await db.execute(sql`
+        DELETE FROM password_reset_tokens WHERE user_id = ${user.id}
+      `);
+
+      // Create new token
+      await db.execute(sql`
+        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+        VALUES (${user.id}, ${token}, ${expiresAt})
+      `);
+
+      // Send email with reset link
+      const resetUrl = `${process.env.REPLIT_DEV_DOMAIN ? 'https://' + process.env.REPLIT_DEV_DOMAIN : 'http://localhost:5000'}/reset-password?token=${token}`;
+      
+      if (process.env.SENDGRID_API_KEY) {
+        const sgMail = await import('@sendgrid/mail');
+        sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
+        
+        const msg = {
+          to: user.email,
+          from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobawinery.com',
+          subject: 'Password Reset Request - Nashoba Valley Operations',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #7c2d12;">Password Reset Request</h2>
+              <p>Hello ${user.first_name},</p>
+              <p>You requested to reset your password for the Nashoba Valley Operations Platform.</p>
+              <p>Click the button below to set a new password:</p>
+              <a href="${resetUrl}" style="display: inline-block; background-color: #7c2d12; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Reset Password</a>
+              <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
+              <p style="color: #666; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+              <p style="color: #999; font-size: 12px;">Nashoba Valley Operations Platform</p>
+            </div>
+          `,
+        };
+
+        await sgMail.default.send(msg);
+        console.log('Password reset email sent to:', user.email);
+      } else {
+        console.log('SendGrid not configured. Reset URL:', resetUrl);
+      }
+
+      res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      res.status(500).json({ message: 'Failed to process password reset request' });
+    }
+  });
+
+  // Verify password reset token
+  app.get('/api/auth/verify-reset-token', async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token) {
+        return res.status(400).json({ valid: false, message: 'Token is required' });
+      }
+
+      const result = await db.execute(sql`
+        SELECT prt.*, pu.email, pu.first_name
+        FROM password_reset_tokens prt
+        JOIN platform_users pu ON prt.user_id = pu.id
+        WHERE prt.token = ${token as string}
+          AND prt.expires_at > NOW()
+          AND prt.used_at IS NULL
+      `);
+
+      if (result.rows.length === 0) {
+        return res.json({ valid: false, message: 'Invalid or expired token' });
+      }
+
+      const tokenData = result.rows[0] as { email: string; first_name: string };
+      res.json({ valid: true, email: tokenData.email, firstName: tokenData.first_name });
+    } catch (error) {
+      console.error('Error verifying reset token:', error);
+      res.status(500).json({ valid: false, message: 'Failed to verify token' });
+    }
+  });
+
+  // Reset password with token (public endpoint)
+  app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+      const { token, password } = req.body;
+
+      if (!token || !password) {
+        return res.status(400).json({ message: 'Token and password are required' });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      }
+
+      // Find valid token
+      const tokenResult = await db.execute(sql`
+        SELECT * FROM password_reset_tokens
+        WHERE token = ${token}
+          AND expires_at > NOW()
+          AND used_at IS NULL
+      `);
+
+      if (tokenResult.rows.length === 0) {
+        return res.status(400).json({ message: 'Invalid or expired reset token' });
+      }
+
+      const resetToken = tokenResult.rows[0] as { id: string; user_id: string };
+
+      // Hash the new password
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Update user's password
+      await db.execute(sql`
+        UPDATE platform_users
+        SET password_hash = ${passwordHash}, updated_at = NOW()
+        WHERE id = ${resetToken.user_id}
+      `);
+
+      // Mark token as used
+      await db.execute(sql`
+        UPDATE password_reset_tokens
+        SET used_at = NOW()
+        WHERE id = ${resetToken.id}
+      `);
+
+      res.json({ message: 'Password has been reset successfully' });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      res.status(500).json({ message: 'Failed to reset password' });
+    }
+  });
+
+  // Check if user has password set
+  app.get('/api/rbac/users/:id/has-password', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const result = await db.execute(sql`
+        SELECT password_hash IS NOT NULL as has_password
+        FROM platform_users
+        WHERE id = ${id}
+      `);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json({ hasPassword: (result.rows[0] as any).has_password });
+    } catch (error) {
+      console.error('Error checking password status:', error);
+      res.status(500).json({ message: 'Failed to check password status' });
+    }
+  });
+
   // Get current user's permissions (for frontend to check access)
   app.get('/api/rbac/my-permissions', isAuthenticated, async (req: any, res) => {
     try {
