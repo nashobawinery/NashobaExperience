@@ -9,6 +9,13 @@ import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
+import { 
+  getUserPermissions, 
+  isGlobalAdmin,
+  hasModuleAccess,
+  hasFeaturePermission,
+  type UserPermissions 
+} from "./rbac";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
@@ -57,7 +64,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      
+      // Get RBAC permissions for the user
+      const permissions = await getUserPermissions(req);
+      
+      // Return user with RBAC permissions
+      res.json({
+        ...user,
+        rbac: permissions ? {
+          groups: permissions.groups,
+          moduleAccess: permissions.moduleAccess,
+          featurePermissions: permissions.featurePermissions,
+          isGlobalAdmin: isGlobalAdmin(permissions)
+        } : null
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
