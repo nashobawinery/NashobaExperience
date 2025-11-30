@@ -297,13 +297,13 @@ export default function AccessControl() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-6 px-4 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
           <Link href="/modules">
             <Button variant="ghost" size="icon" data-testid="button-back-modules">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[200px]">
             <h1 className="text-2xl font-bold" data-testid="text-page-title">Access Control</h1>
             <p className="text-muted-foreground">Manage user groups and permissions across all modules</p>
           </div>
@@ -340,9 +340,9 @@ export default function AccessControl() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col md:flex-row gap-6">
           {/* Groups List */}
-          <Card className="lg:col-span-1">
+          <Card className="md:w-80 md:flex-shrink-0">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">
               <div>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -371,7 +371,7 @@ export default function AccessControl() {
                     key={group.id}
                     className={`p-3 rounded-lg cursor-pointer transition-colors border ${
                       selectedGroup === group.id 
-                        ? 'border-primary bg-primary/5' 
+                        ? 'border-primary bg-primary/10' 
                         : 'border-transparent hover-elevate'
                     }`}
                     onClick={() => setSelectedGroup(group.id)}
@@ -380,8 +380,8 @@ export default function AccessControl() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div 
-                          className={`w-3 h-3 rounded-full bg-${group.color}-500`}
-                          style={{ backgroundColor: group.color ? `var(--${group.color}-500, ${group.color})` : undefined }}
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: group.color || '#6b7280' }}
                         />
                         <span className="font-medium">{group.name}</span>
                         {group.is_system_group && (
@@ -392,7 +392,7 @@ export default function AccessControl() {
                         <Badge variant="outline" className="text-xs">
                           {group.member_count} {group.member_count === 1 ? 'user' : 'users'}
                         </Badge>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <ChevronRight className={`h-4 w-4 transition-transform ${selectedGroup === group.id ? 'text-primary rotate-90' : 'text-muted-foreground'}`} />
                       </div>
                     </div>
                     {group.description && (
@@ -405,7 +405,7 @@ export default function AccessControl() {
           </Card>
 
           {/* Permissions Panel */}
-          <Card className="lg:col-span-2">
+          <Card className="flex-1 min-w-0">
             {!selectedGroup ? (
               <div className="flex items-center justify-center h-[400px] text-muted-foreground">
                 <div className="text-center">
