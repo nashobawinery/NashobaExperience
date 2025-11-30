@@ -519,7 +519,7 @@ export async function syncFeaturePermissionsForAllGroups(featureId: string): Pro
     SELECT 
       ug.id as group_id,
       ${featureId} as feature_id,
-      CASE WHEN ug.name = 'Global Admin' THEN 'admin' ELSE 'none' END as permission_level
+      CASE WHEN ug.name = 'Global Admin' THEN 'admin'::permission_level ELSE 'none'::permission_level END as permission_level
     FROM user_groups ug
     WHERE ug.active = true
       AND NOT EXISTS (
@@ -563,7 +563,7 @@ export async function syncFeaturesForNewGroup(groupId: string, isGlobalAdmin: bo
     SELECT 
       ${groupId} as group_id,
       mf.id as feature_id,
-      ${defaultLevel} as permission_level
+      ${defaultLevel}::permission_level as permission_level
     FROM module_features mf
     WHERE mf.active = true
       AND NOT EXISTS (
@@ -607,7 +607,7 @@ export async function syncAllSecurityEntries(): Promise<{
     SELECT 
       ug.id as group_id,
       mf.id as feature_id,
-      CASE WHEN ug.name = 'Global Admin' THEN 'admin' ELSE 'none' END as permission_level
+      CASE WHEN ug.name = 'Global Admin' THEN 'admin'::permission_level ELSE 'none'::permission_level END as permission_level
     FROM user_groups ug
     CROSS JOIN module_features mf
     WHERE ug.active = true
