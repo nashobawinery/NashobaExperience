@@ -754,7 +754,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
-                onClick={() => setLocation('/admin-hub')}
+                onClick={() => window.location.href = '/admin-hub'}
                 data-testid="button-go-to-hub"
               >
                 <Home className="w-4 h-4 mr-2" />
