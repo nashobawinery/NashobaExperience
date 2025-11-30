@@ -1,0 +1,195 @@
+Build a Compliance Management module for tracking regulatory deadlines, filings, and compliance tasks. Here are the complete specifications:
+
+## DATABASE SCHEMA
+
+Create these 4 PostgreSQL enums:
+
+```sql
+CREATE TYPE compliance_category AS ENUM ('tax', 'licensing', 'payroll', 'privacy', 'security', 'environmental', 'health_safety', 'regulatory', 'administrative', 'insurance', 'other');
+CREATE TYPE compliance_recurrence AS ENUM ('one_time', 'daily', 'weekly', 'monthly', 'quarterly', 'semi_annual', 'annual', 'custom');
+CREATE TYPE compliance_priority AS ENUM ('low', 'medium', 'high', 'critical');
+CREATE TYPE compliance_status AS ENUM ('pending', 'in_progress', 'completed', 'overdue', 'cancelled');
+```
+
+Create these 4 tables:
+
+**compliance_tasks** - Main task table:
+- id (UUID primary key)
+- task_name (text, required)
+- description (text)
+- category (compliance_category enum, required)
+- subcategory (text)
+- jurisdiction (text) - e.g., "Federal", "Massachusetts"
+- regulatory_body (text) - e.g., "IRS", "TTB"
+- recurrence (compliance_recurrence enum, default 'one_time')
+- custom_recurrence_days (integer) - for custom patterns
+- due_date (timestamp)
+- reminder_days (integer array) - e.g., [7, 3, 1] days before due
+- last_reminder_sent (timestamp)
+- assigned_to_name (text)
+- assigned_to_email (text)
+- assigned_by_id (foreign key to users)
+- status (compliance_status enum, default 'pending')
+- priority (compliance_priority enum, default 'medium')
+- portal_url (text) - regulatory portal URL
+- portal_username (text)
+- portal_password (text) - store encrypted
+- portal_notes (text)
+- estimated_cost (decimal)
+- actual_cost (decimal)
+- penalty_amount (decimal)
+- completed_at (timestamp)
+- completed_by_id (foreign key to users)
+- completion_notes (text)
+- confirmation_number (text)
+- tags (text array)
+- created_at (timestamp, default now)
+- updated_at (timestamp, default now)
+- created_by_id (foreign key to users)
+- is_active (boolean, default true)
+- archived_at (timestamp)
+
+**compliance_task_history** - Audit log:
+- id (UUID primary key)
+- task_id (foreign key to compliance_tasks, cascade delete)
+- changed_by_id (foreign key to users)
+- changed_by_name (text)
+- action (text) - 'created', 'updated', 'completed', 'archived'
+- field_changed (text)
+- old_value (text)
+- new_value (text)
+- created_at (timestamp, default now)
+
+**compliance_reminders** - Email reminder log:
+- id (UUID primary key)
+- task_id (foreign key to compliance_tasks, cascade delete)
+- sent_to_email (text, required)
+- sent_to_name (text)
+- method (text, default 'email')
+- subject (text)
+- status (text, default 'sent')
+- sent_at (timestamp, default now)
+- days_before_due (integer)
+
+**compliance_attachments** - File attachments:
+- id (UUID primary key)
+- task_id (foreign key to compliance_tasks, cascade delete)
+- file_name (text, required)
+- file_url (text, required)
+- file_type (text)
+- file_size (integer)
+- uploaded_by_id (foreign key to users)
+- uploaded_by_name (text)
+- description (text)
+- created_at (timestamp, default now)
+
+## API ENDPOINTS (admin-only)
+
+1. **GET /api/compliance/tasks** - List all active tasks with optional filters (status, category, priority). Order by overdue first, then by due date.
+
+2. **GET /api/compliance/tasks/:id** - Get single task with history, reminders, and attachments.
+
+3. **POST /api/compliance/tasks** - Create new task. Log creation in history table.
+
+4. **PATCH /api/compliance/tasks/:id** - Update task. Track all field changes in history table.
+
+5. **DELETE /api/compliance/tasks/:id** - Soft delete (set is_active=false). Log deletion.
+
+6. **POST /api/compliance/tasks/:id/complete** - Mark task complete. IMPORTANT: For recurring tasks, automatically calculate and set the next due date based on recurrence pattern, then reset status to 'pending'. For one-time tasks, just mark as completed.
+
+7. **POST /api/compliance/tasks/:id/archive** - Archive task (stops recurrence).
+
+8. **POST /api/compliance/tasks/:id/duplicate** - Create copy of task.
+
+9. **POST /api/compliance/tasks/:id/send-reminder** - Send email reminder to assigned person using SendGrid.
+
+10. **GET /api/compliance/stats** - Dashboard stats: total_tasks, pending, in_progress, completed, overdue, past_due, due_this_week, due_this_month.
+
+11. **GET /api/compliance/upcoming** - Get next 10 upcoming deadlines.
+
+## FRONTEND DASHBOARD
+
+Create a page at /compliance/admin with:
+
+**Header:**
+- Back button to admin hub
+- Indigo-colored Scale icon
+- Title: "Compliance Management"
+- Subtitle: "Track deadlines, filings, and regulatory requirements"
+- Refresh button
+- "Add Task" button
+
+**Tabs:**
+1. **Overview** tab:
+   - 4 stat cards: Total Tasks, Overdue (red), Due This Week (amber), Completed (green)
+   - "Upcoming Deadlines" card showing next tasks due with status/priority badges
+   - "Tasks by Category" card showing distribution
+
+2. **All Tasks** tab:
+   - Filter bar: Category dropdown, Status dropdown, Priority dropdown, Search input
+   - Task list showing each task with:
+     - Task name
+     - Status badge (color-coded)
+     - Priority badge (color-coded)
+     - Category badge
+     - Due date with relative time ("in 3 days", "Overdue")
+     - Action menu: View, Edit, Complete, Send Reminder, Duplicate, Archive, Delete
+
+3. **Calendar** tab:
+   - Monthly calendar view showing tasks on their due dates
+   - Color-coded by priority
+
+**Create/Edit Task Dialog:**
+Form fields:
+- Task Name (required)
+- Description (textarea)
+- Category (dropdown with all enum values)
+- Subcategory
+- Priority (Low/Medium/High/Critical)
+- Status (Pending/In Progress/Completed/Overdue/Cancelled)
+- Recurrence (One Time/Daily/Weekly/Monthly/Quarterly/Semi-Annual/Annual/Custom)
+- Custom Recurrence Days (if custom selected)
+- Due Date (date picker)
+- Reminder Days (comma-separated, e.g., "7, 3, 1")
+- Jurisdiction
+- Regulatory Body
+- Assigned To Name
+- Assigned To Email
+- Portal URL
+- Portal Username
+- Portal Password
+- Completion Notes (only shown when editing)
+- Confirmation Number (only shown when editing)
+
+**View Task Dialog:**
+- All task details in a clean layout
+- Status and priority badges
+- Due date with countdown
+- Portal link (clickable)
+- Completion info if completed
+- Buttons: Close, Send Reminder (if has email), Edit Task
+
+## STYLING
+
+Use these badge colors:
+- Priority: low=green, medium=amber, high=orange, critical=red
+- Status: pending=slate, in_progress=blue, completed=green, overdue=red, cancelled=gray
+
+## DEPENDENCIES NEEDED
+
+- @sendgrid/mail (for email reminders)
+- date-fns (for date formatting and calculations)
+
+## ENVIRONMENT VARIABLES
+
+- SENDGRID_API_KEY (for sending reminder emails)
+- ENCRYPTION_KEY (32-char key for encrypting portal passwords)
+
+## IMPORTANT BEHAVIORS
+
+1. When completing a recurring task, automatically calculate next due date and reset to pending
+2. Encrypt portal passwords before storing
+3. Decrypt portal passwords when returning to frontend
+4. Log all changes to history table with user info
+5. Use soft delete (is_active=false) instead of hard delete
+6. Show overdue tasks prominently at top of lists
