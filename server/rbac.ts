@@ -933,7 +933,8 @@ export async function getGroupIdByName(name: string): Promise<string | null> {
   const result = await db.execute(sql`
     SELECT id FROM user_groups WHERE LOWER(name) = LOWER(${name})
   `);
-  return result.rows[0]?.id || null;
+  const row = result.rows[0] as { id: string } | undefined;
+  return row?.id || null;
 }
 
 /**
@@ -943,7 +944,8 @@ export async function getModuleIdByKey(moduleKey: string): Promise<string | null
   const result = await db.execute(sql`
     SELECT id FROM platform_modules WHERE LOWER(module_key) = LOWER(${moduleKey})
   `);
-  return result.rows[0]?.id || null;
+  const row = result.rows[0] as { id: string } | undefined;
+  return row?.id || null;
 }
 
 /**
@@ -953,5 +955,6 @@ export async function getFeatureIdByKey(featureKey: string): Promise<string | nu
   const result = await db.execute(sql`
     SELECT id FROM module_features WHERE LOWER(feature_key) = LOWER(${featureKey})
   `);
-  return result.rows[0]?.id || null;
+  const row = result.rows[0] as { id: string } | undefined;
+  return row?.id || null;
 }

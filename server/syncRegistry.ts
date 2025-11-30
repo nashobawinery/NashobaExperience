@@ -51,6 +51,7 @@ export interface SyncTableConfig {
   exportFields: string[];
   excludeFromSync?: boolean;
   requiresConfirmation?: boolean;
+  confirmationMessage?: string;
   sensitiveFields?: string[];
 }
 
