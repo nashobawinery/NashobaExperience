@@ -748,7 +748,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-serif text-3xl font-medium mb-2">Admin Dashboard</h1>
+              <h1 className="font-serif text-3xl font-medium mb-2">Tasting Admin Dashboard</h1>
               <p className="text-muted-foreground">Manage your tasting experience</p>
             </div>
             <div className="flex items-center gap-2">
