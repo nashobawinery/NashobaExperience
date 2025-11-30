@@ -1070,6 +1070,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync Registry API - Returns metadata about all syncable tables
+  app.get("/api/admin/sync/registry", isAdmin, async (req, res) => {
+    try {
+      const { getRegistryMetadata } = await import("./syncRegistry");
+      const metadata = getRegistryMetadata();
+      res.json(metadata);
+    } catch (error) {
+      console.error("Error fetching sync registry:", error);
+      res.status(500).json({ message: "Failed to fetch sync registry" });
+    }
+  });
+
   // Database Analysis Endpoint - Shows complete export analysis
   app.get("/api/admin/data/analyze", async (req, res) => {
     try {

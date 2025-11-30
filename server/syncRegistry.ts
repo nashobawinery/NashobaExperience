@@ -474,3 +474,53 @@ export function getModuleStats(): Record<SyncModule, { total: number; syncable: 
   
   return stats;
 }
+
+export interface RegistryMetadata {
+  modules: Array<{
+    id: SyncModule;
+    name: string;
+    description: string;
+    icon: string;
+    tables: Array<{
+      id: string;
+      name: string;
+      description: string;
+      sheetName: string;
+      businessKey: string[];
+      exportFields: string[];
+      parentTables: string[];
+      excludeFromSync: boolean;
+      requiresConfirmation: boolean;
+      confirmationMessage?: string;
+    }>;
+  }>;
+  stats: Record<SyncModule, { total: number; syncable: number }>;
+}
+
+export function getRegistryMetadata(): RegistryMetadata {
+  const modules = Object.entries(SYNC_MODULES).map(([id, meta]) => ({
+    id: id as SyncModule,
+    name: meta.name,
+    description: meta.description,
+    icon: meta.icon,
+    tables: SYNC_TABLES
+      .filter(t => t.module === id)
+      .map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        sheetName: t.sheetName,
+        businessKey: t.businessKey,
+        exportFields: t.exportFields,
+        parentTables: t.parentTables || [],
+        excludeFromSync: t.excludeFromSync || false,
+        requiresConfirmation: t.requiresConfirmation || false,
+        confirmationMessage: t.confirmationMessage,
+      })),
+  }));
+
+  return {
+    modules,
+    stats: getModuleStats(),
+  };
+}
