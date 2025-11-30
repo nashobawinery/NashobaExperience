@@ -19,7 +19,9 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Key,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -163,8 +165,11 @@ export default function AccessControl() {
   const [showEditUserDialog, setShowEditUserDialog] = useState(false);
   const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
   const [showManageGroupsDialog, setShowManageGroupsDialog] = useState(false);
+  const [showSetPasswordDialog, setShowSetPasswordDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<PlatformUser | null>(null);
   const [userForm, setUserForm] = useState<UserFormData>(defaultUserForm);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Fetch all user groups
   const { data: groups = [], isLoading: loadingGroups } = useQuery<UserGroup[]>({
@@ -368,6 +373,56 @@ export default function AccessControl() {
       toast({ title: "Failed to remove user from group", description: error.message, variant: "destructive" });
     }
   });
+
+  // Set password mutation
+  const setPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      return apiRequest('POST', `/api/rbac/users/${userId}/set-password`, { password });
+    },
+    onSuccess: () => {
+      setShowSetPasswordDialog(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setEditingUser(null);
+      toast({ title: "Password set successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to set password", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Send password reset email mutation
+  const sendResetEmailMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return apiRequest('POST', '/api/auth/request-password-reset', { email });
+    },
+    onSuccess: () => {
+      toast({ title: "Password reset email sent", description: "If the email is registered, a reset link has been sent." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to send reset email", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleSetPassword = () => {
+    if (!editingUser) return;
+    if (newPassword.length < 8) {
+      toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    setPasswordMutation.mutate({ userId: editingUser.id, password: newPassword });
+  };
+
+  const openSetPasswordDialog = (user: PlatformUser) => {
+    setEditingUser(user);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowSetPasswordDialog(true);
+  };
 
   const handleCreateGroup = () => {
     if (!newGroupName.trim()) {
@@ -759,7 +814,7 @@ export default function AccessControl() {
                     <TableHead>Email</TableHead>
                     <TableHead>Global Role</TableHead>
                     <TableHead>Groups</TableHead>
-                    <TableHead className="w-[150px]">Actions</TableHead>
+                    <TableHead className="w-[200px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -811,6 +866,25 @@ export default function AccessControl() {
                             data-testid={`button-manage-groups-${user.id}`}
                           >
                             <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openSetPasswordDialog(user)}
+                            title="Set password"
+                            data-testid={`button-set-password-${user.id}`}
+                          >
+                            <Key className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => sendResetEmailMutation.mutate(user.email)}
+                            disabled={sendResetEmailMutation.isPending}
+                            title="Send password reset email"
+                            data-testid={`button-send-reset-${user.id}`}
+                          >
+                            <Mail className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1278,6 +1352,60 @@ export default function AccessControl() {
           <DialogFooter>
             <Button onClick={() => setShowManageGroupsDialog(false)}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Password Dialog */}
+      <Dialog open={showSetPasswordDialog} onOpenChange={setShowSetPasswordDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set Password</DialogTitle>
+            <DialogDescription>
+              Set a password for {editingUser?.first_name} {editingUser?.last_name} to enable email/password login
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                data-testid="input-new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                data-testid="input-confirm-password"
+              />
+            </div>
+            {newPassword && newPassword.length < 8 && (
+              <p className="text-sm text-destructive">Password must be at least 8 characters</p>
+            )}
+            {newPassword && confirmPassword && newPassword !== confirmPassword && (
+              <p className="text-sm text-destructive">Passwords do not match</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSetPasswordDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSetPassword}
+              disabled={setPasswordMutation.isPending || newPassword.length < 8 || newPassword !== confirmPassword}
+              data-testid="button-confirm-set-password"
+            >
+              {setPasswordMutation.isPending ? "Setting..." : "Set Password"}
             </Button>
           </DialogFooter>
         </DialogContent>

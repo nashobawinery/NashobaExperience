@@ -46,6 +46,7 @@ import ComplianceAdminDashboard from "@/pages/compliance/ComplianceAdminDashboar
 // Platform Management Imports
 import ModuleDirectory from "@/pages/ModuleDirectory";
 import AccessControl from "@/pages/AccessControl";
+import ResetPassword from "@/pages/ResetPassword";
 
 function AdminRoute() {
   const [, setLocation] = useLocation();
@@ -303,6 +304,7 @@ function Router() {
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/access-control" component={AccessControlRoute} />
+        <Route path="/reset-password" component={ResetPassword} />
         <Route path="/lms" component={LmsLearnerPortal} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
