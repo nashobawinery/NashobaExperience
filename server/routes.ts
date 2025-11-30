@@ -14,7 +14,10 @@ import {
   isGlobalAdmin,
   hasModuleAccess,
   hasFeaturePermission,
-  type UserPermissions 
+  requireModuleAccess as rbacRequireModule,
+  requireFeaturePermission as rbacRequireFeature,
+  type UserPermissions,
+  type PermissionLevel
 } from "./rbac";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
