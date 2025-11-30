@@ -50,6 +50,9 @@ export async function computeUserPermissions(userId: string): Promise<UserPermis
       return permissions;
     }
 
+    // Format group IDs as PostgreSQL array literal
+    const groupIdsArray = `{${groupIds.join(',')}}`;
+
     // Get module access for all user's groups
     const moduleAccessResult = await db.execute(sql`
       SELECT 
@@ -57,7 +60,7 @@ export async function computeUserPermissions(userId: string): Promise<UserPermis
         bool_or(gma.has_access) as has_access
       FROM group_module_access gma
       INNER JOIN platform_modules pm ON gma.module_id = pm.id
-      WHERE gma.group_id = ANY(${groupIds}::text[])
+      WHERE gma.group_id = ANY(${groupIdsArray}::text[])
       GROUP BY pm.module_key
     `);
 
@@ -78,7 +81,7 @@ export async function computeUserPermissions(userId: string): Promise<UserPermis
       FROM group_feature_permissions gfp
       INNER JOIN module_features mf ON gfp.feature_id = mf.id
       INNER JOIN platform_modules pm ON mf.module_id = pm.id
-      WHERE gfp.group_id = ANY(${groupIds}::text[])
+      WHERE gfp.group_id = ANY(${groupIdsArray}::text[])
       GROUP BY pm.module_key, mf.feature_key
     `);
 
