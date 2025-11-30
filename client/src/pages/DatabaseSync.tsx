@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Download, 
   Upload, 
@@ -23,10 +25,54 @@ import {
   HardDrive,
   Image,
   Check,
-  X
+  X,
+  ChevronDown,
+  ChevronRight,
+  Wine,
+  Package,
+  GraduationCap,
+  FileCheck,
+  Shield,
+  Settings,
+  AlertTriangle
 } from "lucide-react";
 
-const BASE_APP_TABLES = [
+interface SyncTable {
+  id: string;
+  name: string;
+  description: string;
+  sheetName: string;
+  businessKey: string[];
+  exportFields: string[];
+  parentTables: string[];
+  excludeFromSync: boolean;
+  requiresConfirmation: boolean;
+  confirmationMessage?: string;
+}
+
+interface SyncModule {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  tables: SyncTable[];
+}
+
+interface RegistryMetadata {
+  modules: SyncModule[];
+  stats: Record<string, { total: number; syncable: number }>;
+}
+
+const MODULE_ICONS: Record<string, typeof Wine> = {
+  tasting: Wine,
+  b2b: Package,
+  lms: GraduationCap,
+  compliance: FileCheck,
+  rbac: Shield,
+  platform: Settings,
+};
+
+const FALLBACK_BASE_APP_TABLES = [
   { id: 'products', name: 'Products', description: 'Wine and beverage products' },
   { id: 'filterOptions', name: 'Filter Options', description: 'Dynamic filter configuration' },
   { id: 'triviaQuestions', name: 'Trivia Questions', description: 'Tasting trivia game' },
@@ -39,7 +85,7 @@ const BASE_APP_TABLES = [
   { id: 'triviaAchievements', name: 'Trivia Achievements', description: 'Guest achievements' },
 ];
 
-const B2B_TABLES = [
+const FALLBACK_B2B_TABLES = [
   { id: 'tierPricing', name: 'Tier Pricing', description: 'Wholesale pricing tiers' },
   { id: 'salesReps', name: 'Sales Reps', description: 'Sales representative accounts' },
   { id: 'b2bCustomers', name: 'B2B Customers', description: 'Wholesale customer accounts' },
@@ -55,7 +101,7 @@ const B2B_TABLES = [
   { id: 'b2bEmailAutomationLogs', name: 'Email Logs', description: 'Email delivery history' },
 ];
 
-const ALL_TABLES = [...BASE_APP_TABLES, ...B2B_TABLES];
+const FALLBACK_ALL_TABLES = [...FALLBACK_BASE_APP_TABLES, ...FALLBACK_B2B_TABLES];
 
 interface MediaSyncStatus {
   bucketId: string;
@@ -95,17 +141,72 @@ interface MediaSyncResult {
 
 export default function DatabaseSync() {
   const { toast } = useToast();
-  const [selectedTables, setSelectedTables] = useState<string[]>(ALL_TABLES.map(t => t.id));
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
   const [syncTab, setSyncTab] = useState<'database' | 'storage'>('database');
   const [syncDirection, setSyncDirection] = useState<'export' | 'import'>('export');
   const [mediaSyncResult, setMediaSyncResult] = useState<MediaSyncResult | null>(null);
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['tasting', 'b2b']));
   
   const isProduction = window.location.hostname.includes('.replit.app') && 
                        !window.location.hostname.includes('-00-');
   const environmentName = isProduction ? 'Production' : 'Development';
   const environmentColor = isProduction ? 'destructive' : 'default';
+
+  const { data: registryData, isLoading: isLoadingRegistry } = useQuery<RegistryMetadata>({
+    queryKey: ['/api/admin/sync/registry'],
+  });
+
+  const modules = useMemo(() => {
+    if (registryData?.modules) {
+      return registryData.modules;
+    }
+    return [
+      {
+        id: 'tasting',
+        name: 'Tasting Experience',
+        description: 'Guest-facing tasting app',
+        icon: 'Wine',
+        tables: FALLBACK_BASE_APP_TABLES.map(t => ({
+          ...t,
+          sheetName: t.id,
+          businessKey: [],
+          exportFields: [],
+          parentTables: [],
+          excludeFromSync: false,
+          requiresConfirmation: false,
+        })),
+      },
+      {
+        id: 'b2b',
+        name: 'B2B Wholesale',
+        description: 'Wholesale customer management',
+        icon: 'Package',
+        tables: FALLBACK_B2B_TABLES.map(t => ({
+          ...t,
+          sheetName: t.id,
+          businessKey: [],
+          exportFields: [],
+          parentTables: [],
+          excludeFromSync: false,
+          requiresConfirmation: false,
+        })),
+      },
+    ];
+  }, [registryData]);
+
+  const allSyncableTables = useMemo(() => {
+    return modules.flatMap(m => m.tables.filter(t => !t.excludeFromSync));
+  }, [modules]);
+
+  const allTableIds = useMemo(() => allSyncableTables.map(t => t.id), [allSyncableTables]);
+
+  useEffect(() => {
+    if (allTableIds.length > 0 && selectedTables.length === 0) {
+      setSelectedTables(allTableIds);
+    }
+  }, [allTableIds]);
 
   // Object Storage sync status query
   const { data: mediaSyncStatus, isLoading: isLoadingStatus, refetch: refetchStatus } = useQuery<MediaSyncStatus>({
@@ -151,20 +252,48 @@ export default function DatabaseSync() {
     );
   };
 
+  const toggleModule = (moduleId: string) => {
+    const module = modules.find(m => m.id === moduleId);
+    if (!module) return;
+    const moduleTableIds = module.tables.filter(t => !t.excludeFromSync).map(t => t.id);
+    const allSelected = moduleTableIds.every(id => selectedTables.includes(id));
+    
+    if (allSelected) {
+      setSelectedTables(prev => prev.filter(id => !moduleTableIds.includes(id)));
+    } else {
+      setSelectedTables(prev => [...new Set([...prev, ...moduleTableIds])]);
+    }
+  };
+
+  const toggleModuleExpanded = (moduleId: string) => {
+    setExpandedModules(prev => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) {
+        next.delete(moduleId);
+      } else {
+        next.add(moduleId);
+      }
+      return next;
+    });
+  };
+
   const selectAllTables = () => {
-    setSelectedTables(ALL_TABLES.map(t => t.id));
+    setSelectedTables(allTableIds);
   };
 
   const selectNone = () => {
     setSelectedTables([]);
   };
 
-  const selectBaseApp = () => {
-    setSelectedTables(BASE_APP_TABLES.map(t => t.id));
+  const selectModule = (moduleId: string) => {
+    const module = modules.find(m => m.id === moduleId);
+    if (module) {
+      setSelectedTables(module.tables.filter(t => !t.excludeFromSync).map(t => t.id));
+    }
   };
 
   const selectB2B = () => {
-    setSelectedTables(B2B_TABLES.map(t => t.id));
+    selectModule('b2b');
   };
 
   const exportMutation = useMutation({
@@ -353,63 +482,116 @@ export default function DatabaseSync() {
                 <Button variant="outline" size="sm" onClick={selectNone} data-testid="button-select-none">
                   Select None
                 </Button>
-                <Button variant="outline" size="sm" onClick={selectBaseApp} data-testid="button-select-base">
-                  Base App Only
-                </Button>
-                <Button variant="outline" size="sm" onClick={selectB2B} data-testid="button-select-b2b">
-                  B2B Only
-                </Button>
+                {modules.map(module => (
+                  <Button 
+                    key={module.id}
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => selectModule(module.id)}
+                    data-testid={`button-select-${module.id}`}
+                  >
+                    {module.name} Only
+                  </Button>
+                ))}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              {isLoadingRegistry ? (
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">Base App Tables</h3>
-                  <div className="space-y-3">
-                    {BASE_APP_TABLES.map((table) => (
-                      <div key={table.id} className="flex items-start space-x-3">
-                        <Checkbox
-                          id={`export-${table.id}`}
-                          checked={selectedTables.includes(table.id)}
-                          onCheckedChange={() => toggleTable(table.id)}
-                          data-testid={`checkbox-${table.id}`}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <Label htmlFor={`export-${table.id}`} className="font-medium cursor-pointer">
-                            {table.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">{table.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  {[1, 2].map(i => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-6 w-48" />
+                      <Skeleton className="h-24 w-full" />
+                    </div>
+                  ))}
                 </div>
-
+              ) : (
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">B2B Tables</h3>
-                  <div className="space-y-3">
-                    {B2B_TABLES.map((table) => (
-                      <div key={table.id} className="flex items-start space-x-3">
-                        <Checkbox
-                          id={`export-${table.id}`}
-                          checked={selectedTables.includes(table.id)}
-                          onCheckedChange={() => toggleTable(table.id)}
-                          data-testid={`checkbox-${table.id}`}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <Label htmlFor={`export-${table.id}`} className="font-medium cursor-pointer">
-                            {table.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">{table.description}</p>
+                  {modules.map(module => {
+                    const ModuleIcon = MODULE_ICONS[module.id] || Database;
+                    const syncableTables = module.tables.filter(t => !t.excludeFromSync);
+                    const selectedCount = syncableTables.filter(t => selectedTables.includes(t.id)).length;
+                    const allSelected = syncableTables.length > 0 && selectedCount === syncableTables.length;
+                    const someSelected = selectedCount > 0 && selectedCount < syncableTables.length;
+                    
+                    return (
+                      <Collapsible 
+                        key={module.id} 
+                        open={expandedModules.has(module.id)}
+                        onOpenChange={() => toggleModuleExpanded(module.id)}
+                      >
+                        <div className="border rounded-lg">
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between p-3 cursor-pointer hover-elevate">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  {expandedModules.has(module.id) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                  <ModuleIcon className="h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold">{module.name}</h3>
+                                  <p className="text-xs text-muted-foreground">{module.description}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge variant={allSelected ? "default" : someSelected ? "secondary" : "outline"}>
+                                  {selectedCount} / {syncableTables.length}
+                                </Badge>
+                                <Checkbox
+                                  checked={allSelected}
+                                  data-state={someSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
+                                  onCheckedChange={() => toggleModule(module.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`checkbox-module-${module.id}`}
+                                />
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border-t p-3 space-y-3">
+                              {syncableTables.map(table => (
+                                <div key={table.id} className="flex items-start space-x-3 ml-9">
+                                  <Checkbox
+                                    id={`export-${table.id}`}
+                                    checked={selectedTables.includes(table.id)}
+                                    onCheckedChange={() => toggleTable(table.id)}
+                                    data-testid={`checkbox-${table.id}`}
+                                  />
+                                  <div className="grid gap-1 leading-none flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Label htmlFor={`export-${table.id}`} className="font-medium cursor-pointer">
+                                        {table.name}
+                                      </Label>
+                                      {table.requiresConfirmation && (
+                                        <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{table.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                              {module.tables.filter(t => t.excludeFromSync).length > 0 && (
+                                <div className="ml-9 pt-2 border-t">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    {module.tables.filter(t => t.excludeFromSync).length} table(s) excluded from sync (user-specific data)
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </CollapsibleContent>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      </Collapsible>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </CardContent>
             <CardFooter className="flex justify-between border-t pt-6">
               <p className="text-sm text-muted-foreground">
-                {selectedTables.length} of {ALL_TABLES.length} tables selected
+                {selectedTables.length} of {allTableIds.length} tables selected
               </p>
               <Button 
                 onClick={handleExport} 
@@ -478,61 +660,113 @@ export default function DatabaseSync() {
                 <Button variant="outline" size="sm" onClick={selectNone}>
                   Select None
                 </Button>
-                <Button variant="outline" size="sm" onClick={selectBaseApp}>
-                  Base App Only
-                </Button>
-                <Button variant="outline" size="sm" onClick={selectB2B}>
-                  B2B Only
-                </Button>
+                {modules.map(module => (
+                  <Button 
+                    key={module.id}
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => selectModule(module.id)}
+                  >
+                    {module.name} Only
+                  </Button>
+                ))}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              {isLoadingRegistry ? (
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">Base App Tables</h3>
-                  <div className="space-y-3">
-                    {BASE_APP_TABLES.map((table) => (
-                      <div key={table.id} className="flex items-start space-x-3">
-                        <Checkbox
-                          id={`import-${table.id}`}
-                          checked={selectedTables.includes(table.id)}
-                          onCheckedChange={() => toggleTable(table.id)}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <Label htmlFor={`import-${table.id}`} className="font-medium cursor-pointer">
-                            {table.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">{table.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  {[1, 2].map(i => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-6 w-48" />
+                      <Skeleton className="h-24 w-full" />
+                    </div>
+                  ))}
                 </div>
-
+              ) : (
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">B2B Tables</h3>
-                  <div className="space-y-3">
-                    {B2B_TABLES.map((table) => (
-                      <div key={table.id} className="flex items-start space-x-3">
-                        <Checkbox
-                          id={`import-${table.id}`}
-                          checked={selectedTables.includes(table.id)}
-                          onCheckedChange={() => toggleTable(table.id)}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <Label htmlFor={`import-${table.id}`} className="font-medium cursor-pointer">
-                            {table.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">{table.description}</p>
+                  {modules.map(module => {
+                    const ModuleIcon = MODULE_ICONS[module.id] || Database;
+                    const syncableTables = module.tables.filter(t => !t.excludeFromSync);
+                    const selectedCount = syncableTables.filter(t => selectedTables.includes(t.id)).length;
+                    const allSelected = syncableTables.length > 0 && selectedCount === syncableTables.length;
+                    const someSelected = selectedCount > 0 && selectedCount < syncableTables.length;
+                    
+                    return (
+                      <Collapsible 
+                        key={module.id} 
+                        open={expandedModules.has(module.id)}
+                        onOpenChange={() => toggleModuleExpanded(module.id)}
+                      >
+                        <div className="border rounded-lg">
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between p-3 cursor-pointer hover-elevate">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  {expandedModules.has(module.id) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                  <ModuleIcon className="h-5 w-5 text-muted-foreground" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold">{module.name}</h3>
+                                  <p className="text-xs text-muted-foreground">{module.description}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge variant={allSelected ? "default" : someSelected ? "secondary" : "outline"}>
+                                  {selectedCount} / {syncableTables.length}
+                                </Badge>
+                                <Checkbox
+                                  checked={allSelected}
+                                  data-state={someSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
+                                  onCheckedChange={() => toggleModule(module.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border-t p-3 space-y-3">
+                              {syncableTables.map(table => (
+                                <div key={table.id} className="flex items-start space-x-3 ml-9">
+                                  <Checkbox
+                                    id={`import-${table.id}`}
+                                    checked={selectedTables.includes(table.id)}
+                                    onCheckedChange={() => toggleTable(table.id)}
+                                  />
+                                  <div className="grid gap-1 leading-none flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Label htmlFor={`import-${table.id}`} className="font-medium cursor-pointer">
+                                        {table.name}
+                                      </Label>
+                                      {table.requiresConfirmation && (
+                                        <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{table.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                              {module.tables.filter(t => t.excludeFromSync).length > 0 && (
+                                <div className="ml-9 pt-2 border-t">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    {module.tables.filter(t => t.excludeFromSync).length} table(s) excluded from sync (user-specific data)
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </CollapsibleContent>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      </Collapsible>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </CardContent>
             <CardFooter className="flex justify-between border-t pt-6">
               <p className="text-sm text-muted-foreground">
-                {selectedTables.length} of {ALL_TABLES.length} tables selected
+                {selectedTables.length} of {allTableIds.length} tables selected
               </p>
               <Button 
                 onClick={handleImport} 
