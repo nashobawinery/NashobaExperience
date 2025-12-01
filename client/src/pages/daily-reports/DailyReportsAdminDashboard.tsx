@@ -51,7 +51,12 @@ import {
   QrCode,
   Copy,
   Download,
-  ExternalLink
+  ExternalLink,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  FileSpreadsheet,
+  X
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -235,6 +240,9 @@ const procedureTypeColors: Record<string, string> = {
   general: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
 };
 
+type SortField = 'department' | 'reportDate' | 'status' | 'incidents' | 'procedures' | 'submittedBy';
+type SortDirection = 'asc' | 'desc';
+
 export default function DailyReportsAdminDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -242,6 +250,12 @@ export default function DailyReportsAdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [searchQuery, setSearchQuery] = useState("");
+  
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [selectedStaff, setSelectedStaff] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>('reportDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [isIncidentDialogOpen, setIsIncidentDialogOpen] = useState(false);
@@ -1025,21 +1039,137 @@ export default function DailyReportsAdminDashboard() {
 
   const selectedTemplate = templates.find(t => t.department === reportFormData.department);
 
-  const filteredReports = reports.filter(report => {
-    if (selectedDepartment !== "all" && report.department !== selectedDepartment) {
-      return false;
+  const uniqueStaffMembers = [...new Set(reports.map(r => r.submittedByName).filter(Boolean))] as string[];
+
+  const filteredAndSortedReports = (() => {
+    let result = reports.filter(report => {
+      if (selectedDepartment !== "all" && report.department !== selectedDepartment) {
+        return false;
+      }
+      if (selectedStaff !== "all" && report.submittedByName !== selectedStaff) {
+        return false;
+      }
+      if (dateFrom) {
+        const reportDate = new Date(report.reportDate);
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (reportDate < fromDate) return false;
+      }
+      if (dateTo) {
+        const reportDate = new Date(report.reportDate);
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (reportDate > toDate) return false;
+      }
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const template = templates.find(t => t.id === report.templateId);
+        return (
+          template?.departmentLabel?.toLowerCase().includes(query) ||
+          report.customerServiceSummary?.toLowerCase().includes(query) ||
+          report.operationalNotes?.toLowerCase().includes(query) ||
+          report.submittedByName?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+
+    result.sort((a, b) => {
+      let comparison = 0;
+      const templateA = templates.find(t => t.id === a.templateId);
+      const templateB = templates.find(t => t.id === b.templateId);
+      
+      switch (sortField) {
+        case 'department':
+          comparison = (templateA?.departmentLabel || a.department).localeCompare(templateB?.departmentLabel || b.department);
+          break;
+        case 'reportDate':
+          comparison = new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime();
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'incidents':
+          comparison = (a.incidentsCount || 0) - (b.incidentsCount || 0);
+          break;
+        case 'procedures':
+          comparison = (a.proceduresCompletedCount || 0) - (b.proceduresCompletedCount || 0);
+          break;
+        case 'submittedBy':
+          comparison = (a.submittedByName || '').localeCompare(b.submittedByName || '');
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  })();
+
+  const filteredReports = filteredAndSortedReports;
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
     }
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" /> 
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const clearFilters = () => {
+    setSelectedDepartment("all");
+    setSelectedStaff("all");
+    setDateFrom("");
+    setDateTo("");
+    setSearchQuery("");
+    setSortField('reportDate');
+    setSortDirection('desc');
+  };
+
+  const hasActiveFilters = selectedDepartment !== "all" || selectedStaff !== "all" || dateFrom || dateTo || searchQuery;
+
+  const exportToExcel = () => {
+    if (filteredReports.length === 0) {
+      toast({ title: "No reports to export", variant: "destructive" });
+      return;
+    }
+
+    const exportData = filteredReports.map(report => {
       const template = templates.find(t => t.id === report.templateId);
-      return (
-        template?.departmentLabel?.toLowerCase().includes(query) ||
-        report.customerServiceSummary?.toLowerCase().includes(query) ||
-        report.operationalNotes?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+      return {
+        'Department': template?.departmentLabel || report.department,
+        'Date': format(new Date(report.reportDate), "yyyy-MM-dd"),
+        'Status': report.status,
+        'Incidents': report.incidentsCount || 0,
+        'Procedures Completed': `${report.proceduresCompletedCount || 0}/${report.proceduresTotalCount || 0}`,
+        'Submitted By': report.submittedByName || '-',
+        'Submitted At': report.submittedAt ? format(new Date(report.submittedAt), "yyyy-MM-dd HH:mm") : '-',
+        'Performance Summary': report.performanceSummary || '-',
+        'Overall Rating': report.overallRating || '-',
+        'Has Customer Concerns': report.hasCustomerConcerns ? 'Yes' : 'No',
+        'Customer Concerns Summary': report.customerConcernsSummary || '-'
+      };
+    });
+
+    import('xlsx').then(XLSX => {
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Daily Reports");
+      
+      const dateStr = format(new Date(), "yyyy-MM-dd");
+      XLSX.writeFile(wb, `daily-reports-export-${dateStr}.xlsx`);
+      toast({ title: "Export complete", description: `Exported ${filteredReports.length} reports` });
+    }).catch(() => {
+      toast({ title: "Export failed", variant: "destructive" });
+    });
+  };
 
   const DepartmentIcon = ({ department }: { department: string }) => {
     const Icon = departmentIcons[department] || Building;
@@ -1260,27 +1390,103 @@ export default function DailyReportsAdminDashboard() {
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search reports..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                  data-testid="input-search-reports"
-                />
+            <Card className="p-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {hasActiveFilters && (
+                      <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
+                        <X className="h-4 w-4 mr-1" />
+                        Clear Filters
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={exportToExcel} data-testid="button-export-excel">
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Export to Excel
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Search</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search reports..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                        data-testid="input-search-reports"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Department</Label>
+                    <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                      <SelectTrigger data-testid="select-filter-department">
+                        <SelectValue placeholder="All Departments" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Departments</SelectItem>
+                        {templates.map(t => (
+                          <SelectItem key={t.department} value={t.department}>
+                            {t.departmentLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Staff Member</Label>
+                    <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                      <SelectTrigger data-testid="select-filter-staff">
+                        <SelectValue placeholder="All Staff" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Staff</SelectItem>
+                        {uniqueStaffMembers.map(name => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">From Date</Label>
+                    <Input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      data-testid="input-date-from"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">To Date</Label>
+                    <Input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      data-testid="input-date-to"
+                    />
+                  </div>
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredReports.length} of {reports.length} reports
+                  {hasActiveFilters && " (filtered)"}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-40"
-                  data-testid="input-date-filter-reports"
-                />
-              </div>
-            </div>
+            </Card>
 
             <Card>
               <CardContent className="p-0">
@@ -1288,12 +1494,66 @@ export default function DailyReportsAdminDashboard() {
                   <table className="w-full">
                     <thead className="bg-muted sticky top-0">
                       <tr>
-                        <th className="text-left p-3 font-medium">Department</th>
-                        <th className="text-left p-3 font-medium">Date</th>
-                        <th className="text-left p-3 font-medium">Status</th>
-                        <th className="text-left p-3 font-medium">Incidents</th>
-                        <th className="text-left p-3 font-medium">Procedures</th>
-                        <th className="text-left p-3 font-medium">Submitted By</th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('department')}
+                          data-testid="th-sort-department"
+                        >
+                          <div className="flex items-center">
+                            Department
+                            <SortIcon field="department" />
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('reportDate')}
+                          data-testid="th-sort-date"
+                        >
+                          <div className="flex items-center">
+                            Date
+                            <SortIcon field="reportDate" />
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('status')}
+                          data-testid="th-sort-status"
+                        >
+                          <div className="flex items-center">
+                            Status
+                            <SortIcon field="status" />
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('incidents')}
+                          data-testid="th-sort-incidents"
+                        >
+                          <div className="flex items-center">
+                            Incidents
+                            <SortIcon field="incidents" />
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('procedures')}
+                          data-testid="th-sort-procedures"
+                        >
+                          <div className="flex items-center">
+                            Procedures
+                            <SortIcon field="procedures" />
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left p-3 font-medium cursor-pointer hover:bg-muted/80 select-none"
+                          onClick={() => handleSort('submittedBy')}
+                          data-testid="th-sort-submitted-by"
+                        >
+                          <div className="flex items-center">
+                            Submitted By
+                            <SortIcon field="submittedBy" />
+                          </div>
+                        </th>
                         <th className="text-right p-3 font-medium">Actions</th>
                       </tr>
                     </thead>
