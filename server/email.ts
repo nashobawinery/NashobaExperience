@@ -713,6 +713,175 @@ Please review this application in the B2B Admin Dashboard.
   return { subject, html, text };
 }
 
+// Daily Report email data interface
+interface DailyReportEmailData {
+  department: string;
+  departmentLabel: string;
+  reportDate: string;
+  submitterName: string;
+  submitterEmail?: string;
+  performanceSummary?: string;
+  overallRating?: number;
+  hasCustomerConcerns: boolean;
+  customerConcernsSummary?: string;
+  metricsData?: Record<string, any>;
+  metricsConfig?: Array<{ key: string; label: string; unit?: string }>;
+  incidentCount: number;
+  proceduresCompletedCount: number;
+  proceduresTotalCount: number;
+}
+
+export function generateDailyReportEmail(data: DailyReportEmailData): { subject: string; html: string; text: string } {
+  const { 
+    department, 
+    departmentLabel, 
+    reportDate, 
+    submitterName, 
+    performanceSummary, 
+    overallRating,
+    hasCustomerConcerns, 
+    customerConcernsSummary, 
+    metricsData,
+    metricsConfig,
+    incidentCount,
+    proceduresCompletedCount,
+    proceduresTotalCount
+  } = data;
+
+  const ratingStars = overallRating ? '★'.repeat(overallRating) + '☆'.repeat(5 - overallRating) : 'Not rated';
+  const procedureStatus = proceduresTotalCount > 0 
+    ? `${proceduresCompletedCount}/${proceduresTotalCount} completed`
+    : 'No procedures defined';
+
+  const subject = `Daily Report: ${departmentLabel} - ${reportDate}${hasCustomerConcerns ? ' ⚠️ Customer Concerns' : ''}`;
+  
+  const metricsText = metricsConfig && metricsData 
+    ? metricsConfig.map(m => `${m.label}: ${metricsData[m.key] ?? 'N/A'}${m.unit ? ` ${m.unit}` : ''}`).join('\n')
+    : 'No metrics recorded';
+
+  const text = `
+Daily Report - ${departmentLabel}
+Date: ${reportDate}
+Submitted by: ${submitterName}
+
+Overall Rating: ${ratingStars}
+Procedures: ${procedureStatus}
+Incidents: ${incidentCount}
+
+Performance Summary:
+${performanceSummary || 'No summary provided'}
+
+${hasCustomerConcerns ? `
+⚠️ CUSTOMER CONCERNS:
+${customerConcernsSummary || 'No details provided'}
+` : ''}
+
+Metrics:
+${metricsText}
+
+---
+This is an automated notification from the Nashoba Valley Daily Reports system.
+  `.trim();
+
+  const metricsHtml = metricsConfig && metricsData 
+    ? metricsConfig.map(m => `
+      <div class="metric-item">
+        <span class="metric-label">${m.label}:</span>
+        <span class="metric-value">${metricsData[m.key] ?? 'N/A'}${m.unit ? ` ${m.unit}` : ''}</span>
+      </div>
+    `).join('')
+    : '<p>No metrics recorded</p>';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+    .header h1 { margin: 0 0 10px 0; font-size: 24px; }
+    .header p { margin: 0; opacity: 0.9; }
+    .content { padding: 20px; max-width: 600px; margin: 0 auto; }
+    .submitter-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5C2535; }
+    .submitter-info h3 { margin: 0 0 10px 0; color: #5C2535; }
+    .section { margin-bottom: 25px; }
+    .section-title { color: #5C2535; font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #5C2535; padding-bottom: 5px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+    .stat-box { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: bold; color: #5C2535; }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+    .customer-concerns { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .customer-concerns h4 { color: #856404; margin: 0 0 10px 0; }
+    .summary-box { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .metric-item { display: flex; justify-content: space-between; padding: 8px 12px; background: #f8f9fa; border-radius: 4px; }
+    .metric-label { color: #666; }
+    .metric-value { font-weight: bold; color: #333; }
+    .rating { font-size: 20px; color: #ffc107; }
+    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Daily Report: ${departmentLabel}</h1>
+    <p>${reportDate}</p>
+  </div>
+  
+  <div class="content">
+    <div class="submitter-info">
+      <h3>Submitted By</h3>
+      <strong>${submitterName}</strong>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value rating">${ratingStars}</div>
+        <div class="stat-label">Overall Rating</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${procedureStatus}</div>
+        <div class="stat-label">Procedures</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">${incidentCount}</div>
+        <div class="stat-label">Incidents</div>
+      </div>
+    </div>
+
+    ${hasCustomerConcerns ? `
+    <div class="customer-concerns">
+      <h4>⚠️ Customer Concerns Reported</h4>
+      <p>${customerConcernsSummary || 'No details provided'}</p>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <h3 class="section-title">Performance Summary</h3>
+      <div class="summary-box">
+        <p>${performanceSummary || 'No summary provided'}</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3 class="section-title">Metrics</h3>
+      <div class="metrics-grid">
+        ${metricsHtml}
+      </div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p><strong>Nashoba Valley Winery</strong></p>
+    <p>This is an automated notification from the Daily Reports system.</p>
+    <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {
