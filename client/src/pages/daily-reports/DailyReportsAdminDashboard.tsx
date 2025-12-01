@@ -44,7 +44,9 @@ import {
   Apple,
   ChefHat,
   Home,
-  Send
+  Send,
+  Mail,
+  Settings
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -140,6 +142,15 @@ interface DailyReportStats {
   proceduresTotal: number;
 }
 
+interface DailyReportEmailRecipient {
+  id: string;
+  department: string;
+  email: string;
+  name: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
 const departmentIcons: Record<string, any> = {
   tasting_room: Wine,
   retail: ShoppingBag,
@@ -214,6 +225,15 @@ export default function DailyReportsAdminDashboard() {
     followUpNotes: "",
     occurredAt: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
+  
+  const [isEmailRecipientDialogOpen, setIsEmailRecipientDialogOpen] = useState(false);
+  const [editingEmailRecipient, setEditingEmailRecipient] = useState<DailyReportEmailRecipient | null>(null);
+  const [emailRecipientFormData, setEmailRecipientFormData] = useState({
+    department: "",
+    email: "",
+    name: "",
+    isActive: true
+  });
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
@@ -240,6 +260,55 @@ export default function DailyReportsAdminDashboard() {
   const { data: procedureTemplates = [] } = useQuery<DailyProcedureTemplate[]>({
     queryKey: ['/api/daily-reports/templates', selectedReport?.templateId, 'procedures'],
     enabled: !!selectedReport?.templateId
+  });
+
+  const { data: emailRecipients = [], isLoading: emailRecipientsLoading } = useQuery<DailyReportEmailRecipient[]>({
+    queryKey: ['/api/daily-reports/email-recipients'],
+    enabled: activeTab === 'settings'
+  });
+
+  const createEmailRecipientMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('POST', '/api/daily-reports/email-recipients', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/email-recipients'] });
+      setIsEmailRecipientDialogOpen(false);
+      resetEmailRecipientForm();
+      toast({ title: "Email recipient added successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add email recipient", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateEmailRecipientMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest('PATCH', `/api/daily-reports/email-recipients/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/email-recipients'] });
+      setIsEmailRecipientDialogOpen(false);
+      setEditingEmailRecipient(null);
+      resetEmailRecipientForm();
+      toast({ title: "Email recipient updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update email recipient", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteEmailRecipientMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('DELETE', `/api/daily-reports/email-recipients/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/email-recipients'] });
+      toast({ title: "Email recipient deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete email recipient", description: error.message, variant: "destructive" });
+    }
   });
 
   const createReportMutation = useMutation({
@@ -363,6 +432,58 @@ export default function DailyReportsAdminDashboard() {
       followUpNotes: "",
       occurredAt: format(new Date(), "yyyy-MM-dd'T'HH:mm")
     });
+  };
+
+  const resetEmailRecipientForm = () => {
+    setEmailRecipientFormData({
+      department: "",
+      email: "",
+      name: "",
+      isActive: true
+    });
+  };
+
+  const handleAddEmailRecipient = () => {
+    setEditingEmailRecipient(null);
+    resetEmailRecipientForm();
+    setIsEmailRecipientDialogOpen(true);
+  };
+
+  const handleEditEmailRecipient = (recipient: DailyReportEmailRecipient) => {
+    setEditingEmailRecipient(recipient);
+    setEmailRecipientFormData({
+      department: recipient.department,
+      email: recipient.email,
+      name: recipient.name || "",
+      isActive: recipient.isActive
+    });
+    setIsEmailRecipientDialogOpen(true);
+  };
+
+  const handleSaveEmailRecipient = () => {
+    if (!emailRecipientFormData.department || !emailRecipientFormData.email) {
+      toast({ title: "Please fill in required fields", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      department: emailRecipientFormData.department,
+      email: emailRecipientFormData.email,
+      name: emailRecipientFormData.name || null,
+      isActive: emailRecipientFormData.isActive
+    };
+
+    if (editingEmailRecipient) {
+      updateEmailRecipientMutation.mutate({ id: editingEmailRecipient.id, data });
+    } else {
+      createEmailRecipientMutation.mutate(data);
+    }
+  };
+
+  const handleDeleteEmailRecipient = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this email recipient?")) {
+      deleteEmailRecipientMutation.mutate(id);
+    }
   };
 
   const handleCreateReport = () => {
@@ -584,6 +705,10 @@ export default function DailyReportsAdminDashboard() {
             <TabsTrigger value="docs" data-testid="tab-docs">
               <BookOpen className="h-4 w-4 mr-2" />
               Documentation
+            </TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -873,6 +998,131 @@ export default function DailyReportsAdminDashboard() {
             <Card>
               <CardContent className="p-6">
                 <ModuleDocumentation documentation={getModuleDocs("daily-reports")!} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Email Notifications
+                  </CardTitle>
+                  <CardDescription>
+                    Configure who receives email notifications when daily reports are submitted
+                  </CardDescription>
+                </div>
+                <Button onClick={handleAddEmailRecipient} data-testid="button-add-email-recipient">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Recipient
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {emailRecipientsLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : emailRecipients.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No email recipients configured</p>
+                    <p className="text-sm">Add recipients to receive notifications when reports are submitted</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {templates.map(template => {
+                      const deptRecipients = emailRecipients.filter(r => r.department === template.department);
+                      if (deptRecipients.length === 0) return null;
+                      const Icon = departmentIcons[template.department] || Building;
+                      return (
+                        <div key={template.department} className="border rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Icon className="h-4 w-4 text-amber-500" />
+                            <span className="font-medium">{template.departmentLabel}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {deptRecipients.length} recipient{deptRecipients.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            {deptRecipients.map(recipient => (
+                              <div 
+                                key={recipient.id} 
+                                className="flex items-center justify-between p-2 bg-muted/50 rounded"
+                                data-testid={`email-recipient-${recipient.id}`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  <span className={!recipient.isActive ? "text-muted-foreground line-through" : ""}>
+                                    {recipient.email}
+                                  </span>
+                                  {recipient.name && (
+                                    <span className="text-muted-foreground text-sm">({recipient.name})</span>
+                                  )}
+                                  {!recipient.isActive && (
+                                    <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleEditEmailRecipient(recipient)}
+                                    data-testid={`button-edit-recipient-${recipient.id}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleDeleteEmailRecipient(recipient.id)}
+                                    data-testid={`button-delete-recipient-${recipient.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {emailRecipients.filter(r => !templates.find(t => t.department === r.department)).length > 0 && (
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Building className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-muted-foreground">Other Departments</span>
+                        </div>
+                        <div className="space-y-2">
+                          {emailRecipients
+                            .filter(r => !templates.find(t => t.department === r.department))
+                            .map(recipient => (
+                              <div 
+                                key={recipient.id} 
+                                className="flex items-center justify-between p-2 bg-muted/50 rounded"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  <span>{recipient.email}</span>
+                                  <Badge variant="outline" className="text-xs">{recipient.department}</Badge>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button variant="ghost" size="icon" onClick={() => handleEditEmailRecipient(recipient)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEmailRecipient(recipient.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1290,6 +1540,82 @@ export default function DailyReportsAdminDashboard() {
               data-testid="button-save-incident"
             >
               {createIncidentMutation.isPending ? "Saving..." : "Log Incident"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEmailRecipientDialogOpen} onOpenChange={setIsEmailRecipientDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingEmailRecipient ? "Edit Email Recipient" : "Add Email Recipient"}</DialogTitle>
+            <DialogDescription>
+              Configure who receives email notifications when reports are submitted
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="recipient-department">Department</Label>
+              <Select 
+                value={emailRecipientFormData.department} 
+                onValueChange={(v) => setEmailRecipientFormData({ ...emailRecipientFormData, department: v })}
+              >
+                <SelectTrigger id="recipient-department" data-testid="select-recipient-department">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map(t => (
+                    <SelectItem key={t.department} value={t.department}>
+                      {t.departmentLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recipient-email">Email Address</Label>
+              <Input
+                id="recipient-email"
+                type="email"
+                placeholder="manager@nashobawinery.com"
+                value={emailRecipientFormData.email}
+                onChange={(e) => setEmailRecipientFormData({ ...emailRecipientFormData, email: e.target.value })}
+                data-testid="input-recipient-email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recipient-name">Name (Optional)</Label>
+              <Input
+                id="recipient-name"
+                type="text"
+                placeholder="John Smith"
+                value={emailRecipientFormData.name}
+                onChange={(e) => setEmailRecipientFormData({ ...emailRecipientFormData, name: e.target.value })}
+                data-testid="input-recipient-name"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="recipient-active"
+                checked={emailRecipientFormData.isActive}
+                onCheckedChange={(checked) => setEmailRecipientFormData({ ...emailRecipientFormData, isActive: checked === true })}
+              />
+              <Label htmlFor="recipient-active" className="text-sm">Active (receives emails)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEmailRecipientDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveEmailRecipient}
+              disabled={!emailRecipientFormData.department || !emailRecipientFormData.email || createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending}
+              data-testid="button-save-recipient"
+            >
+              {(createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending) ? "Saving..." : (editingEmailRecipient ? "Save Changes" : "Add Recipient")}
             </Button>
           </DialogFooter>
         </DialogContent>

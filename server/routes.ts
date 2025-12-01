@@ -6369,10 +6369,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/daily-reports/:id/submit', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const report = await storage.updateDailyReport(id, { status: 'submitted' });
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      
+      const report = await storage.updateDailyReport(id, { 
+        status: 'submitted',
+        submittedById: userId,
+        submittedByName: userName,
+        submittedAt: new Date()
+      });
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
+      
+      // Send email notifications to configured recipients
+      try {
+        const { generateDailyReportEmail, sendEmail } = await import("./email");
+        
+        // Get email recipients for this department
+        const recipients = await storage.getDailyReportEmailRecipients(report.department, true);
+        
+        if (recipients.length > 0) {
+          // Get department template for metrics config
+          const template = await storage.getDailyReportTemplateByDepartment(report.department);
+          
+          // Get incident count
+          const incidents = await storage.getDailyReportIncidents(report.id);
+          
+          const emailData = generateDailyReportEmail({
+            department: report.department,
+            departmentLabel: template?.departmentLabel || report.department,
+            reportDate: new Date(report.reportDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            submitterName: userName,
+            performanceSummary: report.performanceSummary || undefined,
+            overallRating: report.overallRating || undefined,
+            hasCustomerConcerns: report.hasCustomerConcerns || false,
+            customerConcernsSummary: report.customerConcernsSummary || undefined,
+            metricsData: (report.metricsData as Record<string, any>) || undefined,
+            metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+            incidentCount: incidents.length,
+            proceduresCompletedCount: report.proceduresCompletedCount || 0,
+            proceduresTotalCount: report.proceduresTotalCount || 0
+          });
+          
+          // Send to all recipients
+          for (const recipient of recipients) {
+            try {
+              await sendEmail(
+                recipient.email,
+                emailData.subject,
+                emailData.html,
+                emailData.text
+              );
+              console.log(`[Daily Reports] Email sent to ${recipient.email}`);
+            } catch (emailError) {
+              console.error(`[Daily Reports] Failed to send email to ${recipient.email}:`, emailError);
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error('[Daily Reports] Error sending email notifications:', emailError);
+        // Don't fail the submission if email fails
+      }
+      
       res.json(report);
     } catch (error) {
       console.error('Error submitting daily report:', error);
