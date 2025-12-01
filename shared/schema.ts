@@ -1474,3 +1474,192 @@ export type ComplianceTaskWithDetails = ComplianceTask & {
   reminders?: ComplianceReminder[];
   attachments?: ComplianceAttachment[];
 };
+
+// ============================================
+// DAILY REPORTS MODULE
+// ============================================
+
+// Department enum for Daily Reports
+export const dailyReportDepartmentEnum = pgEnum("daily_report_department", [
+  "tasting_room",
+  "retail",
+  "the_knoll",
+  "pavilion",
+  "js_restaurant",
+  "production",
+  "events",
+  "maintenance",
+  "orchard",
+  "food_operations"
+]);
+
+// Incident severity enum
+export const incidentSeverityEnum = pgEnum("incident_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical"
+]);
+
+// Daily Report Templates - Defines department-specific metrics
+export const dailyReportTemplates = pgTable("daily_report_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  department: dailyReportDepartmentEnum("department").notNull().unique(),
+  departmentLabel: text("department_label").notNull(),
+  metrics: jsonb("metrics").notNull(), // Array of { key, label, type: 'count'|'decimal'|'text', required, description }
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Daily Procedure Templates - Checklist items per department
+export const dailyProcedureTemplates = pgTable("daily_procedure_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  department: dailyReportDepartmentEnum("department").notNull(),
+  procedureName: text("procedure_name").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isRequired: boolean("is_required").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_daily_procedure_templates_dept").on(table.department),
+]);
+
+// Daily Reports - Main report table (one per department per day)
+export const dailyReports = pgTable("daily_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  department: dailyReportDepartmentEnum("department").notNull(),
+  reportDate: timestamp("report_date").notNull(),
+  submittedById: varchar("submitted_by_id").references(() => platformUsers.id),
+  submittedByName: text("submitted_by_name"),
+  
+  // Performance summary
+  performanceSummary: text("performance_summary"),
+  overallRating: integer("overall_rating"), // 1-5 scale
+  
+  // Metrics data stored as JSON (validated against template)
+  metricsData: jsonb("metrics_data"), // { metricKey: value, ... }
+  
+  // Procedure completion status
+  proceduresCompleted: boolean("procedures_completed").notNull().default(false),
+  proceduresCompletedCount: integer("procedures_completed_count").default(0),
+  proceduresTotalCount: integer("procedures_total_count").default(0),
+  
+  // Customer service focus
+  hasCustomerConcerns: boolean("has_customer_concerns").notNull().default(false),
+  customerConcernsSummary: text("customer_concerns_summary"),
+  
+  // Status tracking
+  status: text("status").notNull().default("draft"), // draft, submitted, reviewed
+  reviewedById: varchar("reviewed_by_id").references(() => platformUsers.id),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_daily_reports_dept_date").on(table.department, table.reportDate),
+  index("idx_daily_reports_date").on(table.reportDate),
+  index("idx_daily_reports_status").on(table.status),
+  unique("uq_daily_reports_dept_date").on(table.department, table.reportDate),
+]);
+
+// Daily Report Incidents - Detailed incident logs
+export const dailyReportIncidents = pgTable("daily_report_incidents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportId: varchar("report_id").notNull().references(() => dailyReports.id, { onDelete: 'cascade' }),
+  
+  incidentTime: timestamp("incident_time"),
+  severity: incidentSeverityEnum("severity").notNull().default("low"),
+  description: text("description").notNull(),
+  
+  // Customer impact tracking
+  isCustomerRelated: boolean("is_customer_related").notNull().default(false),
+  customerName: text("customer_name"),
+  customerContact: text("customer_contact"),
+  
+  // Resolution tracking
+  actionTaken: text("action_taken"),
+  resolved: boolean("resolved").notNull().default(false),
+  requiresFollowUp: boolean("requires_follow_up").notNull().default(false),
+  followUpNotes: text("follow_up_notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_daily_incidents_report").on(table.reportId),
+  index("idx_daily_incidents_customer").on(table.isCustomerRelated),
+  index("idx_daily_incidents_severity").on(table.severity),
+]);
+
+// Daily Procedure Completions - Tracks which procedures were completed
+export const dailyProcedureCompletions = pgTable("daily_procedure_completions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportId: varchar("report_id").notNull().references(() => dailyReports.id, { onDelete: 'cascade' }),
+  procedureTemplateId: varchar("procedure_template_id").notNull().references(() => dailyProcedureTemplates.id),
+  
+  completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  completedById: varchar("completed_by_id").references(() => platformUsers.id),
+  completedByName: text("completed_by_name"),
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_daily_procedure_completions_report").on(table.reportId),
+  unique("uq_daily_procedure_completion").on(table.reportId, table.procedureTemplateId),
+]);
+
+// Insert schemas for Daily Reports
+export const insertDailyReportTemplateSchema = createInsertSchema(dailyReportTemplates).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export const insertDailyProcedureTemplateSchema = createInsertSchema(dailyProcedureTemplates).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export const insertDailyReportSchema = createInsertSchema(dailyReports).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  reviewedAt: true
+});
+export const insertDailyReportIncidentSchema = createInsertSchema(dailyReportIncidents).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export const insertDailyProcedureCompletionSchema = createInsertSchema(dailyProcedureCompletions).omit({ 
+  id: true, 
+  createdAt: true,
+  completedAt: true
+});
+
+// Daily Reports Types
+export type InsertDailyReportTemplate = z.infer<typeof insertDailyReportTemplateSchema>;
+export type DailyReportTemplate = typeof dailyReportTemplates.$inferSelect;
+
+export type InsertDailyProcedureTemplate = z.infer<typeof insertDailyProcedureTemplateSchema>;
+export type DailyProcedureTemplate = typeof dailyProcedureTemplates.$inferSelect;
+
+export type InsertDailyReport = z.infer<typeof insertDailyReportSchema>;
+export type DailyReport = typeof dailyReports.$inferSelect;
+
+export type InsertDailyReportIncident = z.infer<typeof insertDailyReportIncidentSchema>;
+export type DailyReportIncident = typeof dailyReportIncidents.$inferSelect;
+
+export type InsertDailyProcedureCompletion = z.infer<typeof insertDailyProcedureCompletionSchema>;
+export type DailyProcedureCompletion = typeof dailyProcedureCompletions.$inferSelect;
+
+// Extended Daily Report type with relations
+export type DailyReportWithDetails = DailyReport & {
+  incidents?: DailyReportIncident[];
+  procedureCompletions?: (DailyProcedureCompletion & { template?: DailyProcedureTemplate })[];
+  template?: DailyReportTemplate;
+};
