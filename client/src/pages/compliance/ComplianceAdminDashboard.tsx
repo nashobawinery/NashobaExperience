@@ -36,8 +36,12 @@ import {
   Eye,
   Archive,
   Copy,
-  CheckSquare
+  CheckSquare,
+  BookOpen
 } from "lucide-react";
+import { getModuleDocs } from "@/docs";
+import ModuleDocumentation from "@/components/ModuleDocumentation";
+import "@/docs/compliance";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -456,6 +460,10 @@ export default function ComplianceAdminDashboard() {
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="tasks" data-testid="tab-tasks">All Tasks</TabsTrigger>
             <TabsTrigger value="calendar" data-testid="tab-calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="documentation" data-testid="tab-documentation">
+              <BookOpen className="h-4 w-4 mr-2" />
+              Docs
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -851,6 +859,12 @@ export default function ComplianceAdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="documentation">
+            {getModuleDocs("compliance") && (
+              <ModuleDocumentation documentation={getModuleDocs("compliance")!} />
+            )}
           </TabsContent>
         </Tabs>
       </main>

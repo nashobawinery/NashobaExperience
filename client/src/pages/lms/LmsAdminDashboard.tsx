@@ -37,6 +37,9 @@ import {
   ChevronRight,
   Layers
 } from "lucide-react";
+import { getModuleDocs } from "@/docs";
+import ModuleDocumentation from "@/components/ModuleDocumentation";
+import "@/docs/lms";
 
 interface LmsCategory {
   id: string;
@@ -376,7 +379,7 @@ export default function LmsAdminDashboard() {
 
       <main className="max-w-7xl mx-auto p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
             <TabsTrigger value="overview" data-testid="tab-overview">
               <BarChart3 className="h-4 w-4 mr-2" />
               Overview
@@ -396,6 +399,10 @@ export default function LmsAdminDashboard() {
             <TabsTrigger value="certificates" data-testid="tab-certificates">
               <Award className="h-4 w-4 mr-2" />
               Certificates
+            </TabsTrigger>
+            <TabsTrigger value="documentation" data-testid="tab-documentation">
+              <FileText className="h-4 w-4 mr-2" />
+              Docs
             </TabsTrigger>
           </TabsList>
 
@@ -910,6 +917,12 @@ export default function LmsAdminDashboard() {
               <p className="text-muted-foreground mb-4">Certificate generation will be available once courses are completed.</p>
               <Badge variant="secondary">{stats?.certificates_issued || 0} certificates issued</Badge>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="documentation">
+            {getModuleDocs("lms") && (
+              <ModuleDocumentation documentation={getModuleDocs("lms")!} />
+            )}
           </TabsContent>
         </Tabs>
       </main>
