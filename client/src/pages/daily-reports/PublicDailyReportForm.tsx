@@ -315,20 +315,43 @@ export default function PublicDailyReportForm() {
         {formData.metrics && formData.metrics.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Department Metrics</CardTitle>
+              <CardTitle className="text-lg">Daily Report Fields</CardTitle>
+              <CardDescription>Fill in the applicable fields for your shift</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {formData.metrics.map((metric) => (
-                <div key={metric.key} className="space-y-2">
-                  <Label htmlFor={`metric-${metric.key}`}>
-                    {metric.label} {metric.unit && <span className="text-muted-foreground">({metric.unit})</span>}
+              {/* Number fields in a compact grid */}
+              {formData.metrics.filter(m => m.type === 'number' || m.type === 'currency').length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {formData.metrics.filter(m => m.type === 'number' || m.type === 'currency').map((metric) => (
+                    <div key={metric.key} className="space-y-1">
+                      <Label htmlFor={`metric-${metric.key}`} className="text-sm">
+                        {metric.label}
+                      </Label>
+                      <Input
+                        id={`metric-${metric.key}`}
+                        type="number"
+                        placeholder="0"
+                        value={metricsData[metric.key] || ""}
+                        onChange={(e) => setMetricsData({ ...metricsData, [metric.key]: e.target.value })}
+                        data-testid={`input-metric-${metric.key}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Text fields displayed full-width for longer entries */}
+              {formData.metrics.filter(m => m.type === 'text').map((metric) => (
+                <div key={metric.key} className="space-y-1">
+                  <Label htmlFor={`metric-${metric.key}`} className="text-sm">
+                    {metric.label}
                   </Label>
-                  <Input
+                  <Textarea
                     id={`metric-${metric.key}`}
-                    type={metric.type === 'number' || metric.type === 'currency' ? 'number' : 'text'}
-                    placeholder={`Enter ${metric.label.toLowerCase()}`}
+                    placeholder={`Enter ${metric.label.toLowerCase()}...`}
                     value={metricsData[metric.key] || ""}
                     onChange={(e) => setMetricsData({ ...metricsData, [metric.key]: e.target.value })}
+                    className="min-h-[60px]"
                     data-testid={`input-metric-${metric.key}`}
                   />
                 </div>

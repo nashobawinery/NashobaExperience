@@ -1455,34 +1455,29 @@ export default function DailyReportsAdminDashboard() {
                                 ({template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} enabled)
                               </span>
                             </h4>
-                            <div className="grid gap-2">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                               {template.metrics.map(m => (
-                                <div 
+                                <label 
                                   key={m.key} 
-                                  className="flex items-center justify-between p-2 bg-muted/30 rounded-lg"
+                                  className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
                                   data-testid={`metric-toggle-${template.department}-${m.key}`}
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-sm ${m.isEnabled === false ? 'text-muted-foreground line-through' : ''}`}>
-                                      {m.label}
-                                    </span>
-                                    {m.unit && (
-                                      <span className="text-xs text-muted-foreground">({m.unit})</span>
-                                    )}
-                                  </div>
-                                  <Switch
+                                  <Checkbox
                                     checked={m.isEnabled !== false}
                                     onCheckedChange={(checked) => {
                                       toggleMetricMutation.mutate({
                                         templateId: template.id,
                                         metricKey: m.key,
-                                        isEnabled: checked
+                                        isEnabled: !!checked
                                       });
                                     }}
                                     disabled={toggleMetricMutation.isPending}
-                                    data-testid={`switch-metric-${m.key}`}
+                                    data-testid={`checkbox-metric-${m.key}`}
                                   />
-                                </div>
+                                  <span className={`text-sm ${m.isEnabled === false ? 'text-muted-foreground line-through' : ''}`}>
+                                    {m.label}
+                                  </span>
+                                </label>
                               ))}
                             </div>
                           </div>

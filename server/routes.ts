@@ -6981,107 +6981,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 async function seedDailyReportTemplates(): Promise<void> {
   console.log('[Daily Reports] Checking department templates...');
   
+  // Generic metrics that apply to all departments
+  const genericMetrics = [
+    { key: 'total_reservations', label: 'Total Reservations', type: 'number', isEnabled: true },
+    { key: 'no_shows', label: 'No Shows', type: 'number', isEnabled: true },
+    { key: 'walkins', label: 'Walk-ins', type: 'number', isEnabled: true },
+    { key: 'walkin_tasting_bar', label: 'Walk-in Tasting Bar', type: 'number', isEnabled: true },
+    { key: 'walkin_tours', label: 'Walk-in Tours', type: 'number', isEnabled: true },
+    { key: 'low_inventory_items', label: 'Low Inventory Items (ASAP)', type: 'text', isEnabled: true },
+    { key: 'items_86d', label: "Items 86'd", type: 'text', isEnabled: true },
+    { key: 'customer_incident_reports', label: 'Customer Incident Reports', type: 'text', isEnabled: true },
+    { key: 'customer_comments', label: 'Customer Comments', type: 'text', isEnabled: true },
+    { key: 'summary', label: 'Summary', type: 'text', isEnabled: true },
+    { key: 'voids_explanations', label: 'Voids and Explanations', type: 'text', isEnabled: true }
+  ];
+
   const departments = [
-    {
-      department: 'tasting_room',
-      departmentLabel: 'Tasting Room',
-      metrics: [
-        { key: 'guest_count', label: 'Guest Count', type: 'number', isEnabled: true },
-        { key: 'tastings_completed', label: 'Tastings Completed', type: 'number', isEnabled: true },
-        { key: 'bottles_sold', label: 'Bottles Sold', type: 'number', isEnabled: true },
-        { key: 'club_signups', label: 'Club Sign-ups', type: 'number', isEnabled: true },
-        { key: 'average_spend', label: 'Average Spend ($)', type: 'currency', isEnabled: true }
-      ]
-    },
-    {
-      department: 'retail',
-      departmentLabel: 'Retail',
-      metrics: [
-        { key: 'transactions', label: 'Transactions', type: 'number', isEnabled: true },
-        { key: 'total_sales', label: 'Total Sales ($)', type: 'currency', isEnabled: true },
-        { key: 'items_sold', label: 'Items Sold', type: 'number', isEnabled: true },
-        { key: 'returns_processed', label: 'Returns Processed', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'the_knoll',
-      departmentLabel: 'The Knoll',
-      metrics: [
-        { key: 'covers_served', label: 'Covers Served', type: 'number', isEnabled: true },
-        { key: 'reservations', label: 'Reservations', type: 'number', isEnabled: true },
-        { key: 'walk_ins', label: 'Walk-ins', type: 'number', isEnabled: true },
-        { key: 'special_events', label: 'Special Events', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'pavilion',
-      departmentLabel: 'Pavilion',
-      metrics: [
-        { key: 'events_hosted', label: 'Events Hosted', type: 'number', isEnabled: true },
-        { key: 'attendees', label: 'Total Attendees', type: 'number', isEnabled: true },
-        { key: 'setup_time', label: 'Setup Hours', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'js_restaurant',
-      departmentLabel: "J's Restaurant",
-      metrics: [
-        { key: 'covers_served', label: 'Covers Served', type: 'number', isEnabled: true },
-        { key: 'bar_sales', label: 'Bar Sales ($)', type: 'currency', isEnabled: true },
-        { key: 'food_sales', label: 'Food Sales ($)', type: 'currency', isEnabled: true },
-        { key: 'wait_time_avg', label: 'Avg Wait Time (min)', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'production',
-      departmentLabel: 'Production',
-      metrics: [
-        { key: 'batches_processed', label: 'Batches Processed', type: 'number', isEnabled: true },
-        { key: 'bottles_produced', label: 'Bottles Produced', type: 'number', isEnabled: true },
-        { key: 'quality_issues', label: 'Quality Issues', type: 'number', isEnabled: true },
-        { key: 'equipment_hours', label: 'Equipment Hours', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'events',
-      departmentLabel: 'Events',
-      metrics: [
-        { key: 'events_today', label: 'Events Today', type: 'number', isEnabled: true },
-        { key: 'total_guests', label: 'Total Guests', type: 'number', isEnabled: true },
-        { key: 'inquiries_received', label: 'Inquiries Received', type: 'number', isEnabled: true },
-        { key: 'bookings_confirmed', label: 'Bookings Confirmed', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'maintenance',
-      departmentLabel: 'Maintenance',
-      metrics: [
-        { key: 'work_orders_completed', label: 'Work Orders Completed', type: 'number', isEnabled: true },
-        { key: 'preventive_tasks', label: 'Preventive Tasks Done', type: 'number', isEnabled: true },
-        { key: 'emergency_calls', label: 'Emergency Calls', type: 'number', isEnabled: true },
-        { key: 'equipment_downtime', label: 'Equipment Downtime (hrs)', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'orchard',
-      departmentLabel: 'Orchard',
-      metrics: [
-        { key: 'acres_worked', label: 'Acres Worked', type: 'number', isEnabled: true },
-        { key: 'harvest_bins', label: 'Harvest Bins', type: 'number', isEnabled: true },
-        { key: 'spray_applications', label: 'Spray Applications', type: 'number', isEnabled: true },
-        { key: 'irrigation_hours', label: 'Irrigation Hours', type: 'number', isEnabled: true }
-      ]
-    },
-    {
-      department: 'food_operations',
-      departmentLabel: 'Food Operations',
-      metrics: [
-        { key: 'meals_prepared', label: 'Meals Prepared', type: 'number', isEnabled: true },
-        { key: 'prep_hours', label: 'Prep Hours', type: 'number', isEnabled: true },
-        { key: 'waste_percentage', label: 'Waste (%)', type: 'percentage', isEnabled: true },
-        { key: 'inventory_items_low', label: 'Low Inventory Items', type: 'number', isEnabled: true }
-      ]
-    }
+    { department: 'tasting_room', departmentLabel: 'Tasting Room', metrics: genericMetrics },
+    { department: 'retail', departmentLabel: 'Retail', metrics: genericMetrics },
+    { department: 'the_knoll', departmentLabel: 'The Knoll', metrics: genericMetrics },
+    { department: 'pavilion', departmentLabel: 'Pavilion', metrics: genericMetrics },
+    { department: 'js_restaurant', departmentLabel: "J's Restaurant", metrics: genericMetrics },
+    { department: 'production', departmentLabel: 'Production', metrics: genericMetrics },
+    { department: 'events', departmentLabel: 'Events', metrics: genericMetrics },
+    { department: 'maintenance', departmentLabel: 'Maintenance', metrics: genericMetrics },
+    { department: 'orchard', departmentLabel: 'Orchard', metrics: genericMetrics },
+    { department: 'food_operations', departmentLabel: 'Food Operations', metrics: genericMetrics }
   ];
 
   try {
