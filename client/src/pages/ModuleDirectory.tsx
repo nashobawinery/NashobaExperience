@@ -72,6 +72,14 @@ export default function ModuleDirectory() {
 
   const { data: modules, isLoading } = useQuery<PlatformModule[]>({
     queryKey: ["/api/platform/modules"],
+    queryFn: async () => {
+      console.log('ModuleDirectory: Fetching modules...');
+      const res = await fetch('/api/platform/modules', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Failed to fetch modules: ${res.status}`);
+      const data = await res.json();
+      console.log('ModuleDirectory: Modules fetched:', data);
+      return data;
+    },
     staleTime: 0,
     refetchOnMount: 'always',
   });

@@ -61,6 +61,14 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
 
   const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
     queryKey: ['/api/platform/modules'],
+    queryFn: async () => {
+      console.log('Fetching modules...');
+      const res = await fetch('/api/platform/modules', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Failed to fetch modules: ${res.status}`);
+      const data = await res.json();
+      console.log('Modules fetched:', data);
+      return data;
+    },
     staleTime: 0,
     refetchOnMount: 'always',
   });
@@ -216,6 +224,10 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
         <section>
           <h2 className="text-xl font-semibold mb-4">Modules</h2>
           {/* Debug info */}
+          <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500 rounded-lg text-blue-700">
+            Debug: loading={String(modulesLoading)}, error={modulesError ? String(modulesError) : 'none'}, 
+            count={modules?.length ?? 'undefined'}, data={modules ? 'exists' : 'null/undefined'}
+          </div>
           {modulesError && (
             <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
               Error loading modules: {String(modulesError)}
