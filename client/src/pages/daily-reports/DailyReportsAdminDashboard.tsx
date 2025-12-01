@@ -105,6 +105,10 @@ interface DailyReport {
   customerServiceSummary: string | null;
   operationalNotes: string | null;
   staffingNotes: string | null;
+  performanceSummary: string | null;
+  overallRating: number | null;
+  hasCustomerConcerns: boolean;
+  customerConcernsSummary: string | null;
   submittedById: string | null;
   submittedByName: string | null;
   submittedAt: string | null;
@@ -645,6 +649,16 @@ export default function DailyReportsAdminDashboard() {
     });
   };
 
+  const clearReportFields = () => {
+    setReportFormData(prev => ({
+      ...prev,
+      metrics: {},
+      customerServiceSummary: "",
+      operationalNotes: "",
+      staffingNotes: ""
+    }));
+  };
+
   const resetIncidentForm = () => {
     setIncidentFormData({
       incidentType: "other",
@@ -1039,7 +1053,7 @@ export default function DailyReportsAdminDashboard() {
 
   const selectedTemplate = templates.find(t => t.department === reportFormData.department);
 
-  const uniqueStaffMembers = [...new Set(reports.map(r => r.submittedByName).filter(Boolean))] as string[];
+  const uniqueStaffMembers = Array.from(new Set(reports.map(r => r.submittedByName).filter((name): name is string => Boolean(name))));
 
   const filteredAndSortedReports = (() => {
     let result = reports.filter(report => {
@@ -2148,17 +2162,29 @@ export default function DailyReportsAdminDashboard() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
-              Cancel
-            </Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button 
-              onClick={handleSaveReport}
-              disabled={!reportFormData.department || createReportMutation.isPending || updateReportMutation.isPending}
-              data-testid="button-save-report"
+              variant="ghost" 
+              onClick={clearReportFields}
+              disabled={!reportFormData.department}
+              className="sm:mr-auto"
+              data-testid="button-clear-fields"
             >
-              {createReportMutation.isPending || updateReportMutation.isPending ? "Saving..." : "Save Report"}
+              <X className="h-4 w-4 mr-2" />
+              Clear All Fields
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveReport}
+                disabled={!reportFormData.department || createReportMutation.isPending || updateReportMutation.isPending}
+                data-testid="button-save-report"
+              >
+                {createReportMutation.isPending || updateReportMutation.isPending ? "Saving..." : "Save Report"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

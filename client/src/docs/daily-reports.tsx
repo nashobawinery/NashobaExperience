@@ -518,6 +518,10 @@ Build a Daily Reports module that enables department managers to log daily opera
 - On submit: creates report with status "submitted"
 - Success confirmation screen
 
+### Report Form Features
+- **Clear All Fields button**: Resets all metric values, notes, and text fields while preserving department and date selection
+- Cancel and Save buttons in dialog footer
+
 ### Email Notifications
 - Send email via SendGrid when report is submitted
 - Recipients from template's notificationEmails array
