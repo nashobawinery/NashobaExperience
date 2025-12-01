@@ -46,7 +46,11 @@ import {
   Home,
   Send,
   Mail,
-  Settings
+  Settings,
+  QrCode,
+  Copy,
+  Download,
+  ExternalLink
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -151,6 +155,16 @@ interface DailyReportEmailRecipient {
   createdAt: string;
 }
 
+interface DailyReportAccessCode {
+  id: string;
+  code: string;
+  staffName: string;
+  department: string;
+  isActive: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
 const departmentIcons: Record<string, any> = {
   tasting_room: Wine,
   retail: ShoppingBag,
@@ -235,6 +249,15 @@ export default function DailyReportsAdminDashboard() {
     isActive: true
   });
 
+  const [isAccessCodeDialogOpen, setIsAccessCodeDialogOpen] = useState(false);
+  const [editingAccessCode, setEditingAccessCode] = useState<DailyReportAccessCode | null>(null);
+  const [accessCodeFormData, setAccessCodeFormData] = useState({
+    staffName: "",
+    department: "",
+    isActive: true
+  });
+  const [showQrCode, setShowQrCode] = useState<DailyReportAccessCode | null>(null);
+
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
   });
@@ -308,6 +331,55 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to delete email recipient", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const { data: accessCodes = [], isLoading: accessCodesLoading } = useQuery<DailyReportAccessCode[]>({
+    queryKey: ['/api/daily-reports/access-codes'],
+    enabled: activeTab === 'settings'
+  });
+
+  const createAccessCodeMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('POST', '/api/daily-reports/access-codes', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/access-codes'] });
+      setIsAccessCodeDialogOpen(false);
+      resetAccessCodeForm();
+      toast({ title: "Access code created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create access code", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateAccessCodeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest('PATCH', `/api/daily-reports/access-codes/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/access-codes'] });
+      setIsAccessCodeDialogOpen(false);
+      setEditingAccessCode(null);
+      resetAccessCodeForm();
+      toast({ title: "Access code updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update access code", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteAccessCodeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('DELETE', `/api/daily-reports/access-codes/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/access-codes'] });
+      toast({ title: "Access code deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete access code", description: error.message, variant: "destructive" });
     }
   });
 
@@ -522,6 +594,78 @@ export default function DailyReportsAdminDashboard() {
     if (window.confirm("Are you sure you want to delete this email recipient?")) {
       deleteEmailRecipientMutation.mutate(id);
     }
+  };
+
+  const resetAccessCodeForm = () => {
+    setAccessCodeFormData({
+      staffName: "",
+      department: "",
+      isActive: true
+    });
+  };
+
+  const handleAddAccessCode = () => {
+    setEditingAccessCode(null);
+    resetAccessCodeForm();
+    setIsAccessCodeDialogOpen(true);
+  };
+
+  const handleEditAccessCode = (code: DailyReportAccessCode) => {
+    setEditingAccessCode(code);
+    setAccessCodeFormData({
+      staffName: code.staffName,
+      department: code.department,
+      isActive: code.isActive
+    });
+    setIsAccessCodeDialogOpen(true);
+  };
+
+  const handleSaveAccessCode = () => {
+    if (!accessCodeFormData.staffName || !accessCodeFormData.department) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+
+    if (editingAccessCode) {
+      updateAccessCodeMutation.mutate({
+        id: editingAccessCode.id,
+        data: {
+          staffName: accessCodeFormData.staffName,
+          department: accessCodeFormData.department,
+          isActive: accessCodeFormData.isActive
+        }
+      });
+    } else {
+      createAccessCodeMutation.mutate({
+        staffName: accessCodeFormData.staffName,
+        department: accessCodeFormData.department,
+        isActive: accessCodeFormData.isActive
+      });
+    }
+  };
+
+  const handleDeleteAccessCode = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this access code?")) {
+      deleteAccessCodeMutation.mutate(id);
+    }
+  };
+
+  const handleShowQrCode = (code: DailyReportAccessCode) => {
+    setShowQrCode(code);
+  };
+
+  const copyCodeToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Code copied to clipboard" });
+  };
+
+  const getPublicFormUrl = (code: string) => {
+    return `${window.location.origin}/daily-report/${code}`;
+  };
+
+  const copyUrlToClipboard = (code: string) => {
+    navigator.clipboard.writeText(getPublicFormUrl(code));
+    toast({ title: "URL copied to clipboard" });
   };
 
   const handleCreateReport = () => {
@@ -1163,6 +1307,121 @@ export default function DailyReportsAdminDashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <QrCode className="h-5 w-5" />
+                    Staff Access Codes
+                  </CardTitle>
+                  <CardDescription>
+                    Create access codes for staff to submit daily reports via QR code without logging in
+                  </CardDescription>
+                </div>
+                <Button onClick={handleAddAccessCode} data-testid="button-add-access-code">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Access Code
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {accessCodesLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : accessCodes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No access codes created</p>
+                    <p className="text-sm">Create access codes to allow staff to submit reports without logging in</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {templates.map(template => {
+                      const deptCodes = accessCodes.filter(c => c.department === template.department);
+                      if (deptCodes.length === 0) return null;
+                      const Icon = departmentIcons[template.department] || Building;
+                      return (
+                        <div key={template.department} className="border rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Icon className="h-4 w-4 text-amber-500" />
+                            <span className="font-medium">{template.departmentLabel}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {deptCodes.length} code{deptCodes.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            {deptCodes.map(code => (
+                              <div 
+                                key={code.id} 
+                                className="flex items-center justify-between p-3 bg-muted/50 rounded"
+                                data-testid={`access-code-${code.id}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-lg font-bold">{code.code}</span>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-7 w-7"
+                                      onClick={() => copyCodeToClipboard(code.code)}
+                                      data-testid={`button-copy-code-${code.id}`}
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                  <span className={!code.isActive ? "text-muted-foreground line-through" : ""}>
+                                    {code.staffName}
+                                  </span>
+                                  {!code.isActive && (
+                                    <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleShowQrCode(code)}
+                                    data-testid={`button-qr-${code.id}`}
+                                  >
+                                    <QrCode className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => copyUrlToClipboard(code.code)}
+                                    data-testid={`button-copy-url-${code.id}`}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleEditAccessCode(code)}
+                                    data-testid={`button-edit-code-${code.id}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleDeleteAccessCode(code.id)}
+                                    data-testid={`button-delete-code-${code.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
@@ -1669,6 +1928,151 @@ export default function DailyReportsAdminDashboard() {
               {(createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending) ? "Saving..." : (editingEmailRecipient ? "Save Changes" : "Add Recipients")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAccessCodeDialogOpen} onOpenChange={setIsAccessCodeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingAccessCode ? "Edit Access Code" : "Create Access Code"}</DialogTitle>
+            <DialogDescription>
+              {editingAccessCode 
+                ? "Update the staff member's information for this access code"
+                : "Create a new access code for a staff member to submit daily reports"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="code-department">Department</Label>
+              <Select 
+                value={accessCodeFormData.department} 
+                onValueChange={(v) => setAccessCodeFormData({ ...accessCodeFormData, department: v })}
+              >
+                <SelectTrigger id="code-department" data-testid="select-code-department">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map(t => (
+                    <SelectItem key={t.department} value={t.department}>
+                      {t.departmentLabel}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="code-staff-name">Staff Name</Label>
+              <Input
+                id="code-staff-name"
+                type="text"
+                placeholder="John Smith"
+                value={accessCodeFormData.staffName}
+                onChange={(e) => setAccessCodeFormData({ ...accessCodeFormData, staffName: e.target.value })}
+                data-testid="input-staff-name"
+              />
+            </div>
+
+            {editingAccessCode && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="code-active"
+                  checked={accessCodeFormData.isActive}
+                  onCheckedChange={(checked) => setAccessCodeFormData({ ...accessCodeFormData, isActive: checked === true })}
+                />
+                <Label htmlFor="code-active" className="text-sm">Active (can be used to submit reports)</Label>
+              </div>
+            )}
+
+            {editingAccessCode && (
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="text-sm text-muted-foreground mb-1">Access Code</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-2xl font-bold">{editingAccessCode.code}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => copyCodeToClipboard(editingAccessCode.code)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAccessCodeDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveAccessCode}
+              disabled={!accessCodeFormData.department || !accessCodeFormData.staffName || createAccessCodeMutation.isPending || updateAccessCodeMutation.isPending}
+              data-testid="button-save-access-code"
+            >
+              {(createAccessCodeMutation.isPending || updateAccessCodeMutation.isPending) ? "Saving..." : (editingAccessCode ? "Save Changes" : "Create Code")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!showQrCode} onOpenChange={() => setShowQrCode(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-center">QR Code</DialogTitle>
+            <DialogDescription className="text-center">
+              Scan this code to access the daily report form
+            </DialogDescription>
+          </DialogHeader>
+          {showQrCode && (
+            <div className="space-y-4 py-4">
+              <div className="flex justify-center">
+                <div className="bg-white p-4 rounded-lg">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getPublicFormUrl(showQrCode.code))}`}
+                    alt="QR Code"
+                    className="w-48 h-48"
+                  />
+                </div>
+              </div>
+              <div className="text-center space-y-2">
+                <div className="font-medium">{showQrCode.staffName}</div>
+                <div className="text-sm text-muted-foreground">
+                  {templates.find(t => t.department === showQrCode.department)?.departmentLabel || showQrCode.department}
+                </div>
+                <div className="font-mono text-2xl font-bold">{showQrCode.code}</div>
+              </div>
+              <div className="flex justify-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => copyCodeToClipboard(showQrCode.code)}
+                  data-testid="button-copy-code-dialog"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Code
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => copyUrlToClipboard(showQrCode.code)}
+                  data-testid="button-copy-url-dialog"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Copy URL
+                </Button>
+              </div>
+              <div className="text-center">
+                <a 
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&data=${encodeURIComponent(getPublicFormUrl(showQrCode.code))}`}
+                  download={`qr-code-${showQrCode.code}.png`}
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  data-testid="link-download-qr"
+                >
+                  <Download className="h-4 w-4" />
+                  Download QR Code
+                </a>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
