@@ -92,8 +92,8 @@ export default function PublicDailyReportForm() {
   }, [urlCode]);
 
   const handleValidateCode = async (code: string) => {
-    if (!code || code.length !== 6) {
-      toast({ title: "Please enter a 6-digit code", variant: "destructive" });
+    if (!code || code.length !== 4) {
+      toast({ title: "Please enter a 4-digit code", variant: "destructive" });
       return;
     }
 
@@ -223,7 +223,7 @@ export default function PublicDailyReportForm() {
               <ClipboardCheck className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-2xl">Daily Report</CardTitle>
-            <CardDescription>Enter your 6-digit access code to continue</CardDescription>
+            <CardDescription>Enter your 4-digit access code to continue</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -234,8 +234,8 @@ export default function PublicDailyReportForm() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  maxLength={6}
-                  placeholder="000000"
+                  maxLength={4}
+                  placeholder="0000"
                   value={enteredCode}
                   onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, ""))}
                   className="text-center text-2xl tracking-widest font-mono"
@@ -245,7 +245,7 @@ export default function PublicDailyReportForm() {
               <Button 
                 className="w-full" 
                 onClick={() => handleValidateCode(enteredCode)}
-                disabled={isValidating || enteredCode.length !== 6}
+                disabled={isValidating || enteredCode.length !== 4}
                 data-testid="button-validate-code"
               >
                 {isValidating ? (

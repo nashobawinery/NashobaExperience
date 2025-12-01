@@ -6232,12 +6232,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new access code (admin)
   app.post('/api/daily-reports/access-codes', isAdmin, async (req: any, res) => {
     try {
-      const { staffName, department } = req.body;
+      const { staffName, department, code: customCode } = req.body;
       if (!staffName || !department) {
         return res.status(400).json({ message: 'Staff name and department are required' });
       }
 
-      const code = await storage.generateUniqueAccessCode();
+      let code: string;
+      if (customCode) {
+        if (!/^\d{4}$/.test(customCode)) {
+          return res.status(400).json({ message: 'Code must be exactly 4 digits' });
+        }
+        const existing = await storage.getDailyReportAccessCodeByCode(customCode);
+        if (existing) {
+          return res.status(400).json({ message: 'This code is already in use' });
+        }
+        code = customCode;
+      } else {
+        code = await storage.generateUniqueAccessCode();
+      }
+
       const userId = req.user?.claims?.sub;
       const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
 
@@ -6261,12 +6274,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { staffName, department, isActive } = req.body;
-      const accessCode = await storage.updateDailyReportAccessCode(id, {
-        staffName,
-        department,
-        isActive
-      });
+      const { staffName, department, isActive, code: customCode } = req.body;
+      
+      const updateData: any = { staffName, department, isActive };
+      
+      if (customCode) {
+        if (!/^\d{4}$/.test(customCode)) {
+          return res.status(400).json({ message: 'Code must be exactly 4 digits' });
+        }
+        const existing = await storage.getDailyReportAccessCodeByCode(customCode);
+        if (existing && existing.id !== id) {
+          return res.status(400).json({ message: 'This code is already in use' });
+        }
+        updateData.code = customCode;
+      }
+      
+      const accessCode = await storage.updateDailyReportAccessCode(id, updateData);
       if (!accessCode) {
         return res.status(404).json({ message: 'Access code not found' });
       }

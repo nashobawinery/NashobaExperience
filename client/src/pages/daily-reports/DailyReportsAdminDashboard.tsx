@@ -284,6 +284,7 @@ export default function DailyReportsAdminDashboard() {
   const [accessCodeFormData, setAccessCodeFormData] = useState({
     staffName: "",
     department: "",
+    code: "",
     isActive: true
   });
   const [showQrCode, setShowQrCode] = useState<DailyReportAccessCode | null>(null);
@@ -735,6 +736,7 @@ export default function DailyReportsAdminDashboard() {
     setAccessCodeFormData({
       staffName: "",
       department: "",
+      code: "",
       isActive: true
     });
   };
@@ -750,6 +752,7 @@ export default function DailyReportsAdminDashboard() {
     setAccessCodeFormData({
       staffName: code.staffName,
       department: code.department,
+      code: code.code,
       isActive: code.isActive
     });
     setIsAccessCodeDialogOpen(true);
@@ -761,12 +764,18 @@ export default function DailyReportsAdminDashboard() {
       return;
     }
 
+    if (accessCodeFormData.code && !/^\d{4}$/.test(accessCodeFormData.code)) {
+      toast({ title: "Code must be exactly 4 digits", variant: "destructive" });
+      return;
+    }
+
     if (editingAccessCode) {
       updateAccessCodeMutation.mutate({
         id: editingAccessCode.id,
         data: {
           staffName: accessCodeFormData.staffName,
           department: accessCodeFormData.department,
+          code: accessCodeFormData.code || undefined,
           isActive: accessCodeFormData.isActive
         }
       });
@@ -774,6 +783,7 @@ export default function DailyReportsAdminDashboard() {
       createAccessCodeMutation.mutate({
         staffName: accessCodeFormData.staffName,
         department: accessCodeFormData.department,
+        code: accessCodeFormData.code || undefined,
         isActive: accessCodeFormData.isActive
       });
     }
@@ -2355,6 +2365,36 @@ export default function DailyReportsAdminDashboard() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="code-value">Access Code (4 digits)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="code-value"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  placeholder="Leave empty to auto-generate"
+                  value={accessCodeFormData.code}
+                  onChange={(e) => setAccessCodeFormData({ ...accessCodeFormData, code: e.target.value.replace(/\D/g, "") })}
+                  className="font-mono text-lg tracking-widest"
+                  data-testid="input-code-value"
+                />
+                {accessCodeFormData.code && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => copyCodeToClipboard(accessCodeFormData.code)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter a memorable 4-digit code or leave empty to auto-generate
+              </p>
+            </div>
+
             {editingAccessCode && (
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -2363,22 +2403,6 @@ export default function DailyReportsAdminDashboard() {
                   onCheckedChange={(checked) => setAccessCodeFormData({ ...accessCodeFormData, isActive: checked === true })}
                 />
                 <Label htmlFor="code-active" className="text-sm">Active (can be used to submit reports)</Label>
-              </div>
-            )}
-
-            {editingAccessCode && (
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="text-sm text-muted-foreground mb-1">Access Code</div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-2xl font-bold">{editingAccessCode.code}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => copyCodeToClipboard(editingAccessCode.code)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
             )}
           </div>

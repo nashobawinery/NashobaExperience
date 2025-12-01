@@ -288,7 +288,7 @@ registerModuleDocs({
               <li>Click <strong>Add Access Code</strong></li>
               <li>Enter the staff member's name</li>
               <li>Select the department they're reporting for</li>
-              <li>A 6-digit code is automatically generated</li>
+              <li>A 4-digit code is generated (you can customize it)</li>
             </ol>
           </div>
           

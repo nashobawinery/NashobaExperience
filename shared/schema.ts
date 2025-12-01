@@ -1694,7 +1694,7 @@ export type DailyReportEmailRecipient = typeof dailyReportEmailRecipients.$infer
 // Daily Report Access Codes - for public form access via QR code
 export const dailyReportAccessCodes = pgTable("daily_report_access_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code", { length: 6 }).notNull().unique(),
+  code: varchar("code", { length: 4 }).notNull().unique(),
   staffName: varchar("staff_name").notNull(),
   department: dailyReportDepartmentEnum("department").notNull(),
   isActive: boolean("is_active").notNull().default(true),

@@ -3872,7 +3872,7 @@ export class DatabaseStorage implements IStorage {
     let code: string;
     let exists = true;
     while (exists) {
-      code = Math.floor(100000 + Math.random() * 900000).toString();
+      code = Math.floor(1000 + Math.random() * 9000).toString();
       const existing = await this.getDailyReportAccessCodeByCode(code);
       exists = !!existing;
     }
