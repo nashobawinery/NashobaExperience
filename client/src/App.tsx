@@ -43,6 +43,9 @@ import LmsLearnerPortal from "@/pages/lms/LmsLearnerPortal";
 // Compliance Imports
 import ComplianceAdminDashboard from "@/pages/compliance/ComplianceAdminDashboard";
 
+// Daily Reports Imports
+import DailyReportsAdminDashboard from "@/pages/daily-reports/DailyReportsAdminDashboard";
+
 // Platform Management Imports
 import ModuleDirectory from "@/pages/ModuleDirectory";
 import AccessControl from "@/pages/AccessControl";
@@ -242,6 +245,24 @@ function ComplianceAdminRoute() {
   return <ComplianceAdminDashboard />;
 }
 
+function DailyReportsAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return <DailyReportsAdminDashboard />;
+}
+
 // B2B Routes Component
 function B2bRoutes() {
   return (
@@ -364,6 +385,8 @@ function Router() {
         <Route path="/lms" component={LmsLearnerPortal} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
+        <Route path="/daily-reports" component={DailyReportsAdminRoute} />
+        <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>

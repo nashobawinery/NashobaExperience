@@ -11,7 +11,7 @@ import "@/docs/admin-hub";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
-  Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield
+  Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList
 } from "lucide-react";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
@@ -40,6 +40,9 @@ const iconMap: Record<string, any> = {
   ClipboardCheck,
   Headphones,
   Scale,
+  ClipboardList,
+  Users,
+  Package,
 };
 
 const statusColors: Record<ModuleStatus, string> = {
