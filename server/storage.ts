@@ -121,6 +121,22 @@ import {
   type ProductMedia,
   type InsertImprovementNote,
   type ImprovementNote,
+  dailyReportTemplates,
+  dailyProcedureTemplates,
+  dailyReports,
+  dailyReportIncidents,
+  dailyProcedureCompletions,
+  type InsertDailyReportTemplate,
+  type DailyReportTemplate,
+  type InsertDailyProcedureTemplate,
+  type DailyProcedureTemplate,
+  type InsertDailyReport,
+  type DailyReport,
+  type DailyReportWithDetails,
+  type InsertDailyReportIncident,
+  type DailyReportIncident,
+  type InsertDailyProcedureCompletion,
+  type DailyProcedureCompletion,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -3397,6 +3413,359 @@ export class DatabaseStorage implements IStorage {
   async deleteImprovementNote(id: string): Promise<boolean> {
     const result = await db.delete(improvementNotes).where(eq(improvementNotes.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // ============================================
+  // DAILY REPORTS MODULE
+  // ============================================
+
+  // Daily Report Templates
+  async getDailyReportTemplates(activeOnly = false): Promise<DailyReportTemplate[]> {
+    if (activeOnly) {
+      return await db.select().from(dailyReportTemplates)
+        .where(eq(dailyReportTemplates.isActive, true))
+        .orderBy(dailyReportTemplates.departmentLabel);
+    }
+    return await db.select().from(dailyReportTemplates)
+      .orderBy(dailyReportTemplates.departmentLabel);
+  }
+
+  async getDailyReportTemplate(id: string): Promise<DailyReportTemplate | undefined> {
+    const [template] = await db.select().from(dailyReportTemplates)
+      .where(eq(dailyReportTemplates.id, id));
+    return template;
+  }
+
+  async getDailyReportTemplateByDepartment(department: string): Promise<DailyReportTemplate | undefined> {
+    const [template] = await db.select().from(dailyReportTemplates)
+      .where(eq(dailyReportTemplates.department, department as any));
+    return template;
+  }
+
+  async createDailyReportTemplate(data: InsertDailyReportTemplate): Promise<DailyReportTemplate> {
+    const [template] = await db.insert(dailyReportTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateDailyReportTemplate(id: string, data: Partial<InsertDailyReportTemplate>): Promise<DailyReportTemplate | undefined> {
+    const [updated] = await db.update(dailyReportTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReportTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async upsertDailyReportTemplate(data: InsertDailyReportTemplate): Promise<DailyReportTemplate> {
+    const existing = await this.getDailyReportTemplateByDepartment(data.department);
+    if (existing) {
+      const updated = await this.updateDailyReportTemplate(existing.id, data);
+      return updated!;
+    }
+    return await this.createDailyReportTemplate(data);
+  }
+
+  // Daily Procedure Templates
+  async getDailyProcedureTemplates(department?: string, activeOnly = false): Promise<DailyProcedureTemplate[]> {
+    const conditions: SQL<unknown>[] = [];
+    if (department) {
+      conditions.push(eq(dailyProcedureTemplates.department, department as any));
+    }
+    if (activeOnly) {
+      conditions.push(eq(dailyProcedureTemplates.isActive, true));
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(dailyProcedureTemplates)
+        .where(and(...conditions))
+        .orderBy(dailyProcedureTemplates.sortOrder);
+    }
+    return await db.select().from(dailyProcedureTemplates)
+      .orderBy(dailyProcedureTemplates.department, dailyProcedureTemplates.sortOrder);
+  }
+
+  async getDailyProcedureTemplate(id: string): Promise<DailyProcedureTemplate | undefined> {
+    const [template] = await db.select().from(dailyProcedureTemplates)
+      .where(eq(dailyProcedureTemplates.id, id));
+    return template;
+  }
+
+  async createDailyProcedureTemplate(data: InsertDailyProcedureTemplate): Promise<DailyProcedureTemplate> {
+    const [template] = await db.insert(dailyProcedureTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateDailyProcedureTemplate(id: string, data: Partial<InsertDailyProcedureTemplate>): Promise<DailyProcedureTemplate | undefined> {
+    const [updated] = await db.update(dailyProcedureTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyProcedureTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDailyProcedureTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(dailyProcedureTemplates).where(eq(dailyProcedureTemplates.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Daily Reports
+  async getDailyReports(filters?: { 
+    department?: string; 
+    startDate?: Date; 
+    endDate?: Date; 
+    status?: string;
+    hasCustomerConcerns?: boolean;
+  }): Promise<DailyReport[]> {
+    const conditions: SQL<unknown>[] = [];
+    
+    if (filters?.department) {
+      conditions.push(eq(dailyReports.department, filters.department as any));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${dailyReports.reportDate} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${dailyReports.reportDate} <= ${filters.endDate}`);
+    }
+    if (filters?.status) {
+      conditions.push(eq(dailyReports.status, filters.status));
+    }
+    if (filters?.hasCustomerConcerns !== undefined) {
+      conditions.push(eq(dailyReports.hasCustomerConcerns, filters.hasCustomerConcerns));
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(dailyReports)
+        .where(and(...conditions))
+        .orderBy(desc(dailyReports.reportDate));
+    }
+    return await db.select().from(dailyReports)
+      .orderBy(desc(dailyReports.reportDate));
+  }
+
+  async getDailyReport(id: string): Promise<DailyReport | undefined> {
+    const [report] = await db.select().from(dailyReports)
+      .where(eq(dailyReports.id, id));
+    return report;
+  }
+
+  async getDailyReportByDepartmentAndDate(department: string, reportDate: Date): Promise<DailyReport | undefined> {
+    const startOfDay = new Date(reportDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(reportDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const [report] = await db.select().from(dailyReports)
+      .where(and(
+        eq(dailyReports.department, department as any),
+        sql`${dailyReports.reportDate} >= ${startOfDay}`,
+        sql`${dailyReports.reportDate} <= ${endOfDay}`
+      ));
+    return report;
+  }
+
+  async getDailyReportWithDetails(id: string): Promise<DailyReportWithDetails | undefined> {
+    const report = await this.getDailyReport(id);
+    if (!report) return undefined;
+    
+    const incidents = await db.select().from(dailyReportIncidents)
+      .where(eq(dailyReportIncidents.reportId, id))
+      .orderBy(desc(dailyReportIncidents.severity), dailyReportIncidents.createdAt);
+    
+    const completions = await db.select().from(dailyProcedureCompletions)
+      .where(eq(dailyProcedureCompletions.reportId, id));
+    
+    const template = await this.getDailyReportTemplateByDepartment(report.department);
+    
+    // Fetch procedure templates for the completions
+    const procedureTemplateIds = completions.map(c => c.procedureTemplateId);
+    const procedureTemplates = procedureTemplateIds.length > 0
+      ? await db.select().from(dailyProcedureTemplates)
+          .where(inArray(dailyProcedureTemplates.id, procedureTemplateIds))
+      : [];
+    
+    const procedureTemplatesMap = new Map(procedureTemplates.map(t => [t.id, t]));
+    
+    const completionsWithTemplates = completions.map(c => ({
+      ...c,
+      template: procedureTemplatesMap.get(c.procedureTemplateId)
+    }));
+    
+    return {
+      ...report,
+      incidents,
+      procedureCompletions: completionsWithTemplates,
+      template
+    };
+  }
+
+  async createDailyReport(data: InsertDailyReport): Promise<DailyReport> {
+    const [report] = await db.insert(dailyReports).values(data).returning();
+    return report;
+  }
+
+  async updateDailyReport(id: string, data: Partial<InsertDailyReport>): Promise<DailyReport | undefined> {
+    const [updated] = await db.update(dailyReports)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReports.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDailyReport(id: string): Promise<boolean> {
+    const result = await db.delete(dailyReports).where(eq(dailyReports.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Daily Report Incidents
+  async getDailyReportIncidents(reportId: string): Promise<DailyReportIncident[]> {
+    return await db.select().from(dailyReportIncidents)
+      .where(eq(dailyReportIncidents.reportId, reportId))
+      .orderBy(desc(dailyReportIncidents.severity), dailyReportIncidents.createdAt);
+  }
+
+  async getUnresolvedIncidents(limit = 50): Promise<(DailyReportIncident & { department?: string })[]> {
+    const incidents = await db.select({
+      incident: dailyReportIncidents,
+      department: dailyReports.department
+    })
+      .from(dailyReportIncidents)
+      .innerJoin(dailyReports, eq(dailyReportIncidents.reportId, dailyReports.id))
+      .where(eq(dailyReportIncidents.resolved, false))
+      .orderBy(desc(dailyReportIncidents.severity), desc(dailyReportIncidents.createdAt))
+      .limit(limit);
+    
+    return incidents.map(i => ({ ...i.incident, department: i.department }));
+  }
+
+  async getCustomerRelatedIncidents(limit = 50): Promise<(DailyReportIncident & { department?: string })[]> {
+    const incidents = await db.select({
+      incident: dailyReportIncidents,
+      department: dailyReports.department
+    })
+      .from(dailyReportIncidents)
+      .innerJoin(dailyReports, eq(dailyReportIncidents.reportId, dailyReports.id))
+      .where(eq(dailyReportIncidents.isCustomerRelated, true))
+      .orderBy(desc(dailyReportIncidents.createdAt))
+      .limit(limit);
+    
+    return incidents.map(i => ({ ...i.incident, department: i.department }));
+  }
+
+  async createDailyReportIncident(data: InsertDailyReportIncident): Promise<DailyReportIncident> {
+    const [incident] = await db.insert(dailyReportIncidents).values(data).returning();
+    return incident;
+  }
+
+  async updateDailyReportIncident(id: string, data: Partial<InsertDailyReportIncident>): Promise<DailyReportIncident | undefined> {
+    const [updated] = await db.update(dailyReportIncidents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReportIncidents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDailyReportIncident(id: string): Promise<boolean> {
+    const result = await db.delete(dailyReportIncidents).where(eq(dailyReportIncidents.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Daily Procedure Completions
+  async getDailyProcedureCompletions(reportId: string): Promise<DailyProcedureCompletion[]> {
+    return await db.select().from(dailyProcedureCompletions)
+      .where(eq(dailyProcedureCompletions.reportId, reportId));
+  }
+
+  async upsertDailyProcedureCompletion(data: InsertDailyProcedureCompletion): Promise<DailyProcedureCompletion> {
+    const existing = await db.select().from(dailyProcedureCompletions)
+      .where(and(
+        eq(dailyProcedureCompletions.reportId, data.reportId),
+        eq(dailyProcedureCompletions.procedureTemplateId, data.procedureTemplateId)
+      ));
+    
+    if (existing.length > 0) {
+      const [updated] = await db.update(dailyProcedureCompletions)
+        .set({
+          completed: data.completed,
+          completedAt: data.completed ? new Date() : null,
+          completedById: data.completedById,
+          completedByName: data.completedByName,
+          notes: data.notes
+        })
+        .where(eq(dailyProcedureCompletions.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    
+    const [completion] = await db.insert(dailyProcedureCompletions)
+      .values({
+        ...data,
+        completedAt: data.completed ? new Date() : null
+      })
+      .returning();
+    return completion;
+  }
+
+  async initializeProcedureCompletionsForReport(reportId: string, department: string): Promise<void> {
+    const procedures = await this.getDailyProcedureTemplates(department, true);
+    
+    for (const procedure of procedures) {
+      await db.insert(dailyProcedureCompletions)
+        .values({
+          reportId,
+          procedureTemplateId: procedure.id,
+          completed: false
+        })
+        .onConflictDoNothing();
+    }
+  }
+
+  // Daily Reports Stats
+  async getDailyReportsStats(startDate?: Date, endDate?: Date): Promise<{
+    totalReports: number;
+    submittedToday: number;
+    unresolvedIncidents: number;
+    customerConcerns: number;
+    procedureCompletionRate: number;
+  }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(dailyReports);
+    
+    const [todayResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReports)
+      .where(and(
+        sql`${dailyReports.reportDate} >= ${today}`,
+        sql`${dailyReports.reportDate} < ${tomorrow}`,
+        eq(dailyReports.status, 'submitted')
+      ));
+    
+    const [unresolvedResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReportIncidents)
+      .where(eq(dailyReportIncidents.resolved, false));
+    
+    const [customerConcernsResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReports)
+      .where(eq(dailyReports.hasCustomerConcerns, true));
+    
+    const [completionResult] = await db.select({
+      completed: sql<number>`SUM(CASE WHEN ${dailyReports.proceduresCompleted} THEN 1 ELSE 0 END)`,
+      total: sql<number>`COUNT(*)`
+    }).from(dailyReports);
+    
+    const completionRate = completionResult.total > 0 
+      ? (completionResult.completed / completionResult.total) * 100 
+      : 0;
+    
+    return {
+      totalReports: Number(totalResult.count) || 0,
+      submittedToday: Number(todayResult.count) || 0,
+      unresolvedIncidents: Number(unresolvedResult.count) || 0,
+      customerConcerns: Number(customerConcernsResult.count) || 0,
+      procedureCompletionRate: Math.round(completionRate)
+    };
   }
 }
 
