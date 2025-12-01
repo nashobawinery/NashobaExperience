@@ -71,11 +71,19 @@ interface NotificationEmail {
   role?: string;
 }
 
+interface DailyReportMetric {
+  key: string;
+  label: string;
+  type: string;
+  unit?: string;
+  isEnabled?: boolean;
+}
+
 interface DailyReportTemplate {
   id: string;
   department: string;
   departmentLabel: string;
-  metrics: Array<{ key: string; label: string; type: string }>;
+  metrics: DailyReportMetric[];
   notificationEmails?: NotificationEmail[];
   isActive: boolean;
   createdAt: string;
@@ -432,7 +440,7 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const updateDepartmentMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { notificationEmails: NotificationEmail[] } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[] } }) => {
       return await apiRequest('PATCH', `/api/daily-reports/templates/${id}`, data);
     },
     onSuccess: () => {
@@ -443,6 +451,26 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to update department settings", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const toggleMetricMutation = useMutation({
+    mutationFn: async ({ templateId, metricKey, isEnabled }: { templateId: string; metricKey: string; isEnabled: boolean }) => {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) throw new Error("Template not found");
+      
+      const updatedMetrics = template.metrics.map(m => 
+        m.key === metricKey ? { ...m, isEnabled } : m
+      );
+      
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}`, { metrics: updatedMetrics });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: "Field configuration updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update field configuration", description: error.message, variant: "destructive" });
     }
   });
   
@@ -1404,7 +1432,9 @@ export default function DailyReportsAdminDashboard() {
                             <Icon className="h-5 w-5 text-amber-500" />
                             <div>
                               <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
-                              <CardDescription>{template.metrics.length} metrics, {procedures.length} procedures</CardDescription>
+                              <CardDescription>
+                                {template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} fields enabled, {procedures.length} procedures
+                              </CardDescription>
                             </div>
                           </div>
                           <Button 
@@ -1417,12 +1447,44 @@ export default function DailyReportsAdminDashboard() {
                           </Button>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="flex flex-wrap gap-1">
-                            {template.metrics.map(m => (
-                              <Badge key={m.key} variant="secondary" className="text-xs">
-                                {m.label}
-                              </Badge>
-                            ))}
+                          <div className="border-b pb-3">
+                            <h4 className="text-sm font-medium flex items-center gap-2 mb-3">
+                              <Settings className="h-4 w-4 text-muted-foreground" />
+                              Report Fields
+                              <span className="text-xs text-muted-foreground font-normal">
+                                ({template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} enabled)
+                              </span>
+                            </h4>
+                            <div className="grid gap-2">
+                              {template.metrics.map(m => (
+                                <div 
+                                  key={m.key} 
+                                  className="flex items-center justify-between p-2 bg-muted/30 rounded-lg"
+                                  data-testid={`metric-toggle-${template.department}-${m.key}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm ${m.isEnabled === false ? 'text-muted-foreground line-through' : ''}`}>
+                                      {m.label}
+                                    </span>
+                                    {m.unit && (
+                                      <span className="text-xs text-muted-foreground">({m.unit})</span>
+                                    )}
+                                  </div>
+                                  <Switch
+                                    checked={m.isEnabled !== false}
+                                    onCheckedChange={(checked) => {
+                                      toggleMetricMutation.mutate({
+                                        templateId: template.id,
+                                        metricKey: m.key,
+                                        isEnabled: checked
+                                      });
+                                    }}
+                                    disabled={toggleMetricMutation.isPending}
+                                    data-testid={`switch-metric-${m.key}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                           
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
