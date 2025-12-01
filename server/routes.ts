@@ -6993,7 +6993,14 @@ async function seedDailyReportTemplates(): Promise<void> {
     { key: 'customer_incident_reports', label: 'Customer Incident Reports', type: 'text', isEnabled: true },
     { key: 'customer_comments', label: 'Customer Comments', type: 'text', isEnabled: true },
     { key: 'summary', label: 'Summary', type: 'text', isEnabled: true },
-    { key: 'voids_explanations', label: 'Voids and Explanations', type: 'text', isEnabled: true }
+    { key: 'voids_explanations', label: 'Voids and Explanations', type: 'text', isEnabled: true },
+    { key: 'building_name', label: 'Building Name', type: 'text', isEnabled: true },
+    { key: 'equipment_name', label: 'Equipment Name', type: 'text', isEnabled: true },
+    { key: 'repair_maintenance_desc', label: 'Repair or Maintenance Description', type: 'text', isEnabled: true },
+    { key: 'location', label: 'Location', type: 'text', isEnabled: true },
+    { key: 'area_cleaned', label: 'Area Cleaned', type: 'text', isEnabled: true },
+    { key: 'product_required', label: 'Product Required', type: 'text', isEnabled: true },
+    { key: 'incident_report', label: 'Incident Report', type: 'text', isEnabled: true }
   ];
 
   const departments = [

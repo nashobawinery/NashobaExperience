@@ -315,8 +315,22 @@ export default function PublicDailyReportForm() {
         {formData.metrics && formData.metrics.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Daily Report Fields</CardTitle>
-              <CardDescription>Fill in the applicable fields for your shift</CardDescription>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-lg">Daily Report Fields</CardTitle>
+                  <CardDescription>Fill in the applicable fields for your shift</CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMetricsData({})}
+                  data-testid="button-clear-all-metrics"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Clear All
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Number fields in a compact grid */}
