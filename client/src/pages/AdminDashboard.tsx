@@ -1657,6 +1657,98 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     </div>
                   </section>
 
+                  {/* Access Control & Permissions Section */}
+                  <section className="border-t pt-6">
+                    <h3 className="font-serif text-2xl font-medium mb-4 text-primary">Access Control & Permissions</h3>
+                    
+                    <div className="space-y-6">
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3">Global Role Levels</h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Each platform user has a Global Role that determines their overall platform access level:
+                        </p>
+                        <div className="space-y-3">
+                          <div className="border-l-4 border-red-500 pl-4">
+                            <h5 className="font-medium">Super Admin</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Full platform access: Admin Hub, Access Control (create/edit/delete users), all modules, system settings, environment sync tools, and ability to assign any role to others.
+                            </p>
+                          </div>
+                          <div className="border-l-4 border-orange-500 pl-4">
+                            <h5 className="font-medium">Admin</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Admin Hub access, Access Control page, can manage users and groups, access to all active modules, can perform administrative actions within modules.
+                            </p>
+                          </div>
+                          <div className="border-l-4 border-yellow-500 pl-4">
+                            <h5 className="font-medium">Manager</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Limited admin access, can view Admin Hub dashboard, access to assigned modules based on User Groups, can manage team-level operations.
+                            </p>
+                          </div>
+                          <div className="border-l-4 border-blue-500 pl-4">
+                            <h5 className="font-medium">Staff</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Regular platform user, access to modules based on User Groups only, can perform day-to-day operations, no administrative capabilities.
+                            </p>
+                          </div>
+                          <div className="border-l-4 border-gray-500 pl-4">
+                            <h5 className="font-medium">Viewer</h5>
+                            <p className="text-sm text-muted-foreground">
+                              Read-only access, can view content in assigned modules but cannot create, edit, or delete anything.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3">User Groups</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          User Groups provide granular permission control. Users can belong to multiple groups, and their effective permissions combine from all group memberships.
+                        </p>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          <li>• <strong>Global Admin</strong> - Full access to all modules and features</li>
+                          <li>• <strong>Director</strong> - Management-level access across modules</li>
+                          <li>• <strong>Manager</strong> - Operational management access</li>
+                          <li>• <strong>Staff</strong> - Standard staff access for daily operations</li>
+                          <li>• <strong>Viewer</strong> - Read-only access to assigned modules</li>
+                          <li>• <strong>Sales Representatives</strong> - Access to sales-related modules</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3">Setting a User's Global Role</h4>
+                        <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                          <li>Go to the <strong>Access Control</strong> page (from Admin Hub)</li>
+                          <li>Find the user in the <strong>Platform Users</strong> table</li>
+                          <li>Click the <strong>Edit</strong> (pencil) icon in the Actions column</li>
+                          <li>Select the appropriate <strong>Global Role</strong> from the dropdown</li>
+                          <li>Click <strong>Save Changes</strong></li>
+                        </ol>
+                      </div>
+
+                      <div className="bg-muted/50 rounded-lg p-6">
+                        <h4 className="font-medium text-lg mb-3">Sync Security Button</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          The <strong>Sync Security</strong> button on the Access Control page ensures all User Groups have complete permission entries for every module and feature.
+                        </p>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <p><strong>When to use:</strong></p>
+                          <ul className="list-disc list-inside ml-2 space-y-1">
+                            <li>After new modules or features are added to the platform</li>
+                            <li>When the status shows "X missing entries" (amber warning)</li>
+                            <li>After database updates or republishing the application</li>
+                          </ul>
+                          <p className="mt-3"><strong>Status indicators:</strong></p>
+                          <ul className="list-disc list-inside ml-2 space-y-1">
+                            <li><span className="text-green-600">Green checkmark</span> = All groups have complete permission entries</li>
+                            <li><span className="text-amber-600">Amber warning</span> = Some entries need to be created (click Sync Security to fix)</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
                   {/* Contact Information */}
                   <section className="border-t pt-6 text-center">
                     <p className="text-muted-foreground">
