@@ -1095,3 +1095,65 @@ export async function seedPlatformModules(): Promise<void> {
   const count = (countResult.rows[0] as any)?.count || 0;
   console.log(`[RBAC] Platform modules: ${count} total`);
 }
+
+/**
+ * Seed default user groups if they don't exist
+ * This ensures production database has the core user groups
+ */
+export async function seedUserGroups(): Promise<void> {
+  const defaultGroups = [
+    {
+      name: 'Global Admin',
+      description: 'Full access to all modules and features',
+      color: 'red',
+      isSystemGroup: true,
+      sortOrder: 1
+    },
+    {
+      name: 'Director',
+      description: 'Management-level access across modules',
+      color: 'blue',
+      isSystemGroup: true,
+      sortOrder: 2
+    },
+    {
+      name: 'Manager',
+      description: 'Operational management access',
+      color: 'green',
+      isSystemGroup: false,
+      sortOrder: 3
+    },
+    {
+      name: 'Staff',
+      description: 'Standard staff access for daily operations',
+      color: 'purple',
+      isSystemGroup: false,
+      sortOrder: 4
+    },
+    {
+      name: 'Viewer',
+      description: 'Read-only access to assigned modules',
+      color: 'gray',
+      isSystemGroup: true,
+      sortOrder: 5
+    }
+  ];
+
+  console.log('[RBAC] Checking user groups...');
+  
+  for (const group of defaultGroups) {
+    try {
+      await db.execute(sql`
+        INSERT INTO user_groups (name, description, color, is_system_group, sort_order)
+        VALUES (${group.name}, ${group.description}, ${group.color}, ${group.isSystemGroup}, ${group.sortOrder})
+        ON CONFLICT (name) DO NOTHING
+      `);
+    } catch (err) {
+      // Ignore errors for individual groups
+    }
+  }
+  
+  const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM user_groups WHERE active = true`);
+  const count = (countResult.rows[0] as any)?.count || 0;
+  console.log(`[RBAC] User groups: ${count} total`);
+}

@@ -18,6 +18,7 @@ import {
   requireModuleAccess as rbacRequireModule,
   requireFeaturePermission as rbacRequireFeature,
   seedPlatformModules,
+  seedUserGroups,
   type UserPermissions,
   type PermissionLevel
 } from "./rbac";
@@ -64,8 +65,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // This applies session middleware to all non-B2B routes
   await setupAuth(app);
 
-  // Seed platform modules (ensures production database has core modules)
+  // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();
+  await seedUserGroups();
 
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

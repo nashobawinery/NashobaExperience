@@ -358,9 +358,21 @@ export default function AccessControl() {
     mutationFn: async ({ userId, groupId }: { userId: string; groupId: string }) => {
       return apiRequest('POST', `/api/rbac/users/${userId}/groups/${groupId}`, {});
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      
+      // Update editingUser state to reflect the change immediately
+      if (editingUser && editingUser.id === variables.userId) {
+        const addedGroup = groups.find(g => g.id === variables.groupId);
+        if (addedGroup) {
+          setEditingUser({
+            ...editingUser,
+            groups: [...(editingUser.groups || []), { id: addedGroup.id, name: addedGroup.name, color: addedGroup.color || '' }]
+          });
+        }
+      }
+      
       toast({ title: "User added to group" });
     },
     onError: (error: any) => {
@@ -373,9 +385,18 @@ export default function AccessControl() {
     mutationFn: async ({ userId, groupId }: { userId: string; groupId: string }) => {
       return apiRequest('DELETE', `/api/rbac/users/${userId}/groups/${groupId}`);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/rbac/groups'] });
+      
+      // Update editingUser state to reflect the change immediately
+      if (editingUser && editingUser.id === variables.userId) {
+        setEditingUser({
+          ...editingUser,
+          groups: (editingUser.groups || []).filter(g => g.id !== variables.groupId)
+        });
+      }
+      
       toast({ title: "User removed from group" });
     },
     onError: (error: any) => {
