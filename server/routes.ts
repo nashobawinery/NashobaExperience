@@ -6820,11 +6820,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last used timestamp
       await storage.updateDailyReportAccessCodeLastUsed(code);
 
+      // Filter to only enabled metrics
+      const allMetrics = (template?.metrics || []) as Array<{ key: string; label: string; type?: string; unit?: string; isEnabled?: boolean }>;
+      const enabledMetrics = allMetrics.filter(m => m.isEnabled !== false);
+
       res.json({
         staffName: accessCode.staffName,
         department: accessCode.department,
         departmentLabel: template?.departmentLabel || accessCode.department,
-        metrics: template?.metrics || [],
+        metrics: enabledMetrics,
         procedures: procedures.map(p => ({
           id: p.id,
           name: p.procedureName,
@@ -6982,100 +6986,100 @@ async function seedDailyReportTemplates(): Promise<void> {
       department: 'tasting_room',
       departmentLabel: 'Tasting Room',
       metrics: [
-        { key: 'guest_count', label: 'Guest Count', type: 'number' },
-        { key: 'tastings_completed', label: 'Tastings Completed', type: 'number' },
-        { key: 'bottles_sold', label: 'Bottles Sold', type: 'number' },
-        { key: 'club_signups', label: 'Club Sign-ups', type: 'number' },
-        { key: 'average_spend', label: 'Average Spend ($)', type: 'currency' }
+        { key: 'guest_count', label: 'Guest Count', type: 'number', isEnabled: true },
+        { key: 'tastings_completed', label: 'Tastings Completed', type: 'number', isEnabled: true },
+        { key: 'bottles_sold', label: 'Bottles Sold', type: 'number', isEnabled: true },
+        { key: 'club_signups', label: 'Club Sign-ups', type: 'number', isEnabled: true },
+        { key: 'average_spend', label: 'Average Spend ($)', type: 'currency', isEnabled: true }
       ]
     },
     {
       department: 'retail',
       departmentLabel: 'Retail',
       metrics: [
-        { key: 'transactions', label: 'Transactions', type: 'number' },
-        { key: 'total_sales', label: 'Total Sales ($)', type: 'currency' },
-        { key: 'items_sold', label: 'Items Sold', type: 'number' },
-        { key: 'returns_processed', label: 'Returns Processed', type: 'number' }
+        { key: 'transactions', label: 'Transactions', type: 'number', isEnabled: true },
+        { key: 'total_sales', label: 'Total Sales ($)', type: 'currency', isEnabled: true },
+        { key: 'items_sold', label: 'Items Sold', type: 'number', isEnabled: true },
+        { key: 'returns_processed', label: 'Returns Processed', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'the_knoll',
       departmentLabel: 'The Knoll',
       metrics: [
-        { key: 'covers_served', label: 'Covers Served', type: 'number' },
-        { key: 'reservations', label: 'Reservations', type: 'number' },
-        { key: 'walk_ins', label: 'Walk-ins', type: 'number' },
-        { key: 'special_events', label: 'Special Events', type: 'number' }
+        { key: 'covers_served', label: 'Covers Served', type: 'number', isEnabled: true },
+        { key: 'reservations', label: 'Reservations', type: 'number', isEnabled: true },
+        { key: 'walk_ins', label: 'Walk-ins', type: 'number', isEnabled: true },
+        { key: 'special_events', label: 'Special Events', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'pavilion',
       departmentLabel: 'Pavilion',
       metrics: [
-        { key: 'events_hosted', label: 'Events Hosted', type: 'number' },
-        { key: 'attendees', label: 'Total Attendees', type: 'number' },
-        { key: 'setup_time', label: 'Setup Hours', type: 'number' }
+        { key: 'events_hosted', label: 'Events Hosted', type: 'number', isEnabled: true },
+        { key: 'attendees', label: 'Total Attendees', type: 'number', isEnabled: true },
+        { key: 'setup_time', label: 'Setup Hours', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'js_restaurant',
       departmentLabel: "J's Restaurant",
       metrics: [
-        { key: 'covers_served', label: 'Covers Served', type: 'number' },
-        { key: 'bar_sales', label: 'Bar Sales ($)', type: 'currency' },
-        { key: 'food_sales', label: 'Food Sales ($)', type: 'currency' },
-        { key: 'wait_time_avg', label: 'Avg Wait Time (min)', type: 'number' }
+        { key: 'covers_served', label: 'Covers Served', type: 'number', isEnabled: true },
+        { key: 'bar_sales', label: 'Bar Sales ($)', type: 'currency', isEnabled: true },
+        { key: 'food_sales', label: 'Food Sales ($)', type: 'currency', isEnabled: true },
+        { key: 'wait_time_avg', label: 'Avg Wait Time (min)', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'production',
       departmentLabel: 'Production',
       metrics: [
-        { key: 'batches_processed', label: 'Batches Processed', type: 'number' },
-        { key: 'bottles_produced', label: 'Bottles Produced', type: 'number' },
-        { key: 'quality_issues', label: 'Quality Issues', type: 'number' },
-        { key: 'equipment_hours', label: 'Equipment Hours', type: 'number' }
+        { key: 'batches_processed', label: 'Batches Processed', type: 'number', isEnabled: true },
+        { key: 'bottles_produced', label: 'Bottles Produced', type: 'number', isEnabled: true },
+        { key: 'quality_issues', label: 'Quality Issues', type: 'number', isEnabled: true },
+        { key: 'equipment_hours', label: 'Equipment Hours', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'events',
       departmentLabel: 'Events',
       metrics: [
-        { key: 'events_today', label: 'Events Today', type: 'number' },
-        { key: 'total_guests', label: 'Total Guests', type: 'number' },
-        { key: 'inquiries_received', label: 'Inquiries Received', type: 'number' },
-        { key: 'bookings_confirmed', label: 'Bookings Confirmed', type: 'number' }
+        { key: 'events_today', label: 'Events Today', type: 'number', isEnabled: true },
+        { key: 'total_guests', label: 'Total Guests', type: 'number', isEnabled: true },
+        { key: 'inquiries_received', label: 'Inquiries Received', type: 'number', isEnabled: true },
+        { key: 'bookings_confirmed', label: 'Bookings Confirmed', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'maintenance',
       departmentLabel: 'Maintenance',
       metrics: [
-        { key: 'work_orders_completed', label: 'Work Orders Completed', type: 'number' },
-        { key: 'preventive_tasks', label: 'Preventive Tasks Done', type: 'number' },
-        { key: 'emergency_calls', label: 'Emergency Calls', type: 'number' },
-        { key: 'equipment_downtime', label: 'Equipment Downtime (hrs)', type: 'number' }
+        { key: 'work_orders_completed', label: 'Work Orders Completed', type: 'number', isEnabled: true },
+        { key: 'preventive_tasks', label: 'Preventive Tasks Done', type: 'number', isEnabled: true },
+        { key: 'emergency_calls', label: 'Emergency Calls', type: 'number', isEnabled: true },
+        { key: 'equipment_downtime', label: 'Equipment Downtime (hrs)', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'orchard',
       departmentLabel: 'Orchard',
       metrics: [
-        { key: 'acres_worked', label: 'Acres Worked', type: 'number' },
-        { key: 'harvest_bins', label: 'Harvest Bins', type: 'number' },
-        { key: 'spray_applications', label: 'Spray Applications', type: 'number' },
-        { key: 'irrigation_hours', label: 'Irrigation Hours', type: 'number' }
+        { key: 'acres_worked', label: 'Acres Worked', type: 'number', isEnabled: true },
+        { key: 'harvest_bins', label: 'Harvest Bins', type: 'number', isEnabled: true },
+        { key: 'spray_applications', label: 'Spray Applications', type: 'number', isEnabled: true },
+        { key: 'irrigation_hours', label: 'Irrigation Hours', type: 'number', isEnabled: true }
       ]
     },
     {
       department: 'food_operations',
       departmentLabel: 'Food Operations',
       metrics: [
-        { key: 'meals_prepared', label: 'Meals Prepared', type: 'number' },
-        { key: 'prep_hours', label: 'Prep Hours', type: 'number' },
-        { key: 'waste_percentage', label: 'Waste (%)', type: 'percentage' },
-        { key: 'inventory_items_low', label: 'Low Inventory Items', type: 'number' }
+        { key: 'meals_prepared', label: 'Meals Prepared', type: 'number', isEnabled: true },
+        { key: 'prep_hours', label: 'Prep Hours', type: 'number', isEnabled: true },
+        { key: 'waste_percentage', label: 'Waste (%)', type: 'percentage', isEnabled: true },
+        { key: 'inventory_items_low', label: 'Low Inventory Items', type: 'number', isEnabled: true }
       ]
     }
   ];
