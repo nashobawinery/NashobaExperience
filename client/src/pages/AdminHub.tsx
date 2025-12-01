@@ -59,18 +59,21 @@ interface AdminHubProps {
 export default function AdminHub({ onBackToGuest }: AdminHubProps) {
   const [, setLocation] = useLocation();
 
-  const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
+  const { data: modules, isLoading: modulesLoading, error: modulesError, isFetching } = useQuery<PlatformModule[]>({
     queryKey: ['/api/platform/modules'],
     queryFn: async () => {
-      console.log('Fetching modules...');
+      console.log('AdminHub: Fetching modules from API...');
       const res = await fetch('/api/platform/modules', { credentials: 'include' });
+      console.log('AdminHub: Response status:', res.status);
       if (!res.ok) throw new Error(`Failed to fetch modules: ${res.status}`);
       const data = await res.json();
-      console.log('Modules fetched:', data);
+      console.log('AdminHub: Modules fetched, count:', data?.length, 'data:', data);
       return data;
     },
     staleTime: 0,
+    gcTime: 0,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   console.log('AdminHub modules:', { modules, modulesLoading, modulesError, count: modules?.length });
@@ -224,9 +227,13 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
         <section>
           <h2 className="text-xl font-semibold mb-4">Modules</h2>
           {/* Debug info */}
-          <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500 rounded-lg text-blue-700">
-            Debug: loading={String(modulesLoading)}, error={modulesError ? String(modulesError) : 'none'}, 
-            count={modules?.length ?? 'undefined'}, data={modules ? 'exists' : 'null/undefined'}
+          <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500 rounded-lg text-blue-700 font-mono text-sm">
+            <div>loading={String(modulesLoading)}, fetching={String(isFetching)}</div>
+            <div>error={modulesError ? String(modulesError) : 'none'}</div>
+            <div>count={modules?.length ?? 'undefined'}, data={modules ? 'array' : 'null/undefined'}</div>
+            {modules && modules.length > 0 && (
+              <div>first module: {modules[0]?.moduleName}</div>
+            )}
           </div>
           {modulesError && (
             <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
