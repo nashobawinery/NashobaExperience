@@ -6212,6 +6212,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===============================
+  // Daily Reports Access Codes (for public form via QR code)
+  // IMPORTANT: These routes must be before /api/daily-reports/:id to avoid matching
+  // ===============================
+
+  // Get all access codes (admin)
+  app.get('/api/daily-reports/access-codes', isAdmin, async (req, res) => {
+    try {
+      const { department } = req.query;
+      const codes = await storage.getDailyReportAccessCodes(department as string | undefined);
+      res.json(codes);
+    } catch (error) {
+      console.error('Error fetching access codes:', error);
+      res.status(500).json({ message: 'Failed to fetch access codes' });
+    }
+  });
+
+  // Create a new access code (admin)
+  app.post('/api/daily-reports/access-codes', isAdmin, async (req: any, res) => {
+    try {
+      const { staffName, department } = req.body;
+      if (!staffName || !department) {
+        return res.status(400).json({ message: 'Staff name and department are required' });
+      }
+
+      const code = await storage.generateUniqueAccessCode();
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+
+      const accessCode = await storage.createDailyReportAccessCode({
+        code,
+        staffName,
+        department,
+        isActive: true,
+        createdById: userId,
+        createdByName: userName
+      });
+
+      res.json(accessCode);
+    } catch (error) {
+      console.error('Error creating access code:', error);
+      res.status(500).json({ message: 'Failed to create access code' });
+    }
+  });
+
+  // Update an access code (admin)
+  app.patch('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { staffName, department, isActive } = req.body;
+      const accessCode = await storage.updateDailyReportAccessCode(id, {
+        staffName,
+        department,
+        isActive
+      });
+      if (!accessCode) {
+        return res.status(404).json({ message: 'Access code not found' });
+      }
+      res.json(accessCode);
+    } catch (error) {
+      console.error('Error updating access code:', error);
+      res.status(500).json({ message: 'Failed to update access code' });
+    }
+  });
+
+  // Delete an access code (admin)
+  app.delete('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReportAccessCode(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Access code not found' });
+      }
+      res.json({ message: 'Access code deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting access code:', error);
+      res.status(500).json({ message: 'Failed to delete access code' });
+    }
+  });
+
   // Get a single daily report with all details
   app.get('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
     try {
@@ -6710,85 +6790,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting email recipient:', error);
       res.status(500).json({ message: 'Failed to delete email recipient' });
-    }
-  });
-
-  // ===============================
-  // Daily Reports Access Codes (for public form via QR code)
-  // ===============================
-
-  // Get all access codes (admin)
-  app.get('/api/daily-reports/access-codes', isAdmin, async (req, res) => {
-    try {
-      const { department } = req.query;
-      const codes = await storage.getDailyReportAccessCodes(department as string | undefined);
-      res.json(codes);
-    } catch (error) {
-      console.error('Error fetching access codes:', error);
-      res.status(500).json({ message: 'Failed to fetch access codes' });
-    }
-  });
-
-  // Create a new access code (admin)
-  app.post('/api/daily-reports/access-codes', isAdmin, async (req: any, res) => {
-    try {
-      const { staffName, department } = req.body;
-      if (!staffName || !department) {
-        return res.status(400).json({ message: 'Staff name and department are required' });
-      }
-
-      const code = await storage.generateUniqueAccessCode();
-      const userId = req.user?.claims?.sub;
-      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
-
-      const accessCode = await storage.createDailyReportAccessCode({
-        code,
-        staffName,
-        department,
-        isActive: true,
-        createdById: userId,
-        createdByName: userName
-      });
-
-      res.json(accessCode);
-    } catch (error) {
-      console.error('Error creating access code:', error);
-      res.status(500).json({ message: 'Failed to create access code' });
-    }
-  });
-
-  // Update an access code (admin)
-  app.patch('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { staffName, department, isActive } = req.body;
-      const accessCode = await storage.updateDailyReportAccessCode(id, {
-        staffName,
-        department,
-        isActive
-      });
-      if (!accessCode) {
-        return res.status(404).json({ message: 'Access code not found' });
-      }
-      res.json(accessCode);
-    } catch (error) {
-      console.error('Error updating access code:', error);
-      res.status(500).json({ message: 'Failed to update access code' });
-    }
-  });
-
-  // Delete an access code (admin)
-  app.delete('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const deleted = await storage.deleteDailyReportAccessCode(id);
-      if (!deleted) {
-        return res.status(404).json({ message: 'Access code not found' });
-      }
-      res.json({ message: 'Access code deleted successfully' });
-    } catch (error) {
-      console.error('Error deleting access code:', error);
-      res.status(500).json({ message: 'Failed to delete access code' });
     }
   });
 
