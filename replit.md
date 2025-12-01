@@ -84,6 +84,29 @@ Global Role is a simple single-value field on the user profile:
 3. **Assign Multiple Groups** when users have cross-functional responsibilities
 4. **Create Custom Groups** for specific teams or roles (e.g., "Sales Representatives", "Compliance Team")
 
+### Sync Security Button
+
+The **Sync Security** button on the Access Control page ensures all User Groups have complete permission entries for every module and feature in the platform.
+
+#### What It Does
+When new modules or features are added to the platform, each User Group needs corresponding permission entries (module access on/off, feature permission levels). The Sync Security button automatically creates any missing entries with default values (access=off, permission=none).
+
+#### When to Use It
+- After new modules or features are added to the platform
+- When the status indicator shows "X missing entries" (amber warning)
+- After database updates or migrations
+- After republishing the application
+
+#### Status Indicator
+- **Green checkmark with "Synced"** = All groups have complete permission entries
+- **Amber warning with "X missing entries"** = Some entries need to be created (click Sync Security to fix)
+
+#### What Happens When Clicked
+1. Scans all User Groups for missing module access entries
+2. Scans all User Groups for missing feature permission entries
+3. Creates the missing entries with default values
+4. Shows a success message with the count of entries created
+
 ### System Design Choices
 - **Microservices-inspired Modularity**: Modules are designed with independent concerns within a monolithic structure.
 - **API-First Approach**: All functionalities exposed via RESTful APIs.
