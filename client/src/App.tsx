@@ -45,6 +45,7 @@ import ComplianceAdminDashboard from "@/pages/compliance/ComplianceAdminDashboar
 
 // Daily Reports Imports
 import DailyReportsAdminDashboard from "@/pages/daily-reports/DailyReportsAdminDashboard";
+import PublicDailyReportForm from "@/pages/daily-reports/PublicDailyReportForm";
 
 // Platform Management Imports
 import ModuleDirectory from "@/pages/ModuleDirectory";
@@ -376,6 +377,8 @@ function Router() {
       </div>
       <Switch>
         <Route path="/" component={GuestApp} />
+        <Route path="/daily-report/:code" component={PublicDailyReportForm} />
+        <Route path="/daily-report" component={PublicDailyReportForm} />
         <Route path="/admin-hub" component={AdminHubRoute} />
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
