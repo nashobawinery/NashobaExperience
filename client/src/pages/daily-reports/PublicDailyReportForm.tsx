@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks } from "lucide-react";
+import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 
 interface Procedure {
   id: string;
@@ -219,8 +220,8 @@ export default function PublicDailyReportForm() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ClipboardCheck className="w-8 h-8 text-primary" />
+            <div className="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+              <img src={dailyReportIcon} alt="Daily Report" className="w-16 h-16 object-contain" />
             </div>
             <CardTitle className="text-2xl">Daily Report</CardTitle>
             <CardDescription>Enter your 4-digit access code to continue</CardDescription>

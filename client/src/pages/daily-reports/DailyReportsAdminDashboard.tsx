@@ -56,6 +56,7 @@ import {
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/daily-reports";
+import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1075,7 +1076,7 @@ export default function DailyReportsAdminDashboard() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">
-              <ClipboardList className="h-6 w-6 text-amber-500" />
+              <img src={dailyReportIcon} alt="Daily Reports" className="h-8 w-8 object-contain" />
               <h1 className="text-xl font-semibold">Daily Reports</h1>
             </div>
           </div>
