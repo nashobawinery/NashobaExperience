@@ -6284,13 +6284,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const { generateDailyReportEmail, sendEmail } = await import("./email");
           
-          // Get email recipients for this department
-          const recipients = await storage.getDailyReportEmailRecipients(data.department, true);
+          // Get department template for metrics config and notification emails
+          const template = await storage.getDailyReportTemplateByDepartment(data.department);
           
-          if (recipients.length > 0) {
-            // Get department template for metrics config
-            const template = await storage.getDailyReportTemplateByDepartment(data.department);
-            
+          // Get notification emails from template (new approach - department level)
+          const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+          
+          if (notificationEmails.length > 0) {
             // Get incident count
             const incidents = await storage.getDailyReportIncidents(report.id);
             
@@ -6306,7 +6306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               submitterName: userName,
               performanceSummary: data.performanceSummary || undefined,
               overallRating: data.overallRating || undefined,
-              hasCustomerConcerns: data.hasCustomerConcerns,
+              hasCustomerConcerns: data.hasCustomerConcerns || false,
               customerConcernsSummary: data.customerConcernsSummary || undefined,
               metricsData: (data.metricsData as Record<string, any>) || undefined,
               metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
@@ -6315,8 +6315,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               proceduresTotalCount: data.proceduresTotalCount || 0
             });
             
-            // Send to all recipients
-            for (const recipient of recipients) {
+            // Send to all notification email recipients from template
+            for (const recipient of notificationEmails) {
               try {
                 await sendEmail(
                   recipient.email,
@@ -6386,13 +6386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { generateDailyReportEmail, sendEmail } = await import("./email");
         
-        // Get email recipients for this department
-        const recipients = await storage.getDailyReportEmailRecipients(report.department, true);
+        // Get department template for metrics config and notification emails
+        const template = await storage.getDailyReportTemplateByDepartment(report.department);
         
-        if (recipients.length > 0) {
-          // Get department template for metrics config
-          const template = await storage.getDailyReportTemplateByDepartment(report.department);
-          
+        // Get notification emails from template (department level)
+        const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+        
+        if (notificationEmails.length > 0) {
           // Get incident count
           const incidents = await storage.getDailyReportIncidents(report.id);
           
@@ -6417,8 +6417,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             proceduresTotalCount: report.proceduresTotalCount || 0
           });
           
-          // Send to all recipients
-          for (const recipient of recipients) {
+          // Send to all notification email recipients from template
+          for (const recipient of notificationEmails) {
             try {
               await sendEmail(
                 recipient.email,
@@ -6871,10 +6871,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send email notifications
       try {
         const { generateDailyReportEmail, sendEmail } = await import("./email");
-        const recipients = await storage.getDailyReportEmailRecipients(accessCode.department, true);
+        const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
+        
+        // Get notification emails from template (department level)
+        const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
 
-        if (recipients.length > 0) {
-          const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
+        if (notificationEmails.length > 0) {
           const reportIncidents = await storage.getDailyReportIncidents(report.id);
 
           const emailData = generateDailyReportEmail({
@@ -6898,7 +6900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             proceduresTotalCount: report.proceduresTotalCount || 0
           });
 
-          for (const recipient of recipients) {
+          for (const recipient of notificationEmails) {
             try {
               await sendEmail(recipient.email, emailData.subject, emailData.html, emailData.text);
               console.log(`[Daily Reports] Email sent to ${recipient.email}`);

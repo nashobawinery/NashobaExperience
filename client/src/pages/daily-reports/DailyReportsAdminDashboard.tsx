@@ -64,11 +64,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format, formatDistanceToNow, isToday, isSameDay, startOfDay, endOfDay, subDays } from "date-fns";
 
+interface NotificationEmail {
+  email: string;
+  name?: string;
+  role?: string;
+}
+
 interface DailyReportTemplate {
   id: string;
   department: string;
   departmentLabel: string;
   metrics: Array<{ key: string; label: string; type: string }>;
+  notificationEmails?: NotificationEmail[];
   isActive: boolean;
   createdAt: string;
 }
@@ -257,6 +264,15 @@ export default function DailyReportsAdminDashboard() {
     isActive: true
   });
   const [showQrCode, setShowQrCode] = useState<DailyReportAccessCode | null>(null);
+  
+  const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<DailyReportTemplate | null>(null);
+  const [departmentFormData, setDepartmentFormData] = useState({
+    notificationEmails: [] as NotificationEmail[],
+    newEmail: "",
+    newEmailName: "",
+    newEmailRole: ""
+  });
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
@@ -380,6 +396,21 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to delete access code", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateDepartmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { notificationEmails: NotificationEmail[] } }) => {
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      setIsDepartmentDialogOpen(false);
+      setEditingDepartment(null);
+      toast({ title: "Department settings updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update department settings", description: error.message, variant: "destructive" });
     }
   });
 
@@ -666,6 +697,64 @@ export default function DailyReportsAdminDashboard() {
   const copyUrlToClipboard = (code: string) => {
     navigator.clipboard.writeText(getPublicFormUrl(code));
     toast({ title: "URL copied to clipboard" });
+  };
+
+  const handleEditDepartment = (template: DailyReportTemplate) => {
+    setEditingDepartment(template);
+    setDepartmentFormData({
+      notificationEmails: template.notificationEmails || [],
+      newEmail: "",
+      newEmailName: "",
+      newEmailRole: ""
+    });
+    setIsDepartmentDialogOpen(true);
+  };
+
+  const handleAddNotificationEmail = () => {
+    const emailToAdd = departmentFormData.newEmail.trim().toLowerCase();
+    
+    if (!emailToAdd || !emailToAdd.includes('@')) {
+      toast({ title: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+    
+    // Check for duplicates
+    if (departmentFormData.notificationEmails.some(e => e.email.toLowerCase() === emailToAdd)) {
+      toast({ title: "This email address is already in the list", variant: "destructive" });
+      return;
+    }
+    
+    const newEmail: NotificationEmail = {
+      email: emailToAdd,
+      name: departmentFormData.newEmailName.trim() || undefined,
+      role: departmentFormData.newEmailRole.trim() || undefined
+    };
+    
+    setDepartmentFormData(prev => ({
+      ...prev,
+      notificationEmails: [...prev.notificationEmails, newEmail],
+      newEmail: "",
+      newEmailName: "",
+      newEmailRole: ""
+    }));
+  };
+
+  const handleRemoveNotificationEmail = (index: number) => {
+    setDepartmentFormData(prev => ({
+      ...prev,
+      notificationEmails: prev.notificationEmails.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSaveDepartment = () => {
+    if (!editingDepartment) return;
+    
+    updateDepartmentMutation.mutate({
+      id: editingDepartment.id,
+      data: {
+        notificationEmails: departmentFormData.notificationEmails
+      }
+    });
   };
 
   const handleCreateReport = () => {
@@ -1143,29 +1232,48 @@ export default function DailyReportsAdminDashboard() {
               <CardHeader>
                 <CardTitle>Department Templates</CardTitle>
                 <CardDescription>
-                  Configure metrics and procedures for each department
+                  Configure metrics, email notifications, and procedures for each department
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {templates.map(template => {
                     const Icon = departmentIcons[template.department] || Building;
+                    const emailCount = template.notificationEmails?.length || 0;
                     return (
-                      <Card key={template.id} data-testid={`card-template-${template.department}`}>
-                        <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                          <Icon className="h-5 w-5 text-amber-500" />
-                          <div>
-                            <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
-                            <CardDescription>{template.metrics.length} metrics tracked</CardDescription>
+                      <Card key={template.id} data-testid={`card-template-${template.department}`} className="hover-elevate">
+                        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
+                          <div className="flex items-center gap-3">
+                            <Icon className="h-5 w-5 text-amber-500" />
+                            <div>
+                              <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
+                              <CardDescription>{template.metrics.length} metrics tracked</CardDescription>
+                            </div>
                           </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleEditDepartment(template)}
+                            data-testid={`button-edit-template-${template.department}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
                           <div className="flex flex-wrap gap-1">
                             {template.metrics.map(m => (
                               <Badge key={m.key} variant="secondary" className="text-xs">
                                 {m.label}
                               </Badge>
                             ))}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground border-t pt-3">
+                            <Mail className="h-4 w-4" />
+                            <span>
+                              {emailCount === 0 
+                                ? "No notification emails configured" 
+                                : `${emailCount} notification email${emailCount !== 1 ? 's' : ''}`}
+                            </span>
                           </div>
                         </CardContent>
                       </Card>
@@ -1186,125 +1294,32 @@ export default function DailyReportsAdminDashboard() {
 
           <TabsContent value="settings" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
-                    Email Notifications
-                  </CardTitle>
-                  <CardDescription>
-                    Configure who receives email notifications when daily reports are submitted
-                  </CardDescription>
-                </div>
-                <Button onClick={handleAddEmailRecipient} data-testid="button-add-email-recipient">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Recipient
-                </Button>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Email Notifications
+                </CardTitle>
+                <CardDescription>
+                  Email notifications are now managed at the department level
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {emailRecipientsLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
+                <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                  <Mail className="h-8 w-8 text-amber-500" />
+                  <div className="flex-1">
+                    <p className="font-medium">Configure email notifications in the Departments tab</p>
+                    <p className="text-sm text-muted-foreground">
+                      Click the edit button on any department card to add or remove notification email recipients.
+                    </p>
                   </div>
-                ) : emailRecipients.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No email recipients configured</p>
-                    <p className="text-sm">Add recipients to receive notifications when reports are submitted</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {templates.map(template => {
-                      const deptRecipients = emailRecipients.filter(r => r.department === template.department);
-                      if (deptRecipients.length === 0) return null;
-                      const Icon = departmentIcons[template.department] || Building;
-                      return (
-                        <div key={template.department} className="border rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Icon className="h-4 w-4 text-amber-500" />
-                            <span className="font-medium">{template.departmentLabel}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {deptRecipients.length} recipient{deptRecipients.length !== 1 ? 's' : ''}
-                            </Badge>
-                          </div>
-                          <div className="space-y-2">
-                            {deptRecipients.map(recipient => (
-                              <div 
-                                key={recipient.id} 
-                                className="flex items-center justify-between p-2 bg-muted/50 rounded"
-                                data-testid={`email-recipient-${recipient.id}`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4 text-muted-foreground" />
-                                  <span className={!recipient.isActive ? "text-muted-foreground line-through" : ""}>
-                                    {recipient.email}
-                                  </span>
-                                  {recipient.name && (
-                                    <span className="text-muted-foreground text-sm">({recipient.name})</span>
-                                  )}
-                                  {!recipient.isActive && (
-                                    <Badge variant="outline" className="text-xs">Inactive</Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleEditEmailRecipient(recipient)}
-                                    data-testid={`button-edit-recipient-${recipient.id}`}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleDeleteEmailRecipient(recipient.id)}
-                                    data-testid={`button-delete-recipient-${recipient.id}`}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {emailRecipients.filter(r => !templates.find(t => t.department === r.department)).length > 0 && (
-                      <div className="border rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Building className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium text-muted-foreground">Other Departments</span>
-                        </div>
-                        <div className="space-y-2">
-                          {emailRecipients
-                            .filter(r => !templates.find(t => t.department === r.department))
-                            .map(recipient => (
-                              <div 
-                                key={recipient.id} 
-                                className="flex items-center justify-between p-2 bg-muted/50 rounded"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4 text-muted-foreground" />
-                                  <span>{recipient.email}</span>
-                                  <Badge variant="outline" className="text-xs">{recipient.department}</Badge>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button variant="ghost" size="icon" onClick={() => handleEditEmailRecipient(recipient)}>
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEmailRecipient(recipient.id)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <Button 
+                    variant="outline"
+                    onClick={() => setActiveTab('departments')}
+                    data-testid="button-go-to-departments"
+                  >
+                    Go to Departments
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -2073,6 +2088,111 @@ export default function DailyReportsAdminDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingDepartment && (() => {
+                const Icon = departmentIcons[editingDepartment.department] || Building;
+                return <Icon className="h-5 w-5 text-amber-500" />;
+              })()}
+              {editingDepartment?.departmentLabel || "Department"} Settings
+            </DialogTitle>
+            <DialogDescription>
+              Configure notification emails for this department. Recipients will receive emails when reports are submitted.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <Label>Notification Emails</Label>
+              
+              {departmentFormData.notificationEmails.length > 0 && (
+                <div className="space-y-2">
+                  {departmentFormData.notificationEmails.map((email, index) => (
+                    <div 
+                      key={index}
+                      className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span>{email.email}</span>
+                        {email.name && (
+                          <span className="text-muted-foreground text-sm">({email.name})</span>
+                        )}
+                        {email.role && (
+                          <Badge variant="secondary" className="text-xs">{email.role}</Badge>
+                        )}
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleRemoveNotificationEmail(index)}
+                        data-testid={`button-remove-email-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="border rounded-lg p-3 space-y-3">
+                <div className="text-sm font-medium">Add Email Recipient</div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Email address *"
+                    value={departmentFormData.newEmail}
+                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmail: e.target.value })}
+                    data-testid="input-new-notification-email"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Name (optional)"
+                      value={departmentFormData.newEmailName}
+                      onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmailName: e.target.value })}
+                      data-testid="input-new-notification-name"
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Role (optional)"
+                      value={departmentFormData.newEmailRole}
+                      onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmailRole: e.target.value })}
+                      data-testid="input-new-notification-role"
+                    />
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleAddNotificationEmail}
+                  disabled={!departmentFormData.newEmail}
+                  data-testid="button-add-notification-email"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Email
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveDepartment}
+              disabled={updateDepartmentMutation.isPending}
+              data-testid="button-save-department"
+            >
+              {updateDepartmentMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

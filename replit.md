@@ -29,8 +29,9 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Daily Reports Module**: Department managers log incidents, performance summaries, and track procedure completion. Features include:
   - 10 department templates with customizable metrics
   - Incident logging with severity levels and follow-up tracking
-  - Email notifications via SendGrid when reports are submitted
+  - **Department-level Email Notifications**: Each department template has its own notification email list (stored as JSONB array). Admins configure recipients in the Departments tab by clicking the edit button on any department card. Recipients receive emails via SendGrid when reports are submitted.
   - **Public Access via QR Codes**: Staff can submit reports without logging in using 6-digit access codes. Admins create codes in Settings tab, generate QR codes, and staff scan to access a mobile-friendly submission form at `/daily-report/:code`.
+  - **Procedure Templates**: Can be categorized as 'opening', 'closing', or 'general' to track procedure completion status in daily reports.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, granular feature permissions (none/view/edit/admin), and auto-sync for security entries.
 
 ## RBAC: User Groups vs Global Role
