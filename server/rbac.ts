@@ -958,3 +958,140 @@ export async function getFeatureIdByKey(featureKey: string): Promise<string | nu
   const row = result.rows[0] as { id: string } | undefined;
   return row?.id || null;
 }
+
+/**
+ * Seed default platform modules if they don't exist.
+ * This ensures production database has the core modules.
+ */
+export async function seedPlatformModules(): Promise<void> {
+  const defaultModules = [
+    {
+      moduleKey: 'tasting',
+      moduleName: 'Tasting Experience',
+      description: 'Guest-facing wine tasting app with product education, AI recommendations, trivia, and cart management',
+      icon: 'Wine',
+      color: 'bg-chart-2',
+      routePrefix: '/app',
+      status: 'active',
+      sortOrder: 1
+    },
+    {
+      moduleKey: 'b2b',
+      moduleName: 'B2B Wholesale',
+      description: 'B2B platform for wholesale customers with ordering, pricing tiers, and account management',
+      icon: 'Building2',
+      color: 'bg-chart-3',
+      routePrefix: '/b2b',
+      status: 'active',
+      sortOrder: 2
+    },
+    {
+      moduleKey: 'lms',
+      moduleName: 'Learning Management',
+      description: 'Staff training platform with courses, quizzes, certifications, and progress tracking',
+      icon: 'GraduationCap',
+      color: 'bg-chart-4',
+      routePrefix: '/lms',
+      status: 'active',
+      sortOrder: 3
+    },
+    {
+      moduleKey: 'compliance',
+      moduleName: 'Compliance Calendar',
+      description: 'Regulatory compliance tracking with deadlines, reminders, and audit history',
+      icon: 'ClipboardCheck',
+      color: 'bg-chart-5',
+      routePrefix: '/compliance',
+      status: 'active',
+      sortOrder: 4
+    },
+    {
+      moduleKey: 'sop',
+      moduleName: 'Standard Operating Procedures',
+      description: 'Document management for SOPs, policies, and operational procedures',
+      icon: 'FileText',
+      color: 'bg-blue-500',
+      routePrefix: '/sop',
+      status: 'development',
+      sortOrder: 5
+    },
+    {
+      moduleKey: 'operations',
+      moduleName: 'Operations Dashboard',
+      description: 'Central operations management with workflows, tasks, and team coordination',
+      icon: 'Factory',
+      color: 'bg-orange-500',
+      routePrefix: '/operations',
+      status: 'planned',
+      sortOrder: 6
+    },
+    {
+      moduleKey: 'experience',
+      moduleName: 'Customer Experience',
+      description: 'Guest experience management including events, reservations, and feedback',
+      icon: 'Headphones',
+      color: 'bg-pink-500',
+      routePrefix: '/experience',
+      status: 'planned',
+      sortOrder: 7
+    },
+    {
+      moduleKey: 'maintenance',
+      moduleName: 'Maintenance & Assets',
+      description: 'Equipment maintenance tracking, work orders, and asset management',
+      icon: 'Wrench',
+      color: 'bg-gray-500',
+      routePrefix: '/maintenance',
+      status: 'planned',
+      sortOrder: 8
+    },
+    {
+      moduleKey: 'inventory',
+      moduleName: 'Inventory Management',
+      description: 'Stock tracking, receiving, and inventory control across locations',
+      icon: 'Package',
+      color: 'bg-teal-500',
+      routePrefix: '/inventory',
+      status: 'planned',
+      sortOrder: 9
+    },
+    {
+      moduleKey: 'hr',
+      moduleName: 'Human Resources',
+      description: 'Employee management, scheduling, and HR administration',
+      icon: 'Users',
+      color: 'bg-indigo-500',
+      routePrefix: '/hr',
+      status: 'planned',
+      sortOrder: 10
+    },
+    {
+      moduleKey: 'reports',
+      moduleName: 'Reports & Analytics',
+      description: 'Business intelligence, reporting, and data analytics across modules',
+      icon: 'Scale',
+      color: 'bg-emerald-500',
+      routePrefix: '/reports',
+      status: 'planned',
+      sortOrder: 11
+    }
+  ];
+
+  console.log('[RBAC] Checking platform modules...');
+  
+  for (const mod of defaultModules) {
+    try {
+      await db.execute(sql`
+        INSERT INTO platform_modules (module_key, module_name, description, icon, color, route_prefix, status, sort_order)
+        VALUES (${mod.moduleKey}, ${mod.moduleName}, ${mod.description}, ${mod.icon}, ${mod.color}, ${mod.routePrefix}, ${mod.status}, ${mod.sortOrder})
+        ON CONFLICT (module_key) DO NOTHING
+      `);
+    } catch (err) {
+      // Ignore errors for individual modules
+    }
+  }
+  
+  const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM platform_modules`);
+  const count = (countResult.rows[0] as any)?.count || 0;
+  console.log(`[RBAC] Platform modules: ${count} total`);
+}
