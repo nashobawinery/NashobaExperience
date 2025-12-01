@@ -1094,6 +1094,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/reports',
       status: 'planned',
       sortOrder: 11
+    },
+    {
+      moduleKey: 'daily_reports',
+      moduleName: 'Daily Reports',
+      description: 'Department daily reporting with incidents, procedures, and performance tracking',
+      icon: 'ClipboardList',
+      color: 'bg-amber-500',
+      routePrefix: '/daily-reports',
+      status: 'active',
+      sortOrder: 12
     }
   ];
 

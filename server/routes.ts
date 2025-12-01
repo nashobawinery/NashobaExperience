@@ -73,6 +73,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();
   await seedUserGroups();
+  
+  // Seed Daily Reports department templates
+  await seedDailyReportTemplates();
 
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -6512,6 +6515,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Seed Daily Reports department templates
+async function seedDailyReportTemplates(): Promise<void> {
+  console.log('[Daily Reports] Checking department templates...');
+  
+  const departments = [
+    {
+      department: 'tasting_room',
+      departmentLabel: 'Tasting Room',
+      metrics: [
+        { key: 'guest_count', label: 'Guest Count', type: 'number' },
+        { key: 'tastings_completed', label: 'Tastings Completed', type: 'number' },
+        { key: 'bottles_sold', label: 'Bottles Sold', type: 'number' },
+        { key: 'club_signups', label: 'Club Sign-ups', type: 'number' },
+        { key: 'average_spend', label: 'Average Spend ($)', type: 'currency' }
+      ]
+    },
+    {
+      department: 'retail',
+      departmentLabel: 'Retail',
+      metrics: [
+        { key: 'transactions', label: 'Transactions', type: 'number' },
+        { key: 'total_sales', label: 'Total Sales ($)', type: 'currency' },
+        { key: 'items_sold', label: 'Items Sold', type: 'number' },
+        { key: 'returns_processed', label: 'Returns Processed', type: 'number' }
+      ]
+    },
+    {
+      department: 'the_knoll',
+      departmentLabel: 'The Knoll',
+      metrics: [
+        { key: 'covers_served', label: 'Covers Served', type: 'number' },
+        { key: 'reservations', label: 'Reservations', type: 'number' },
+        { key: 'walk_ins', label: 'Walk-ins', type: 'number' },
+        { key: 'special_events', label: 'Special Events', type: 'number' }
+      ]
+    },
+    {
+      department: 'pavilion',
+      departmentLabel: 'Pavilion',
+      metrics: [
+        { key: 'events_hosted', label: 'Events Hosted', type: 'number' },
+        { key: 'attendees', label: 'Total Attendees', type: 'number' },
+        { key: 'setup_time', label: 'Setup Hours', type: 'number' }
+      ]
+    },
+    {
+      department: 'js_restaurant',
+      departmentLabel: "J's Restaurant",
+      metrics: [
+        { key: 'covers_served', label: 'Covers Served', type: 'number' },
+        { key: 'bar_sales', label: 'Bar Sales ($)', type: 'currency' },
+        { key: 'food_sales', label: 'Food Sales ($)', type: 'currency' },
+        { key: 'wait_time_avg', label: 'Avg Wait Time (min)', type: 'number' }
+      ]
+    },
+    {
+      department: 'production',
+      departmentLabel: 'Production',
+      metrics: [
+        { key: 'batches_processed', label: 'Batches Processed', type: 'number' },
+        { key: 'bottles_produced', label: 'Bottles Produced', type: 'number' },
+        { key: 'quality_issues', label: 'Quality Issues', type: 'number' },
+        { key: 'equipment_hours', label: 'Equipment Hours', type: 'number' }
+      ]
+    },
+    {
+      department: 'events',
+      departmentLabel: 'Events',
+      metrics: [
+        { key: 'events_today', label: 'Events Today', type: 'number' },
+        { key: 'total_guests', label: 'Total Guests', type: 'number' },
+        { key: 'inquiries_received', label: 'Inquiries Received', type: 'number' },
+        { key: 'bookings_confirmed', label: 'Bookings Confirmed', type: 'number' }
+      ]
+    },
+    {
+      department: 'maintenance',
+      departmentLabel: 'Maintenance',
+      metrics: [
+        { key: 'work_orders_completed', label: 'Work Orders Completed', type: 'number' },
+        { key: 'preventive_tasks', label: 'Preventive Tasks Done', type: 'number' },
+        { key: 'emergency_calls', label: 'Emergency Calls', type: 'number' },
+        { key: 'equipment_downtime', label: 'Equipment Downtime (hrs)', type: 'number' }
+      ]
+    },
+    {
+      department: 'orchard',
+      departmentLabel: 'Orchard',
+      metrics: [
+        { key: 'acres_worked', label: 'Acres Worked', type: 'number' },
+        { key: 'harvest_bins', label: 'Harvest Bins', type: 'number' },
+        { key: 'spray_applications', label: 'Spray Applications', type: 'number' },
+        { key: 'irrigation_hours', label: 'Irrigation Hours', type: 'number' }
+      ]
+    },
+    {
+      department: 'food_operations',
+      departmentLabel: 'Food Operations',
+      metrics: [
+        { key: 'meals_prepared', label: 'Meals Prepared', type: 'number' },
+        { key: 'prep_hours', label: 'Prep Hours', type: 'number' },
+        { key: 'waste_percentage', label: 'Waste (%)', type: 'percentage' },
+        { key: 'inventory_items_low', label: 'Low Inventory Items', type: 'number' }
+      ]
+    }
+  ];
+
+  try {
+    for (const dept of departments) {
+      await storage.upsertDailyReportTemplate({
+        department: dept.department as any,
+        departmentLabel: dept.departmentLabel,
+        metrics: dept.metrics,
+        isActive: true
+      });
+    }
+    
+    const templates = await storage.getDailyReportTemplates();
+    console.log(`[Daily Reports] Department templates: ${templates.length} total`);
+  } catch (error) {
+    console.error('[Daily Reports] Error seeding templates:', error);
+  }
 }
 
 // Helper function to generate compliance reminder email
