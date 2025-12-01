@@ -6813,6 +6813,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the department template
       const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
 
+      // Get active procedure templates for the department
+      const procedures = await storage.getDailyProcedureTemplates(accessCode.department, true);
+
       // Update last used timestamp
       await storage.updateDailyReportAccessCodeLastUsed(code);
 
@@ -6821,7 +6824,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         department: accessCode.department,
         departmentLabel: template?.departmentLabel || accessCode.department,
         metrics: template?.metrics || [],
-        procedures: [] // TODO: fetch active procedures
+        procedures: procedures.map(p => ({
+          id: p.id,
+          name: p.procedureName,
+          description: p.description,
+          type: p.procedureType,
+          isRequired: p.isRequired,
+          sortOrder: p.sortOrder
+        }))
       });
     } catch (error) {
       console.error('Error validating access code:', error);
@@ -6832,12 +6842,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submit a report via public form (no auth required)
   app.post('/api/public/daily-reports/submit', async (req, res) => {
     try {
-      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents } = req.body;
+      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
 
       // Validate access code
       const accessCode = await storage.getDailyReportAccessCodeByCode(code);
       if (!accessCode || !accessCode.isActive) {
         return res.status(403).json({ message: 'Invalid or inactive access code' });
+      }
+
+      // Get procedure templates to calculate totals
+      const procedures = await storage.getDailyProcedureTemplates(accessCode.department, true);
+      const proceduresTotalCount = procedures.length;
+      let proceduresCompletedCount = 0;
+
+      // Count completed procedures
+      if (procedureCompletions && typeof procedureCompletions === 'object') {
+        proceduresCompletedCount = Object.values(procedureCompletions).filter(Boolean).length;
+      }
+
+      // Validate required procedures are completed (must be explicitly true)
+      const requiredProcedures = procedures.filter(p => p.isRequired);
+      if (requiredProcedures.length > 0) {
+        const completions = procedureCompletions || {};
+        const missingRequired = requiredProcedures.filter(p => completions[p.id] !== true);
+        if (missingRequired.length > 0) {
+          return res.status(400).json({ 
+            message: `Please complete all required procedures before submitting. Missing: ${missingRequired.map(p => p.procedureName).join(', ')}`
+          });
+        }
       }
 
       // Create the report
@@ -6850,10 +6882,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasCustomerConcerns: hasCustomerConcerns || false,
         customerConcernsSummary: customerConcernsSummary || null,
         metricsData: metricsData || null,
+        proceduresCompletedCount,
+        proceduresTotalCount,
+        proceduresCompleted: proceduresCompletedCount === proceduresTotalCount && proceduresTotalCount > 0,
         submittedById: `access_code_${accessCode.id}`,
         submittedByName: accessCode.staffName,
         submittedAt: new Date()
       });
+
+      // Save procedure completions
+      if (procedureCompletions && typeof procedureCompletions === 'object') {
+        for (const [procedureId, completed] of Object.entries(procedureCompletions)) {
+          await storage.upsertDailyProcedureCompletion({
+            reportId: report.id,
+            procedureTemplateId: procedureId,
+            completed: completed === true,
+            completedById: `access_code_${accessCode.id}`,
+            completedByName: accessCode.staffName
+          });
+        }
+      }
 
       // Create incidents if any
       if (incidents && Array.isArray(incidents)) {

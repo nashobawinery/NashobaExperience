@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { 
   ArrowLeft, 
   Plus, 
@@ -132,13 +133,15 @@ interface DailyProcedureCompletion {
 
 interface DailyProcedureTemplate {
   id: string;
-  templateId: string;
+  department: string;
   procedureName: string;
   description: string | null;
+  procedureType: 'opening' | 'closing' | 'general';
   sortOrder: number;
   isRequired: boolean;
-  complianceTaskId: string | null;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DailyReportStats {
@@ -211,6 +214,18 @@ const incidentTypes = [
   { value: "other", label: "Other" }
 ];
 
+const procedureTypes = [
+  { value: "opening", label: "Opening", description: "Tasks completed at start of shift" },
+  { value: "closing", label: "Closing", description: "Tasks completed at end of shift" },
+  { value: "general", label: "General", description: "Tasks that can be done throughout the day" }
+];
+
+const procedureTypeColors: Record<string, string> = {
+  opening: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  closing: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  general: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+};
+
 export default function DailyReportsAdminDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -273,6 +288,18 @@ export default function DailyReportsAdminDashboard() {
     newEmailName: "",
     newEmailRole: ""
   });
+  
+  const [isProcedureTemplateDialogOpen, setIsProcedureTemplateDialogOpen] = useState(false);
+  const [editingProcedureTemplate, setEditingProcedureTemplate] = useState<DailyProcedureTemplate | null>(null);
+  const [procedureTemplateFormData, setProcedureTemplateFormData] = useState({
+    department: "",
+    procedureName: "",
+    description: "",
+    procedureType: "general" as 'opening' | 'closing' | 'general',
+    sortOrder: 0,
+    isRequired: true,
+    isActive: true
+  });
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
@@ -304,6 +331,11 @@ export default function DailyReportsAdminDashboard() {
   const { data: emailRecipients = [], isLoading: emailRecipientsLoading } = useQuery<DailyReportEmailRecipient[]>({
     queryKey: ['/api/daily-reports/email-recipients'],
     enabled: activeTab === 'settings'
+  });
+  
+  const { data: allProcedureTemplates = [] } = useQuery<DailyProcedureTemplate[]>({
+    queryKey: ['/api/daily-reports/procedures'],
+    enabled: activeTab === 'departments'
   });
 
   const createEmailRecipientMutation = useMutation({
@@ -411,6 +443,50 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to update department settings", description: error.message, variant: "destructive" });
+    }
+  });
+  
+  const createProcedureTemplateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('POST', '/api/daily-reports/procedures', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/procedures'] });
+      setIsProcedureTemplateDialogOpen(false);
+      resetProcedureTemplateForm();
+      toast({ title: "Procedure created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create procedure", description: error.message, variant: "destructive" });
+    }
+  });
+  
+  const updateProcedureTemplateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest('PATCH', `/api/daily-reports/procedures/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/procedures'] });
+      setIsProcedureTemplateDialogOpen(false);
+      setEditingProcedureTemplate(null);
+      resetProcedureTemplateForm();
+      toast({ title: "Procedure updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update procedure", description: error.message, variant: "destructive" });
+    }
+  });
+  
+  const deleteProcedureTemplateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('DELETE', `/api/daily-reports/procedures/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/procedures'] });
+      toast({ title: "Procedure deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete procedure", description: error.message, variant: "destructive" });
     }
   });
 
@@ -755,6 +831,82 @@ export default function DailyReportsAdminDashboard() {
         notificationEmails: departmentFormData.notificationEmails
       }
     });
+  };
+  
+  const resetProcedureTemplateForm = () => {
+    setProcedureTemplateFormData({
+      department: "",
+      procedureName: "",
+      description: "",
+      procedureType: "general",
+      sortOrder: 0,
+      isRequired: true,
+      isActive: true
+    });
+  };
+  
+  const handleAddProcedureTemplate = (department: string) => {
+    setEditingProcedureTemplate(null);
+    const deptProcedures = allProcedureTemplates.filter(p => p.department === department);
+    setProcedureTemplateFormData({
+      department,
+      procedureName: "",
+      description: "",
+      procedureType: "general",
+      sortOrder: deptProcedures.length,
+      isRequired: true,
+      isActive: true
+    });
+    setIsProcedureTemplateDialogOpen(true);
+  };
+  
+  const handleEditProcedureTemplate = (procedure: DailyProcedureTemplate) => {
+    setEditingProcedureTemplate(procedure);
+    setProcedureTemplateFormData({
+      department: procedure.department,
+      procedureName: procedure.procedureName,
+      description: procedure.description || "",
+      procedureType: procedure.procedureType,
+      sortOrder: procedure.sortOrder,
+      isRequired: procedure.isRequired,
+      isActive: procedure.isActive
+    });
+    setIsProcedureTemplateDialogOpen(true);
+  };
+  
+  const handleSaveProcedureTemplate = () => {
+    if (!procedureTemplateFormData.procedureName || !procedureTemplateFormData.department) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    
+    const data = {
+      department: procedureTemplateFormData.department,
+      procedureName: procedureTemplateFormData.procedureName,
+      description: procedureTemplateFormData.description || null,
+      procedureType: procedureTemplateFormData.procedureType,
+      sortOrder: procedureTemplateFormData.sortOrder,
+      isRequired: procedureTemplateFormData.isRequired,
+      isActive: procedureTemplateFormData.isActive
+    };
+    
+    if (editingProcedureTemplate) {
+      updateProcedureTemplateMutation.mutate({ id: editingProcedureTemplate.id, data });
+    } else {
+      createProcedureTemplateMutation.mutate(data);
+    }
+  };
+  
+  const handleDeleteProcedureTemplate = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this procedure? This cannot be undone.")) {
+      deleteProcedureTemplateMutation.mutate(id);
+    }
+  };
+  
+  const getProceduresForDepartment = (department: string) => {
+    return allProcedureTemplates
+      .filter(p => p.department === department)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
   };
 
   const handleCreateReport = () => {
@@ -1236,18 +1388,23 @@ export default function DailyReportsAdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-6">
                   {templates.map(template => {
                     const Icon = departmentIcons[template.department] || Building;
                     const emailCount = template.notificationEmails?.length || 0;
+                    const procedures = getProceduresForDepartment(template.department);
+                    const openingProcs = procedures.filter(p => p.procedureType === 'opening');
+                    const closingProcs = procedures.filter(p => p.procedureType === 'closing');
+                    const generalProcs = procedures.filter(p => p.procedureType === 'general');
+                    
                     return (
-                      <Card key={template.id} data-testid={`card-template-${template.department}`} className="hover-elevate">
+                      <Card key={template.id} data-testid={`card-template-${template.department}`}>
                         <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
                           <div className="flex items-center gap-3">
                             <Icon className="h-5 w-5 text-amber-500" />
                             <div>
                               <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
-                              <CardDescription>{template.metrics.length} metrics tracked</CardDescription>
+                              <CardDescription>{template.metrics.length} metrics, {procedures.length} procedures</CardDescription>
                             </div>
                           </div>
                           <Button 
@@ -1259,7 +1416,7 @@ export default function DailyReportsAdminDashboard() {
                             <Edit className="h-4 w-4" />
                           </Button>
                         </CardHeader>
-                        <CardContent className="space-y-3">
+                        <CardContent className="space-y-4">
                           <div className="flex flex-wrap gap-1">
                             {template.metrics.map(m => (
                               <Badge key={m.key} variant="secondary" className="text-xs">
@@ -1267,13 +1424,130 @@ export default function DailyReportsAdminDashboard() {
                               </Badge>
                             ))}
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground border-t pt-3">
+                          
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Mail className="h-4 w-4" />
                             <span>
                               {emailCount === 0 
                                 ? "No notification emails configured" 
                                 : `${emailCount} notification email${emailCount !== 1 ? 's' : ''}`}
                             </span>
+                          </div>
+                          
+                          <div className="border-t pt-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-medium flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                                Procedure Checklist
+                              </h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAddProcedureTemplate(template.department)}
+                                data-testid={`button-add-procedure-${template.department}`}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Procedure
+                              </Button>
+                            </div>
+                            
+                            {procedures.length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-4">
+                                No procedures configured. Click "Add Procedure" to create checklists.
+                              </p>
+                            ) : (
+                              <div className="space-y-3">
+                                {openingProcs.length > 0 && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge className={procedureTypeColors.opening}>Opening</Badge>
+                                      <span className="text-xs text-muted-foreground">{openingProcs.length} procedure{openingProcs.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {openingProcs.map(proc => (
+                                        <div key={proc.id} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm group" data-testid={`procedure-${proc.id}`}>
+                                          <div className="flex items-center gap-2">
+                                            <span className={!proc.isActive ? "text-muted-foreground line-through" : ""}>
+                                              {proc.procedureName}
+                                            </span>
+                                            {proc.isRequired && <Badge variant="outline" className="text-xs">Required</Badge>}
+                                            {!proc.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                                          </div>
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditProcedureTemplate(proc)}>
+                                              <Edit className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteProcedureTemplate(proc.id)}>
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {closingProcs.length > 0 && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge className={procedureTypeColors.closing}>Closing</Badge>
+                                      <span className="text-xs text-muted-foreground">{closingProcs.length} procedure{closingProcs.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {closingProcs.map(proc => (
+                                        <div key={proc.id} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm group" data-testid={`procedure-${proc.id}`}>
+                                          <div className="flex items-center gap-2">
+                                            <span className={!proc.isActive ? "text-muted-foreground line-through" : ""}>
+                                              {proc.procedureName}
+                                            </span>
+                                            {proc.isRequired && <Badge variant="outline" className="text-xs">Required</Badge>}
+                                            {!proc.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                                          </div>
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditProcedureTemplate(proc)}>
+                                              <Edit className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteProcedureTemplate(proc.id)}>
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {generalProcs.length > 0 && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge className={procedureTypeColors.general}>General</Badge>
+                                      <span className="text-xs text-muted-foreground">{generalProcs.length} procedure{generalProcs.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {generalProcs.map(proc => (
+                                        <div key={proc.id} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm group" data-testid={`procedure-${proc.id}`}>
+                                          <div className="flex items-center gap-2">
+                                            <span className={!proc.isActive ? "text-muted-foreground line-through" : ""}>
+                                              {proc.procedureName}
+                                            </span>
+                                            {proc.isRequired && <Badge variant="outline" className="text-xs">Required</Badge>}
+                                            {!proc.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                                          </div>
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditProcedureTemplate(proc)}>
+                                              <Edit className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteProcedureTemplate(proc.id)}>
+                                              <Trash2 className="h-3 w-3 text-destructive" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1696,32 +1970,67 @@ export default function DailyReportsAdminDashboard() {
                 {procedureTemplates.length === 0 ? (
                   <p className="text-sm text-muted-foreground mt-2">No procedure checklist for this department</p>
                 ) : (
-                  <div className="space-y-2 mt-3">
-                    {procedureTemplates.map(proc => {
-                      const completion = selectedReportProcedures.find(c => c.procedureTemplateId === proc.id);
-                      return (
-                        <div key={proc.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted">
-                          <Checkbox
-                            checked={completion?.completed || false}
-                            onCheckedChange={(checked) => {
-                              updateProceduresMutation.mutate({
-                                reportId: selectedReport.id,
-                                completions: [{ procedureId: proc.id, completed: checked === true }]
-                              });
-                            }}
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-sm">{proc.procedureName}</div>
-                            {proc.description && (
-                              <div className="text-xs text-muted-foreground">{proc.description}</div>
-                            )}
+                  <div className="space-y-4 mt-3">
+                    {(() => {
+                      const openingProcs = procedureTemplates.filter(p => p.procedureType === 'opening');
+                      const closingProcs = procedureTemplates.filter(p => p.procedureType === 'closing');
+                      const generalProcs = procedureTemplates.filter(p => p.procedureType === 'general' || !p.procedureType);
+                      
+                      const getCompletionCount = (procs: typeof procedureTemplates) => {
+                        return procs.filter(p => selectedReportProcedures.find(c => c.procedureTemplateId === p.id)?.completed).length;
+                      };
+                      
+                      const renderProcedureGroup = (procs: typeof procedureTemplates, label: string, colorClass: string) => {
+                        if (procs.length === 0) return null;
+                        const completedCount = getCompletionCount(procs);
+                        return (
+                          <div key={label} className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge className={colorClass}>{label}</Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {completedCount}/{procs.length} completed
+                              </span>
+                            </div>
+                            <div className="space-y-1 pl-1">
+                              {procs.map(proc => {
+                                const completion = selectedReportProcedures.find(c => c.procedureTemplateId === proc.id);
+                                return (
+                                  <div key={proc.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted" data-testid={`procedure-item-${proc.id}`}>
+                                    <Checkbox
+                                      checked={completion?.completed || false}
+                                      onCheckedChange={(checked) => {
+                                        updateProceduresMutation.mutate({
+                                          reportId: selectedReport.id,
+                                          completions: [{ procedureId: proc.id, completed: checked === true }]
+                                        });
+                                      }}
+                                      data-testid={`checkbox-procedure-${proc.id}`}
+                                    />
+                                    <div className="flex-1">
+                                      <div className="font-medium text-sm">{proc.procedureName}</div>
+                                      {proc.description && (
+                                        <div className="text-xs text-muted-foreground">{proc.description}</div>
+                                      )}
+                                    </div>
+                                    {proc.isRequired && (
+                                      <Badge variant="outline" className="text-xs">Required</Badge>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                          {proc.isRequired && (
-                            <Badge variant="outline" className="text-xs">Required</Badge>
-                          )}
-                        </div>
+                        );
+                      };
+                      
+                      return (
+                        <>
+                          {renderProcedureGroup(openingProcs, "Opening", procedureTypeColors.opening)}
+                          {renderProcedureGroup(closingProcs, "Closing", procedureTypeColors.closing)}
+                          {renderProcedureGroup(generalProcs, "General", procedureTypeColors.general)}
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
                 )}
               </div>
@@ -2191,6 +2500,125 @@ export default function DailyReportsAdminDashboard() {
               data-testid="button-save-department"
             >
               {updateDepartmentMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isProcedureTemplateDialogOpen} onOpenChange={setIsProcedureTemplateDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProcedureTemplate ? "Edit Procedure" : "Add Procedure"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingProcedureTemplate 
+                ? "Update this procedure's details"
+                : "Create a new procedure for the department checklist"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="procedureName">Procedure Name *</Label>
+              <Input
+                id="procedureName"
+                placeholder="e.g., Open cash register"
+                value={procedureTemplateFormData.procedureName}
+                onChange={(e) => setProcedureTemplateFormData({ ...procedureTemplateFormData, procedureName: e.target.value })}
+                data-testid="input-procedure-name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="procedureDescription">Description (optional)</Label>
+              <Textarea
+                id="procedureDescription"
+                placeholder="Additional details about this procedure..."
+                value={procedureTemplateFormData.description}
+                onChange={(e) => setProcedureTemplateFormData({ ...procedureTemplateFormData, description: e.target.value })}
+                className="resize-none"
+                rows={3}
+                data-testid="input-procedure-description"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Procedure Type</Label>
+              <Select
+                value={procedureTemplateFormData.procedureType}
+                onValueChange={(value: 'opening' | 'closing' | 'general') => 
+                  setProcedureTemplateFormData({ ...procedureTemplateFormData, procedureType: value })
+                }
+              >
+                <SelectTrigger data-testid="select-procedure-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {procedureTypes.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${procedureTypeColors[type.value]} text-xs`}>{type.label}</Badge>
+                        <span className="text-xs text-muted-foreground">{type.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isRequired"
+                  checked={procedureTemplateFormData.isRequired}
+                  onCheckedChange={(checked) => setProcedureTemplateFormData({ ...procedureTemplateFormData, isRequired: checked })}
+                  data-testid="switch-procedure-required"
+                />
+                <Label htmlFor="isRequired">Required</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isActive"
+                  checked={procedureTemplateFormData.isActive}
+                  onCheckedChange={(checked) => setProcedureTemplateFormData({ ...procedureTemplateFormData, isActive: checked })}
+                  data-testid="switch-procedure-active"
+                />
+                <Label htmlFor="isActive">Active</Label>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="sortOrder">Sort Order</Label>
+              <Input
+                id="sortOrder"
+                type="number"
+                min="0"
+                value={procedureTemplateFormData.sortOrder}
+                onChange={(e) => setProcedureTemplateFormData({ ...procedureTemplateFormData, sortOrder: parseInt(e.target.value) || 0 })}
+                data-testid="input-procedure-sort-order"
+              />
+              <p className="text-xs text-muted-foreground">
+                Lower numbers appear first in the checklist
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsProcedureTemplateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveProcedureTemplate}
+              disabled={createProcedureTemplateMutation.isPending || updateProcedureTemplateMutation.isPending}
+              data-testid="button-save-procedure"
+            >
+              {(createProcedureTemplateMutation.isPending || updateProcedureTemplateMutation.isPending) 
+                ? "Saving..." 
+                : (editingProcedureTemplate ? "Update Procedure" : "Add Procedure")
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

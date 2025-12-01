@@ -204,5 +204,113 @@ registerModuleDocs({
         </div>
       ),
     },
+    {
+      id: "customization",
+      title: "Customizing Department Forms",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Each department's daily report form can be customized with specific metrics, procedures, and notification settings.
+          </p>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium">Accessing Department Settings</h4>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+              <li>Navigate to the <strong>Departments</strong> tab in the Daily Reports dashboard</li>
+              <li>Find the department you want to customize</li>
+              <li>Click the <strong>Edit</strong> button (pencil icon) on the department card</li>
+            </ol>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Email Notifications</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Configure who receives email notifications when reports are submitted:
+              </p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                <li>Add recipient email addresses</li>
+                <li>Optionally include recipient name and role</li>
+                <li>Multiple recipients can be added per department</li>
+              </ul>
+            </div>
+            
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Procedure Checklists</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Create procedure checklists with three types:
+              </p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                <li><span className="bg-green-100 text-green-800 px-1 rounded text-xs">Opening</span> - Tasks for start of shift</li>
+                <li><span className="bg-purple-100 text-purple-800 px-1 rounded text-xs">Closing</span> - Tasks for end of shift</li>
+                <li><span className="bg-blue-100 text-blue-800 px-1 rounded text-xs">General</span> - Tasks throughout the day</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">Managing Procedures</h4>
+            <p className="text-sm text-muted-foreground mb-2">
+              For each department, you can:
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li><strong>Add Procedure:</strong> Click "Add Procedure" within the department card</li>
+              <li><strong>Set Procedure Type:</strong> Choose Opening, Closing, or General</li>
+              <li><strong>Mark as Required:</strong> Required procedures must be completed before submission</li>
+              <li><strong>Set Sort Order:</strong> Control the order procedures appear in the checklist</li>
+              <li><strong>Activate/Deactivate:</strong> Temporarily disable procedures without deleting</li>
+            </ul>
+          </div>
+          
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-2">Note on Metrics</h4>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Department metrics (KPIs) are currently configured at the system level. 
+              Contact your administrator if you need to add, modify, or remove metrics for a department.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "public-access",
+      title: "Staff Access Codes",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Staff can submit daily reports without logging in using access codes and QR codes.
+          </p>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium">Creating Access Codes</h4>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+              <li>Go to the <strong>Settings</strong> tab</li>
+              <li>Click <strong>Add Access Code</strong></li>
+              <li>Enter the staff member's name</li>
+              <li>Select the department they're reporting for</li>
+              <li>A 6-digit code is automatically generated</li>
+            </ol>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">QR Code Access</h4>
+              <p className="text-sm text-muted-foreground">
+                Each access code has a QR code that staff can scan to quickly access the report form.
+                Print QR codes for posting in department areas.
+              </p>
+            </div>
+            
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Direct URL Access</h4>
+              <p className="text-sm text-muted-foreground">
+                Staff can also access the form directly using the URL with their code.
+                Share the URL via text or email for remote access.
+              </p>
+            </div>
+          </div>
+        </div>
+      ),
+    },
   ],
 });

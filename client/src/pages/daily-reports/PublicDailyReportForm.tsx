@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +10,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2 } from "lucide-react";
+import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks } from "lucide-react";
+
+interface Procedure {
+  id: string;
+  name: string;
+  description: string | null;
+  type: "opening" | "closing" | "general";
+  isRequired: boolean;
+  sortOrder: number;
+}
 
 interface FormData {
   staffName: string;
   department: string;
   departmentLabel: string;
   metrics: Array<{ key: string; label: string; type?: string; unit?: string }>;
+  procedures: Procedure[];
 }
 
 interface Incident {
@@ -41,6 +51,7 @@ export default function PublicDailyReportForm() {
   const [hasCustomerConcerns, setHasCustomerConcerns] = useState(false);
   const [customerConcernsSummary, setCustomerConcernsSummary] = useState("");
   const [metricsData, setMetricsData] = useState<Record<string, string>>({});
+  const [procedureCompletions, setProcedureCompletions] = useState<Record<string, boolean>>({});
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [showIncidentForm, setShowIncidentForm] = useState(false);
   const [currentIncident, setCurrentIncident] = useState<Incident>({
@@ -56,6 +67,23 @@ export default function PublicDailyReportForm() {
     queryKey: ['/api/public/daily-reports/validate', validatedCode],
     enabled: !!validatedCode,
   });
+
+  // Initialize procedure completions when form data loads
+  useEffect(() => {
+    if (formData?.procedures && formData.procedures.length > 0) {
+      const initialCompletions: Record<string, boolean> = {};
+      formData.procedures.forEach(p => {
+        initialCompletions[p.id] = false;
+      });
+      setProcedureCompletions(prev => {
+        // Only set if not already initialized
+        if (Object.keys(prev).length === 0) {
+          return initialCompletions;
+        }
+        return prev;
+      });
+    }
+  }, [formData?.procedures]);
 
   useEffect(() => {
     if (urlCode && !validatedCode) {
@@ -88,6 +116,20 @@ export default function PublicDailyReportForm() {
     }
   };
 
+  // Group procedures by type
+  const groupedProcedures = useMemo(() => {
+    if (!formData?.procedures) return { opening: [], closing: [], general: [] };
+    return {
+      opening: formData.procedures.filter(p => p.type === "opening").sort((a, b) => a.sortOrder - b.sortOrder),
+      closing: formData.procedures.filter(p => p.type === "closing").sort((a, b) => a.sortOrder - b.sortOrder),
+      general: formData.procedures.filter(p => p.type === "general").sort((a, b) => a.sortOrder - b.sortOrder),
+    };
+  }, [formData?.procedures]);
+
+  const hasProcedures = formData?.procedures && formData.procedures.length > 0;
+  const requiredProcedures = formData?.procedures?.filter(p => p.isRequired) || [];
+  const requiredCompleted = requiredProcedures.every(p => procedureCompletions[p.id] === true);
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/public/daily-reports/submit", {
@@ -100,7 +142,8 @@ export default function PublicDailyReportForm() {
           hasCustomerConcerns,
           customerConcernsSummary: hasCustomerConcerns ? customerConcernsSummary : null,
           metricsData: Object.keys(metricsData).length > 0 ? metricsData : null,
-          incidents: incidents.length > 0 ? incidents : null
+          incidents: incidents.length > 0 ? incidents : null,
+          procedureCompletions: Object.keys(procedureCompletions).length > 0 ? procedureCompletions : null
         })
       });
       if (!response.ok) {
@@ -158,6 +201,7 @@ export default function PublicDailyReportForm() {
                 setHasCustomerConcerns(false);
                 setCustomerConcernsSummary("");
                 setMetricsData({});
+                setProcedureCompletions({});
                 setIncidents([]);
               }}
               data-testid="button-submit-another"
@@ -289,6 +333,176 @@ export default function PublicDailyReportForm() {
                   />
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {hasProcedures && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5 text-primary" />
+                Procedure Checklist
+              </CardTitle>
+              <CardDescription>
+                Complete your daily procedures
+                {requiredProcedures.length > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400 ml-1">
+                    ({requiredProcedures.length} required)
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {groupedProcedures.opening.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                    <Sunrise className="w-4 h-4" />
+                    Opening Procedures
+                  </div>
+                  <div className="space-y-2 pl-6">
+                    {groupedProcedures.opening.map((procedure) => (
+                      <div
+                        key={procedure.id}
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                        data-testid={`procedure-${procedure.id}`}
+                      >
+                        <Checkbox
+                          id={`procedure-${procedure.id}`}
+                          checked={procedureCompletions[procedure.id] === true}
+                          onCheckedChange={(checked) =>
+                            setProcedureCompletions({
+                              ...procedureCompletions,
+                              [procedure.id]: checked === true
+                            })
+                          }
+                          data-testid={`checkbox-procedure-${procedure.id}`}
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor={`procedure-${procedure.id}`}
+                            className={`text-sm cursor-pointer ${
+                              procedureCompletions[procedure.id] ? 'line-through text-muted-foreground' : ''
+                            }`}
+                          >
+                            {procedure.name}
+                            {procedure.isRequired && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
+                          </Label>
+                          {procedure.description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {procedure.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedProcedures.general.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-400">
+                    <ListChecks className="w-4 h-4" />
+                    General Procedures
+                  </div>
+                  <div className="space-y-2 pl-6">
+                    {groupedProcedures.general.map((procedure) => (
+                      <div
+                        key={procedure.id}
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                        data-testid={`procedure-${procedure.id}`}
+                      >
+                        <Checkbox
+                          id={`procedure-${procedure.id}`}
+                          checked={procedureCompletions[procedure.id] === true}
+                          onCheckedChange={(checked) =>
+                            setProcedureCompletions({
+                              ...procedureCompletions,
+                              [procedure.id]: checked === true
+                            })
+                          }
+                          data-testid={`checkbox-procedure-${procedure.id}`}
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor={`procedure-${procedure.id}`}
+                            className={`text-sm cursor-pointer ${
+                              procedureCompletions[procedure.id] ? 'line-through text-muted-foreground' : ''
+                            }`}
+                          >
+                            {procedure.name}
+                            {procedure.isRequired && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
+                          </Label>
+                          {procedure.description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {procedure.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedProcedures.closing.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-400">
+                    <Moon className="w-4 h-4" />
+                    Closing Procedures
+                  </div>
+                  <div className="space-y-2 pl-6">
+                    {groupedProcedures.closing.map((procedure) => (
+                      <div
+                        key={procedure.id}
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                        data-testid={`procedure-${procedure.id}`}
+                      >
+                        <Checkbox
+                          id={`procedure-${procedure.id}`}
+                          checked={procedureCompletions[procedure.id] === true}
+                          onCheckedChange={(checked) =>
+                            setProcedureCompletions({
+                              ...procedureCompletions,
+                              [procedure.id]: checked === true
+                            })
+                          }
+                          data-testid={`checkbox-procedure-${procedure.id}`}
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor={`procedure-${procedure.id}`}
+                            className={`text-sm cursor-pointer ${
+                              procedureCompletions[procedure.id] ? 'line-through text-muted-foreground' : ''
+                            }`}
+                          >
+                            {procedure.name}
+                            {procedure.isRequired && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
+                          </Label>
+                          {procedure.description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {procedure.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!requiredCompleted && requiredProcedures.length > 0 && (
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  Please complete all required procedures (marked with *) before submitting.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
