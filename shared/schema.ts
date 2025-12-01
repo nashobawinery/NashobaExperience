@@ -1501,12 +1501,20 @@ export const incidentSeverityEnum = pgEnum("incident_severity", [
   "critical"
 ]);
 
+// Procedure type enum - opening, closing, or general procedures
+export const procedureTypeEnum = pgEnum("procedure_type", [
+  "opening",
+  "closing",
+  "general"
+]);
+
 // Daily Report Templates - Defines department-specific metrics
 export const dailyReportTemplates = pgTable("daily_report_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   department: dailyReportDepartmentEnum("department").notNull().unique(),
   departmentLabel: text("department_label").notNull(),
   metrics: jsonb("metrics").notNull(), // Array of { key, label, type: 'count'|'decimal'|'text', required, description }
+  notificationEmails: jsonb("notification_emails").default([]), // Array of { email, name?, role? }
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -1518,6 +1526,7 @@ export const dailyProcedureTemplates = pgTable("daily_procedure_templates", {
   department: dailyReportDepartmentEnum("department").notNull(),
   procedureName: text("procedure_name").notNull(),
   description: text("description"),
+  procedureType: procedureTypeEnum("procedure_type").notNull().default("general"), // opening, closing, or general
   sortOrder: integer("sort_order").notNull().default(0),
   isRequired: boolean("is_required").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
