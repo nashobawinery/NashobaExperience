@@ -106,7 +106,7 @@ interface UserFormData {
   email: string;
   firstName: string;
   lastName: string;
-  globalRole: string;
+  selectedGroupIds: string[];
   department: string;
   jobTitle: string;
   phoneNumber: string;
@@ -143,7 +143,7 @@ const defaultUserForm: UserFormData = {
   email: "",
   firstName: "",
   lastName: "",
-  globalRole: "viewer",
+  selectedGroupIds: [],
   department: "",
   jobTitle: "",
   phoneNumber: ""
@@ -296,7 +296,16 @@ export default function AccessControl() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async (data: UserFormData) => {
-      return apiRequest('POST', '/api/rbac/users', data);
+      const { selectedGroupIds, ...userData } = data;
+      const response = await apiRequest('POST', '/api/rbac/users', userData);
+      const newUser = await response.json();
+      
+      if (selectedGroupIds.length > 0 && newUser?.id) {
+        for (const groupId of selectedGroupIds) {
+          await apiRequest('POST', `/api/rbac/users/${newUser.id}/groups/${groupId}`, {});
+        }
+      }
+      return newUser;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/rbac/users'] });
@@ -461,7 +470,6 @@ export default function AccessControl() {
       email: userForm.email,
       firstName: userForm.firstName,
       lastName: userForm.lastName,
-      globalRole: userForm.globalRole,
       department: userForm.department || undefined,
       jobTitle: userForm.jobTitle || undefined,
       phoneNumber: userForm.phoneNumber || undefined
@@ -474,7 +482,7 @@ export default function AccessControl() {
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
-      globalRole: user.global_role,
+      selectedGroupIds: user.groups?.map(g => g.id) || [],
       department: user.department || "",
       jobTitle: user.job_title || "",
       phoneNumber: user.phone_number || ""
@@ -1102,21 +1110,42 @@ export default function AccessControl() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="user-role">Global Role</Label>
-              <Select
-                value={userForm.globalRole}
-                onValueChange={(value) => setUserForm({ ...userForm, globalRole: value })}
-              >
-                <SelectTrigger data-testid="select-user-role">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>User Groups</Label>
+              <div className="border rounded-lg p-3 max-h-[150px] overflow-y-auto space-y-2">
+                {groups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No groups available. Create a group first.</p>
+                ) : (
+                  groups.map((group) => (
+                    <div key={group.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`create-group-${group.id}`}
+                        checked={userForm.selectedGroupIds.includes(group.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setUserForm({ ...userForm, selectedGroupIds: [...userForm.selectedGroupIds, group.id] });
+                          } else {
+                            setUserForm({ ...userForm, selectedGroupIds: userForm.selectedGroupIds.filter(id => id !== group.id) });
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300"
+                        data-testid={`checkbox-create-group-${group.id}`}
+                      />
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: group.color || '#6b7280' }}
+                      />
+                      <label htmlFor={`create-group-${group.id}`} className="text-sm font-medium cursor-pointer">
+                        {group.name}
+                      </label>
+                      {group.is_system_group && (
+                        <Badge variant="secondary" className="text-xs">System</Badge>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Select which groups this user should belong to</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1208,21 +1237,31 @@ export default function AccessControl() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-user-role">Global Role</Label>
-              <Select
-                value={userForm.globalRole}
-                onValueChange={(value) => setUserForm({ ...userForm, globalRole: value })}
-              >
-                <SelectTrigger data-testid="select-edit-user-role">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>User Groups</Label>
+              <div className="border rounded-lg p-3 max-h-[120px] overflow-y-auto">
+                {editingUser?.groups && editingUser.groups.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {editingUser.groups.map((group) => (
+                      <Badge 
+                        key={group.id} 
+                        variant="secondary"
+                        className="flex items-center gap-1"
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: group.color || '#6b7280' }}
+                        />
+                        {group.name}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No groups assigned</p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Use the "Manage Groups" button on the user row to change group assignments
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
