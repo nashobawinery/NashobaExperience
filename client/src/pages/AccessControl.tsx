@@ -110,6 +110,7 @@ interface UserFormData {
   department: string;
   jobTitle: string;
   phoneNumber: string;
+  globalRole: string;
 }
 
 interface SyncStatus {
@@ -143,6 +144,7 @@ const defaultUserForm: UserFormData = {
   email: "",
   firstName: "",
   lastName: "",
+  globalRole: "viewer",
   selectedGroupIds: [],
   department: "",
   jobTitle: "",
@@ -491,6 +493,7 @@ export default function AccessControl() {
       email: userForm.email,
       firstName: userForm.firstName,
       lastName: userForm.lastName,
+      globalRole: userForm.globalRole,
       department: userForm.department || undefined,
       jobTitle: userForm.jobTitle || undefined,
       phoneNumber: userForm.phoneNumber || undefined
@@ -503,6 +506,7 @@ export default function AccessControl() {
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
+      globalRole: user.global_role || "viewer",
       selectedGroupIds: user.groups?.map(g => g.id) || [],
       department: user.department || "",
       jobTitle: user.job_title || "",
@@ -1256,6 +1260,27 @@ export default function AccessControl() {
                 onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                 data-testid="input-edit-user-email"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-globalRole">Global Role</Label>
+              <Select
+                value={userForm.globalRole}
+                onValueChange={(value) => setUserForm({ ...userForm, globalRole: value })}
+              >
+                <SelectTrigger id="edit-user-globalRole" data-testid="select-edit-user-globalrole">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Controls platform-level access (Admin Hub, Access Control). Use User Groups for module permissions.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>User Groups</Label>
