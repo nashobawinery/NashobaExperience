@@ -1681,6 +1681,33 @@ export const insertDailyReportEmailRecipientSchema = createInsertSchema(dailyRep
 export type InsertDailyReportEmailRecipient = z.infer<typeof insertDailyReportEmailRecipientSchema>;
 export type DailyReportEmailRecipient = typeof dailyReportEmailRecipients.$inferSelect;
 
+// Daily Report Access Codes - for public form access via QR code
+export const dailyReportAccessCodes = pgTable("daily_report_access_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 6 }).notNull().unique(),
+  staffName: varchar("staff_name").notNull(),
+  department: dailyReportDepartmentEnum("department").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_access_codes_code").on(table.code),
+  index("idx_access_codes_dept").on(table.department),
+  index("idx_access_codes_active").on(table.isActive),
+]);
+
+export const insertDailyReportAccessCodeSchema = createInsertSchema(dailyReportAccessCodes).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  lastUsedAt: true
+});
+export type InsertDailyReportAccessCode = z.infer<typeof insertDailyReportAccessCodeSchema>;
+export type DailyReportAccessCode = typeof dailyReportAccessCodes.$inferSelect;
+
 // Extended Daily Report type with relations
 export type DailyReportWithDetails = DailyReport & {
   incidents?: DailyReportIncident[];

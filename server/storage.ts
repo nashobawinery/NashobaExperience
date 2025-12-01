@@ -127,6 +127,7 @@ import {
   dailyReportIncidents,
   dailyProcedureCompletions,
   dailyReportEmailRecipients,
+  dailyReportAccessCodes,
   type InsertDailyReportTemplate,
   type DailyReportTemplate,
   type InsertDailyProcedureTemplate,
@@ -140,6 +141,8 @@ import {
   type DailyProcedureCompletion,
   type InsertDailyReportEmailRecipient,
   type DailyReportEmailRecipient,
+  type InsertDailyReportAccessCode,
+  type DailyReportAccessCode,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -3814,6 +3817,66 @@ export class DatabaseStorage implements IStorage {
       .where(eq(dailyReportEmailRecipients.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  // Daily Report Access Codes
+  async getDailyReportAccessCodes(department?: string): Promise<DailyReportAccessCode[]> {
+    if (department) {
+      return await db.select().from(dailyReportAccessCodes)
+        .where(eq(dailyReportAccessCodes.department, department as any))
+        .orderBy(dailyReportAccessCodes.staffName);
+    }
+    return await db.select().from(dailyReportAccessCodes)
+      .orderBy(dailyReportAccessCodes.department, dailyReportAccessCodes.staffName);
+  }
+
+  async getDailyReportAccessCodeByCode(code: string): Promise<DailyReportAccessCode | undefined> {
+    const [accessCode] = await db.select().from(dailyReportAccessCodes)
+      .where(eq(dailyReportAccessCodes.code, code));
+    return accessCode;
+  }
+
+  async getDailyReportAccessCodeById(id: string): Promise<DailyReportAccessCode | undefined> {
+    const [accessCode] = await db.select().from(dailyReportAccessCodes)
+      .where(eq(dailyReportAccessCodes.id, id));
+    return accessCode;
+  }
+
+  async createDailyReportAccessCode(data: InsertDailyReportAccessCode): Promise<DailyReportAccessCode> {
+    const [accessCode] = await db.insert(dailyReportAccessCodes).values(data).returning();
+    return accessCode;
+  }
+
+  async updateDailyReportAccessCode(id: string, data: Partial<InsertDailyReportAccessCode>): Promise<DailyReportAccessCode | undefined> {
+    const [updated] = await db.update(dailyReportAccessCodes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReportAccessCodes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateDailyReportAccessCodeLastUsed(code: string): Promise<void> {
+    await db.update(dailyReportAccessCodes)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(dailyReportAccessCodes.code, code));
+  }
+
+  async deleteDailyReportAccessCode(id: string): Promise<boolean> {
+    const result = await db.delete(dailyReportAccessCodes)
+      .where(eq(dailyReportAccessCodes.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async generateUniqueAccessCode(): Promise<string> {
+    let code: string;
+    let exists = true;
+    while (exists) {
+      code = Math.floor(100000 + Math.random() * 900000).toString();
+      const existing = await this.getDailyReportAccessCodeByCode(code);
+      exists = !!existing;
+    }
+    return code!;
   }
 }
 
