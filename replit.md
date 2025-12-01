@@ -50,10 +50,31 @@ Global Role is a simple single-value field on the user profile:
 
 - **Values**: super_admin, admin, manager, staff, viewer
 - **Purpose**: Primarily used for platform-level access control (e.g., who can access Admin Hub, Access Control page)
-- **When to Use**:
-  - Set to "admin" or "super_admin" for users who need platform-wide administrative access
-  - Set to "viewer", "staff", or "manager" for regular users based on their general tier
 - **Note**: This is a legacy field from before User Groups existed; User Groups now provide more flexible permission management
+
+#### Global Role Levels and Rights
+
+| Role | Access Level | Rights Granted |
+|------|--------------|----------------|
+| **super_admin** | Highest | Full platform access including: Admin Hub, Access Control (create/edit/delete users), all modules, system settings, environment sync tools, and the ability to assign any role to other users |
+| **admin** | High | Admin Hub access, Access Control page, can manage users and groups, access to all active modules, can perform administrative actions within modules |
+| **manager** | Medium | Limited administrative access, can view Admin Hub dashboard, access to assigned modules based on User Groups, can manage team-level operations |
+| **staff** | Standard | Regular platform user, access to modules based on User Groups only, can perform day-to-day operations, no administrative capabilities |
+| **viewer** | Lowest | Read-only access, can view content in assigned modules but cannot create, edit, or delete anything |
+
+#### How Global Role Works with User Groups
+
+- **Global Role determines platform-level access**: Who can see Admin Hub, who can manage users
+- **User Groups determine module-level access**: Which modules a user can access and what features they can use within those modules
+- **Both work together**: A user with `staff` global role and membership in "Sales Representatives" group can access sales-related modules but cannot access Admin Hub or manage other users
+
+#### Setting Global Role
+
+1. Go to **Access Control** page
+2. Find the user in the **Platform Users** table  
+3. Click the **Edit** (pencil) icon
+4. Select the appropriate **Global Role** from the dropdown
+5. Click **Save Changes**
 
 ### Best Practices
 1. **Use User Groups** for day-to-day permission management - they're more flexible and granular
