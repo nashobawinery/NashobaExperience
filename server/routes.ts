@@ -57,6 +57,7 @@ import {
   insertDailyReportTemplateSchema,
   insertDailyProcedureTemplateSchema,
   insertDailyReportSchema,
+  insertDailyReportEmailRecipientSchema,
   insertDailyReportIncidentSchema,
   insertDailyProcedureCompletionSchema,
 } from "@shared/schema";
@@ -6278,6 +6279,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Initialize procedure completions
       await storage.initializeProcedureCompletionsForReport(report.id, data.department);
       
+      // Send email notifications if report is being submitted (not draft)
+      if (data.status === 'submitted') {
+        try {
+          const { generateDailyReportEmail, sendEmail } = await import("./email");
+          
+          // Get email recipients for this department
+          const recipients = await storage.getDailyReportEmailRecipients(data.department, true);
+          
+          if (recipients.length > 0) {
+            // Get department template for metrics config
+            const template = await storage.getDailyReportTemplateByDepartment(data.department);
+            
+            // Get incident count
+            const incidents = await storage.getDailyReportIncidents(report.id);
+            
+            const emailData = generateDailyReportEmail({
+              department: data.department,
+              departmentLabel: template?.departmentLabel || data.department,
+              reportDate: new Date(data.reportDate).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              }),
+              submitterName: userName,
+              performanceSummary: data.performanceSummary || undefined,
+              overallRating: data.overallRating || undefined,
+              hasCustomerConcerns: data.hasCustomerConcerns,
+              customerConcernsSummary: data.customerConcernsSummary || undefined,
+              metricsData: (data.metricsData as Record<string, any>) || undefined,
+              metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+              incidentCount: incidents.length,
+              proceduresCompletedCount: data.proceduresCompletedCount || 0,
+              proceduresTotalCount: data.proceduresTotalCount || 0
+            });
+            
+            // Send to all recipients
+            for (const recipient of recipients) {
+              try {
+                await sendEmail(
+                  recipient.email,
+                  emailData.subject,
+                  emailData.html,
+                  emailData.text
+                );
+                console.log(`[Daily Reports] Email sent to ${recipient.email}`);
+              } catch (emailError) {
+                console.error(`[Daily Reports] Failed to send email to ${recipient.email}:`, emailError);
+              }
+            }
+          }
+        } catch (emailError) {
+          console.error('[Daily Reports] Error sending email notifications:', emailError);
+          // Don't fail the report creation if email fails
+        }
+      }
+      
       res.json(report);
     } catch (error) {
       console.error('Error creating daily report:', error);
@@ -6510,6 +6568,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error bulk updating procedure completions:', error);
       res.status(500).json({ message: 'Failed to update procedures' });
+    }
+  });
+
+  // ============================================================================
+  // DAILY REPORT EMAIL RECIPIENTS ROUTES
+  // ============================================================================
+
+  // Get all email recipients (optionally filter by department)
+  app.get('/api/daily-reports/email-recipients', isAdmin, async (req, res) => {
+    try {
+      const { department, active } = req.query;
+      const activeOnly = active !== 'false';
+      const recipients = await storage.getDailyReportEmailRecipients(
+        department as string | undefined,
+        activeOnly
+      );
+      res.json(recipients);
+    } catch (error) {
+      console.error('Error fetching email recipients:', error);
+      res.status(500).json({ message: 'Failed to fetch email recipients' });
+    }
+  });
+
+  // Get a single email recipient
+  app.get('/api/daily-reports/email-recipients/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const recipient = await storage.getDailyReportEmailRecipientById(id);
+      if (!recipient) {
+        return res.status(404).json({ message: 'Recipient not found' });
+      }
+      res.json(recipient);
+    } catch (error) {
+      console.error('Error fetching email recipient:', error);
+      res.status(500).json({ message: 'Failed to fetch email recipient' });
+    }
+  });
+
+  // Create a new email recipient
+  app.post('/api/daily-reports/email-recipients', isAdmin, async (req, res) => {
+    try {
+      const data = insertDailyReportEmailRecipientSchema.parse(req.body);
+      const recipient = await storage.createDailyReportEmailRecipient(data);
+      res.json(recipient);
+    } catch (error) {
+      console.error('Error creating email recipient:', error);
+      res.status(500).json({ message: 'Failed to create email recipient' });
+    }
+  });
+
+  // Update an email recipient
+  app.patch('/api/daily-reports/email-recipients/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyReportEmailRecipientSchema.partial().parse(req.body);
+      const recipient = await storage.updateDailyReportEmailRecipient(id, data);
+      if (!recipient) {
+        return res.status(404).json({ message: 'Recipient not found' });
+      }
+      res.json(recipient);
+    } catch (error) {
+      console.error('Error updating email recipient:', error);
+      res.status(500).json({ message: 'Failed to update email recipient' });
+    }
+  });
+
+  // Delete an email recipient
+  app.delete('/api/daily-reports/email-recipients/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReportEmailRecipient(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Recipient not found' });
+      }
+      res.json({ message: 'Recipient deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting email recipient:', error);
+      res.status(500).json({ message: 'Failed to delete email recipient' });
     }
   });
 
