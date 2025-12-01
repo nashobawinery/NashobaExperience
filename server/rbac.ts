@@ -364,9 +364,29 @@ export async function getGroupMembers(groupId: string): Promise<any[]> {
 }
 
 export async function addUserToGroup(userId: string, groupId: string, assignedBy?: string): Promise<void> {
+  // First verify the user and group exist
+  const userCheck = await db.execute(sql`SELECT id FROM platform_users WHERE id = ${userId}`);
+  if (userCheck.rows.length === 0) {
+    throw new Error(`User ${userId} not found in platform_users`);
+  }
+  
+  const groupCheck = await db.execute(sql`SELECT id FROM user_groups WHERE id = ${groupId}`);
+  if (groupCheck.rows.length === 0) {
+    throw new Error(`Group ${groupId} not found in user_groups`);
+  }
+  
+  // Check if assignedBy user exists, set to null if not
+  let validAssignedBy: string | null = null;
+  if (assignedBy) {
+    const assignerCheck = await db.execute(sql`SELECT id FROM platform_users WHERE id = ${assignedBy}`);
+    if (assignerCheck.rows.length > 0) {
+      validAssignedBy = assignedBy;
+    }
+  }
+  
   await db.execute(sql`
     INSERT INTO group_memberships (user_id, group_id, assigned_by)
-    VALUES (${userId}, ${groupId}, ${assignedBy || null})
+    VALUES (${userId}, ${groupId}, ${validAssignedBy})
     ON CONFLICT (user_id, group_id) DO NOTHING
   `);
 }

@@ -4259,9 +4259,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignedBy = req.user?.claims?.sub;
       await rbac.addUserToGroup(req.params.userId, req.params.groupId, assignedBy);
       res.json({ message: 'User added to group' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding user to group:', error);
-      res.status(500).json({ message: 'Failed to add user to group' });
+      const message = error.message || 'Failed to add user to group';
+      res.status(500).json({ message });
     }
   });
 
