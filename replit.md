@@ -26,6 +26,11 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations (GPT-4o-mini), shopping cart with discounts, and tasting surveys. Admin dashboard for CRUD, QR codes, and media.
 - **B2B Wholesale Platform**: Customer and order management with dedicated authentication, category-specific pricing, multi-location support, and advanced features like "Where to Buy" visibility. Admin dashboard for customer, order, tier, and sales rep management.
 - **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, email reminders, audit history, portal integration, and cost tracking.
+- **Daily Reports Module**: Department managers log incidents, performance summaries, and track procedure completion. Features include:
+  - 10 department templates with customizable metrics
+  - Incident logging with severity levels and follow-up tracking
+  - Email notifications via SendGrid when reports are submitted
+  - **Public Access via QR Codes**: Staff can submit reports without logging in using 6-digit access codes. Admins create codes in Settings tab, generate QR codes, and staff scan to access a mobile-friendly submission form at `/daily-report/:code`.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, granular feature permissions (none/view/edit/admin), and auto-sync for security entries.
 
 ## RBAC: User Groups vs Global Role
