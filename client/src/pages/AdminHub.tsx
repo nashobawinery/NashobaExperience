@@ -59,24 +59,12 @@ interface AdminHubProps {
 export default function AdminHub({ onBackToGuest }: AdminHubProps) {
   const [, setLocation] = useLocation();
 
-  const { data: modules, isLoading: modulesLoading, error: modulesError, isFetching } = useQuery<PlatformModule[]>({
+  const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
     queryKey: ['/api/platform/modules'],
-    queryFn: async () => {
-      console.log('AdminHub: Fetching modules from API...');
-      const res = await fetch('/api/platform/modules', { credentials: 'include' });
-      console.log('AdminHub: Response status:', res.status);
-      if (!res.ok) throw new Error(`Failed to fetch modules: ${res.status}`);
-      const data = await res.json();
-      console.log('AdminHub: Modules fetched, count:', data?.length, 'data:', data);
-      return data;
-    },
     staleTime: 0,
     gcTime: 0,
     refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
   });
-
-  console.log('AdminHub modules:', { modules, modulesLoading, modulesError, count: modules?.length });
 
   const { data: kpis, isLoading: kpisLoading } = useQuery<{
     totalGuests: number;
@@ -226,23 +214,9 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
 
         <section>
           <h2 className="text-xl font-semibold mb-4">Modules</h2>
-          {/* Debug info */}
-          <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500 rounded-lg text-blue-700 font-mono text-sm">
-            <div>loading={String(modulesLoading)}, fetching={String(isFetching)}</div>
-            <div>error={modulesError ? String(modulesError) : 'none'}</div>
-            <div>count={modules?.length ?? 'undefined'}, data={modules ? 'array' : 'null/undefined'}</div>
-            {modules && modules.length > 0 && (
-              <div>first module: {modules[0]?.moduleName}</div>
-            )}
-          </div>
           {modulesError && (
             <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
               Error loading modules: {String(modulesError)}
-            </div>
-          )}
-          {!modulesLoading && !modulesError && (!modules || modules.length === 0) && (
-            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500 rounded-lg text-amber-700">
-              No modules found. modules = {JSON.stringify(modules)}
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
