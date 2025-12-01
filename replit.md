@@ -28,6 +28,41 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, email reminders, audit history, portal integration, and cost tracking.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, granular feature permissions (none/view/edit/admin), and auto-sync for security entries.
 
+## RBAC: User Groups vs Global Role
+
+### User Groups (Recommended for Permissions)
+User Groups are the primary mechanism for managing permissions in the platform:
+
+- **Multiple Group Membership**: Users can belong to multiple groups simultaneously (e.g., "Staff" + "Sales Representatives")
+- **Granular Control**: Each group defines:
+  - Module access (which modules users can access)
+  - Feature permissions (none/view/edit/admin for each feature within a module)
+- **Effective Permissions**: A user's permissions = combination of all their group memberships
+- **Default Groups**: The system seeds 5 default groups on startup:
+  - Global Admin (system) - Full access to all modules and features
+  - Director (system) - Management-level access across modules
+  - Manager - Operational management access
+  - Staff - Standard staff access for daily operations
+  - Viewer (system) - Read-only access to assigned modules
+
+### Global Role (Legacy Field)
+Global Role is a simple single-value field on the user profile:
+
+- **Values**: super_admin, admin, manager, staff, viewer
+- **Purpose**: Primarily used for platform-level access control (e.g., who can access Admin Hub, Access Control page)
+- **When to Use**:
+  - Set to "admin" or "super_admin" for users who need platform-wide administrative access
+  - Set to "viewer", "staff", or "manager" for regular users based on their general tier
+- **Note**: This is a legacy field from before User Groups existed; User Groups now provide more flexible permission management
+
+### Best Practices
+1. **Use User Groups** for day-to-day permission management - they're more flexible and granular
+2. **Set Global Role** based on platform access needs:
+   - "admin"/"super_admin" = Can access Admin Hub, Access Control, and administrative features
+   - "manager"/"staff"/"viewer" = Regular platform users
+3. **Assign Multiple Groups** when users have cross-functional responsibilities
+4. **Create Custom Groups** for specific teams or roles (e.g., "Sales Representatives", "Compliance Team")
+
 ### System Design Choices
 - **Microservices-inspired Modularity**: Modules are designed with independent concerns within a monolithic structure.
 - **API-First Approach**: All functionalities exposed via RESTful APIs.
