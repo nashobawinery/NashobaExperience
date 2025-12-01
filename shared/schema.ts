@@ -1562,6 +1562,7 @@ export const dailyReports = pgTable("daily_reports", {
   
   // Status tracking
   status: text("status").notNull().default("draft"), // draft, submitted, reviewed
+  submittedAt: timestamp("submitted_at"), // When the report was submitted
   reviewedById: varchar("reviewed_by_id").references(() => platformUsers.id),
   reviewedByName: text("reviewed_by_name"),
   reviewedAt: timestamp("reviewed_at"),
