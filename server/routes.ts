@@ -6713,6 +6713,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===============================
+  // Daily Reports Access Codes (for public form via QR code)
+  // ===============================
+
+  // Get all access codes (admin)
+  app.get('/api/daily-reports/access-codes', isAdmin, async (req, res) => {
+    try {
+      const { department } = req.query;
+      const codes = await storage.getDailyReportAccessCodes(department as string | undefined);
+      res.json(codes);
+    } catch (error) {
+      console.error('Error fetching access codes:', error);
+      res.status(500).json({ message: 'Failed to fetch access codes' });
+    }
+  });
+
+  // Create a new access code (admin)
+  app.post('/api/daily-reports/access-codes', isAdmin, async (req: any, res) => {
+    try {
+      const { staffName, department } = req.body;
+      if (!staffName || !department) {
+        return res.status(400).json({ message: 'Staff name and department are required' });
+      }
+
+      const code = await storage.generateUniqueAccessCode();
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+
+      const accessCode = await storage.createDailyReportAccessCode({
+        code,
+        staffName,
+        department,
+        isActive: true,
+        createdById: userId,
+        createdByName: userName
+      });
+
+      res.json(accessCode);
+    } catch (error) {
+      console.error('Error creating access code:', error);
+      res.status(500).json({ message: 'Failed to create access code' });
+    }
+  });
+
+  // Update an access code (admin)
+  app.patch('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { staffName, department, isActive } = req.body;
+      const accessCode = await storage.updateDailyReportAccessCode(id, {
+        staffName,
+        department,
+        isActive
+      });
+      if (!accessCode) {
+        return res.status(404).json({ message: 'Access code not found' });
+      }
+      res.json(accessCode);
+    } catch (error) {
+      console.error('Error updating access code:', error);
+      res.status(500).json({ message: 'Failed to update access code' });
+    }
+  });
+
+  // Delete an access code (admin)
+  app.delete('/api/daily-reports/access-codes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReportAccessCode(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Access code not found' });
+      }
+      res.json({ message: 'Access code deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting access code:', error);
+      res.status(500).json({ message: 'Failed to delete access code' });
+    }
+  });
+
+  // ===============================
+  // Public Form Endpoints (no auth required)
+  // ===============================
+
+  // Validate access code and get form data (public)
+  app.get('/api/public/daily-reports/validate/:code', async (req, res) => {
+    try {
+      const { code } = req.params;
+      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+
+      if (!accessCode) {
+        return res.status(404).json({ message: 'Invalid access code' });
+      }
+
+      if (!accessCode.isActive) {
+        return res.status(403).json({ message: 'Access code is inactive' });
+      }
+
+      // Get the department template
+      const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
+
+      // Update last used timestamp
+      await storage.updateDailyReportAccessCodeLastUsed(code);
+
+      res.json({
+        staffName: accessCode.staffName,
+        department: accessCode.department,
+        departmentLabel: template?.departmentLabel || accessCode.department,
+        metrics: template?.metrics || [],
+        procedures: [] // TODO: fetch active procedures
+      });
+    } catch (error) {
+      console.error('Error validating access code:', error);
+      res.status(500).json({ message: 'Failed to validate access code' });
+    }
+  });
+
+  // Submit a report via public form (no auth required)
+  app.post('/api/public/daily-reports/submit', async (req, res) => {
+    try {
+      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents } = req.body;
+
+      // Validate access code
+      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      if (!accessCode || !accessCode.isActive) {
+        return res.status(403).json({ message: 'Invalid or inactive access code' });
+      }
+
+      // Create the report
+      const report = await storage.createDailyReport({
+        department: accessCode.department,
+        reportDate: reportDate || new Date().toISOString().split('T')[0],
+        status: 'submitted',
+        performanceSummary: performanceSummary || null,
+        overallRating: overallRating || null,
+        hasCustomerConcerns: hasCustomerConcerns || false,
+        customerConcernsSummary: customerConcernsSummary || null,
+        metricsData: metricsData || null,
+        submittedById: `access_code_${accessCode.id}`,
+        submittedByName: accessCode.staffName,
+        submittedAt: new Date()
+      });
+
+      // Create incidents if any
+      if (incidents && Array.isArray(incidents)) {
+        for (const incident of incidents) {
+          await storage.createDailyReportIncident({
+            reportId: report.id,
+            ...incident
+          });
+        }
+      }
+
+      // Update last used
+      await storage.updateDailyReportAccessCodeLastUsed(code);
+
+      // Send email notifications
+      try {
+        const { generateDailyReportEmail, sendEmail } = await import("./email");
+        const recipients = await storage.getDailyReportEmailRecipients(accessCode.department, true);
+
+        if (recipients.length > 0) {
+          const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
+          const reportIncidents = await storage.getDailyReportIncidents(report.id);
+
+          const emailData = generateDailyReportEmail({
+            department: report.department,
+            departmentLabel: template?.departmentLabel || report.department,
+            reportDate: new Date(report.reportDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            submitterName: accessCode.staffName,
+            performanceSummary: report.performanceSummary || undefined,
+            overallRating: report.overallRating || undefined,
+            hasCustomerConcerns: report.hasCustomerConcerns || false,
+            customerConcernsSummary: report.customerConcernsSummary || undefined,
+            metricsData: (report.metricsData as Record<string, any>) || undefined,
+            metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+            incidentCount: reportIncidents.length,
+            proceduresCompletedCount: report.proceduresCompletedCount || 0,
+            proceduresTotalCount: report.proceduresTotalCount || 0
+          });
+
+          for (const recipient of recipients) {
+            try {
+              await sendEmail(recipient.email, emailData.subject, emailData.html, emailData.text);
+              console.log(`[Daily Reports] Email sent to ${recipient.email}`);
+            } catch (emailError) {
+              console.error(`[Daily Reports] Failed to send email to ${recipient.email}:`, emailError);
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error('[Daily Reports] Error sending email notifications:', emailError);
+      }
+
+      res.json({ success: true, reportId: report.id });
+    } catch (error) {
+      console.error('Error submitting public report:', error);
+      res.status(500).json({ message: 'Failed to submit report' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
