@@ -126,6 +126,7 @@ import {
   dailyReports,
   dailyReportIncidents,
   dailyProcedureCompletions,
+  dailyReportEmailRecipients,
   type InsertDailyReportTemplate,
   type DailyReportTemplate,
   type InsertDailyProcedureTemplate,
@@ -137,6 +138,8 @@ import {
   type DailyReportIncident,
   type InsertDailyProcedureCompletion,
   type DailyProcedureCompletion,
+  type InsertDailyReportEmailRecipient,
+  type DailyReportEmailRecipient,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -3766,6 +3769,51 @@ export class DatabaseStorage implements IStorage {
       customerConcerns: Number(customerConcernsResult.count) || 0,
       procedureCompletionRate: Math.round(completionRate)
     };
+  }
+
+  // Daily Report Email Recipients
+  async getDailyReportEmailRecipients(department?: string, activeOnly = true): Promise<DailyReportEmailRecipient[]> {
+    const conditions: SQL<unknown>[] = [];
+    if (department) {
+      conditions.push(eq(dailyReportEmailRecipients.department, department as any));
+    }
+    if (activeOnly) {
+      conditions.push(eq(dailyReportEmailRecipients.active, true));
+    }
+    
+    if (conditions.length > 0) {
+      return await db.select().from(dailyReportEmailRecipients)
+        .where(and(...conditions))
+        .orderBy(dailyReportEmailRecipients.department, dailyReportEmailRecipients.recipientName);
+    }
+    return await db.select().from(dailyReportEmailRecipients)
+      .orderBy(dailyReportEmailRecipients.department, dailyReportEmailRecipients.recipientName);
+  }
+
+  async getDailyReportEmailRecipientById(id: string): Promise<DailyReportEmailRecipient | undefined> {
+    const [recipient] = await db.select().from(dailyReportEmailRecipients)
+      .where(eq(dailyReportEmailRecipients.id, id));
+    return recipient;
+  }
+
+  async createDailyReportEmailRecipient(data: InsertDailyReportEmailRecipient): Promise<DailyReportEmailRecipient> {
+    const [recipient] = await db.insert(dailyReportEmailRecipients).values(data).returning();
+    return recipient;
+  }
+
+  async updateDailyReportEmailRecipient(id: string, data: Partial<InsertDailyReportEmailRecipient>): Promise<DailyReportEmailRecipient | undefined> {
+    const [updated] = await db.update(dailyReportEmailRecipients)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReportEmailRecipients.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDailyReportEmailRecipient(id: string): Promise<boolean> {
+    const result = await db.delete(dailyReportEmailRecipients)
+      .where(eq(dailyReportEmailRecipients.id, id))
+      .returning();
+    return result.length > 0;
   }
 }
 

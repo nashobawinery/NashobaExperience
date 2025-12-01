@@ -1613,6 +1613,22 @@ export const dailyProcedureCompletions = pgTable("daily_procedure_completions", 
   unique("uq_daily_procedure_completion").on(table.reportId, table.procedureTemplateId),
 ]);
 
+// Daily Report Email Recipients - who receives notifications for each department
+export const dailyReportEmailRecipients = pgTable("daily_report_email_recipients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  department: dailyReportDepartmentEnum("department").notNull(),
+  email: varchar("email").notNull(),
+  recipientName: varchar("recipient_name"),
+  role: varchar("role"), // e.g., 'Director', 'Manager', 'Owner'
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_daily_email_recipients_dept").on(table.department),
+  index("idx_daily_email_recipients_active").on(table.active),
+  unique("uq_daily_email_recipient").on(table.department, table.email),
+]);
+
 // Insert schemas for Daily Reports
 export const insertDailyReportTemplateSchema = createInsertSchema(dailyReportTemplates).omit({ 
   id: true, 
@@ -1656,6 +1672,14 @@ export type DailyReportIncident = typeof dailyReportIncidents.$inferSelect;
 
 export type InsertDailyProcedureCompletion = z.infer<typeof insertDailyProcedureCompletionSchema>;
 export type DailyProcedureCompletion = typeof dailyProcedureCompletions.$inferSelect;
+
+export const insertDailyReportEmailRecipientSchema = createInsertSchema(dailyReportEmailRecipients).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export type InsertDailyReportEmailRecipient = z.infer<typeof insertDailyReportEmailRecipientSchema>;
+export type DailyReportEmailRecipient = typeof dailyReportEmailRecipients.$inferSelect;
 
 // Extended Daily Report type with relations
 export type DailyReportWithDetails = DailyReport & {
