@@ -54,6 +54,11 @@ import {
   complianceTaskHistory,
   complianceReminders,
   complianceAttachments,
+  insertDailyReportTemplateSchema,
+  insertDailyProcedureTemplateSchema,
+  insertDailyReportSchema,
+  insertDailyReportIncidentSchema,
+  insertDailyProcedureCompletionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
 
@@ -6024,6 +6029,484 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching upcoming deadlines:', error);
       res.status(500).json({ message: 'Failed to fetch upcoming deadlines' });
+    }
+  });
+
+  // ============================================
+  // DAILY REPORTS MODULE ROUTES
+  // ============================================
+
+  // Get all department templates
+  app.get('/api/daily-reports/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const activeOnly = req.query.active === 'true';
+      const templates = await storage.getDailyReportTemplates(activeOnly);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching daily report templates:', error);
+      res.status(500).json({ message: 'Failed to fetch templates' });
+    }
+  });
+
+  // Get a single template by ID or department
+  app.get('/api/daily-reports/templates/:identifier', isAuthenticated, async (req: any, res) => {
+    try {
+      const { identifier } = req.params;
+      // Check if it's a department name or an ID
+      let template = await storage.getDailyReportTemplateByDepartment(identifier);
+      if (!template) {
+        template = await storage.getDailyReportTemplate(identifier);
+      }
+      if (!template) {
+        return res.status(404).json({ message: 'Template not found' });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error('Error fetching daily report template:', error);
+      res.status(500).json({ message: 'Failed to fetch template' });
+    }
+  });
+
+  // Create or update a department template (admin only)
+  app.post('/api/daily-reports/templates', isAdmin, async (req, res) => {
+    try {
+      const data = insertDailyReportTemplateSchema.parse(req.body);
+      const template = await storage.upsertDailyReportTemplate(data);
+      res.json(template);
+    } catch (error) {
+      console.error('Error creating daily report template:', error);
+      res.status(500).json({ message: 'Failed to create template' });
+    }
+  });
+
+  // Update a template
+  app.patch('/api/daily-reports/templates/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyReportTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateDailyReportTemplate(id, data);
+      if (!template) {
+        return res.status(404).json({ message: 'Template not found' });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error('Error updating daily report template:', error);
+      res.status(500).json({ message: 'Failed to update template' });
+    }
+  });
+
+  // Get all procedure templates
+  app.get('/api/daily-reports/procedures', isAuthenticated, async (req: any, res) => {
+    try {
+      const { department, active } = req.query;
+      const procedures = await storage.getDailyProcedureTemplates(
+        department as string | undefined,
+        active === 'true'
+      );
+      res.json(procedures);
+    } catch (error) {
+      console.error('Error fetching procedure templates:', error);
+      res.status(500).json({ message: 'Failed to fetch procedures' });
+    }
+  });
+
+  // Create a procedure template (admin only)
+  app.post('/api/daily-reports/procedures', isAdmin, async (req, res) => {
+    try {
+      const data = insertDailyProcedureTemplateSchema.parse(req.body);
+      const procedure = await storage.createDailyProcedureTemplate(data);
+      res.json(procedure);
+    } catch (error) {
+      console.error('Error creating procedure template:', error);
+      res.status(500).json({ message: 'Failed to create procedure' });
+    }
+  });
+
+  // Update a procedure template
+  app.patch('/api/daily-reports/procedures/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyProcedureTemplateSchema.partial().parse(req.body);
+      const procedure = await storage.updateDailyProcedureTemplate(id, data);
+      if (!procedure) {
+        return res.status(404).json({ message: 'Procedure not found' });
+      }
+      res.json(procedure);
+    } catch (error) {
+      console.error('Error updating procedure template:', error);
+      res.status(500).json({ message: 'Failed to update procedure' });
+    }
+  });
+
+  // Delete a procedure template
+  app.delete('/api/daily-reports/procedures/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyProcedureTemplate(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Procedure not found' });
+      }
+      res.json({ message: 'Procedure deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting procedure template:', error);
+      res.status(500).json({ message: 'Failed to delete procedure' });
+    }
+  });
+
+  // Get daily reports with filters
+  app.get('/api/daily-reports', isAuthenticated, async (req: any, res) => {
+    try {
+      const { department, startDate, endDate, status, hasCustomerConcerns } = req.query;
+      
+      const filters: any = {};
+      if (department) filters.department = department;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      if (status) filters.status = status;
+      if (hasCustomerConcerns !== undefined) filters.hasCustomerConcerns = hasCustomerConcerns === 'true';
+      
+      const reports = await storage.getDailyReports(Object.keys(filters).length > 0 ? filters : undefined);
+      res.json(reports);
+    } catch (error) {
+      console.error('Error fetching daily reports:', error);
+      res.status(500).json({ message: 'Failed to fetch reports' });
+    }
+  });
+
+  // Get report stats
+  app.get('/api/daily-reports/stats', isAuthenticated, async (req, res) => {
+    try {
+      const stats = await storage.getDailyReportsStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching daily report stats:', error);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // Get unresolved incidents
+  app.get('/api/daily-reports/incidents/unresolved', isAuthenticated, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const incidents = await storage.getUnresolvedIncidents(limit);
+      res.json(incidents);
+    } catch (error) {
+      console.error('Error fetching unresolved incidents:', error);
+      res.status(500).json({ message: 'Failed to fetch incidents' });
+    }
+  });
+
+  // Get customer-related incidents
+  app.get('/api/daily-reports/incidents/customer', isAuthenticated, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const incidents = await storage.getCustomerRelatedIncidents(limit);
+      res.json(incidents);
+    } catch (error) {
+      console.error('Error fetching customer incidents:', error);
+      res.status(500).json({ message: 'Failed to fetch incidents' });
+    }
+  });
+
+  // Get a single daily report with all details
+  app.get('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const report = await storage.getDailyReportWithDetails(id);
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error('Error fetching daily report:', error);
+      res.status(500).json({ message: 'Failed to fetch report' });
+    }
+  });
+
+  // Get or create today's report for a department
+  app.get('/api/daily-reports/department/:department/today', isAuthenticated, async (req: any, res) => {
+    try {
+      const { department } = req.params;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let report = await storage.getDailyReportByDepartmentAndDate(department, today);
+      
+      if (!report) {
+        // Create a new draft report for today
+        const userId = req.user?.claims?.sub;
+        const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+        
+        report = await storage.createDailyReport({
+          department: department as any,
+          reportDate: today,
+          submittedById: userId,
+          submittedByName: userName,
+          status: 'draft'
+        });
+        
+        // Initialize procedure completions
+        await storage.initializeProcedureCompletionsForReport(report.id, department);
+      }
+      
+      // Get full details
+      const reportWithDetails = await storage.getDailyReportWithDetails(report.id);
+      res.json(reportWithDetails);
+    } catch (error) {
+      console.error('Error fetching today\'s report:', error);
+      res.status(500).json({ message: 'Failed to fetch today\'s report' });
+    }
+  });
+
+  // Create a new daily report
+  app.post('/api/daily-reports', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      
+      const data = insertDailyReportSchema.parse({
+        ...req.body,
+        submittedById: userId,
+        submittedByName: userName
+      });
+      
+      const report = await storage.createDailyReport(data);
+      
+      // Initialize procedure completions
+      await storage.initializeProcedureCompletionsForReport(report.id, data.department);
+      
+      res.json(report);
+    } catch (error) {
+      console.error('Error creating daily report:', error);
+      res.status(500).json({ message: 'Failed to create report' });
+    }
+  });
+
+  // Update a daily report
+  app.patch('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyReportSchema.partial().parse(req.body);
+      
+      // If submitting, update status
+      if (req.body.submit === true) {
+        data.status = 'submitted';
+      }
+      
+      const report = await storage.updateDailyReport(id, data);
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error('Error updating daily report:', error);
+      res.status(500).json({ message: 'Failed to update report' });
+    }
+  });
+
+  // Submit a daily report
+  app.post('/api/daily-reports/:id/submit', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const report = await storage.updateDailyReport(id, { status: 'submitted' });
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error('Error submitting daily report:', error);
+      res.status(500).json({ message: 'Failed to submit report' });
+    }
+  });
+
+  // Review a daily report (admin only)
+  app.post('/api/daily-reports/:id/review', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      const { reviewNotes, approved } = req.body;
+      
+      const report = await storage.updateDailyReport(id, {
+        status: approved ? 'reviewed' : 'needs_revision',
+        reviewedById: userId,
+        reviewedByName: userName,
+        reviewedAt: new Date(),
+        reviewNotes
+      });
+      
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error('Error reviewing daily report:', error);
+      res.status(500).json({ message: 'Failed to review report' });
+    }
+  });
+
+  // Delete a daily report (admin only)
+  app.delete('/api/daily-reports/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReport(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      res.json({ message: 'Report deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting daily report:', error);
+      res.status(500).json({ message: 'Failed to delete report' });
+    }
+  });
+
+  // Add an incident to a report
+  app.post('/api/daily-reports/:reportId/incidents', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId } = req.params;
+      const data = insertDailyReportIncidentSchema.parse({
+        ...req.body,
+        reportId
+      });
+      
+      const incident = await storage.createDailyReportIncident(data);
+      
+      // Update report's customer concern flag if this is customer-related
+      if (data.isCustomerRelated) {
+        await storage.updateDailyReport(reportId, { hasCustomerConcerns: true });
+      }
+      
+      res.json(incident);
+    } catch (error) {
+      console.error('Error creating incident:', error);
+      res.status(500).json({ message: 'Failed to create incident' });
+    }
+  });
+
+  // Update an incident
+  app.patch('/api/daily-reports/incidents/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyReportIncidentSchema.partial().parse(req.body);
+      const incident = await storage.updateDailyReportIncident(id, data);
+      if (!incident) {
+        return res.status(404).json({ message: 'Incident not found' });
+      }
+      res.json(incident);
+    } catch (error) {
+      console.error('Error updating incident:', error);
+      res.status(500).json({ message: 'Failed to update incident' });
+    }
+  });
+
+  // Resolve an incident
+  app.post('/api/daily-reports/incidents/:id/resolve', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { actionTaken, notes } = req.body;
+      
+      const incident = await storage.updateDailyReportIncident(id, {
+        resolved: true,
+        actionTaken,
+        followUpNotes: notes
+      });
+      
+      if (!incident) {
+        return res.status(404).json({ message: 'Incident not found' });
+      }
+      res.json(incident);
+    } catch (error) {
+      console.error('Error resolving incident:', error);
+      res.status(500).json({ message: 'Failed to resolve incident' });
+    }
+  });
+
+  // Delete an incident
+  app.delete('/api/daily-reports/incidents/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReportIncident(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Incident not found' });
+      }
+      res.json({ message: 'Incident deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting incident:', error);
+      res.status(500).json({ message: 'Failed to delete incident' });
+    }
+  });
+
+  // Update procedure completion status
+  app.post('/api/daily-reports/:reportId/procedures/:procedureId/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId, procedureId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      const { completed, notes } = req.body;
+      
+      const completion = await storage.upsertDailyProcedureCompletion({
+        reportId,
+        procedureTemplateId: procedureId,
+        completed: completed === true,
+        completedById: userId,
+        completedByName: userName,
+        notes
+      });
+      
+      // Update the report's procedure completion stats
+      const allCompletions = await storage.getDailyProcedureCompletions(reportId);
+      const completedCount = allCompletions.filter(c => c.completed).length;
+      const totalCount = allCompletions.length;
+      
+      await storage.updateDailyReport(reportId, {
+        proceduresCompletedCount: completedCount,
+        proceduresTotalCount: totalCount,
+        proceduresCompleted: completedCount === totalCount && totalCount > 0
+      });
+      
+      res.json(completion);
+    } catch (error) {
+      console.error('Error updating procedure completion:', error);
+      res.status(500).json({ message: 'Failed to update procedure' });
+    }
+  });
+
+  // Bulk update procedure completions
+  app.post('/api/daily-reports/:reportId/procedures/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      const { completions } = req.body; // Array of { procedureId, completed, notes }
+      
+      const results = [];
+      for (const item of completions) {
+        const completion = await storage.upsertDailyProcedureCompletion({
+          reportId,
+          procedureTemplateId: item.procedureId,
+          completed: item.completed === true,
+          completedById: userId,
+          completedByName: userName,
+          notes: item.notes
+        });
+        results.push(completion);
+      }
+      
+      // Update the report's procedure completion stats
+      const allCompletions = await storage.getDailyProcedureCompletions(reportId);
+      const completedCount = allCompletions.filter(c => c.completed).length;
+      const totalCount = allCompletions.length;
+      
+      await storage.updateDailyReport(reportId, {
+        proceduresCompletedCount: completedCount,
+        proceduresTotalCount: totalCount,
+        proceduresCompleted: completedCount === totalCount && totalCount > 0
+      });
+      
+      res.json(results);
+    } catch (error) {
+      console.error('Error bulk updating procedure completions:', error);
+      res.status(500).json({ message: 'Failed to update procedures' });
     }
   });
 
