@@ -72,6 +72,8 @@ export default function ModuleDirectory() {
 
   const { data: modules, isLoading } = useQuery<PlatformModule[]>({
     queryKey: ["/api/platform/modules"],
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const updateModuleMutation = useMutation({

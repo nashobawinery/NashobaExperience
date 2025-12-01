@@ -61,6 +61,8 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
 
   const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
     queryKey: ['/api/platform/modules'],
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   console.log('AdminHub modules:', { modules, modulesLoading, modulesError, count: modules?.length });
