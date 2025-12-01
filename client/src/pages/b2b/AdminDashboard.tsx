@@ -52,6 +52,9 @@ import TierCommitmentPage from "./TierCommitmentPage";
 import TasksPage from "./TasksPage";
 import NotesManager from "@/components/NotesManager";
 import { BookOpen } from "lucide-react";
+import { getModuleDocs } from "@/docs";
+import ModuleDocumentation from "@/components/ModuleDocumentation";
+import "@/docs/b2b";
 
 const createCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
@@ -2175,6 +2178,19 @@ export default function AdminDashboard() {
             </div>
           </Card>
           )}
+
+          {/* Help & Documentation */}
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Help & Resources</h3>
+              <TabsList className="w-full h-auto">
+                <TabsTrigger value="documentation" data-testid="tab-documentation" className="flex items-center justify-center gap-2 flex-1">
+                  <BookOpen className="w-4 h-4" />
+                  <span>Documentation</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Card>
         </div>
 
         {/* CUSTOMERS TAB */}
@@ -2610,6 +2626,13 @@ export default function AdminDashboard() {
         {/* NOTES TAB */}
         <TabsContent value="notes">
           <NotesManager appType="b2b" />
+        </TabsContent>
+
+        {/* DOCUMENTATION TAB */}
+        <TabsContent value="documentation">
+          {getModuleDocs("b2b") && (
+            <ModuleDocumentation documentation={getModuleDocs("b2b")!} />
+          )}
         </TabsContent>
 
         {/* PAYROLL TAB */}
