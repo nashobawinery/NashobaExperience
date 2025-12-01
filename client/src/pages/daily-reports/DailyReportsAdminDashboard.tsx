@@ -460,23 +460,61 @@ export default function DailyReportsAdminDashboard() {
     setIsEmailRecipientDialogOpen(true);
   };
 
-  const handleSaveEmailRecipient = () => {
+  const handleSaveEmailRecipient = async () => {
     if (!emailRecipientFormData.department || !emailRecipientFormData.email) {
       toast({ title: "Please fill in required fields", variant: "destructive" });
       return;
     }
 
-    const data = {
-      department: emailRecipientFormData.department,
-      email: emailRecipientFormData.email,
-      name: emailRecipientFormData.name || null,
-      isActive: emailRecipientFormData.isActive
-    };
-
     if (editingEmailRecipient) {
+      const data = {
+        department: emailRecipientFormData.department,
+        email: emailRecipientFormData.email.trim(),
+        name: emailRecipientFormData.name || null,
+        isActive: emailRecipientFormData.isActive
+      };
       updateEmailRecipientMutation.mutate({ id: editingEmailRecipient.id, data });
     } else {
-      createEmailRecipientMutation.mutate(data);
+      const emails = emailRecipientFormData.email
+        .split(',')
+        .map(e => e.trim())
+        .filter(e => e.length > 0 && e.includes('@'));
+
+      if (emails.length === 0) {
+        toast({ title: "Please enter valid email addresses", variant: "destructive" });
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const email of emails) {
+        try {
+          await apiRequest('POST', '/api/daily-reports/email-recipients', {
+            department: emailRecipientFormData.department,
+            email,
+            name: null,
+            isActive: true
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to add ${email}:`, error);
+          errorCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/email-recipients'] });
+
+      if (successCount > 0) {
+        toast({ 
+          title: `Added ${successCount} recipient${successCount > 1 ? 's' : ''}`,
+          description: errorCount > 0 ? `${errorCount} failed to add` : undefined
+        });
+        setIsEmailRecipientDialogOpen(false);
+        resetEmailRecipientForm();
+      } else {
+        toast({ title: "Failed to add recipients", variant: "destructive" });
+      }
     }
   };
 
@@ -1574,37 +1612,50 @@ export default function DailyReportsAdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="recipient-email">Email Address</Label>
+              <Label htmlFor="recipient-email">
+                {editingEmailRecipient ? "Email Address" : "Email Addresses"}
+              </Label>
+              {!editingEmailRecipient && (
+                <p className="text-sm text-muted-foreground">
+                  Separate multiple emails with commas
+                </p>
+              )}
               <Input
                 id="recipient-email"
-                type="email"
-                placeholder="manager@nashobawinery.com"
+                type={editingEmailRecipient ? "email" : "text"}
+                placeholder={editingEmailRecipient 
+                  ? "manager@nashobawinery.com" 
+                  : "manager@nashobawinery.com, staff@nashobawinery.com"}
                 value={emailRecipientFormData.email}
                 onChange={(e) => setEmailRecipientFormData({ ...emailRecipientFormData, email: e.target.value })}
                 data-testid="input-recipient-email"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="recipient-name">Name (Optional)</Label>
-              <Input
-                id="recipient-name"
-                type="text"
-                placeholder="John Smith"
-                value={emailRecipientFormData.name}
-                onChange={(e) => setEmailRecipientFormData({ ...emailRecipientFormData, name: e.target.value })}
-                data-testid="input-recipient-name"
-              />
-            </div>
+            {editingEmailRecipient && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="recipient-name">Name (Optional)</Label>
+                  <Input
+                    id="recipient-name"
+                    type="text"
+                    placeholder="John Smith"
+                    value={emailRecipientFormData.name}
+                    onChange={(e) => setEmailRecipientFormData({ ...emailRecipientFormData, name: e.target.value })}
+                    data-testid="input-recipient-name"
+                  />
+                </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="recipient-active"
-                checked={emailRecipientFormData.isActive}
-                onCheckedChange={(checked) => setEmailRecipientFormData({ ...emailRecipientFormData, isActive: checked === true })}
-              />
-              <Label htmlFor="recipient-active" className="text-sm">Active (receives emails)</Label>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="recipient-active"
+                    checked={emailRecipientFormData.isActive}
+                    onCheckedChange={(checked) => setEmailRecipientFormData({ ...emailRecipientFormData, isActive: checked === true })}
+                  />
+                  <Label htmlFor="recipient-active" className="text-sm">Active (receives emails)</Label>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEmailRecipientDialogOpen(false)}>
@@ -1615,7 +1666,7 @@ export default function DailyReportsAdminDashboard() {
               disabled={!emailRecipientFormData.department || !emailRecipientFormData.email || createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending}
               data-testid="button-save-recipient"
             >
-              {(createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending) ? "Saving..." : (editingEmailRecipient ? "Save Changes" : "Add Recipient")}
+              {(createEmailRecipientMutation.isPending || updateEmailRecipientMutation.isPending) ? "Saving..." : (editingEmailRecipient ? "Save Changes" : "Add Recipients")}
             </Button>
           </DialogFooter>
         </DialogContent>
