@@ -312,5 +312,284 @@ registerModuleDocs({
         </div>
       ),
     },
+    {
+      id: "report-history",
+      title: "Report History & Filtering",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            The Reports tab provides comprehensive filtering and sorting capabilities for management review and historical analysis.
+          </p>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium">Filter Options</h4>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <h5 className="text-sm font-medium mb-1">Date Range</h5>
+                <p className="text-xs text-muted-foreground">
+                  Filter reports by From and To dates to view reports within a specific period.
+                </p>
+              </div>
+              <div>
+                <h5 className="text-sm font-medium mb-1">Department</h5>
+                <p className="text-xs text-muted-foreground">
+                  Select a specific department or view all departments at once.
+                </p>
+              </div>
+              <div>
+                <h5 className="text-sm font-medium mb-1">Staff Member</h5>
+                <p className="text-xs text-muted-foreground">
+                  Filter by the person who submitted the report (populated from report history).
+                </p>
+              </div>
+              <div>
+                <h5 className="text-sm font-medium mb-1">Search</h5>
+                <p className="text-xs text-muted-foreground">
+                  Free-text search across department names, notes, and staff names.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium">Sortable Columns</h4>
+            <p className="text-sm text-muted-foreground">
+              Click on any column header to sort the report list. Click again to toggle between ascending and descending order.
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li><strong>Department:</strong> Sort alphabetically by department name</li>
+              <li><strong>Date:</strong> Sort by report date (default: newest first)</li>
+              <li><strong>Status:</strong> Sort by draft, submitted, or reviewed status</li>
+              <li><strong>Incidents:</strong> Sort by number of incidents logged</li>
+              <li><strong>Procedures:</strong> Sort by procedures completed count</li>
+              <li><strong>Submitted By:</strong> Sort alphabetically by staff member name</li>
+            </ul>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium">Export to Excel</h4>
+            <p className="text-sm text-muted-foreground">
+              Export filtered reports to an Excel spreadsheet for offline analysis or sharing with stakeholders.
+              The export includes all visible columns plus additional details like performance summary and customer concerns.
+            </p>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">Clear Filters</h4>
+            <p className="text-sm text-muted-foreground">
+              When filters are active, a "Clear Filters" button appears allowing you to reset all filters 
+              and return to viewing all reports with the default sort order.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "eldercare-comply-spec",
+      title: "ElderCare Comply - Daily Reports Specification",
+      content: (
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">AI Agent Implementation Guide</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              The following specification can be copied and provided to another AI coding agent to implement the Daily Reports feature in the ElderCare Comply application.
+            </p>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap overflow-x-auto font-mono bg-background p-4 rounded border">
+{`# Daily Reports Module - Feature Specification
+
+## Overview
+Build a Daily Reports module that enables department managers to log daily operations, track performance metrics, report incidents, and complete procedure checklists. The module provides operational visibility across departments with comprehensive filtering and export capabilities.
+
+## Core Data Models
+
+### 1. Daily Report Template (per department)
+- department: string (enum of department types)
+- departmentLabel: string (display name)
+- metrics: JSON array of {key, label, type, required}
+- notificationEmails: JSON array of {email, name?, role?}
+- isActive: boolean
+
+### 2. Daily Report
+- id: UUID primary key
+- department: enum (references template)
+- templateId: reference to template
+- reportDate: timestamp
+- submittedById: reference to user (nullable for public access)
+- submittedByName: text
+- performanceSummary: text
+- overallRating: integer (1-5 scale)
+- metricsData: JSON (key-value pairs matching template metrics)
+- proceduresCompleted: boolean
+- proceduresCompletedCount: integer
+- proceduresTotalCount: integer
+- hasCustomerConcerns: boolean
+- customerConcernsSummary: text
+- status: enum (draft, submitted, reviewed)
+- submittedAt: timestamp
+- reviewedById: reference to user
+- reviewedByName: text
+- reviewedAt: timestamp
+- reviewNotes: text
+- incidentsCount: integer (computed)
+- createdAt/updatedAt: timestamps
+
+### 3. Daily Report Incident
+- id: UUID primary key
+- reportId: reference to daily report
+- incidentType: enum (customer_complaint, equipment_issue, safety_concern, staffing_issue, inventory_shortage, quality_issue, policy_violation, positive_feedback, other)
+- severity: enum (low, medium, high, critical)
+- description: text
+- actionTaken: text
+- followUpRequired: boolean
+- followUpNotes: text
+- resolved: boolean
+- resolvedById: reference to user
+- resolvedAt: timestamp
+- occurredAt: timestamp
+
+### 4. Daily Report Procedure
+- id: UUID primary key
+- templateId: reference to template
+- name: text
+- description: text
+- procedureType: enum (opening, closing, general)
+- isRequired: boolean
+- isActive: boolean
+- sortOrder: integer
+
+### 5. Daily Report Access Code (for public QR code access)
+- id: UUID primary key
+- code: varchar(4) unique (4-digit code, range 1000-9999)
+- staffName: text
+- department: enum
+- isActive: boolean
+- expiresAt: timestamp (optional)
+- createdAt: timestamp
+
+## Features to Implement
+
+### Admin Dashboard (authenticated users)
+1. **Overview Tab**
+   - Department cards showing today's reports
+   - Quick stats: total reports, submitted today, unresolved incidents
+   - Date picker for historical view
+
+2. **Reports Tab with Filtering**
+   - Search box (searches department, notes, staff name)
+   - Department dropdown filter
+   - Staff member dropdown filter (populated from unique submitters)
+   - Date range filters (From/To date inputs)
+   - Sortable table columns (click header to toggle asc/desc):
+     - Department, Date, Status, Incidents, Procedures, Submitted By
+   - Clear Filters button (appears when filters active)
+   - Export to Excel button (exports filtered results)
+   - Count display: "Showing X of Y reports (filtered)"
+
+3. **Departments Tab**
+   - Edit department templates
+   - Configure notification email lists (JSONB array with email, name, role)
+   - Manage procedures per department (add/edit/delete)
+   - Procedure types: opening, closing, general
+
+4. **Settings Tab**
+   - Manage access codes for public/QR code submission
+   - 4-digit codes (1000-9999), auto-generated or manual entry
+   - Editable code values with uniqueness validation
+   - Generate QR codes linking to /daily-report/:code
+   - Copy URL functionality
+
+### Public Report Form (/daily-report/:code)
+- No authentication required
+- Validates access code and fetches department template
+- Mobile-friendly form with:
+  - Staff name display (from access code)
+  - Department display
+  - Date picker (defaults to today)
+  - Dynamic metrics fields based on template
+  - Procedure checklists (opening/closing/general sections)
+  - Incidents section (add/remove incidents)
+  - Performance summary textarea
+  - Overall rating (1-5)
+  - Customer concerns toggle and notes
+  - Submit button
+- On submit: creates report with status "submitted"
+- Success confirmation screen
+
+### Email Notifications
+- Send email via SendGrid when report is submitted
+- Recipients from template's notificationEmails array
+- Email includes: department, date, submitter name, key metrics, incident count
+
+### Report Workflow
+1. Draft - editable, can add/edit incidents
+2. Submitted - locked, awaiting review
+3. Reviewed - approved by management
+
+## API Endpoints Needed
+
+GET /api/daily-report-templates - List all templates
+GET /api/daily-report-templates/:id - Get single template
+PATCH /api/daily-report-templates/:id - Update template (metrics, emails, procedures)
+
+GET /api/daily-reports - List reports with optional filters (department, startDate, endDate, status)
+GET /api/daily-reports/:id - Get single report with incidents
+POST /api/daily-reports - Create new report
+PATCH /api/daily-reports/:id - Update report
+DELETE /api/daily-reports/:id - Delete report
+POST /api/daily-reports/:id/submit - Change status to submitted
+POST /api/daily-reports/:id/review - Change status to reviewed
+
+GET /api/daily-reports/:id/incidents - Get incidents for report
+POST /api/daily-reports/:id/incidents - Add incident to report
+PATCH /api/daily-report-incidents/:id - Update incident
+DELETE /api/daily-report-incidents/:id - Delete incident
+
+GET /api/daily-report-access-codes - List access codes
+POST /api/daily-report-access-codes - Create access code
+PATCH /api/daily-report-access-codes/:id - Update access code
+DELETE /api/daily-report-access-codes/:id - Delete access code
+GET /api/daily-report-access-codes/validate/:code - Validate code (public endpoint)
+
+POST /api/daily-reports/public - Create report via access code (public endpoint)
+
+## Tech Stack Recommendations
+- React with TypeScript frontend
+- Express.js backend
+- PostgreSQL database with Drizzle ORM
+- TanStack Query for data fetching
+- shadcn/ui components (Card, Table, Select, Input, Button, Tabs, Badge, Dialog)
+- lucide-react icons
+- date-fns for date formatting
+- xlsx library for Excel export
+- qrcode library for QR code generation
+- SendGrid for email notifications
+
+## UI Components Needed
+- Sortable table with column headers that toggle sort direction
+- Filter card with grid layout for filter controls
+- Date range picker (two date inputs)
+- Department/Staff select dropdowns
+- QR code display and download
+- Incident form dialog
+- Procedure checklist with type groupings
+- Status badges (draft=yellow, submitted=blue, reviewed=green)
+- Severity badges (low=gray, medium=yellow, high=orange, critical=red)
+
+## Key Implementation Notes
+1. Access codes must be unique 4-digit numbers (1000-9999)
+2. Reports are unique per department per day (database constraint)
+3. Incident counts are denormalized on the report for query performance
+4. Procedure completion tracking updates report totals on save
+5. All filters work client-side after initial data fetch
+6. Excel export includes all filtered data plus additional fields
+7. QR codes encode the full URL to the public form`}
+            </pre>
+          </div>
+        </div>
+      ),
+    },
   ],
 });
