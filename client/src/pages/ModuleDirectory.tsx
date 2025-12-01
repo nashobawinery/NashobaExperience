@@ -184,6 +184,12 @@ export default function ModuleDirectory() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Debug info */}
+        {!isLoading && (!modules || modules.length === 0) && (
+          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500 rounded-lg text-amber-700">
+            No modules found. modules = {JSON.stringify(modules)}
+          </div>
+        )}
         <div className="grid gap-6">
           {modules?.map((module) => {
             const IconComponent = iconMap[module.icon || "FileText"] || FileText;

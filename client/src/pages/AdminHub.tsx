@@ -213,6 +213,17 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
 
         <section>
           <h2 className="text-xl font-semibold mb-4">Modules</h2>
+          {/* Debug info */}
+          {modulesError && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
+              Error loading modules: {String(modulesError)}
+            </div>
+          )}
+          {!modulesLoading && !modulesError && (!modules || modules.length === 0) && (
+            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500 rounded-lg text-amber-700">
+              No modules found. modules = {JSON.stringify(modules)}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {modulesLoading ? (
               Array.from({ length: 8 }).map((_, i) => (
