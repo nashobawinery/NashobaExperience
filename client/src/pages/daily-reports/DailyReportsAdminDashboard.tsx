@@ -193,6 +193,442 @@ interface DailyReportAccessCode {
   createdAt: string;
 }
 
+interface DailyReportFieldDefinition {
+  id: string;
+  key: string;
+  label: string;
+  fieldType: 'number' | 'text';
+  unit?: string | null;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const fieldTypeOptions = [
+  { value: "number", label: "Number", description: "Numeric values (counts, quantities, etc.)" },
+  { value: "text", label: "Text", description: "Free-form text responses" }
+];
+
+function ReportFieldsTab() {
+  const { toast } = useToast();
+  const [isFieldDialogOpen, setIsFieldDialogOpen] = useState(false);
+  const [editingField, setEditingField] = useState<DailyReportFieldDefinition | null>(null);
+  const [fieldFormData, setFieldFormData] = useState({
+    key: "",
+    label: "",
+    fieldType: "text" as "number" | "text",
+    unit: "",
+    description: "",
+    sortOrder: 0,
+    isActive: true
+  });
+
+  const { data: fieldDefinitions = [], isLoading } = useQuery<DailyReportFieldDefinition[]>({
+    queryKey: ['/api/daily-reports/field-definitions'],
+  });
+
+  const createFieldMutation = useMutation({
+    mutationFn: async (data: Omit<DailyReportFieldDefinition, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const response = await apiRequest('POST', '/api/daily-reports/field-definitions', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: "Success", description: "Field definition created and synced to all departments" });
+      setIsFieldDialogOpen(false);
+      resetFieldForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create field", variant: "destructive" });
+    }
+  });
+
+  const updateFieldMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<DailyReportFieldDefinition> }) => {
+      const response = await apiRequest('PATCH', `/api/daily-reports/field-definitions/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: "Success", description: "Field definition updated and synced to all departments" });
+      setIsFieldDialogOpen(false);
+      setEditingField(null);
+      resetFieldForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update field", variant: "destructive" });
+    }
+  });
+
+  const deleteFieldMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/daily-reports/field-definitions/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: "Success", description: "Field definition deleted and removed from all departments" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete field", variant: "destructive" });
+    }
+  });
+
+  const syncFieldsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/daily-reports/field-definitions/sync');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: "Success", description: "Field definitions synced to all department templates" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to sync fields", variant: "destructive" });
+    }
+  });
+
+  const resetFieldForm = () => {
+    setFieldFormData({
+      key: "",
+      label: "",
+      fieldType: "text",
+      unit: "",
+      description: "",
+      sortOrder: fieldDefinitions.length,
+      isActive: true
+    });
+  };
+
+  const handleAddField = () => {
+    setEditingField(null);
+    resetFieldForm();
+    setIsFieldDialogOpen(true);
+  };
+
+  const handleEditField = (field: DailyReportFieldDefinition) => {
+    setEditingField(field);
+    setFieldFormData({
+      key: field.key,
+      label: field.label,
+      fieldType: field.fieldType,
+      unit: field.unit || "",
+      description: field.description || "",
+      sortOrder: field.sortOrder,
+      isActive: field.isActive
+    });
+    setIsFieldDialogOpen(true);
+  };
+
+  const handleSaveField = () => {
+    if (!fieldFormData.key.trim() || !fieldFormData.label.trim()) {
+      toast({ title: "Error", description: "Key and Label are required", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      key: fieldFormData.key.toLowerCase().replace(/\s+/g, '_'),
+      label: fieldFormData.label,
+      fieldType: fieldFormData.fieldType,
+      unit: fieldFormData.unit || null,
+      description: fieldFormData.description || null,
+      sortOrder: fieldFormData.sortOrder,
+      isActive: fieldFormData.isActive
+    };
+
+    if (editingField) {
+      updateFieldMutation.mutate({ id: editingField.id, data });
+    } else {
+      createFieldMutation.mutate(data);
+    }
+  };
+
+  const handleDeleteField = (field: DailyReportFieldDefinition) => {
+    if (window.confirm(`Are you sure you want to delete "${field.label}"? This will remove it from all department templates.`)) {
+      deleteFieldMutation.mutate(field.id);
+    }
+  };
+
+  const sortedFields = [...fieldDefinitions].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Report Fields
+            </CardTitle>
+            <CardDescription>
+              Manage the master list of fields available in daily reports. Changes here sync to all department templates.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncFieldsMutation.mutate()}
+              disabled={syncFieldsMutation.isPending}
+              data-testid="button-sync-fields"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncFieldsMutation.isPending ? 'animate-spin' : ''}`} />
+              Sync to Templates
+            </Button>
+            <Button onClick={handleAddField} data-testid="button-add-field">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Field
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sortedFields.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No field definitions yet.</p>
+              <p className="text-sm">Add fields to define what data departments can collect in their daily reports.</p>
+            </div>
+          ) : (
+            <div className="border rounded-lg">
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 font-medium text-sm border-b">
+                <div className="col-span-1">#</div>
+                <div className="col-span-3">Label</div>
+                <div className="col-span-2">Key</div>
+                <div className="col-span-2">Type</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-2 text-right">Actions</div>
+              </div>
+              <div className="divide-y">
+                {sortedFields.map((field, index) => (
+                  <div 
+                    key={field.id} 
+                    className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-muted/30 group"
+                    data-testid={`field-row-${field.key}`}
+                  >
+                    <div className="col-span-1 text-muted-foreground">{index + 1}</div>
+                    <div className="col-span-3">
+                      <div className="font-medium">{field.label}</div>
+                      {field.description && (
+                        <div className="text-xs text-muted-foreground truncate">{field.description}</div>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{field.key}</code>
+                    </div>
+                    <div className="col-span-2">
+                      <Badge variant="outline" className="text-xs">
+                        {field.fieldType === 'number' ? '123' : 'Abc'} {field.fieldType}
+                      </Badge>
+                      {field.unit && (
+                        <span className="text-xs text-muted-foreground ml-1">({field.unit})</span>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      {field.isActive ? (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </div>
+                    <div className="col-span-2 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => handleEditField(field)}
+                        data-testid={`button-edit-field-${field.key}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => handleDeleteField(field)}
+                        data-testid={`button-delete-field-${field.key}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium">How Field Syncing Works</p>
+                <ul className="list-disc list-inside text-muted-foreground mt-1 space-y-1">
+                  <li>Adding a new field automatically adds it to all department templates (disabled by default)</li>
+                  <li>Updating a field's label or type syncs to all departments</li>
+                  <li>Deleting a field removes it from all department templates</li>
+                  <li>Department-level enable/disable is controlled in the Departments tab</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={isFieldDialogOpen} onOpenChange={setIsFieldDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingField ? 'Edit Field' : 'Add New Field'}</DialogTitle>
+            <DialogDescription>
+              {editingField 
+                ? 'Update the field definition. Changes will sync to all department templates.'
+                : 'Create a new field that will be available in all department templates.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fieldLabel">Label *</Label>
+                <Input
+                  id="fieldLabel"
+                  placeholder="e.g., Total Reservations"
+                  value={fieldFormData.label}
+                  onChange={(e) => setFieldFormData({ ...fieldFormData, label: e.target.value })}
+                  data-testid="input-field-label"
+                />
+                <p className="text-xs text-muted-foreground">Display name shown to users</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fieldKey">Key *</Label>
+                <Input
+                  id="fieldKey"
+                  placeholder="e.g., total_reservations"
+                  value={fieldFormData.key}
+                  onChange={(e) => setFieldFormData({ 
+                    ...fieldFormData, 
+                    key: e.target.value.toLowerCase().replace(/\s+/g, '_')
+                  })}
+                  data-testid="input-field-key"
+                />
+                <p className="text-xs text-muted-foreground">Unique identifier (snake_case)</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fieldType">Field Type *</Label>
+                <Select
+                  value={fieldFormData.fieldType}
+                  onValueChange={(value: "number" | "text") => setFieldFormData({ ...fieldFormData, fieldType: value })}
+                >
+                  <SelectTrigger data-testid="select-field-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fieldTypeOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {option.value === 'number' ? '123' : 'Abc'}
+                          </Badge>
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fieldUnit">Unit (optional)</Label>
+                <Input
+                  id="fieldUnit"
+                  placeholder="e.g., guests, items"
+                  value={fieldFormData.unit}
+                  onChange={(e) => setFieldFormData({ ...fieldFormData, unit: e.target.value })}
+                  data-testid="input-field-unit"
+                />
+                <p className="text-xs text-muted-foreground">For numeric fields</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fieldDescription">Description (optional)</Label>
+              <Textarea
+                id="fieldDescription"
+                placeholder="Describe what this field captures..."
+                value={fieldFormData.description}
+                onChange={(e) => setFieldFormData({ ...fieldFormData, description: e.target.value })}
+                className="resize-none"
+                rows={2}
+                data-testid="input-field-description"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fieldSortOrder">Sort Order</Label>
+                <Input
+                  id="fieldSortOrder"
+                  type="number"
+                  min="0"
+                  value={fieldFormData.sortOrder}
+                  onChange={(e) => setFieldFormData({ ...fieldFormData, sortOrder: parseInt(e.target.value) || 0 })}
+                  data-testid="input-field-sort-order"
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-7">
+                <Switch
+                  id="fieldActive"
+                  checked={fieldFormData.isActive}
+                  onCheckedChange={(checked) => setFieldFormData({ ...fieldFormData, isActive: checked })}
+                  data-testid="switch-field-active"
+                />
+                <Label htmlFor="fieldActive">Active</Label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFieldDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveField}
+              disabled={createFieldMutation.isPending || updateFieldMutation.isPending}
+              data-testid="button-save-field"
+            >
+              {(createFieldMutation.isPending || updateFieldMutation.isPending) 
+                ? "Saving..." 
+                : (editingField ? "Update Field" : "Add Field")
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 const departmentIcons: Record<string, any> = {
   tasting_room: Wine,
   retail: ShoppingBag,
@@ -1336,6 +1772,10 @@ export default function DailyReportsAdminDashboard() {
             <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
             <TabsTrigger value="incidents" data-testid="tab-incidents">Incidents</TabsTrigger>
             <TabsTrigger value="departments" data-testid="tab-departments">Departments</TabsTrigger>
+            <TabsTrigger value="fields" data-testid="tab-fields">
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Report Fields
+            </TabsTrigger>
             <TabsTrigger value="docs" data-testid="tab-docs">
               <BookOpen className="h-4 w-4 mr-2" />
               Documentation
@@ -1958,6 +2398,10 @@ export default function DailyReportsAdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="fields" className="space-y-4">
+            <ReportFieldsTab />
           </TabsContent>
 
           <TabsContent value="docs">
