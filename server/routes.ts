@@ -6163,7 +6163,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { department, startDate, endDate, status, hasCustomerConcerns } = req.query;
       
       const filters: any = {};
-      if (department) filters.department = department;
+      // Only add department filter if it's not "all" (which means show all departments)
+      if (department && department !== 'all') filters.department = department;
       if (startDate) filters.startDate = new Date(startDate as string);
       if (endDate) filters.endDate = new Date(endDate as string);
       if (status) filters.status = status;
@@ -6900,10 +6901,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create the report
+      // Create the report - convert reportDate string to Date object
+      const reportDateValue = reportDate ? new Date(reportDate + 'T12:00:00Z') : new Date();
+      
       const report = await storage.createDailyReport({
         department: accessCode.department,
-        reportDate: reportDate || new Date().toISOString().split('T')[0],
+        reportDate: reportDateValue,
         status: 'submitted',
         performanceSummary: performanceSummary || null,
         overallRating: overallRating || null,
