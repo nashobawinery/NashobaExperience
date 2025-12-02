@@ -143,6 +143,9 @@ import {
   type DailyReportEmailRecipient,
   type InsertDailyReportAccessCode,
   type DailyReportAccessCode,
+  dailyReportFieldDefinitions,
+  type InsertDailyReportFieldDefinition,
+  type DailyReportFieldDefinition,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -3877,6 +3880,69 @@ export class DatabaseStorage implements IStorage {
       exists = !!existing;
     }
     return code!;
+  }
+
+  // Daily Report Field Definitions
+  async getDailyReportFieldDefinitions(activeOnly = false): Promise<DailyReportFieldDefinition[]> {
+    if (activeOnly) {
+      return await db.select().from(dailyReportFieldDefinitions)
+        .where(eq(dailyReportFieldDefinitions.isActive, true))
+        .orderBy(dailyReportFieldDefinitions.sortOrder, dailyReportFieldDefinitions.label);
+    }
+    return await db.select().from(dailyReportFieldDefinitions)
+      .orderBy(dailyReportFieldDefinitions.sortOrder, dailyReportFieldDefinitions.label);
+  }
+
+  async getDailyReportFieldDefinition(id: string): Promise<DailyReportFieldDefinition | undefined> {
+    const [field] = await db.select().from(dailyReportFieldDefinitions)
+      .where(eq(dailyReportFieldDefinitions.id, id));
+    return field;
+  }
+
+  async getDailyReportFieldDefinitionByKey(key: string): Promise<DailyReportFieldDefinition | undefined> {
+    const [field] = await db.select().from(dailyReportFieldDefinitions)
+      .where(eq(dailyReportFieldDefinitions.key, key));
+    return field;
+  }
+
+  async createDailyReportFieldDefinition(data: InsertDailyReportFieldDefinition): Promise<DailyReportFieldDefinition> {
+    const [field] = await db.insert(dailyReportFieldDefinitions).values(data).returning();
+    return field;
+  }
+
+  async updateDailyReportFieldDefinition(id: string, data: Partial<InsertDailyReportFieldDefinition>): Promise<DailyReportFieldDefinition | undefined> {
+    const [updated] = await db.update(dailyReportFieldDefinitions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyReportFieldDefinitions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDailyReportFieldDefinition(id: string): Promise<boolean> {
+    const result = await db.delete(dailyReportFieldDefinitions)
+      .where(eq(dailyReportFieldDefinitions.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async syncFieldDefinitionsToTemplates(): Promise<void> {
+    const fields = await this.getDailyReportFieldDefinitions(true);
+    const templates = await this.getDailyReportTemplates();
+    
+    for (const template of templates) {
+      const currentMetrics = (template.metrics || []) as Array<{ key: string; label: string; type?: string; isEnabled?: boolean }>;
+      const updatedMetrics = fields.map(field => {
+        const existingMetric = currentMetrics.find(m => m.key === field.key);
+        return {
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          isEnabled: existingMetric?.isEnabled ?? true
+        };
+      });
+      
+      await this.updateDailyReportTemplate(template.id, { metrics: updatedMetrics });
+    }
   }
 }
 
