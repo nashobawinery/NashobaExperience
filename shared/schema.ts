@@ -1724,3 +1724,34 @@ export type DailyReportWithDetails = DailyReport & {
   procedureCompletions?: (DailyProcedureCompletion & { template?: DailyProcedureTemplate })[];
   template?: DailyReportTemplate;
 };
+
+// Daily Report Field Definitions - Master list of fields used across all departments
+export const dailyReportFieldTypeEnum = pgEnum("daily_report_field_type", [
+  "number",
+  "currency",
+  "text"
+]);
+
+export const dailyReportFieldDefinitions = pgTable("daily_report_field_definitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  label: varchar("label", { length: 200 }).notNull(),
+  type: dailyReportFieldTypeEnum("type").notNull().default("text"),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_field_definitions_key").on(table.key),
+  index("idx_field_definitions_active").on(table.isActive),
+  index("idx_field_definitions_sort").on(table.sortOrder),
+]);
+
+export const insertDailyReportFieldDefinitionSchema = createInsertSchema(dailyReportFieldDefinitions).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+export type InsertDailyReportFieldDefinition = z.infer<typeof insertDailyReportFieldDefinitionSchema>;
+export type DailyReportFieldDefinition = typeof dailyReportFieldDefinitions.$inferSelect;
