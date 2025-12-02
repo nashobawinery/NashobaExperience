@@ -60,6 +60,7 @@ import {
   insertDailyReportEmailRecipientSchema,
   insertDailyReportIncidentSchema,
   insertDailyProcedureCompletionSchema,
+  insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
 
@@ -6096,6 +6097,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating daily report template:', error);
       res.status(500).json({ message: 'Failed to update template' });
+    }
+  });
+
+  // ============================================
+  // DAILY REPORT FIELD DEFINITIONS
+  // ============================================
+  
+  // Get all field definitions
+  app.get('/api/daily-reports/field-definitions', isAuthenticated, async (req: any, res) => {
+    try {
+      const { active } = req.query;
+      const fields = await storage.getDailyReportFieldDefinitions(active === 'true');
+      res.json(fields);
+    } catch (error) {
+      console.error('Error fetching field definitions:', error);
+      res.status(500).json({ message: 'Failed to fetch field definitions' });
+    }
+  });
+
+  // Get a single field definition
+  app.get('/api/daily-reports/field-definitions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const field = await storage.getDailyReportFieldDefinition(id);
+      if (!field) {
+        return res.status(404).json({ message: 'Field definition not found' });
+      }
+      res.json(field);
+    } catch (error) {
+      console.error('Error fetching field definition:', error);
+      res.status(500).json({ message: 'Failed to fetch field definition' });
+    }
+  });
+
+  // Create a new field definition (admin only)
+  app.post('/api/daily-reports/field-definitions', isAdmin, async (req, res) => {
+    try {
+      const data = insertDailyReportFieldDefinitionSchema.parse(req.body);
+      
+      // Check if key already exists
+      const existing = await storage.getDailyReportFieldDefinitionByKey(data.key);
+      if (existing) {
+        return res.status(400).json({ message: 'A field with this key already exists' });
+      }
+      
+      const field = await storage.createDailyReportFieldDefinition(data);
+      
+      // Sync to all department templates
+      await storage.syncFieldDefinitionsToTemplates();
+      
+      res.json(field);
+    } catch (error) {
+      console.error('Error creating field definition:', error);
+      res.status(500).json({ message: 'Failed to create field definition' });
+    }
+  });
+
+  // Update a field definition (admin only)
+  app.patch('/api/daily-reports/field-definitions/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertDailyReportFieldDefinitionSchema.partial().parse(req.body);
+      
+      // Check if updating the key and if new key already exists
+      if (data.key) {
+        const existing = await storage.getDailyReportFieldDefinitionByKey(data.key);
+        if (existing && existing.id !== id) {
+          return res.status(400).json({ message: 'A field with this key already exists' });
+        }
+      }
+      
+      const field = await storage.updateDailyReportFieldDefinition(id, data);
+      if (!field) {
+        return res.status(404).json({ message: 'Field definition not found' });
+      }
+      
+      // Sync to all department templates
+      await storage.syncFieldDefinitionsToTemplates();
+      
+      res.json(field);
+    } catch (error) {
+      console.error('Error updating field definition:', error);
+      res.status(500).json({ message: 'Failed to update field definition' });
+    }
+  });
+
+  // Delete a field definition (admin only)
+  app.delete('/api/daily-reports/field-definitions/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteDailyReportFieldDefinition(id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Field definition not found' });
+      }
+      
+      // Sync to all department templates (removes the deleted field)
+      await storage.syncFieldDefinitionsToTemplates();
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting field definition:', error);
+      res.status(500).json({ message: 'Failed to delete field definition' });
+    }
+  });
+
+  // Sync field definitions to all templates (admin only)
+  app.post('/api/daily-reports/field-definitions/sync', isAdmin, async (req, res) => {
+    try {
+      await storage.syncFieldDefinitionsToTemplates();
+      res.json({ success: true, message: 'Field definitions synced to all department templates' });
+    } catch (error) {
+      console.error('Error syncing field definitions:', error);
+      res.status(500).json({ message: 'Failed to sync field definitions' });
     }
   });
 
