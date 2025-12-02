@@ -494,6 +494,24 @@ export default function DailyReportsAdminDashboard() {
       toast({ title: "Failed to update field configuration", description: error.message, variant: "destructive" });
     }
   });
+
+  const batchToggleMetricsMutation = useMutation({
+    mutationFn: async ({ templateId, enableAll }: { templateId: string; enableAll: boolean }) => {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) throw new Error("Template not found");
+      
+      const updatedMetrics = template.metrics.map(m => ({ ...m, isEnabled: enableAll }));
+      
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}`, { metrics: updatedMetrics });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      toast({ title: variables.enableAll ? "All fields enabled" : "All fields cleared" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update field configuration", description: error.message, variant: "destructive" });
+    }
+  });
   
   const createProcedureTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1756,17 +1774,12 @@ export default function DailyReportsAdminDashboard() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    template.metrics.forEach(m => {
-                                      if (m.isEnabled !== false) {
-                                        toggleMetricMutation.mutate({
-                                          templateId: template.id,
-                                          metricKey: m.key,
-                                          isEnabled: false
-                                        });
-                                      }
+                                    batchToggleMetricsMutation.mutate({
+                                      templateId: template.id,
+                                      enableAll: false
                                     });
                                   }}
-                                  disabled={toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled === false)}
+                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled === false)}
                                   data-testid={`button-clear-all-fields-${template.department}`}
                                 >
                                   Clear All
@@ -1775,17 +1788,12 @@ export default function DailyReportsAdminDashboard() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    template.metrics.forEach(m => {
-                                      if (m.isEnabled === false) {
-                                        toggleMetricMutation.mutate({
-                                          templateId: template.id,
-                                          metricKey: m.key,
-                                          isEnabled: true
-                                        });
-                                      }
+                                    batchToggleMetricsMutation.mutate({
+                                      templateId: template.id,
+                                      enableAll: true
                                     });
                                   }}
-                                  disabled={toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled !== false)}
+                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled !== false)}
                                   data-testid={`button-enable-all-fields-${template.department}`}
                                 >
                                   Enable All
