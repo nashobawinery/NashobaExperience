@@ -1733,13 +1733,55 @@ export default function DailyReportsAdminDashboard() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="border-b pb-3">
-                            <h4 className="text-sm font-medium flex items-center gap-2 mb-3">
-                              <Settings className="h-4 w-4 text-muted-foreground" />
-                              Report Fields
-                              <span className="text-xs text-muted-foreground font-normal">
-                                ({template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} enabled)
-                              </span>
-                            </h4>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-medium flex items-center gap-2">
+                                <Settings className="h-4 w-4 text-muted-foreground" />
+                                Report Fields
+                                <span className="text-xs text-muted-foreground font-normal">
+                                  ({template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} enabled)
+                                </span>
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    template.metrics.forEach(m => {
+                                      if (m.isEnabled !== false) {
+                                        toggleMetricMutation.mutate({
+                                          templateId: template.id,
+                                          metricKey: m.key,
+                                          isEnabled: false
+                                        });
+                                      }
+                                    });
+                                  }}
+                                  disabled={toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled === false)}
+                                  data-testid={`button-clear-all-fields-${template.department}`}
+                                >
+                                  Clear All
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    template.metrics.forEach(m => {
+                                      if (m.isEnabled === false) {
+                                        toggleMetricMutation.mutate({
+                                          templateId: template.id,
+                                          metricKey: m.key,
+                                          isEnabled: true
+                                        });
+                                      }
+                                    });
+                                  }}
+                                  disabled={toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled !== false)}
+                                  data-testid={`button-enable-all-fields-${template.department}`}
+                                >
+                                  Enable All
+                                </Button>
+                              </div>
+                            </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                               {template.metrics.map(m => (
                                 <label 
