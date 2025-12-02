@@ -34,8 +34,14 @@ import {
   FileCheck,
   Shield,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  ClipboardList,
+  Lock,
+  Archive,
+  FileWarning
 } from "lucide-react";
+
+type DataType = 'reference' | 'user_generated' | 'configuration' | 'transactional';
 
 interface SyncTable {
   id: string;
@@ -48,6 +54,9 @@ interface SyncTable {
   excludeFromSync: boolean;
   requiresConfirmation: boolean;
   confirmationMessage?: string;
+  dataType: DataType;
+  supportsBackup: boolean;
+  productionWarning?: string;
 }
 
 interface SyncModule {
@@ -68,8 +77,16 @@ const MODULE_ICONS: Record<string, typeof Wine> = {
   b2b: Package,
   lms: GraduationCap,
   compliance: FileCheck,
+  daily_reports: ClipboardList,
   rbac: Shield,
   platform: Settings,
+};
+
+const DATA_TYPE_BADGES: Record<DataType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: typeof Lock }> = {
+  reference: { label: 'Reference', variant: 'secondary', icon: Database },
+  configuration: { label: 'Configuration', variant: 'outline', icon: Settings },
+  user_generated: { label: 'User Data', variant: 'default', icon: Lock },
+  transactional: { label: 'Transactional', variant: 'destructive', icon: FileWarning },
 };
 
 const FALLBACK_BASE_APP_TABLES = [
@@ -552,27 +569,36 @@ export default function DatabaseSync() {
                           </CollapsibleTrigger>
                           <CollapsibleContent>
                             <div className="border-t p-3 space-y-3">
-                              {syncableTables.map(table => (
-                                <div key={table.id} className="flex items-start space-x-3 ml-9">
-                                  <Checkbox
-                                    id={`export-${table.id}`}
-                                    checked={selectedTables.includes(table.id)}
-                                    onCheckedChange={() => toggleTable(table.id)}
-                                    data-testid={`checkbox-${table.id}`}
-                                  />
-                                  <div className="grid gap-1 leading-none flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <Label htmlFor={`export-${table.id}`} className="font-medium cursor-pointer">
-                                        {table.name}
-                                      </Label>
-                                      {table.requiresConfirmation && (
-                                        <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
-                                      )}
+                              {syncableTables.map(table => {
+                                const dataTypeBadge = table.dataType ? DATA_TYPE_BADGES[table.dataType] : null;
+                                return (
+                                  <div key={table.id} className="flex items-start space-x-3 ml-9">
+                                    <Checkbox
+                                      id={`export-${table.id}`}
+                                      checked={selectedTables.includes(table.id)}
+                                      onCheckedChange={() => toggleTable(table.id)}
+                                      data-testid={`checkbox-${table.id}`}
+                                    />
+                                    <div className="grid gap-1 leading-none flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Label htmlFor={`export-${table.id}`} className="font-medium cursor-pointer">
+                                          {table.name}
+                                        </Label>
+                                        {dataTypeBadge && (
+                                          <Badge variant={dataTypeBadge.variant} className="text-xs h-5 px-1.5">
+                                            <dataTypeBadge.icon className="h-3 w-3 mr-1" />
+                                            {dataTypeBadge.label}
+                                          </Badge>
+                                        )}
+                                        {table.requiresConfirmation && (
+                                          <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">{table.description}</p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">{table.description}</p>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                               {module.tables.filter(t => t.excludeFromSync).length > 0 && (
                                 <div className="ml-9 pt-2 border-t">
                                   <p className="text-xs text-muted-foreground italic">
@@ -728,26 +754,42 @@ export default function DatabaseSync() {
                           </CollapsibleTrigger>
                           <CollapsibleContent>
                             <div className="border-t p-3 space-y-3">
-                              {syncableTables.map(table => (
-                                <div key={table.id} className="flex items-start space-x-3 ml-9">
-                                  <Checkbox
-                                    id={`import-${table.id}`}
-                                    checked={selectedTables.includes(table.id)}
-                                    onCheckedChange={() => toggleTable(table.id)}
-                                  />
-                                  <div className="grid gap-1 leading-none flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <Label htmlFor={`import-${table.id}`} className="font-medium cursor-pointer">
-                                        {table.name}
-                                      </Label>
-                                      {table.requiresConfirmation && (
-                                        <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                              {syncableTables.map(table => {
+                                const dataTypeBadge = table.dataType ? DATA_TYPE_BADGES[table.dataType] : null;
+                                const hasWarning = table.productionWarning && isProduction;
+                                return (
+                                  <div key={table.id} className="flex items-start space-x-3 ml-9">
+                                    <Checkbox
+                                      id={`import-${table.id}`}
+                                      checked={selectedTables.includes(table.id)}
+                                      onCheckedChange={() => toggleTable(table.id)}
+                                    />
+                                    <div className="grid gap-1 leading-none flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Label htmlFor={`import-${table.id}`} className="font-medium cursor-pointer">
+                                          {table.name}
+                                        </Label>
+                                        {dataTypeBadge && (
+                                          <Badge variant={dataTypeBadge.variant} className="text-xs h-5 px-1.5">
+                                            <dataTypeBadge.icon className="h-3 w-3 mr-1" />
+                                            {dataTypeBadge.label}
+                                          </Badge>
+                                        )}
+                                        {table.requiresConfirmation && (
+                                          <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">{table.description}</p>
+                                      {hasWarning && selectedTables.includes(table.id) && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
+                                          <AlertTriangle className="h-3 w-3" />
+                                          {table.productionWarning}
+                                        </p>
                                       )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground">{table.description}</p>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                               {module.tables.filter(t => t.excludeFromSync).length > 0 && (
                                 <div className="ml-9 pt-2 border-t">
                                   <p className="text-xs text-muted-foreground italic">
