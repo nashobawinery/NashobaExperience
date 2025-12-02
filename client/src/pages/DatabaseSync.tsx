@@ -82,11 +82,11 @@ const MODULE_ICONS: Record<string, typeof Wine> = {
   platform: Settings,
 };
 
-const DATA_TYPE_BADGES: Record<DataType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: typeof Lock }> = {
-  reference: { label: 'Reference', variant: 'secondary', icon: Database },
-  configuration: { label: 'Configuration', variant: 'outline', icon: Settings },
-  user_generated: { label: 'User Data', variant: 'default', icon: Lock },
-  transactional: { label: 'Transactional', variant: 'destructive', icon: FileWarning },
+const DATA_TYPE_BADGES: Record<DataType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: typeof Lock; description: string }> = {
+  reference: { label: 'Reference', variant: 'outline', icon: Database, description: 'Static definitions - safe to sync in any direction' },
+  configuration: { label: 'Config', variant: 'secondary', icon: Settings, description: 'Settings that may differ between environments' },
+  user_generated: { label: 'User Data', variant: 'default', icon: Lock, description: 'User content - protect production data' },
+  transactional: { label: 'Transactional', variant: 'destructive', icon: FileWarning, description: 'Excluded from sync - contains runtime data' },
 };
 
 const FALLBACK_BASE_APP_TABLES = [
@@ -476,41 +476,41 @@ export default function DatabaseSync() {
               </CardTitle>
             </CardHeader>
             <CardContent className="py-3 pt-0">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs h-5 px-1.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="text-xs h-5 px-1.5 shrink-0">
                     <Database className="h-3 w-3 mr-1" />
                     Reference
                   </Badge>
-                  <span className="text-xs text-muted-foreground">Safe to sync</span>
+                  <span className="text-xs text-muted-foreground">Static definitions - safe to sync in any direction</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs h-5 px-1.5">
+                <div className="flex items-start gap-2">
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5 shrink-0">
                     <Settings className="h-3 w-3 mr-1" />
-                    Configuration
+                    Config
                   </Badge>
-                  <span className="text-xs text-muted-foreground">Sync with care</span>
+                  <span className="text-xs text-muted-foreground">Environment settings - may differ between dev/prod</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default" className="text-xs h-5 px-1.5">
+                <div className="flex items-start gap-2">
+                  <Badge variant="default" className="text-xs h-5 px-1.5 shrink-0">
                     <Lock className="h-3 w-3 mr-1" />
                     User Data
                   </Badge>
-                  <span className="text-xs text-muted-foreground">Protect in prod</span>
+                  <span className="text-xs text-muted-foreground">User-generated content - export only, never import to prod</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="text-xs h-5 px-1.5">
+                <div className="flex items-start gap-2">
+                  <Badge variant="destructive" className="text-xs h-5 px-1.5 shrink-0">
                     <FileWarning className="h-3 w-3 mr-1" />
                     Transactional
                   </Badge>
-                  <span className="text-xs text-muted-foreground">Never sync</span>
+                  <span className="text-xs text-muted-foreground">Runtime data - excluded from table list automatically</span>
                 </div>
               </div>
               {isProduction && (
                 <Alert variant="destructive" className="mt-3 py-2">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    You are in <strong>Production</strong>. User Data and Transactional tables should only be imported from production backups, not from development.
+                    You are in <strong>Production</strong>. Only import Reference data from development. User Data should be exported for backup only.
                   </AlertDescription>
                 </Alert>
               )}
