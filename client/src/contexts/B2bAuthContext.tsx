@@ -31,7 +31,9 @@ export function B2bAuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["b2b", "me"],
     queryFn: async () => {
       try {
-        const response = await fetch("/api/b2b/me");
+        const response = await fetch("/api/b2b/me", {
+          credentials: "include",
+        });
         if (!response.ok) {
           if (response.status === 401 || response.status === 404) {
             return null;
@@ -49,7 +51,7 @@ export function B2bAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch("/api/b2b/logout", { method: "POST" });
+      await fetch("/api/b2b/logout", { method: "POST", credentials: "include" });
       queryClient.setQueryData(["b2b", "me"], null);
       queryClient.clear();
       sessionStorage.removeItem("b2b_verified");

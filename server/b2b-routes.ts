@@ -693,14 +693,22 @@ router.post('/api/b2b/login/customer', async (req: Request, res: Response) => {
     req.session.b2bUserType = 'customer';
     req.session.b2bUserEmail = customer.emailAddress;
 
-    res.json({
-      success: true,
-      user: {
-        id: customer.id,
-        accountName: customer.accountName,
-        email: customer.emailAddress,
-        type: 'customer',
-      },
+    // Explicitly save session before sending response to ensure it's persisted
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      
+      res.json({
+        success: true,
+        user: {
+          id: customer.id,
+          accountName: customer.accountName,
+          email: customer.emailAddress,
+          type: 'customer',
+        },
+      });
     });
   } catch (error: any) {
     console.error('Customer login error:', error);
@@ -727,14 +735,22 @@ router.post('/api/b2b/login/sales-rep', async (req: Request, res: Response) => {
     req.session.b2bUserType = 'sales_rep';
     req.session.b2bUserEmail = salesRep.email;
 
-    res.json({
-      success: true,
-      user: {
-        id: salesRep.id,
-        name: `${salesRep.firstName} ${salesRep.lastName}`,
-        email: salesRep.email,
-        type: 'sales_rep',
-      },
+    // Explicitly save session before sending response to ensure it's persisted
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      
+      res.json({
+        success: true,
+        user: {
+          id: salesRep.id,
+          name: `${salesRep.firstName} ${salesRep.lastName}`,
+          email: salesRep.email,
+          type: 'sales_rep',
+        },
+      });
     });
   } catch (error: any) {
     console.error('Sales rep login error:', error);
@@ -1870,14 +1886,22 @@ router.post('/api/b2b/login/admin', async (req: Request, res: Response) => {
     req.session.b2bUserType = 'admin';
     req.session.b2bUserEmail = admin.email;
 
-    res.json({
-      success: true,
-      user: {
-        id: admin.id,
-        name: `${admin.firstName} ${admin.lastName}`,
-        email: admin.email,
-        type: 'admin',
-      },
+    // Explicitly save session before sending response to ensure it's persisted
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Failed to save session' });
+      }
+      
+      res.json({
+        success: true,
+        user: {
+          id: admin.id,
+          name: `${admin.firstName} ${admin.lastName}`,
+          email: admin.email,
+          type: 'admin',
+        },
+      });
     });
   } catch (error: any) {
     console.error('Admin login error:', error);

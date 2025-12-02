@@ -63,6 +63,7 @@ export default function LoginPage() {
       const response = await fetch(getRoleEndpoint(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
