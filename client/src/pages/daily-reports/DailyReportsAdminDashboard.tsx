@@ -307,6 +307,7 @@ export default function DailyReportsAdminDashboard() {
     isActive: true
   });
   const [showQrCode, setShowQrCode] = useState<DailyReportAccessCode | null>(null);
+  const [showGlobalQrCode, setShowGlobalQrCode] = useState(false);
   
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DailyReportTemplate | null>(null);
@@ -835,6 +836,15 @@ export default function DailyReportsAdminDashboard() {
 
   const getPublicFormUrl = (code: string) => {
     return `${window.location.origin}/daily-report/${code}`;
+  };
+
+  const getGlobalPublicFormUrl = () => {
+    return `${window.location.origin}/daily-report`;
+  };
+
+  const copyGlobalUrlToClipboard = () => {
+    navigator.clipboard.writeText(getGlobalPublicFormUrl());
+    toast({ title: "Global URL copied to clipboard" });
   };
 
   const copyUrlToClipboard = (code: string) => {
@@ -1982,6 +1992,76 @@ export default function DailyReportsAdminDashboard() {
             </Card>
 
             <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Global QR Code
+                </CardTitle>
+                <CardDescription>
+                  A single QR code that works for all staff. When scanned, staff enter their personal access code to submit reports.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="flex justify-center">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
+                        alt="Global QR Code"
+                        className="w-48 h-48"
+                        data-testid="img-global-qr-code"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium">How it works</h4>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                        <li>Print this QR code and post it in common areas</li>
+                        <li>Staff scan the code with their phone</li>
+                        <li>They enter their personal 4-digit access code</li>
+                        <li>The system shows the daily report form for their department</li>
+                      </ol>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button 
+                        variant="outline"
+                        onClick={copyGlobalUrlToClipboard}
+                        data-testid="button-copy-global-url"
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy URL
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => setShowGlobalQrCode(true)}
+                        data-testid="button-show-global-qr"
+                      >
+                        <QrCode className="h-4 w-4 mr-2" />
+                        View Full Size
+                      </Button>
+                      <a 
+                        href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
+                        download="daily-report-global-qr.png"
+                        className="inline-flex"
+                      >
+                        <Button variant="outline" data-testid="button-download-global-qr">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </a>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-xs text-muted-foreground">
+                        <strong>URL:</strong> {getGlobalPublicFormUrl()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -2807,6 +2887,56 @@ export default function DailyReportsAdminDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showGlobalQrCode} onOpenChange={setShowGlobalQrCode}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-center">Global QR Code</DialogTitle>
+            <DialogDescription className="text-center">
+              Staff scan this code, then enter their personal access code to submit reports
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-center">
+              <div className="bg-white p-4 rounded-lg">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
+                  alt="Global QR Code"
+                  className="w-64 h-64"
+                  data-testid="img-global-qr-large"
+                />
+              </div>
+            </div>
+            <div className="text-center space-y-2">
+              <div className="font-medium text-lg">Daily Report Entry</div>
+              <div className="text-sm text-muted-foreground">
+                Works for all departments
+              </div>
+            </div>
+            <div className="flex justify-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={copyGlobalUrlToClipboard}
+                data-testid="button-copy-global-url-dialog"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy URL
+              </Button>
+            </div>
+            <div className="text-center">
+              <a 
+                href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&format=png&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
+                download="daily-report-global-qr.png"
+                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                data-testid="link-download-global-qr"
+              >
+                <Download className="h-4 w-4" />
+                Download High Resolution
+              </a>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
