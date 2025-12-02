@@ -468,6 +468,55 @@ export default function DatabaseSync() {
             </AlertDescription>
           </Alert>
 
+          <Card className="border-dashed">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Data Classification Guide
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-3 pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                    <Database className="h-3 w-3 mr-1" />
+                    Reference
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Safe to sync</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs h-5 px-1.5">
+                    <Settings className="h-3 w-3 mr-1" />
+                    Configuration
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Sync with care</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" className="text-xs h-5 px-1.5">
+                    <Lock className="h-3 w-3 mr-1" />
+                    User Data
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Protect in prod</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive" className="text-xs h-5 px-1.5">
+                    <FileWarning className="h-3 w-3 mr-1" />
+                    Transactional
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Never sync</span>
+                </div>
+              </div>
+              {isProduction && (
+                <Alert variant="destructive" className="mt-3 py-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    You are in <strong>Production</strong>. User Data and Transactional tables should only be imported from production backups, not from development.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
           <Tabs value={syncDirection} onValueChange={(v) => setSyncDirection(v as 'export' | 'import')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="export" className="flex items-center gap-2" data-testid="tab-export">
