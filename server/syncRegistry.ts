@@ -35,9 +35,20 @@ import {
   insertPlatformUserSchema,
   insertGroupModuleAccessSchema,
   insertGroupFeaturePermissionSchema,
+  insertDailyReportTemplateSchema,
+  insertDailyReportSchema,
+  insertDailyReportIncidentSchema,
+  insertDailyReportAccessCodeSchema,
 } from '@shared/schema';
 
-export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform';
+export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports';
+
+// Data type classification for sync safety
+export type DataType = 
+  | 'reference'        // Configuration/template data - safe to sync between environments
+  | 'user_generated'   // Data created by users - protect in production, never overwrite
+  | 'configuration'    // System settings - sync with caution
+  | 'transactional';   // Orders, reports, logs - never sync from dev to prod
 
 export interface SyncTableConfig {
   id: string;
@@ -53,6 +64,12 @@ export interface SyncTableConfig {
   requiresConfirmation?: boolean;
   confirmationMessage?: string;
   sensitiveFields?: string[];
+  // NEW: Data type classification for sync safety
+  dataType: DataType;
+  // NEW: Whether this table supports backup/restore
+  supportsBackup?: boolean;
+  // NEW: Warning message for production imports
+  productionWarning?: string;
 }
 
 export const SYNC_MODULES: Record<SyncModule, { name: string; description: string; icon: string }> = {
@@ -60,6 +77,7 @@ export const SYNC_MODULES: Record<SyncModule, { name: string; description: strin
   b2b: { name: 'B2B Wholesale', description: 'Wholesale customer and order management', icon: 'Building2' },
   lms: { name: 'LMS', description: 'Employee training and certification', icon: 'GraduationCap' },
   compliance: { name: 'Compliance', description: 'Regulatory and tax compliance tracking', icon: 'Shield' },
+  daily_reports: { name: 'Daily Reports', description: 'Department daily reporting system', icon: 'ClipboardList' },
   rbac: { name: 'Access Control', description: 'Role-based access control configuration', icon: 'Lock' },
   platform: { name: 'Platform', description: 'Core platform configuration', icon: 'Settings' },
 };
@@ -75,6 +93,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['sku', 'name'],
     schema: insertProductSchema,
     exportFields: ['name', 'category', 'type', 'varietal', 'vintageYear', 'region', 'description', 'tastingNotes', 'foodPairings', 'servingTemp', 'alcoholContent', 'bottleSize', 'price', 'cost', 'wholesalePricing', 'sku', 'stockQuantity', 'lowStockThreshold', 'imageUrl', 'labelImageUrl', 'lifestyleImageUrl', 'characteristics', 'productionMethod', 'agingProcess', 'awards', 'rating', 'available', 'featured', 'newArrival', 'staffPick', 'wineOfMonth', 'tags', 'caseSize'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'filterOptions',
@@ -85,6 +105,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['fieldType', 'optionValue'],
     schema: insertFilterOptionSchema,
     exportFields: ['fieldType', 'optionValue', 'displayLabel', 'sortOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'triviaQuestions',
@@ -95,6 +117,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['question'],
     schema: insertTriviaQuestionSchema,
     exportFields: ['question', 'answers', 'correctIndex', 'explanation', 'image', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'slideshowImages',
@@ -105,6 +129,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['filename'],
     schema: insertSlideshowImageSchema,
     exportFields: ['filename', 'caption', 'description', 'displayOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'appSettings',
@@ -115,6 +141,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['key'],
     schema: insertAppSettingSchema,
     exportFields: ['key', 'value'],
+    dataType: 'configuration',
+    supportsBackup: true,
   },
   {
     id: 'mediaLibrary',
@@ -125,6 +153,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['objectPath'],
     schema: insertMediaLibrarySchema,
     exportFields: ['filename', 'originalFilename', 'mimeType', 'fileSize', 'objectPath', 'publicUrl', 'category', 'description', 'altText', 'tags'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'whitelistedEmails',
@@ -135,6 +165,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['email'],
     schema: insertWhitelistedEmailSchema,
     exportFields: ['email', 'role'],
+    dataType: 'configuration',
+    supportsBackup: true,
   },
   {
     id: 'commercials',
@@ -145,6 +177,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['title'],
     schema: insertCommercialSchema,
     exportFields: ['title', 'description', 'imageUrl', 'sortOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'videos',
@@ -155,6 +189,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['name', 'videoUrl'],
     schema: insertVideoSchema,
     exportFields: ['name', 'description', 'videoUrl', 'thumbnailUrl', 'category', 'isActive', 'sortOrder'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'triviaAchievements',
@@ -165,6 +201,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['scoreThreshold', 'rewardType'],
     schema: insertTriviaAchievementSchema,
     exportFields: ['scoreThreshold', 'rewardType', 'rewardValue', 'rewardLabel', 'message', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
 
   // ============ B2B WHOLESALE MODULE ============
@@ -177,6 +215,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['tierName'],
     schema: insertTierPricingSchema,
     exportFields: ['tierName', 'description', 'discountPercentage', 'volumeRequirement', 'paymentTerms', 'isActive', 'sortOrder', 'wineDiscount', 'spiritsDiscount', 'beerDiscount', 'cannedCocktailDiscount', 'cannedWineDiscount', 'ciderDiscount'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'salesReps',
@@ -188,6 +228,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertSalesRepSchema,
     exportFields: ['email', 'firstName', 'lastName', 'phone', 'territory', 'commissionRate', 'isActive'],
     sensitiveFields: ['passwordHash'],
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Sales rep accounts may have production passwords - import will NOT overwrite passwords',
   },
   {
     id: 'b2bCustomers',
@@ -200,6 +243,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertB2bCustomerSchema,
     exportFields: ['customerNumber', 'accountName', 'primaryContactName', 'customerType', 'emailAddress', 'phoneNumber', 'billingAddress', 'billingCity', 'billingState', 'billingZipCode', 'licenseNumber', 'taxId', 'shippingAddress', 'shippingCity', 'shippingState', 'shippingZipCode', 'accountStatus', 'notes'],
     sensitiveFields: ['passwordHash'],
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Customer accounts contain production data - syncing will merge by customer number',
   },
   {
     id: 'b2bCustomerLocations',
@@ -211,6 +257,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['b2bCustomers'],
     schema: insertB2bCustomerLocationSchema,
     exportFields: ['customerNumber', 'locationName', 'address', 'city', 'state', 'zipCode', 'phone', 'isDefault', 'isActive'],
+    dataType: 'user_generated',
+    supportsBackup: true,
   },
   {
     id: 'b2bCustomerManualProducts',
@@ -222,6 +270,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['b2bCustomers', 'products'],
     schema: insertB2bCustomerManualProductSchema,
     exportFields: ['customerNumber', 'productSku', 'displayOrder'],
+    dataType: 'user_generated',
+    supportsBackup: true,
   },
   {
     id: 'b2bOrders',
@@ -233,6 +283,10 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['b2bCustomers', 'salesReps'],
     schema: insertB2bOrderSchema,
     exportFields: ['orderNumber', 'customerNumber', 'status', 'subtotal', 'discountAmount', 'taxAmount', 'totalAmount', 'notes', 'internalNotes', 'shippingAddress', 'shippingCity', 'shippingState', 'shippingZipCode'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
+    productionWarning: 'Orders are transactional data - NEVER sync from dev to production',
   },
   {
     id: 'b2bOrderItems',
@@ -244,6 +298,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['b2bOrders', 'products'],
     schema: insertB2bOrderItemSchema,
     exportFields: ['orderNumber', 'productSku', 'quantity', 'unitPrice', 'discount', 'total'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
   },
   {
     id: 'b2bSlideshowSlides',
@@ -254,6 +311,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['title'],
     schema: insertB2bSlideshowSlideSchema,
     exportFields: ['title', 'subtitle', 'imageUrl', 'linkUrl', 'linkText', 'displayOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'b2bAdmins',
@@ -266,6 +325,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     exportFields: ['email', 'firstName', 'lastName', 'role', 'isActive'],
     sensitiveFields: ['passwordHash'],
     requiresConfirmation: true,
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Admin accounts have production passwords - import will NOT overwrite passwords',
   },
   {
     id: 'b2bSettings',
@@ -276,6 +338,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['key'],
     schema: insertB2bSettingSchema,
     exportFields: ['key', 'value', 'description'],
+    dataType: 'configuration',
+    supportsBackup: true,
   },
 
   // ============ LMS MODULE ============
@@ -288,6 +352,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['name'],
     schema: insertLmsCategorySchema,
     exportFields: ['name', 'description', 'sortOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'courses',
@@ -299,6 +365,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['courseCategories'],
     schema: insertLmsCourseSchema,
     exportFields: ['title', 'description', 'thumbnailUrl', 'duration', 'difficulty', 'isActive', 'isPublished', 'sortOrder', 'passingScore', 'requiresQuiz', 'certificateTemplate'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'lessons',
@@ -310,6 +378,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['courses'],
     schema: insertLmsLessonSchema,
     exportFields: ['courseTitle', 'title', 'description', 'content', 'videoUrl', 'thumbnailUrl', 'duration', 'sortOrder', 'isActive', 'isPublished'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'quizQuestions',
@@ -321,6 +391,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['courses', 'lessons'],
     schema: insertLmsQuizQuestionSchema,
     exportFields: ['courseTitle', 'lessonTitle', 'question', 'questionType', 'options', 'correctAnswer', 'explanation', 'points', 'sortOrder', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'certificates',
@@ -333,6 +405,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertLmsCertificateSchema,
     exportFields: ['certificateNumber', 'courseName', 'recipientName', 'recipientEmail', 'issueDate', 'expirationDate', 'score', 'pdfUrl'],
     excludeFromSync: true,
+    dataType: 'transactional',
+    supportsBackup: true,
+    productionWarning: 'Certificates are issued to real users - do not sync from dev',
   },
   {
     id: 'enrollments',
@@ -345,6 +420,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertLmsEnrollmentSchema,
     exportFields: ['status', 'progress', 'enrolledAt', 'completedAt', 'dueDate'],
     excludeFromSync: true,
+    dataType: 'transactional',
+    supportsBackup: true,
+    productionWarning: 'Enrollments track user progress - do not sync from dev',
   },
   {
     id: 'lessonProgress',
@@ -357,6 +435,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertLmsLessonProgressSchema,
     exportFields: ['status', 'progress', 'startedAt', 'completedAt', 'timeSpent'],
     excludeFromSync: true,
+    dataType: 'transactional',
+    supportsBackup: true,
   },
   {
     id: 'quizAttempts',
@@ -369,6 +449,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertLmsQuizAttemptSchema,
     exportFields: ['score', 'passed', 'startedAt', 'completedAt', 'answers'],
     excludeFromSync: true,
+    dataType: 'transactional',
+    supportsBackup: true,
   },
 
   // ============ COMPLIANCE MODULE ============
@@ -382,6 +464,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertComplianceTaskSchema,
     exportFields: ['title', 'description', 'category', 'status', 'priority', 'dueDate', 'completedDate', 'recurrencePattern', 'recurrenceInterval', 'recurrenceEndDate', 'estimatedCost', 'actualCost', 'penaltyAmount', 'portalUrl', 'portalUsername', 'notes', 'isArchived'],
     sensitiveFields: ['portalPassword'],
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Compliance tasks may have production completion dates and costs',
   },
 
   // ============ RBAC MODULE ============
@@ -395,6 +480,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     schema: insertUserGroupSchema,
     exportFields: ['name', 'description', 'color', 'isSystem'],
     requiresConfirmation: true,
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'platformUsers',
@@ -407,6 +494,9 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     exportFields: ['email', 'displayName', 'firstName', 'lastName', 'role', 'isActive'],
     requiresConfirmation: true,
     sensitiveFields: ['passwordHash'],
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Platform users have production login credentials - passwords will NOT be overwritten',
   },
   {
     id: 'groupModuleAccess',
@@ -418,6 +508,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['userGroups', 'platformModules'],
     schema: insertGroupModuleAccessSchema,
     exportFields: ['groupName', 'moduleKey', 'hasAccess'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'groupFeaturePermissions',
@@ -429,6 +521,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['userGroups', 'moduleFeatures'],
     schema: insertGroupFeaturePermissionSchema,
     exportFields: ['groupName', 'moduleKey', 'featureKey', 'permissionLevel'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
   {
     id: 'moduleFeatures',
@@ -440,6 +534,8 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['platformModules'],
     schema: insertModuleFeatureSchema,
     exportFields: ['featureKey', 'featureName', 'description'],
+    dataType: 'reference',
+    supportsBackup: true,
   },
 
   // ============ PLATFORM MODULE ============
@@ -452,6 +548,63 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['moduleKey'],
     schema: insertPlatformModuleSchema,
     exportFields: ['moduleKey', 'moduleName', 'description', 'icon', 'route', 'sortOrder', 'isActive', 'progress', 'notes'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+
+  // ============ DAILY REPORTS MODULE ============
+  {
+    id: 'dailyReportTemplates',
+    name: 'Department Templates',
+    description: 'Department configuration and enabled fields',
+    module: 'daily_reports',
+    sheetName: 'DepartmentTemplates',
+    businessKey: ['department'],
+    schema: insertDailyReportTemplateSchema,
+    exportFields: ['department', 'departmentLabel', 'description', 'enabledFields', 'procedureTemplates', 'notificationEmails', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'dailyReportAccessCodes',
+    name: 'Staff Access Codes',
+    description: 'Staff access codes for report submission',
+    module: 'daily_reports',
+    sheetName: 'AccessCodes',
+    businessKey: ['code'],
+    schema: insertDailyReportAccessCodeSchema,
+    exportFields: ['staffName', 'department', 'code', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'dailyReports',
+    name: 'Daily Reports',
+    description: 'Submitted daily reports',
+    module: 'daily_reports',
+    sheetName: 'DailyReports',
+    businessKey: ['department', 'reportDate'],
+    parentTables: ['dailyReportTemplates'],
+    schema: insertDailyReportSchema,
+    exportFields: ['department', 'reportDate', 'submittedBy', 'performanceSummary', 'overallRating', 'hasCustomerConcerns', 'customerConcernsSummary', 'metricsData', 'procedureCompletions', 'status'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
+    productionWarning: 'Daily reports are staff-submitted data - NEVER sync from dev to production',
+  },
+  {
+    id: 'dailyReportIncidents',
+    name: 'Report Incidents',
+    description: 'Incidents attached to daily reports',
+    module: 'daily_reports',
+    sheetName: 'DailyReportIncidents',
+    businessKey: [],
+    parentTables: ['dailyReports'],
+    schema: insertDailyReportIncidentSchema,
+    exportFields: ['incidentType', 'severity', 'description', 'actionTaken', 'involvedPersons', 'followUpRequired', 'followUpNotes'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
   },
 ];
 
@@ -530,6 +683,9 @@ export interface RegistryMetadata {
       excludeFromSync: boolean;
       requiresConfirmation: boolean;
       confirmationMessage?: string;
+      dataType: DataType;
+      supportsBackup: boolean;
+      productionWarning?: string;
     }>;
   }>;
   stats: Record<SyncModule, { total: number; syncable: number }>;
@@ -554,6 +710,9 @@ export function getRegistryMetadata(): RegistryMetadata {
         excludeFromSync: t.excludeFromSync || false,
         requiresConfirmation: t.requiresConfirmation || false,
         confirmationMessage: t.confirmationMessage,
+        dataType: t.dataType,
+        supportsBackup: t.supportsBackup || false,
+        productionWarning: t.productionWarning,
       })),
   }));
 
@@ -561,4 +720,28 @@ export function getRegistryMetadata(): RegistryMetadata {
     modules,
     stats: getModuleStats(),
   };
+}
+
+// Helper functions for backup/restore feature
+export function getBackupableTables(): SyncTableConfig[] {
+  return SYNC_TABLES.filter(t => t.supportsBackup);
+}
+
+export function getTablesByDataType(dataType: DataType): SyncTableConfig[] {
+  return SYNC_TABLES.filter(t => t.dataType === dataType);
+}
+
+export function getSafeToSyncTables(): SyncTableConfig[] {
+  // Reference and configuration data are generally safe to sync
+  return SYNC_TABLES.filter(t => 
+    (t.dataType === 'reference' || t.dataType === 'configuration') && 
+    !t.excludeFromSync
+  );
+}
+
+export function getProductionProtectedTables(): SyncTableConfig[] {
+  // User-generated and transactional data should be protected in production
+  return SYNC_TABLES.filter(t => 
+    t.dataType === 'user_generated' || t.dataType === 'transactional'
+  );
 }
