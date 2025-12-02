@@ -197,8 +197,7 @@ interface DailyReportFieldDefinition {
   id: string;
   key: string;
   label: string;
-  fieldType: 'number' | 'text';
-  unit?: string | null;
+  type: 'number' | 'text';
   description?: string | null;
   sortOrder: number;
   isActive: boolean;
@@ -218,8 +217,7 @@ function ReportFieldsTab() {
   const [fieldFormData, setFieldFormData] = useState({
     key: "",
     label: "",
-    fieldType: "text" as "number" | "text",
-    unit: "",
+    type: "text" as "number" | "text",
     description: "",
     sortOrder: 0,
     isActive: true
@@ -297,8 +295,7 @@ function ReportFieldsTab() {
     setFieldFormData({
       key: "",
       label: "",
-      fieldType: "text",
-      unit: "",
+      type: "text",
       description: "",
       sortOrder: fieldDefinitions.length,
       isActive: true
@@ -316,8 +313,7 @@ function ReportFieldsTab() {
     setFieldFormData({
       key: field.key,
       label: field.label,
-      fieldType: field.fieldType,
-      unit: field.unit || "",
+      type: field.type,
       description: field.description || "",
       sortOrder: field.sortOrder,
       isActive: field.isActive
@@ -334,8 +330,7 @@ function ReportFieldsTab() {
     const data = {
       key: fieldFormData.key.toLowerCase().replace(/\s+/g, '_'),
       label: fieldFormData.label,
-      fieldType: fieldFormData.fieldType,
-      unit: fieldFormData.unit || null,
+      type: fieldFormData.type,
       description: fieldFormData.description || null,
       sortOrder: fieldFormData.sortOrder,
       isActive: fieldFormData.isActive
@@ -437,11 +432,8 @@ function ReportFieldsTab() {
                     </div>
                     <div className="col-span-2">
                       <Badge variant="outline" className="text-xs">
-                        {field.fieldType === 'number' ? '123' : 'Abc'} {field.fieldType}
+                        {field.type === 'number' ? '123' : 'Abc'} {field.type}
                       </Badge>
-                      {field.unit && (
-                        <span className="text-xs text-muted-foreground ml-1">({field.unit})</span>
-                      )}
                     </div>
                     <div className="col-span-2">
                       {field.isActive ? (
@@ -534,41 +526,28 @@ function ReportFieldsTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fieldType">Field Type *</Label>
-                <Select
-                  value={fieldFormData.fieldType}
-                  onValueChange={(value: "number" | "text") => setFieldFormData({ ...fieldFormData, fieldType: value })}
-                >
-                  <SelectTrigger data-testid="select-field-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fieldTypeOptions.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {option.value === 'number' ? '123' : 'Abc'}
-                          </Badge>
-                          {option.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fieldUnit">Unit (optional)</Label>
-                <Input
-                  id="fieldUnit"
-                  placeholder="e.g., guests, items"
-                  value={fieldFormData.unit}
-                  onChange={(e) => setFieldFormData({ ...fieldFormData, unit: e.target.value })}
-                  data-testid="input-field-unit"
-                />
-                <p className="text-xs text-muted-foreground">For numeric fields</p>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="fieldType">Field Type *</Label>
+              <Select
+                value={fieldFormData.type}
+                onValueChange={(value: "number" | "text") => setFieldFormData({ ...fieldFormData, type: value })}
+              >
+                <SelectTrigger data-testid="select-field-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fieldTypeOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {option.value === 'number' ? '123' : 'Abc'}
+                        </Badge>
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

@@ -3926,18 +3926,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async syncFieldDefinitionsToTemplates(): Promise<void> {
-    const fields = await this.getDailyReportFieldDefinitions(true);
+    const allFields = await this.getDailyReportFieldDefinitions(false);
+    const activeFields = allFields.filter(f => f.isActive);
     const templates = await this.getDailyReportTemplates();
     
     for (const template of templates) {
       const currentMetrics = (template.metrics || []) as Array<{ key: string; label: string; type?: string; isEnabled?: boolean }>;
-      const updatedMetrics = fields.map(field => {
+      
+      const updatedMetrics = activeFields.map(field => {
         const existingMetric = currentMetrics.find(m => m.key === field.key);
         return {
           key: field.key,
           label: field.label,
           type: field.type,
-          isEnabled: existingMetric?.isEnabled ?? true
+          isEnabled: existingMetric?.isEnabled ?? false
         };
       });
       
