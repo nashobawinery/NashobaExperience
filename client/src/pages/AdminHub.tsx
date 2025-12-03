@@ -5,13 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import { getModuleDocs } from "@/docs/index";
 import "@/docs/admin-hub";
+import type { RbacPermissions, UserWithRbac } from "@/hooks/useAuth";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
-  Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList
+  Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList,
+  LogOut, User, Lock, ChevronDown
 } from "lucide-react";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
@@ -61,9 +65,12 @@ const statusLabels: Record<ModuleStatus, string> = {
 
 interface AdminHubProps {
   onBackToGuest: () => void;
+  user: UserWithRbac;
+  rbac: RbacPermissions | null | undefined;
+  isAdmin: boolean;
 }
 
-export default function AdminHub({ onBackToGuest }: AdminHubProps) {
+export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHubProps) {
   const [, setLocation] = useLocation();
 
   const { data: modules, isLoading: modulesLoading, error: modulesError } = useQuery<PlatformModule[]>({
@@ -82,9 +89,28 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
     recentActivity: number;
   }>({
     queryKey: ['/api/platform/kpis'],
+    enabled: isAdmin, // Only fetch KPIs for admins
   });
 
-  const navigateToModule = (routePrefix: string, status: ModuleStatus) => {
+  // Helper to check if user has access to a module
+  const hasModuleAccess = (moduleKey: string): boolean => {
+    // Admins have access to everything
+    if (isAdmin || rbac?.isGlobalAdmin) return true;
+    // Check RBAC module access
+    return rbac?.moduleAccess[moduleKey] === true;
+  };
+
+  // Filter modules to show only those the user has access to
+  const accessibleModules = modules?.filter(module => hasModuleAccess(module.moduleKey)) || [];
+  
+  // Count of accessible active modules
+  const activeModuleCount = accessibleModules.filter(m => m.status === 'active').length;
+
+  const navigateToModule = (routePrefix: string, status: ModuleStatus, moduleKey: string) => {
+    // Check access before navigating
+    if (!hasModuleAccess(moduleKey)) {
+      return;
+    }
     if (status === 'active') {
       if (routePrefix === '/app') {
         setLocation('/admin');
@@ -92,6 +118,30 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
         setLocation(`${routePrefix}/admin`);
       }
     }
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    if (user.firstName) return user.firstName;
+    return user.email || 'User';
+  };
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) return user.firstName[0].toUpperCase();
+    if (user.email) return user.email[0].toUpperCase();
+    return 'U';
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    window.location.href = '/api/logout';
   };
 
   return (
@@ -104,34 +154,37 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
             </div>
             <div>
               <h1 className="text-lg font-semibold">Nashoba Operations Hub</h1>
-              <p className="text-xs text-muted-foreground">Central Platform Administration</p>
+              <p className="text-xs text-muted-foreground">
+                {isAdmin ? 'Central Platform Administration' : 'Operations Platform'}
+              </p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setLocation('/modules')}
-              data-testid="button-module-directory"
-            >
-              <LayoutGrid className="h-4 w-4 mr-2" />
-              Module Directory
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setLocation('/access-control')}
-              data-testid="button-access-control"
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Access Control
-            </Button>
+            {isAdmin && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setLocation('/modules')}
+                  data-testid="button-module-directory"
+                >
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Module Directory
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setLocation('/access-control')}
+                  data-testid="button-access-control"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Access Control
+                </Button>
+              </>
+            )}
             <Button variant="ghost" size="icon" data-testid="button-notifications">
               <Bell className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" data-testid="button-settings">
-              <Settings className="h-5 w-5" />
             </Button>
             <Button 
               variant="outline" 
@@ -141,6 +194,50 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
             >
               Guest View
             </Button>
+            
+            {/* User Profile Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="gap-2 pl-2 pr-3" data-testid="button-user-menu">
+                  <Avatar className="h-7 w-7">
+                    <AvatarImage src={user.profileImageUrl || undefined} alt={getUserDisplayName()} />
+                    <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                  <span className="hidden sm:inline text-sm">{getUserDisplayName()}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  {rbac?.groups && rbac.groups.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {rbac.groups.slice(0, 3).map(group => (
+                        <Badge key={group} variant="secondary" className="text-xs">
+                          {group}
+                        </Badge>
+                      ))}
+                      {rbac.groups.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{rbac.groups.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setLocation('/reset-password')} data-testid="menu-change-password">
+                  <Lock className="h-4 w-4 mr-2" />
+                  Change Password
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive" data-testid="menu-logout">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -159,86 +256,141 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
           </TabsList>
 
           <TabsContent value="overview">
-            <section className="mb-10">
-              <h2 className="text-xl font-semibold mb-4">Platform Overview</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {kpisLoading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <Card key={i}>
-                      <CardContent className="p-4">
-                        <Skeleton className="h-4 w-20 mb-2" />
-                        <Skeleton className="h-8 w-16" />
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <>
-                    <Card data-testid="kpi-total-guests">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <Users className="h-4 w-4" />
-                          <span className="text-xs font-medium">Total Guests</span>
+            {/* Welcome Section */}
+            <section className="mb-8">
+              <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src={user.profileImageUrl || undefined} alt={getUserDisplayName()} />
+                      <AvatarFallback className="text-lg">{getUserInitials()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h2 className="text-2xl font-semibold">Welcome back, {user.firstName || 'User'}</h2>
+                      <p className="text-muted-foreground">
+                        {isAdmin 
+                          ? `You have full access to all ${modules?.length || 0} platform modules.`
+                          : `You have access to ${activeModuleCount} active module${activeModuleCount !== 1 ? 's' : ''}.`
+                        }
+                      </p>
+                      {rbac?.groups && rbac.groups.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {rbac.groups.map(group => (
+                            <Badge key={group} variant="secondary" className="text-xs">
+                              {group}
+                            </Badge>
+                          ))}
                         </div>
-                        <p className="text-2xl font-bold">{kpis?.totalGuests ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                    <Card data-testid="kpi-today-orders">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <ShoppingCart className="h-4 w-4" />
-                          <span className="text-xs font-medium">Today's Orders</span>
-                        </div>
-                        <p className="text-2xl font-bold">{kpis?.todayOrders ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                    <Card data-testid="kpi-active-products">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <Package className="h-4 w-4" />
-                          <span className="text-xs font-medium">Active Products</span>
-                        </div>
-                        <p className="text-2xl font-bold">{kpis?.activeProducts ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                    <Card data-testid="kpi-b2b-customers">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <Building2 className="h-4 w-4" />
-                          <span className="text-xs font-medium">B2B Customers</span>
-                        </div>
-                        <p className="text-2xl font-bold">{kpis?.b2bCustomers ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                    <Card data-testid="kpi-pending-approvals">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
-                          <Clock className="h-4 w-4" />
-                          <span className="text-xs font-medium">Pending</span>
-                        </div>
-                        <p className="text-2xl font-bold">{kpis?.pendingApprovals ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                    <Card data-testid="kpi-recent-activity">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <TrendingUp className="h-4 w-4" />
-                          <span className="text-xs font-medium">24h Activity</span>
-                        </div>
-                        <p className="text-2xl font-bold">{kpis?.recentActivity ?? 0}</p>
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
-              </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </section>
 
+            {/* KPIs Section - Only for admins */}
+            {isAdmin && (
+              <section className="mb-10">
+                <h2 className="text-xl font-semibold mb-4">Platform Overview</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {kpisLoading ? (
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <Card key={i}>
+                        <CardContent className="p-4">
+                          <Skeleton className="h-4 w-20 mb-2" />
+                          <Skeleton className="h-8 w-16" />
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <>
+                      <Card data-testid="kpi-total-guests">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                            <Users className="h-4 w-4" />
+                            <span className="text-xs font-medium">Total Guests</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.totalGuests ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="kpi-today-orders">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                            <ShoppingCart className="h-4 w-4" />
+                            <span className="text-xs font-medium">Today's Orders</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.todayOrders ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="kpi-active-products">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                            <Package className="h-4 w-4" />
+                            <span className="text-xs font-medium">Active Products</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.activeProducts ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="kpi-b2b-customers">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                            <Building2 className="h-4 w-4" />
+                            <span className="text-xs font-medium">B2B Customers</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.b2bCustomers ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="kpi-pending-approvals">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
+                            <Clock className="h-4 w-4" />
+                            <span className="text-xs font-medium">Pending</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.pendingApprovals ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="kpi-recent-activity">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                            <TrendingUp className="h-4 w-4" />
+                            <span className="text-xs font-medium">24h Activity</span>
+                          </div>
+                          <p className="text-2xl font-bold">{kpis?.recentActivity ?? 0}</p>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
+
             <section>
-              <h2 className="text-xl font-semibold mb-4">Modules</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                {isAdmin ? 'All Modules' : 'Your Modules'}
+              </h2>
               {modulesError && (
                 <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
                   Error loading modules: {String(modulesError)}
                 </div>
               )}
+              
+              {/* Empty State for users with no module access */}
+              {!modulesLoading && accessibleModules.length === 0 && (
+                <Card className="border-dashed" data-testid="no-modules-state">
+                  <CardContent className="py-12 text-center">
+                    <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No Module Access</h3>
+                    <p className="text-muted-foreground max-w-md mx-auto mb-4">
+                      You don't have access to any modules yet. Please contact your administrator to request access.
+                    </p>
+                    <Button variant="outline" onClick={handleLogout} data-testid="button-signout-empty">
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {modulesLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
@@ -257,7 +409,7 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
                     </Card>
                   ))
                 ) : (
-                  modules?.map((module) => {
+                  accessibleModules.map((module) => {
                     const IconComponent = iconMap[module.icon || ''] || Package;
                     const isClickable = module.status === 'active';
                     
@@ -265,7 +417,7 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
                       <Card 
                         key={module.id}
                         className={isClickable ? "hover-elevate cursor-pointer transition-all" : "opacity-75"}
-                        onClick={() => navigateToModule(module.routePrefix, module.status)}
+                        onClick={() => navigateToModule(module.routePrefix, module.status, module.moduleKey)}
                         data-testid={`module-card-${module.moduleKey}`}
                       >
                         <CardHeader className="pb-3">
@@ -312,44 +464,47 @@ export default function AdminHub({ onBackToGuest }: AdminHubProps) {
               </div>
             </section>
 
-            <section className="mt-10">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                    <CardTitle className="text-base">Quick Actions</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-3">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setLocation('/admin')}
-                      data-testid="button-tasting-admin"
-                    >
-                      <Wine className="h-4 w-4 mr-2" />
-                      Tasting Admin
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setLocation('/b2b/admin')}
-                      data-testid="button-b2b-admin"
-                    >
-                      <Building2 className="h-4 w-4 mr-2" />
-                      B2B Admin
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setLocation('/admin/database-sync')}
-                      data-testid="button-database-sync"
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      Database Sync
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
+            {/* Quick Actions - Only for admins */}
+            {isAdmin && (
+              <section className="mt-10">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                      <CardTitle className="text-base">Quick Actions</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setLocation('/admin')}
+                        data-testid="button-tasting-admin"
+                      >
+                        <Wine className="h-4 w-4 mr-2" />
+                        Tasting Admin
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setLocation('/b2b/admin')}
+                        data-testid="button-b2b-admin"
+                      >
+                        <Building2 className="h-4 w-4 mr-2" />
+                        B2B Admin
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setLocation('/admin/database-sync')}
+                        data-testid="button-database-sync"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Database Sync
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
           </TabsContent>
 
           <TabsContent value="documentation">

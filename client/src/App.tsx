@@ -101,7 +101,7 @@ function DatabaseSyncRoute() {
 
 function AdminHubRoute() {
   const [, setLocation] = useLocation();
-  const { isLoading, isAdmin, user } = useAuth();
+  const { isLoading, user, rbac, isAdmin } = useAuth();
 
   if (isLoading) {
     return (
@@ -111,13 +111,14 @@ function AdminHubRoute() {
     );
   }
 
+  // Not authenticated - show login page
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="max-w-md w-full mx-4">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-serif font-semibold mb-2">Nashoba Operations Hub</h1>
-            <p className="text-muted-foreground">Sign in to access the administration platform</p>
+            <p className="text-muted-foreground">Sign in to access the operations platform</p>
           </div>
           <div className="bg-card border rounded-lg p-6 space-y-4">
             <Button 
@@ -128,7 +129,7 @@ function AdminHubRoute() {
               Sign in with Replit
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              You must have an authorized platform account to access the Admin Hub.
+              You must have an authorized platform account to access the Hub.
             </p>
           </div>
         </div>
@@ -136,42 +137,8 @@ function AdminHubRoute() {
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-serif font-semibold mb-2">Access Denied</h1>
-            <p className="text-muted-foreground">You don't have permission to access the Admin Hub.</p>
-          </div>
-          <div className="bg-card border rounded-lg p-6 space-y-4">
-            <p className="text-sm text-center">
-              Logged in as: <span className="font-medium">{user.email}</span>
-            </p>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline"
-                className="flex-1" 
-                onClick={() => window.location.href = '/api/logout'}
-                data-testid="button-logout"
-              >
-                Sign Out
-              </Button>
-              <Button 
-                className="flex-1" 
-                onClick={() => setLocation('/')}
-                data-testid="button-go-home"
-              >
-                Go Home
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return <AdminHub onBackToGuest={() => setLocation("/")} />;
+  // User is authenticated - pass to AdminHub which will handle RBAC filtering
+  return <AdminHub onBackToGuest={() => setLocation("/")} user={user} rbac={rbac} isAdmin={isAdmin} />;
 }
 
 function LmsAdminRoute() {
