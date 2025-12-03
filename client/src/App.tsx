@@ -123,7 +123,7 @@ function AdminHubRoute() {
           <div className="bg-card border rounded-lg p-6 space-y-4">
             <Button 
               className="w-full" 
-              onClick={() => window.location.href = '/api/login?returnTo=/admin-hub'}
+              onClick={() => window.location.href = '/api/login?returnTo=/hub'}
               data-testid="button-login"
             >
               Sign in with Replit
@@ -346,6 +346,7 @@ function Router() {
         <Route path="/" component={GuestApp} />
         <Route path="/daily-report/:code" component={PublicDailyReportForm} />
         <Route path="/daily-report" component={PublicDailyReportForm} />
+        <Route path="/hub" component={AdminHubRoute} />
         <Route path="/admin-hub" component={AdminHubRoute} />
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
