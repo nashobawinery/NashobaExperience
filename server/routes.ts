@@ -6217,6 +6217,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // DEPARTMENT FIELD ASSIGNMENTS
   // ============================================
 
+  // Get all field assignments for all templates (for admin dashboard)
+  app.get('/api/daily-reports/field-assignments', isAuthenticated, async (req: any, res) => {
+    try {
+      const templates = await storage.getDailyReportTemplates();
+      const allAssignments: Record<string, any[]> = {};
+      
+      for (const template of templates) {
+        const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+        allAssignments[template.id] = assignments;
+      }
+      
+      res.json(allAssignments);
+    } catch (error) {
+      console.error('Error fetching all field assignments:', error);
+      res.status(500).json({ message: 'Failed to fetch field assignments' });
+    }
+  });
+
   // Get field assignments for a specific template
   app.get('/api/daily-reports/templates/:templateId/fields', isAuthenticated, async (req: any, res) => {
     try {

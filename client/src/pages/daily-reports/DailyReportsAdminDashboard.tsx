@@ -791,6 +791,11 @@ export default function DailyReportsAdminDashboard() {
     enabled: activeTab === 'departments'
   });
 
+  const { data: allFieldAssignments = {} } = useQuery<Record<string, DepartmentFieldAssignment[]>>({
+    queryKey: ['/api/daily-reports/field-assignments'],
+    enabled: activeTab === 'departments'
+  });
+
   const createEmailRecipientMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest('POST', '/api/daily-reports/email-recipients', data);
@@ -900,17 +905,14 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const toggleMetricMutation = useMutation({
-    mutationFn: async ({ templateId, metricKey, isEnabled }: { templateId: string; metricKey: string; isEnabled: boolean }) => {
-      const template = templates.find(t => t.id === templateId);
-      if (!template) throw new Error("Template not found");
-      
-      // Update via junction table API which syncs inline metrics
-      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields`, {
-        fieldKey: metricKey,
+    mutationFn: async ({ templateId, fieldDefinitionId, isEnabled }: { templateId: string; fieldDefinitionId: string; isEnabled: boolean }) => {
+      // Update via junction table API using field definition ID
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields/${fieldDefinitionId}`, {
         isEnabled
       });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
       toast({ title: "Field configuration updated" });
     },
@@ -921,15 +923,13 @@ export default function DailyReportsAdminDashboard() {
 
   const batchToggleMetricsMutation = useMutation({
     mutationFn: async ({ templateId, enableAll }: { templateId: string; enableAll: boolean }) => {
-      const template = templates.find(t => t.id === templateId);
-      if (!template) throw new Error("Template not found");
-      
-      // Update all fields via junction table API which syncs inline metrics
+      // Update all fields via junction table API
       return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields`, {
         enableAll
       });
     },
     onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
       toast({ title: variables.enableAll ? "All fields enabled" : "All fields cleared" });
     },
@@ -2175,7 +2175,7 @@ export default function DailyReportsAdminDashboard() {
                             <div>
                               <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
                               <CardDescription>
-                                {template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} fields enabled, {procedures.length} procedures
+                                {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} of {(allFieldAssignments[template.id] || []).length} fields enabled, {procedures.length} procedures
                               </CardDescription>
                             </div>
                           </div>
@@ -2195,7 +2195,7 @@ export default function DailyReportsAdminDashboard() {
                                 <Settings className="h-4 w-4 text-muted-foreground" />
                                 Report Fields
                                 <span className="text-xs text-muted-foreground font-normal">
-                                  ({template.metrics.filter(m => m.isEnabled !== false).length} of {template.metrics.length} enabled)
+                                  ({(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} of {(allFieldAssignments[template.id] || []).length} enabled)
                                 </span>
                               </h4>
                               <div className="flex items-center gap-2">
@@ -2208,7 +2208,7 @@ export default function DailyReportsAdminDashboard() {
                                       enableAll: false
                                     });
                                   }}
-                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled === false)}
+                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || (allFieldAssignments[template.id] || []).every(a => !a.isEnabled)}
                                   data-testid={`button-clear-all-fields-${template.department}`}
                                 >
                                   Clear All
@@ -2222,7 +2222,7 @@ export default function DailyReportsAdminDashboard() {
                                       enableAll: true
                                     });
                                   }}
-                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || template.metrics.every(m => m.isEnabled !== false)}
+                                  disabled={batchToggleMetricsMutation.isPending || toggleMetricMutation.isPending || (allFieldAssignments[template.id] || []).every(a => a.isEnabled)}
                                   data-testid={`button-enable-all-fields-${template.department}`}
                                 >
                                   Enable All
@@ -2230,26 +2230,26 @@ export default function DailyReportsAdminDashboard() {
                               </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {template.metrics.map(m => (
+                              {(allFieldAssignments[template.id] || []).sort((a, b) => a.sortOrder - b.sortOrder).map(assignment => (
                                 <label 
-                                  key={m.key} 
+                                  key={assignment.fieldDefinitionId} 
                                   className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
-                                  data-testid={`metric-toggle-${template.department}-${m.key}`}
+                                  data-testid={`metric-toggle-${template.department}-${assignment.fieldDefinition?.key}`}
                                 >
                                   <Checkbox
-                                    checked={m.isEnabled !== false}
+                                    checked={assignment.isEnabled}
                                     onCheckedChange={(checked) => {
                                       toggleMetricMutation.mutate({
                                         templateId: template.id,
-                                        metricKey: m.key,
+                                        fieldDefinitionId: assignment.fieldDefinitionId,
                                         isEnabled: !!checked
                                       });
                                     }}
                                     disabled={toggleMetricMutation.isPending}
-                                    data-testid={`checkbox-metric-${m.key}`}
+                                    data-testid={`checkbox-metric-${assignment.fieldDefinition?.key}`}
                                   />
-                                  <span className={`text-sm ${m.isEnabled === false ? 'text-muted-foreground line-through' : ''}`}>
-                                    {m.label}
+                                  <span className={`text-sm ${!assignment.isEnabled ? 'text-muted-foreground line-through' : ''}`}>
+                                    {assignment.fieldDefinition?.label || 'Unknown Field'}
                                   </span>
                                 </label>
                               ))}
