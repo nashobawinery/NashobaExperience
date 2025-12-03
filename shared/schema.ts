@@ -1755,3 +1755,28 @@ export const insertDailyReportFieldDefinitionSchema = createInsertSchema(dailyRe
 });
 export type InsertDailyReportFieldDefinition = z.infer<typeof insertDailyReportFieldDefinitionSchema>;
 export type DailyReportFieldDefinition = typeof dailyReportFieldDefinitions.$inferSelect;
+
+// Junction table linking departments to their enabled fields
+export const departmentFieldAssignments = pgTable("department_field_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => dailyReportTemplates.id, { onDelete: "cascade" }),
+  fieldDefinitionId: varchar("field_definition_id").notNull().references(() => dailyReportFieldDefinitions.id, { onDelete: "cascade" }),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_dept_field_template").on(table.templateId),
+  index("idx_dept_field_definition").on(table.fieldDefinitionId),
+]);
+
+export const insertDepartmentFieldAssignmentSchema = createInsertSchema(departmentFieldAssignments).omit({ 
+  id: true, 
+  createdAt: true 
+});
+export type InsertDepartmentFieldAssignment = z.infer<typeof insertDepartmentFieldAssignmentSchema>;
+export type DepartmentFieldAssignment = typeof departmentFieldAssignments.$inferSelect;
+
+// Extended type for field assignments with field definition details
+export type DepartmentFieldAssignmentWithDefinition = DepartmentFieldAssignment & {
+  fieldDefinition?: DailyReportFieldDefinition;
+};
