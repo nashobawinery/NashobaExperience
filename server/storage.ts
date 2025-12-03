@@ -146,6 +146,10 @@ import {
   dailyReportFieldDefinitions,
   type InsertDailyReportFieldDefinition,
   type DailyReportFieldDefinition,
+  departmentFieldAssignments,
+  type InsertDepartmentFieldAssignment,
+  type DepartmentFieldAssignment,
+  type DepartmentFieldAssignmentWithDefinition,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -3926,24 +3930,107 @@ export class DatabaseStorage implements IStorage {
   }
 
   async syncFieldDefinitionsToTemplates(): Promise<void> {
+    // Now syncs via junction table instead of inline metrics
     const allFields = await this.getDailyReportFieldDefinitions(false);
     const activeFields = allFields.filter(f => f.isActive);
     const templates = await this.getDailyReportTemplates();
     
     for (const template of templates) {
-      const currentMetrics = (template.metrics || []) as Array<{ key: string; label: string; type?: string; isEnabled?: boolean }>;
+      // Get current assignments for this template
+      const currentAssignments = await this.getDepartmentFieldAssignments(template.id);
       
-      const updatedMetrics = activeFields.map(field => {
-        const existingMetric = currentMetrics.find(m => m.key === field.key);
-        return {
-          key: field.key,
-          label: field.label,
-          type: field.type,
-          isEnabled: existingMetric?.isEnabled ?? false
-        };
-      });
+      // For each active field, ensure there's an assignment
+      for (const field of activeFields) {
+        const existing = currentAssignments.find(a => a.fieldDefinitionId === field.id);
+        if (!existing) {
+          // Create new assignment with isEnabled defaulting to true
+          await this.createDepartmentFieldAssignment({
+            templateId: template.id,
+            fieldDefinitionId: field.id,
+            isEnabled: true,
+            sortOrder: field.sortOrder
+          });
+        }
+      }
+      
+      // Also update the inline metrics for backward compatibility
+      const assignments = await this.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+      const updatedMetrics = assignments.map(a => ({
+        key: a.fieldDefinition?.key || '',
+        label: a.fieldDefinition?.label || '',
+        type: a.fieldDefinition?.type || 'text',
+        isEnabled: a.isEnabled
+      })).filter(m => m.key);
       
       await this.updateDailyReportTemplate(template.id, { metrics: updatedMetrics });
+    }
+  }
+
+  // Department Field Assignments
+  async getDepartmentFieldAssignments(templateId: string): Promise<DepartmentFieldAssignment[]> {
+    return await db.select().from(departmentFieldAssignments)
+      .where(eq(departmentFieldAssignments.templateId, templateId))
+      .orderBy(departmentFieldAssignments.sortOrder);
+  }
+
+  async getDepartmentFieldAssignmentsWithDefinitions(templateId: string): Promise<DepartmentFieldAssignmentWithDefinition[]> {
+    const results = await db.select({
+      assignment: departmentFieldAssignments,
+      fieldDefinition: dailyReportFieldDefinitions
+    })
+      .from(departmentFieldAssignments)
+      .leftJoin(dailyReportFieldDefinitions, eq(departmentFieldAssignments.fieldDefinitionId, dailyReportFieldDefinitions.id))
+      .where(eq(departmentFieldAssignments.templateId, templateId))
+      .orderBy(departmentFieldAssignments.sortOrder);
+    
+    return results.map(r => ({
+      ...r.assignment,
+      fieldDefinition: r.fieldDefinition || undefined
+    }));
+  }
+
+  async createDepartmentFieldAssignment(data: InsertDepartmentFieldAssignment): Promise<DepartmentFieldAssignment> {
+    const [assignment] = await db.insert(departmentFieldAssignments).values(data).returning();
+    return assignment;
+  }
+
+  async updateDepartmentFieldAssignment(id: string, data: Partial<InsertDepartmentFieldAssignment>): Promise<DepartmentFieldAssignment | undefined> {
+    const [updated] = await db.update(departmentFieldAssignments)
+      .set(data)
+      .where(eq(departmentFieldAssignments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDepartmentFieldAssignment(id: string): Promise<boolean> {
+    const result = await db.delete(departmentFieldAssignments)
+      .where(eq(departmentFieldAssignments.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async updateDepartmentFieldEnabled(templateId: string, fieldDefinitionId: string, isEnabled: boolean): Promise<DepartmentFieldAssignment | undefined> {
+    const [updated] = await db.update(departmentFieldAssignments)
+      .set({ isEnabled })
+      .where(and(
+        eq(departmentFieldAssignments.templateId, templateId),
+        eq(departmentFieldAssignments.fieldDefinitionId, fieldDefinitionId)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async bulkUpdateDepartmentFieldAssignments(templateId: string, updates: Array<{ fieldDefinitionId: string; isEnabled: boolean; sortOrder?: number }>): Promise<void> {
+    for (const update of updates) {
+      await db.update(departmentFieldAssignments)
+        .set({ 
+          isEnabled: update.isEnabled,
+          ...(update.sortOrder !== undefined ? { sortOrder: update.sortOrder } : {})
+        })
+        .where(and(
+          eq(departmentFieldAssignments.templateId, templateId),
+          eq(departmentFieldAssignments.fieldDefinitionId, update.fieldDefinitionId)
+        ));
     }
   }
 }

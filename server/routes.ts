@@ -6213,6 +6213,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // DEPARTMENT FIELD ASSIGNMENTS
+  // ============================================
+
+  // Get field assignments for a specific template
+  app.get('/api/daily-reports/templates/:templateId/fields', isAuthenticated, async (req: any, res) => {
+    try {
+      const { templateId } = req.params;
+      const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
+      res.json(assignments);
+    } catch (error) {
+      console.error('Error fetching department field assignments:', error);
+      res.status(500).json({ message: 'Failed to fetch field assignments' });
+    }
+  });
+
+  // Update a single field assignment (toggle enabled status)
+  app.patch('/api/daily-reports/templates/:templateId/fields/:fieldId', isAdmin, async (req, res) => {
+    try {
+      const { templateId, fieldId } = req.params;
+      const { isEnabled } = req.body;
+      
+      const updated = await storage.updateDepartmentFieldEnabled(templateId, fieldId, isEnabled);
+      if (!updated) {
+        return res.status(404).json({ message: 'Field assignment not found' });
+      }
+      
+      // Sync the inline metrics for backward compatibility
+      await storage.syncFieldDefinitionsToTemplates();
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating field assignment:', error);
+      res.status(500).json({ message: 'Failed to update field assignment' });
+    }
+  });
+
+  // Bulk update field assignments for a template
+  app.patch('/api/daily-reports/templates/:templateId/fields', isAdmin, async (req, res) => {
+    try {
+      const { templateId } = req.params;
+      const { updates } = req.body as { updates: Array<{ fieldDefinitionId: string; isEnabled: boolean; sortOrder?: number }> };
+      
+      await storage.bulkUpdateDepartmentFieldAssignments(templateId, updates);
+      
+      // Sync the inline metrics for backward compatibility
+      await storage.syncFieldDefinitionsToTemplates();
+      
+      const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
+      res.json(assignments);
+    } catch (error) {
+      console.error('Error bulk updating field assignments:', error);
+      res.status(500).json({ message: 'Failed to update field assignments' });
+    }
+  });
+
   // Get all procedure templates
   app.get('/api/daily-reports/procedures', isAuthenticated, async (req: any, res) => {
     try {
