@@ -205,6 +205,15 @@ interface DailyReportFieldDefinition {
   updatedAt: string;
 }
 
+interface DepartmentFieldAssignment {
+  id: string;
+  templateId: string;
+  fieldDefinitionId: string;
+  isEnabled: boolean;
+  sortOrder: number;
+  fieldDefinition?: DailyReportFieldDefinition;
+}
+
 const fieldTypeOptions = [
   { value: "number", label: "Number", description: "Numeric values (counts, quantities, etc.)" },
   { value: "text", label: "Text", description: "Free-form text responses" }
