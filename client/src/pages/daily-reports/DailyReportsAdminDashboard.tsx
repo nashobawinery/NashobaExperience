@@ -895,11 +895,11 @@ export default function DailyReportsAdminDashboard() {
       const template = templates.find(t => t.id === templateId);
       if (!template) throw new Error("Template not found");
       
-      const updatedMetrics = template.metrics.map(m => 
-        m.key === metricKey ? { ...m, isEnabled } : m
-      );
-      
-      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}`, { metrics: updatedMetrics });
+      // Update via junction table API which syncs inline metrics
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields`, {
+        fieldKey: metricKey,
+        isEnabled
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
@@ -915,9 +915,10 @@ export default function DailyReportsAdminDashboard() {
       const template = templates.find(t => t.id === templateId);
       if (!template) throw new Error("Template not found");
       
-      const updatedMetrics = template.metrics.map(m => ({ ...m, isEnabled: enableAll }));
-      
-      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}`, { metrics: updatedMetrics });
+      // Update all fields via junction table API which syncs inline metrics
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields`, {
+        enableAll
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });

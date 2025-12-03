@@ -6250,21 +6250,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk update field assignments for a template
+  // Update field assignments for a template (supports single field, bulk array, or enable all)
   app.patch('/api/daily-reports/templates/:templateId/fields', isAdmin, async (req, res) => {
     try {
       const { templateId } = req.params;
-      const { updates } = req.body as { updates: Array<{ fieldDefinitionId: string; isEnabled: boolean; sortOrder?: number }> };
+      const { updates, fieldKey, isEnabled, enableAll } = req.body;
       
-      await storage.bulkUpdateDepartmentFieldAssignments(templateId, updates);
+      // Handle single field toggle by key
+      if (fieldKey && typeof isEnabled === 'boolean') {
+        const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
+        const assignment = assignments.find(a => a.fieldDefinition?.key === fieldKey);
+        if (!assignment) {
+          return res.status(404).json({ message: 'Field assignment not found' });
+        }
+        await storage.updateDepartmentFieldEnabled(templateId, assignment.fieldDefinitionId, isEnabled);
+      }
+      // Handle enable/disable all fields
+      else if (typeof enableAll === 'boolean') {
+        const assignments = await storage.getDepartmentFieldAssignments(templateId);
+        const bulkUpdates = assignments.map(a => ({
+          fieldDefinitionId: a.fieldDefinitionId,
+          isEnabled: enableAll
+        }));
+        await storage.bulkUpdateDepartmentFieldAssignments(templateId, bulkUpdates);
+      }
+      // Handle bulk updates array
+      else if (updates && Array.isArray(updates)) {
+        await storage.bulkUpdateDepartmentFieldAssignments(templateId, updates);
+      }
+      else {
+        return res.status(400).json({ message: 'Invalid request body' });
+      }
       
       // Sync the inline metrics for backward compatibility
       await storage.syncFieldDefinitionsToTemplates();
       
-      const assignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
-      res.json(assignments);
+      const resultAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(templateId);
+      res.json(resultAssignments);
     } catch (error) {
-      console.error('Error bulk updating field assignments:', error);
+      console.error('Error updating field assignments:', error);
       res.status(500).json({ message: 'Failed to update field assignments' });
     }
   });
