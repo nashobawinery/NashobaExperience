@@ -7177,49 +7177,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
 async function seedDailyReportTemplates(): Promise<void> {
   console.log('[Daily Reports] Checking department templates...');
   
-  // Generic metrics that apply to all departments
-  const genericMetrics = [
-    { key: 'total_reservations', label: 'Total Reservations', type: 'number', isEnabled: true },
-    { key: 'no_shows', label: 'No Shows', type: 'number', isEnabled: true },
-    { key: 'walkins', label: 'Walk-ins', type: 'number', isEnabled: true },
-    { key: 'walkin_tasting_bar', label: 'Walk-in Tasting Bar', type: 'number', isEnabled: true },
-    { key: 'walkin_tours', label: 'Walk-in Tours', type: 'number', isEnabled: true },
-    { key: 'low_inventory_items', label: 'Low Inventory Items (ASAP)', type: 'text', isEnabled: true },
-    { key: 'items_86d', label: "Items 86'd", type: 'text', isEnabled: true },
-    { key: 'customer_incident_reports', label: 'Customer Incident Reports', type: 'text', isEnabled: true },
-    { key: 'customer_comments', label: 'Customer Comments', type: 'text', isEnabled: true },
-    { key: 'summary', label: 'Summary', type: 'text', isEnabled: true },
-    { key: 'voids_explanations', label: 'Voids and Explanations', type: 'text', isEnabled: true },
-    { key: 'building_name', label: 'Building Name', type: 'text', isEnabled: true },
-    { key: 'equipment_name', label: 'Equipment Name', type: 'text', isEnabled: true },
-    { key: 'repair_maintenance_desc', label: 'Repair or Maintenance Description', type: 'text', isEnabled: true },
-    { key: 'location', label: 'Location', type: 'text', isEnabled: true },
-    { key: 'area_cleaned', label: 'Area Cleaned', type: 'text', isEnabled: true },
-    { key: 'product_required', label: 'Product Required', type: 'text', isEnabled: true },
-    { key: 'incident_report', label: 'Incident Report', type: 'text', isEnabled: true }
+  // Generic field definitions that apply to all departments
+  const genericFieldDefs = [
+    { key: 'total_reservations', label: 'Total Reservations', type: 'number' as const, description: 'Total number of reservations for the day', sortOrder: 1 },
+    { key: 'no_shows', label: 'No Shows', type: 'number' as const, description: 'Number of no-show reservations', sortOrder: 2 },
+    { key: 'walkins', label: 'Walk-ins', type: 'number' as const, description: 'Number of walk-in customers', sortOrder: 3 },
+    { key: 'walkin_tasting_bar', label: 'Walk-in Tasting Bar', type: 'number' as const, description: 'Walk-ins for tasting bar', sortOrder: 4 },
+    { key: 'walkin_tours', label: 'Walk-in Tours', type: 'number' as const, description: 'Walk-ins for tours', sortOrder: 5 },
+    { key: 'low_inventory_items', label: 'Low Inventory Items (ASAP)', type: 'text' as const, description: 'Items that need immediate restocking', sortOrder: 6 },
+    { key: 'items_86d', label: "Items 86'd", type: 'text' as const, description: 'Items that are no longer available', sortOrder: 7 },
+    { key: 'customer_incident_reports', label: 'Customer Incident Reports', type: 'text' as const, description: 'Reports of customer incidents', sortOrder: 8 },
+    { key: 'customer_comments', label: 'Customer Comments', type: 'text' as const, description: 'General customer feedback', sortOrder: 9 },
+    { key: 'summary', label: 'Summary', type: 'text' as const, description: 'Daily summary notes', sortOrder: 10 },
+    { key: 'voids_explanations', label: 'Voids and Explanations', type: 'text' as const, description: 'Voided transactions with explanations', sortOrder: 11 },
+    { key: 'building_name', label: 'Building Name', type: 'text' as const, description: 'Name of building for maintenance', sortOrder: 12 },
+    { key: 'equipment_name', label: 'Equipment Name', type: 'text' as const, description: 'Equipment that needs attention', sortOrder: 13 },
+    { key: 'repair_maintenance_desc', label: 'Repair or Maintenance Description', type: 'text' as const, description: 'Description of repair or maintenance needed', sortOrder: 14 },
+    { key: 'location', label: 'Location', type: 'text' as const, description: 'Specific location reference', sortOrder: 15 },
+    { key: 'area_cleaned', label: 'Area Cleaned', type: 'text' as const, description: 'Areas that were cleaned', sortOrder: 16 },
+    { key: 'product_required', label: 'Product Required', type: 'text' as const, description: 'Products needed for restocking', sortOrder: 17 },
+    { key: 'incident_report', label: 'Incident Report', type: 'text' as const, description: 'General incident reporting', sortOrder: 18 }
   ];
 
   const departments = [
-    { department: 'tasting_room', departmentLabel: 'Tasting Room', metrics: genericMetrics },
-    { department: 'retail', departmentLabel: 'Retail', metrics: genericMetrics },
-    { department: 'the_knoll', departmentLabel: 'The Knoll', metrics: genericMetrics },
-    { department: 'pavilion', departmentLabel: 'Pavilion', metrics: genericMetrics },
-    { department: 'js_restaurant', departmentLabel: "J's Restaurant", metrics: genericMetrics },
-    { department: 'production', departmentLabel: 'Production', metrics: genericMetrics },
-    { department: 'events', departmentLabel: 'Events', metrics: genericMetrics },
-    { department: 'maintenance', departmentLabel: 'Maintenance', metrics: genericMetrics },
-    { department: 'orchard', departmentLabel: 'Orchard', metrics: genericMetrics },
-    { department: 'food_operations', departmentLabel: 'Food Operations', metrics: genericMetrics }
+    { department: 'tasting_room', departmentLabel: 'Tasting Room' },
+    { department: 'retail', departmentLabel: 'Retail' },
+    { department: 'the_knoll', departmentLabel: 'The Knoll' },
+    { department: 'pavilion', departmentLabel: 'Pavilion' },
+    { department: 'js_restaurant', departmentLabel: "J's Restaurant" },
+    { department: 'production', departmentLabel: 'Production' },
+    { department: 'events', departmentLabel: 'Events' },
+    { department: 'maintenance', departmentLabel: 'Maintenance' },
+    { department: 'orchard', departmentLabel: 'Orchard' },
+    { department: 'food_operations', departmentLabel: 'Food Operations' }
   ];
 
   try {
+    // First, ensure field definitions exist
+    const existingFields = await storage.getDailyReportFieldDefinitions(false);
+    const fieldIdMap: Record<string, string> = {};
+    
+    for (const fieldDef of genericFieldDefs) {
+      let existingField = existingFields.find(f => f.key === fieldDef.key);
+      if (!existingField) {
+        existingField = await storage.createDailyReportFieldDefinition(fieldDef);
+      }
+      fieldIdMap[fieldDef.key] = existingField.id;
+    }
+    
+    // Create department templates with inline metrics for backward compatibility
+    const genericMetrics = genericFieldDefs.map(f => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      isEnabled: true
+    }));
+
     for (const dept of departments) {
-      await storage.upsertDailyReportTemplate({
+      const template = await storage.upsertDailyReportTemplate({
         department: dept.department as any,
         departmentLabel: dept.departmentLabel,
-        metrics: dept.metrics,
+        metrics: genericMetrics,
         isActive: true
       });
+      
+      // Ensure junction table entries exist for this template
+      const existingAssignments = await storage.getDepartmentFieldAssignments(template.id);
+      
+      for (const fieldDef of genericFieldDefs) {
+        const fieldId = fieldIdMap[fieldDef.key];
+        const existing = existingAssignments.find(a => a.fieldDefinitionId === fieldId);
+        if (!existing && fieldId) {
+          await storage.createDepartmentFieldAssignment({
+            templateId: template.id,
+            fieldDefinitionId: fieldId,
+            isEnabled: true,
+            sortOrder: fieldDef.sortOrder
+          });
+        }
+      }
     }
     
     const templates = await storage.getDailyReportTemplates();
