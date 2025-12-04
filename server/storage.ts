@@ -3616,7 +3616,7 @@ export class DatabaseStorage implements IStorage {
     return report;
   }
 
-  async updateDailyReport(id: string, data: Partial<InsertDailyReport>): Promise<DailyReport | undefined> {
+  async updateDailyReport(id: string, data: Partial<DailyReport>): Promise<DailyReport | undefined> {
     const [updated] = await db.update(dailyReports)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(dailyReports.id, id))

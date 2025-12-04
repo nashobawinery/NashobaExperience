@@ -56,7 +56,8 @@ import {
   ArrowUp,
   ArrowDown,
   FileSpreadsheet,
-  X
+  X,
+  RotateCcw
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -633,7 +634,15 @@ const departmentIcons: Record<string, any> = {
 const statusColors: Record<string, string> = {
   draft: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  reviewed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+  reviewed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  needs_revision: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+};
+
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  submitted: "Pending Review",
+  reviewed: "Reviewed",
+  needs_revision: "Needs Revision"
 };
 
 const severityColors: Record<string, string> = {
@@ -1019,7 +1028,8 @@ export default function DailyReportsAdminDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
-      toast({ title: "Report submitted for review" });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      toast({ title: "Report submitted for review", description: "The report is now awaiting manager review." });
     },
     onError: (error: any) => {
       toast({ title: "Failed to submit report", description: error.message, variant: "destructive" });
@@ -1027,12 +1037,17 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const reviewReportMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest('POST', `/api/daily-reports/${id}/review`);
+    mutationFn: async ({ id, approved = true, reviewNotes }: { id: string; approved?: boolean; reviewNotes?: string }) => {
+      return await apiRequest('POST', `/api/daily-reports/${id}/review`, { approved, reviewNotes });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
-      toast({ title: "Report marked as reviewed" });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      if (variables.approved) {
+        toast({ title: "Report approved", description: "The report has been marked as reviewed." });
+      } else {
+        toast({ title: "Revision requested", description: "The report has been sent back for revision." });
+      }
     },
     onError: (error: any) => {
       toast({ title: "Failed to review report", description: error.message, variant: "destructive" });
@@ -1045,10 +1060,25 @@ export default function DailyReportsAdminDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
       toast({ title: "Report deleted successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Failed to delete report", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const reopenReportMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('PATCH', `/api/daily-reports/${id}`, { status: 'draft' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      toast({ title: "Report reopened for editing" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to reopen report", description: error.message, variant: "destructive" });
     }
   });
 
@@ -1840,7 +1870,7 @@ export default function DailyReportsAdminDashboard() {
                       </div>
                       {report && (
                         <Badge className={statusColors[report.status]}>
-                          {report.status}
+                          {statusLabels[report.status] || report.status}
                         </Badge>
                       )}
                     </CardHeader>
@@ -2070,7 +2100,7 @@ export default function DailyReportsAdminDashboard() {
                               </td>
                               <td className="p-3">
                                 <Badge className={statusColors[report.status]}>
-                                  {report.status}
+                                  {statusLabels[report.status] || report.status}
                                 </Badge>
                               </td>
                               <td className="p-3">
@@ -2103,29 +2133,66 @@ export default function DailyReportsAdminDashboard() {
                                       <Eye className="h-4 w-4 mr-2" />
                                       View Details
                                     </DropdownMenuItem>
-                                    {report.status === "draft" && (
-                                      <>
-                                        <DropdownMenuItem onClick={() => handleEditReport(report)}>
-                                          <Edit className="h-4 w-4 mr-2" />
-                                          Edit Report
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => submitReportMutation.mutate(report.id)}>
-                                          <Send className="h-4 w-4 mr-2" />
-                                          Submit for Review
-                                        </DropdownMenuItem>
-                                      </>
+                                    
+                                    {/* Edit available for draft, submitted, and needs_revision */}
+                                    {(report.status === "draft" || report.status === "submitted" || report.status === "needs_revision") && (
+                                      <DropdownMenuItem onClick={() => handleEditReport(report)}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit Report
+                                      </DropdownMenuItem>
                                     )}
-                                    {report.status === "submitted" && (
-                                      <DropdownMenuItem onClick={() => reviewReportMutation.mutate(report.id)}>
+                                    
+                                    <DropdownMenuSeparator />
+                                    
+                                    {/* Submit for draft reports */}
+                                    {report.status === "draft" && (
+                                      <DropdownMenuItem onClick={() => submitReportMutation.mutate(report.id)}>
+                                        <Send className="h-4 w-4 mr-2" />
+                                        Submit for Review
+                                      </DropdownMenuItem>
+                                    )}
+                                    
+                                    {/* Resubmit for needs_revision reports */}
+                                    {report.status === "needs_revision" && (
+                                      <DropdownMenuItem onClick={() => submitReportMutation.mutate(report.id)}>
+                                        <Send className="h-4 w-4 mr-2" />
+                                        Resubmit for Review
+                                      </DropdownMenuItem>
+                                    )}
+                                    
+                                    {/* Mark reviewed for submitted OR needs_revision reports */}
+                                    {(report.status === "submitted" || report.status === "needs_revision") && (
+                                      <DropdownMenuItem onClick={() => reviewReportMutation.mutate({ id: report.id, approved: true })}>
                                         <CheckCircle className="h-4 w-4 mr-2" />
                                         Mark as Reviewed
                                       </DropdownMenuItem>
                                     )}
+                                    
+                                    {/* Request revision for submitted reports */}
+                                    {report.status === "submitted" && (
+                                      <DropdownMenuItem onClick={() => reviewReportMutation.mutate({ id: report.id, approved: false })}>
+                                        <RotateCcw className="h-4 w-4 mr-2" />
+                                        Request Revision
+                                      </DropdownMenuItem>
+                                    )}
+                                    
+                                    {/* Reopen reviewed reports */}
+                                    {report.status === "reviewed" && (
+                                      <DropdownMenuItem onClick={() => {
+                                        if (confirm("Reopen this report for editing?")) {
+                                          reopenReportMutation.mutate(report.id);
+                                        }
+                                      }}>
+                                        <RotateCcw className="h-4 w-4 mr-2" />
+                                        Reopen Report
+                                      </DropdownMenuItem>
+                                    )}
+                                    
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem 
                                       className="text-destructive"
                                       onClick={() => {
-                                        if (confirm("Are you sure you want to delete this report?")) {
+                                        if (confirm("Are you sure you want to delete this report? This cannot be undone.")) {
                                           deleteReportMutation.mutate(report.id);
                                         }
                                       }}
@@ -2847,34 +2914,74 @@ export default function DailyReportsAdminDashboard() {
             <div className="space-y-6 py-4">
               <div className="flex items-center justify-between">
                 <Badge className={statusColors[selectedReport.status]}>
-                  {selectedReport.status}
+                  {statusLabels[selectedReport.status] || selectedReport.status}
                 </Badge>
-                <div className="flex items-center gap-2">
-                  {selectedReport.status === "draft" && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setIsViewReportDialogOpen(false);
-                        handleEditReport(selectedReport);
-                      }}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button size="sm" onClick={() => {
-                        submitReportMutation.mutate(selectedReport.id);
-                        setIsViewReportDialogOpen(false);
-                      }}>
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit
-                      </Button>
-                    </>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Edit button for draft, submitted, needs_revision */}
+                  {(selectedReport.status === "draft" || selectedReport.status === "submitted" || selectedReport.status === "needs_revision") && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setIsViewReportDialogOpen(false);
+                      handleEditReport(selectedReport);
+                    }}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
                   )}
-                  {selectedReport.status === "submitted" && (
+                  
+                  {/* Submit for draft */}
+                  {selectedReport.status === "draft" && (
                     <Button size="sm" onClick={() => {
-                      reviewReportMutation.mutate(selectedReport.id);
+                      submitReportMutation.mutate(selectedReport.id);
+                      setIsViewReportDialogOpen(false);
+                    }}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Submit
+                    </Button>
+                  )}
+                  
+                  {/* Resubmit for needs_revision */}
+                  {selectedReport.status === "needs_revision" && (
+                    <Button size="sm" onClick={() => {
+                      submitReportMutation.mutate(selectedReport.id);
+                      setIsViewReportDialogOpen(false);
+                    }}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Resubmit
+                    </Button>
+                  )}
+                  
+                  {/* Approve for submitted or needs_revision */}
+                  {(selectedReport.status === "submitted" || selectedReport.status === "needs_revision") && (
+                    <Button size="sm" onClick={() => {
+                      reviewReportMutation.mutate({ id: selectedReport.id, approved: true });
                       setIsViewReportDialogOpen(false);
                     }}>
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark Reviewed
+                      Approve
+                    </Button>
+                  )}
+                  
+                  {/* Request revision for submitted */}
+                  {selectedReport.status === "submitted" && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      reviewReportMutation.mutate({ id: selectedReport.id, approved: false });
+                      setIsViewReportDialogOpen(false);
+                    }}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Request Revision
+                    </Button>
+                  )}
+                  
+                  {/* Reopen for reviewed */}
+                  {selectedReport.status === "reviewed" && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      if (confirm("Reopen this report for editing?")) {
+                        reopenReportMutation.mutate(selectedReport.id);
+                        setIsViewReportDialogOpen(false);
+                      }
+                    }}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Reopen
                     </Button>
                   )}
                 </div>
