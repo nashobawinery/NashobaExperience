@@ -793,7 +793,7 @@ export default function DailyReportsAdminDashboard() {
 
   const { data: allFieldAssignments = {} } = useQuery<Record<string, DepartmentFieldAssignment[]>>({
     queryKey: ['/api/daily-reports/field-assignments'],
-    enabled: activeTab === 'departments' || isReportDialogOpen
+    enabled: activeTab === 'departments' || isReportDialogOpen || isViewReportDialogOpen
   });
 
   const createEmailRecipientMutation = useMutation({
@@ -1444,7 +1444,7 @@ export default function DailyReportsAdminDashboard() {
     setReportFormData({
       department: report.department,
       reportDate: report.reportDate,
-      metrics: report.metrics as Record<string, string>,
+      metrics: (report.metrics || {}) as Record<string, string>,
       customerServiceSummary: report.customerServiceSummary || "",
       operationalNotes: report.operationalNotes || "",
       staffingNotes: report.staffingNotes || ""
@@ -1464,10 +1464,21 @@ export default function DailyReportsAdminDashboard() {
       return;
     }
 
-    const metricsToSave: Record<string, number> = {};
-    template.metrics.forEach(m => {
-      const value = reportFormData.metrics[m.key];
-      metricsToSave[m.key] = value ? parseFloat(value) : 0;
+    // Use enabled fields from junction table assignments
+    const enabledFields = (allFieldAssignments[template.id] || [])
+      .filter(a => a.isEnabled && a.fieldDefinition?.isActive);
+
+    const metricsToSave: Record<string, number | string> = {};
+    enabledFields.forEach(assignment => {
+      const key = assignment.fieldDefinition?.key;
+      if (key) {
+        const value = reportFormData.metrics[key];
+        if (assignment.fieldDefinition?.type === 'text') {
+          metricsToSave[key] = value || '';
+        } else {
+          metricsToSave[key] = value ? parseFloat(value) : 0;
+        }
+      }
     });
 
     const data = {
@@ -1840,7 +1851,7 @@ export default function DailyReportsAdminDashboard() {
                             {template.metrics.slice(0, 4).map(m => (
                               <div key={m.key}>
                                 <span className="text-muted-foreground">{m.label}:</span>{" "}
-                                <span className="font-medium">{(report.metrics as any)[m.key] || 0}</span>
+                                <span className="font-medium">{report.metrics ? (report.metrics as any)[m.key] || 0 : 0}</span>
                               </div>
                             ))}
                           </div>
@@ -2870,16 +2881,21 @@ export default function DailyReportsAdminDashboard() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {templates.find(t => t.id === selectedReport.templateId)?.metrics.map(metric => (
-                  <div key={metric.key} className="bg-muted rounded-lg p-3">
-                    <div className="text-sm text-muted-foreground">{metric.label}</div>
-                    <div className="text-2xl font-bold">
-                      {metric.type === "currency" && "$"}
-                      {(selectedReport.metrics as any)[metric.key] || 0}
-                      {metric.type === "percentage" && "%"}
-                    </div>
-                  </div>
-                ))}
+                {(allFieldAssignments[selectedReport.templateId] || [])
+                  .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map(assignment => {
+                    const metric = assignment.fieldDefinition;
+                    if (!metric) return null;
+                    return (
+                      <div key={metric.key} className="bg-muted rounded-lg p-3">
+                        <div className="text-sm text-muted-foreground">{metric.label}</div>
+                        <div className="text-2xl font-bold">
+                          {selectedReport.metrics ? (selectedReport.metrics as any)[metric.key] || 0 : 0}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
 
               {(selectedReport.customerServiceSummary || selectedReport.operationalNotes || selectedReport.staffingNotes) && (
