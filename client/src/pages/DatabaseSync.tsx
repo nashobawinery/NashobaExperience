@@ -17,6 +17,7 @@ import {
   RefreshCw, 
   ArrowRight, 
   ArrowLeft,
+  ArrowLeftRight,
   Database,
   AlertCircle,
   CheckCircle,
@@ -38,8 +39,16 @@ import {
   ClipboardList,
   Lock,
   Archive,
-  FileWarning
+  FileWarning,
+  Eye,
+  Search,
+  GitCompare,
+  Loader2
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiRequest } from "@/lib/queryClient";
 
 type DataType = 'reference' | 'user_generated' | 'configuration' | 'transactional';
 
@@ -156,15 +165,64 @@ interface MediaSyncResult {
   }>;
 }
 
+type RecordState = 'dev_newer' | 'prod_newer' | 'conflict' | 'identical' | 'dev_only' | 'prod_only';
+
+interface SyncRecord {
+  tableId: string;
+  businessKey: Record<string, any>;
+  devData: Record<string, any> | null;
+  prodData: Record<string, any> | null;
+  devUpdatedAt: Date | null;
+  prodUpdatedAt: Date | null;
+  devHash: string | null;
+  prodHash: string | null;
+  state: RecordState;
+  recommendation: 'keep_dev' | 'keep_prod' | 'manual_review';
+  selected: 'dev' | 'prod' | 'skip';
+}
+
+interface TableSyncSummary {
+  tableId: string;
+  tableName: string;
+  module: string;
+  dataType: DataType;
+  devCount: number;
+  prodCount: number;
+  devNewer: number;
+  prodNewer: number;
+  conflicts: number;
+  identical: number;
+  devOnly: number;
+  prodOnly: number;
+  records: SyncRecord[];
+}
+
+interface SyncScanResult {
+  scanId: string;
+  scannedAt: Date;
+  tables: TableSyncSummary[];
+  totalDevNewer: number;
+  totalProdNewer: number;
+  totalConflicts: number;
+  totalIdentical: number;
+}
+
 export default function DatabaseSync() {
   const { toast } = useToast();
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
-  const [syncTab, setSyncTab] = useState<'database' | 'storage'>('database');
+  const [syncTab, setSyncTab] = useState<'database' | 'storage' | 'bidirectional'>('database');
   const [syncDirection, setSyncDirection] = useState<'export' | 'import'>('export');
   const [mediaSyncResult, setMediaSyncResult] = useState<MediaSyncResult | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['tasting', 'b2b']));
+  
+  const [prodDbUrl, setProdDbUrl] = useState<string>('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [scanResult, setScanResult] = useState<SyncScanResult | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [expandedSyncTables, setExpandedSyncTables] = useState<Set<string>>(new Set());
   
   const isProduction = window.location.hostname.includes('.replit.app') && 
                        !window.location.hostname.includes('-00-');
@@ -278,7 +336,7 @@ export default function DatabaseSync() {
     if (allSelected) {
       setSelectedTables(prev => prev.filter(id => !moduleTableIds.includes(id)));
     } else {
-      setSelectedTables(prev => [...new Set([...prev, ...moduleTableIds])]);
+      setSelectedTables(prev => Array.from(new Set([...prev, ...moduleTableIds])));
     }
   };
 
@@ -442,12 +500,16 @@ export default function DatabaseSync() {
         </Badge>
       </div>
 
-      {/* Top-level tabs for Database vs Object Storage */}
-      <Tabs value={syncTab} onValueChange={(v) => setSyncTab(v as 'database' | 'storage')}>
-        <TabsList className="grid w-full grid-cols-2">
+      {/* Top-level tabs for Database vs Object Storage vs Bidirectional */}
+      <Tabs value={syncTab} onValueChange={(v) => setSyncTab(v as 'database' | 'storage' | 'bidirectional')}>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="database" className="flex items-center gap-2" data-testid="tab-database">
             <Database className="h-4 w-4" />
-            Database Tables
+            Export/Import
+          </TabsTrigger>
+          <TabsTrigger value="bidirectional" className="flex items-center gap-2" data-testid="tab-bidirectional">
+            <ArrowLeftRight className="h-4 w-4" />
+            Compare & Sync
           </TabsTrigger>
           <TabsTrigger value="storage" className="flex items-center gap-2" data-testid="tab-storage">
             <HardDrive className="h-4 w-4" />
@@ -946,6 +1008,345 @@ export default function DatabaseSync() {
               <p><strong>Sales Reps:</strong> New sales rep accounts must be created via the admin UI (passwords are not exported for security).</p>
               <p><strong>B2B Admins:</strong> Admin passwords are not exported. Existing admins are updated, new admins need password setup.</p>
               <p><strong>Order Data:</strong> Importing orders uses order numbers and customer emails as business keys for matching.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Bidirectional Sync Tab */}
+        <TabsContent value="bidirectional" className="space-y-4">
+          <Alert>
+            <GitCompare className="h-4 w-4" />
+            <AlertTitle>How Bidirectional Sync Works</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                <li><strong>Connect:</strong> Enter your production database connection string</li>
+                <li><strong>Scan:</strong> Compare records between development and production</li>
+                <li><strong>Review:</strong> See which records are newer in each environment</li>
+                <li><strong>Sync:</strong> Choose which version to keep for each difference</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          {!isConnected ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Connect to Production Database
+                </CardTitle>
+                <CardDescription>
+                  Enter your production database connection string to compare with development
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prod-db-url">Production Database URL</Label>
+                  <Textarea
+                    id="prod-db-url"
+                    placeholder="postgres://user:password@host:port/database"
+                    value={prodDbUrl}
+                    onChange={(e) => setProdDbUrl(e.target.value)}
+                    className="font-mono text-xs"
+                    data-testid="input-prod-db-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You can find this in your production environment's DATABASE_URL secret
+                  </p>
+                </div>
+                <Button 
+                  onClick={async () => {
+                    if (!prodDbUrl.trim()) {
+                      toast({
+                        title: "Missing URL",
+                        description: "Please enter a production database URL",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setIsConnecting(true);
+                    try {
+                      const response = await apiRequest('POST', '/api/admin/sync/test-connection', { prodDatabaseUrl: prodDbUrl });
+                      const data = await response.json();
+                      if (data.success) {
+                        setIsConnected(true);
+                        toast({
+                          title: "Connected!",
+                          description: "Successfully connected to production database",
+                        });
+                      } else {
+                        throw new Error(data.message || 'Connection failed');
+                      }
+                    } catch (error: any) {
+                      toast({
+                        title: "Connection Failed",
+                        description: error.message || "Could not connect to production database",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setIsConnecting(false);
+                    }
+                  }}
+                  disabled={isConnecting || !prodDbUrl.trim()}
+                  data-testid="button-connect-prod"
+                >
+                  {isConnecting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isConnecting ? 'Connecting...' : 'Test Connection'}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      Connected to Production
+                    </CardTitle>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setIsConnected(false);
+                        setScanResult(null);
+                      }}
+                      data-testid="button-disconnect"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      onClick={async () => {
+                        setIsScanning(true);
+                        try {
+                          const response = await apiRequest('POST', '/api/admin/sync/scan-bidirectional', { 
+                            prodDatabaseUrl: prodDbUrl,
+                            tableIds: selectedTables.length > 0 ? selectedTables : undefined,
+                          });
+                          const data = await response.json();
+                          setScanResult(data);
+                          toast({
+                            title: "Scan Complete",
+                            description: `Found differences in ${data.tables.filter((t: any) => t.records.length > 0).length} tables`,
+                          });
+                        } catch (error: any) {
+                          toast({
+                            title: "Scan Failed",
+                            description: error.message || "Failed to scan databases",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsScanning(false);
+                        }
+                      }}
+                      disabled={isScanning}
+                      data-testid="button-scan"
+                    >
+                      {isScanning && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {isScanning ? 'Scanning...' : 'Scan for Differences'}
+                    </Button>
+                    {scanResult && (
+                      <span className="text-sm text-muted-foreground">
+                        Last scanned: {new Date(scanResult.scannedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {scanResult && (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Scan Summary</CardTitle>
+                      <CardDescription>
+                        Overview of differences between Development and Production
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{scanResult.totalDevNewer}</div>
+                          <div className="text-sm text-muted-foreground">Dev Newer</div>
+                        </div>
+                        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold text-green-600">{scanResult.totalProdNewer}</div>
+                          <div className="text-sm text-muted-foreground">Prod Newer</div>
+                        </div>
+                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold text-yellow-600">{scanResult.totalConflicts}</div>
+                          <div className="text-sm text-muted-foreground">Conflicts</div>
+                        </div>
+                        <div className="bg-muted rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold">{scanResult.totalIdentical}</div>
+                          <div className="text-sm text-muted-foreground">Identical</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Table Comparison</CardTitle>
+                      <CardDescription>
+                        Click on a table to view record-level differences
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {scanResult.tables
+                          .filter(t => t.records.length > 0 || t.devCount !== t.prodCount)
+                          .map(table => {
+                            const hasChanges = table.records.length > 0;
+                            const isExpanded = expandedSyncTables.has(table.tableId);
+                            const ModuleIcon = MODULE_ICONS[table.module] || Database;
+                            
+                            return (
+                              <Collapsible
+                                key={table.tableId}
+                                open={isExpanded}
+                                onOpenChange={(open) => {
+                                  setExpandedSyncTables(prev => {
+                                    const next = new Set(prev);
+                                    if (open) {
+                                      next.add(table.tableId);
+                                    } else {
+                                      next.delete(table.tableId);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <CollapsibleTrigger asChild>
+                                  <div className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover-elevate">
+                                    <div className="flex items-center gap-3">
+                                      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                      <ModuleIcon className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{table.tableName}</span>
+                                      <Badge variant="outline" className="text-xs">
+                                        Dev: {table.devCount} | Prod: {table.prodCount}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {table.devNewer > 0 && (
+                                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                          {table.devNewer} dev newer
+                                        </Badge>
+                                      )}
+                                      {table.prodNewer > 0 && (
+                                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                          {table.prodNewer} prod newer
+                                        </Badge>
+                                      )}
+                                      {table.conflicts > 0 && (
+                                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                          {table.conflicts} conflicts
+                                        </Badge>
+                                      )}
+                                      {table.devOnly > 0 && (
+                                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                          {table.devOnly} dev only
+                                        </Badge>
+                                      )}
+                                      {table.prodOnly > 0 && (
+                                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                          {table.prodOnly} prod only
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  {table.records.length > 0 ? (
+                                    <div className="mt-2 ml-8 border rounded-lg overflow-hidden">
+                                      <ScrollArea className="max-h-[400px]">
+                                        <table className="w-full text-sm">
+                                          <thead className="bg-muted sticky top-0">
+                                            <tr>
+                                              <th className="text-left p-2">Business Key</th>
+                                              <th className="text-left p-2">State</th>
+                                              <th className="text-left p-2">Dev Updated</th>
+                                              <th className="text-left p-2">Prod Updated</th>
+                                              <th className="text-left p-2">Recommendation</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {table.records.slice(0, 50).map((record, idx) => (
+                                              <tr key={idx} className="border-t">
+                                                <td className="p-2 font-mono text-xs">
+                                                  {Object.entries(record.businessKey)
+                                                    .map(([k, v]) => `${k}: ${v}`)
+                                                    .join(', ')}
+                                                </td>
+                                                <td className="p-2">
+                                                  <Badge variant={
+                                                    record.state === 'dev_newer' ? 'default' :
+                                                    record.state === 'prod_newer' ? 'secondary' :
+                                                    record.state === 'conflict' ? 'destructive' :
+                                                    record.state === 'dev_only' ? 'default' :
+                                                    record.state === 'prod_only' ? 'secondary' :
+                                                    'outline'
+                                                  }>
+                                                    {record.state.replace('_', ' ')}
+                                                  </Badge>
+                                                </td>
+                                                <td className="p-2 text-xs text-muted-foreground">
+                                                  {record.devUpdatedAt ? new Date(record.devUpdatedAt).toLocaleString() : '-'}
+                                                </td>
+                                                <td className="p-2 text-xs text-muted-foreground">
+                                                  {record.prodUpdatedAt ? new Date(record.prodUpdatedAt).toLocaleString() : '-'}
+                                                </td>
+                                                <td className="p-2">
+                                                  <Badge variant="outline" className="text-xs">
+                                                    {record.recommendation.replace('_', ' ')}
+                                                  </Badge>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                        {table.records.length > 50 && (
+                                          <div className="p-2 text-center text-sm text-muted-foreground bg-muted">
+                                            Showing first 50 of {table.records.length} records
+                                          </div>
+                                        )}
+                                      </ScrollArea>
+                                    </div>
+                                  ) : (
+                                    <div className="mt-2 ml-8 p-4 border rounded-lg text-center text-muted-foreground">
+                                      No differences found in this table
+                                    </div>
+                                  )}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            );
+                          })}
+                        {scanResult.tables.filter(t => t.records.length > 0 || t.devCount !== t.prodCount).length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                            <p className="text-lg font-medium">All tables are in sync!</p>
+                            <p className="text-sm">No differences found between development and production</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </>
+          )}
+
+          <Card className="border-dashed">
+            <CardHeader>
+              <CardTitle className="text-sm">How It Works</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              <p><strong>Comparison Method:</strong> Records are matched using business keys (like SKU, email, etc.) and compared using content hashes and timestamps.</p>
+              <p><strong>Safe Sync:</strong> Reference data (products, categories) can be synced freely. User-generated data is protected in production.</p>
+              <p><strong>Conflict Resolution:</strong> When the same record is modified in both environments, you choose which version to keep.</p>
             </CardContent>
           </Card>
         </TabsContent>

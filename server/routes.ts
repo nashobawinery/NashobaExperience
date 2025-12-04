@@ -1129,6 +1129,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ BIDIRECTIONAL SYNC API ============
+  
+  // Test connection to production database
+  app.post("/api/admin/sync/test-connection", isAdmin, async (req, res) => {
+    try {
+      const { prodDatabaseUrl } = req.body;
+      
+      if (!prodDatabaseUrl) {
+        return res.status(400).json({ message: "Production database URL is required" });
+      }
+      
+      const { connectToProductionDatabase } = await import("./bidirectionalSync");
+      const connected = await connectToProductionDatabase(prodDatabaseUrl);
+      
+      if (connected) {
+        res.json({ success: true, message: "Successfully connected to production database" });
+      } else {
+        res.status(400).json({ success: false, message: "Failed to connect to production database" });
+      }
+    } catch (error: any) {
+      console.error("Error testing connection:", error);
+      res.status(500).json({ message: error.message || "Connection test failed" });
+    }
+  });
+  
+  // Scan for differences between dev and prod (local dev scan only)
+  app.get("/api/admin/sync/scan-dev", isAdmin, async (req, res) => {
+    try {
+      const tableIds = req.query.tableIds ? (req.query.tableIds as string).split(',') : undefined;
+      
+      const { scanForDifferences } = await import("./bidirectionalSync");
+      const result = await scanForDifferences(tableIds);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error scanning dev database:", error);
+      res.status(500).json({ message: error.message || "Scan failed" });
+    }
+  });
+  
+  // Scan bidirectionally comparing dev and prod databases
+  app.post("/api/admin/sync/scan-bidirectional", isAdmin, async (req, res) => {
+    try {
+      const { prodDatabaseUrl, tableIds } = req.body;
+      
+      if (!prodDatabaseUrl) {
+        return res.status(400).json({ message: "Production database URL is required" });
+      }
+      
+      const { scanBidirectional } = await import("./bidirectionalSync");
+      const result = await scanBidirectional({
+        prodDatabaseUrl,
+        direction: 'bidirectional',
+        tableIds,
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error scanning databases:", error);
+      res.status(500).json({ message: error.message || "Bidirectional scan failed" });
+    }
+  });
+  
+  // Get table preview with comparison data
+  app.get("/api/admin/sync/table-preview/:tableId", isAdmin, async (req, res) => {
+    try {
+      const { tableId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const { getTablePreview } = await import("./bidirectionalSync");
+      const result = await getTablePreview(tableId, limit);
+      
+      if (!result.tableConfig) {
+        return res.status(404).json({ message: "Table not found in sync registry" });
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error getting table preview:", error);
+      res.status(500).json({ message: error.message || "Failed to get table preview" });
+    }
+  });
+  
+  // Get sync summary from a scan result
+  app.post("/api/admin/sync/summary", isAdmin, async (req, res) => {
+    try {
+      const { scanResult } = req.body;
+      
+      if (!scanResult) {
+        return res.status(400).json({ message: "Scan result is required" });
+      }
+      
+      const { getSyncSummary } = await import("./bidirectionalSync");
+      const summary = getSyncSummary(scanResult);
+      
+      res.json(summary);
+    } catch (error: any) {
+      console.error("Error getting sync summary:", error);
+      res.status(500).json({ message: error.message || "Failed to get sync summary" });
+    }
+  });
+  
+  // Apply sync selections (dry run or actual)
+  app.post("/api/admin/sync/apply", isAdmin, async (req, res) => {
+    try {
+      const { prodDatabaseUrl, selections, dryRun = true } = req.body;
+      
+      if (!prodDatabaseUrl) {
+        return res.status(400).json({ message: "Production database URL is required" });
+      }
+      
+      if (!selections || !Array.isArray(selections)) {
+        return res.status(400).json({ message: "Selections array is required" });
+      }
+      
+      const { applySync } = await import("./bidirectionalSync");
+      const result = await applySync({
+        prodDatabaseUrl,
+        direction: 'bidirectional',
+        dryRun,
+      }, selections);
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error applying sync:", error);
+      res.status(500).json({ message: error.message || "Failed to apply sync" });
+    }
+  });
+
   // Database Analysis Endpoint - Shows complete export analysis
   app.get("/api/admin/data/analyze", async (req, res) => {
     try {
