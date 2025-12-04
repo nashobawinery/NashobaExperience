@@ -57,7 +57,8 @@ import {
   ArrowDown,
   FileSpreadsheet,
   X,
-  RotateCcw
+  RotateCcw,
+  Save
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -999,10 +1000,29 @@ export default function DailyReportsAdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
       setIsReportDialogOpen(false);
       resetReportForm();
-      toast({ title: "Report created successfully" });
+      toast({ title: "Report saved as draft" });
     },
     onError: (error: any) => {
       toast({ title: "Failed to create report", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const createAndSubmitReportMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/daily-reports', data);
+      const report = await res.json();
+      await apiRequest('POST', `/api/daily-reports/${report.id}/submit`);
+      return report;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      setIsReportDialogOpen(false);
+      resetReportForm();
+      toast({ title: "Report saved and submitted", description: "The report is now awaiting manager review." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to save and submit report", description: error.message, variant: "destructive" });
     }
   });
 
@@ -1015,10 +1035,28 @@ export default function DailyReportsAdminDashboard() {
       setIsReportDialogOpen(false);
       setEditingReport(null);
       resetReportForm();
-      toast({ title: "Report updated successfully" });
+      toast({ title: "Report saved" });
     },
     onError: (error: any) => {
       toast({ title: "Failed to update report", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateAndSubmitReportMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      await apiRequest('PATCH', `/api/daily-reports/${id}`, data);
+      await apiRequest('POST', `/api/daily-reports/${id}/submit`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      setIsReportDialogOpen(false);
+      setEditingReport(null);
+      resetReportForm();
+      toast({ title: "Report saved and submitted", description: "The report is now awaiting manager review." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to save and submit report", description: error.message, variant: "destructive" });
     }
   });
 
@@ -1487,14 +1525,12 @@ export default function DailyReportsAdminDashboard() {
     setIsViewReportDialogOpen(true);
   };
 
-  const handleSaveReport = () => {
+  const getReportData = () => {
     const template = templates.find(t => t.department === reportFormData.department);
     if (!template) {
-      toast({ title: "Please select a department", variant: "destructive" });
-      return;
+      return null;
     }
 
-    // Use enabled fields from junction table assignments
     const enabledFields = (allFieldAssignments[template.id] || [])
       .filter(a => a.isEnabled && a.fieldDefinition?.isActive);
 
@@ -1511,7 +1547,7 @@ export default function DailyReportsAdminDashboard() {
       }
     });
 
-    const data = {
+    return {
       templateId: template.id,
       department: reportFormData.department,
       reportDate: reportFormData.reportDate,
@@ -1520,11 +1556,33 @@ export default function DailyReportsAdminDashboard() {
       operationalNotes: reportFormData.operationalNotes || null,
       staffingNotes: reportFormData.staffingNotes || null
     };
+  };
+
+  const handleSaveReport = () => {
+    const data = getReportData();
+    if (!data) {
+      toast({ title: "Please select a department", variant: "destructive" });
+      return;
+    }
 
     if (editingReport) {
       updateReportMutation.mutate({ id: editingReport.id, data });
     } else {
       createReportMutation.mutate(data);
+    }
+  };
+
+  const handleSaveAndSubmitReport = () => {
+    const data = getReportData();
+    if (!data) {
+      toast({ title: "Please select a department", variant: "destructive" });
+      return;
+    }
+
+    if (editingReport) {
+      updateAndSubmitReportMutation.mutate({ id: editingReport.id, data });
+    } else {
+      createAndSubmitReportMutation.mutate(data);
     }
   };
 
@@ -2882,16 +2940,26 @@ export default function DailyReportsAdminDashboard() {
               <X className="h-4 w-4 mr-2" />
               Clear All Fields
             </Button>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap justify-end">
               <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
                 Cancel
               </Button>
               <Button 
+                variant="secondary"
                 onClick={handleSaveReport}
-                disabled={!reportFormData.department || createReportMutation.isPending || updateReportMutation.isPending}
+                disabled={!reportFormData.department || createReportMutation.isPending || updateReportMutation.isPending || createAndSubmitReportMutation.isPending || updateAndSubmitReportMutation.isPending}
                 data-testid="button-save-report"
               >
-                {createReportMutation.isPending || updateReportMutation.isPending ? "Saving..." : "Save Report"}
+                <Save className="h-4 w-4 mr-2" />
+                {createReportMutation.isPending || updateReportMutation.isPending ? "Saving..." : "Save as Draft"}
+              </Button>
+              <Button 
+                onClick={handleSaveAndSubmitReport}
+                disabled={!reportFormData.department || createReportMutation.isPending || updateReportMutation.isPending || createAndSubmitReportMutation.isPending || updateAndSubmitReportMutation.isPending}
+                data-testid="button-save-and-submit-report"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {createAndSubmitReportMutation.isPending || updateAndSubmitReportMutation.isPending ? "Submitting..." : "Save & Submit"}
               </Button>
             </div>
           </DialogFooter>

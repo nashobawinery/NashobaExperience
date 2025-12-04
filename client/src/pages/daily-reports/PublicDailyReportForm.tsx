@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight } from "lucide-react";
+import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight, Save, Send } from "lucide-react";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 
 interface Procedure {
@@ -86,6 +86,7 @@ export default function PublicDailyReportForm() {
     followUpNotes: ""
   });
   const [submitted, setSubmitted] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   // Initialize procedure completions when form data loads
   useEffect(() => {
@@ -195,23 +196,26 @@ export default function PublicDailyReportForm() {
   const requiredProcedures = formData?.procedures?.filter(p => p.isRequired) || [];
   const requiredCompleted = requiredProcedures.every(p => procedureCompletions[p.id] === true);
 
+  const getReportPayload = () => {
+    const codeToSubmit = formData?.code || validatedCode;
+    return {
+      code: codeToSubmit,
+      performanceSummary: performanceSummary || null,
+      overallRating,
+      hasCustomerConcerns,
+      customerConcernsSummary: hasCustomerConcerns ? customerConcernsSummary : null,
+      metricsData: Object.keys(metricsData).length > 0 ? metricsData : null,
+      incidents: incidents.length > 0 ? incidents : null,
+      procedureCompletions: Object.keys(procedureCompletions).length > 0 ? procedureCompletions : null
+    };
+  };
+
   const submitMutation = useMutation({
     mutationFn: async () => {
-      // Use formData.code for multi-department scenarios (the department-specific code)
-      const codeToSubmit = formData?.code || validatedCode;
       const response = await fetch("/api/public/daily-reports/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: codeToSubmit,
-          performanceSummary: performanceSummary || null,
-          overallRating,
-          hasCustomerConcerns,
-          customerConcernsSummary: hasCustomerConcerns ? customerConcernsSummary : null,
-          metricsData: Object.keys(metricsData).length > 0 ? metricsData : null,
-          incidents: incidents.length > 0 ? incidents : null,
-          procedureCompletions: Object.keys(procedureCompletions).length > 0 ? procedureCompletions : null
-        })
+        body: JSON.stringify(getReportPayload())
       });
       if (!response.ok) {
         const error = await response.json();
@@ -222,6 +226,28 @@ export default function PublicDailyReportForm() {
     onSuccess: () => {
       setSubmitted(true);
       toast({ title: "Report submitted successfully!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message, variant: "destructive" });
+    }
+  });
+
+  const saveDraftMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/public/daily-reports/save-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(getReportPayload())
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to save draft");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setDraftSaved(true);
+      toast({ title: "Draft saved successfully!", description: "You can come back later to finish and submit." });
     },
     onError: (error: Error) => {
       toast({ title: error.message, variant: "destructive" });
@@ -248,49 +274,55 @@ export default function PublicDailyReportForm() {
     setIncidents(incidents.filter((_, i) => i !== index));
   };
 
-  if (submitted) {
+  const resetForm = () => {
+    setSubmitted(false);
+    setDraftSaved(false);
+    setPerformanceSummary("");
+    setOverallRating(null);
+    setHasCustomerConcerns(false);
+    setCustomerConcernsSummary("");
+    setMetricsData({});
+    setProcedureCompletions({});
+    setIncidents([]);
+  };
+
+  if (submitted || draftSaved) {
     const hasMultipleDepartments = validationData?.multipleDepartments && validationData.availableDepartments;
+    const isDraft = draftSaved && !submitted;
     
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-8 pb-8">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <div className={`w-16 h-16 ${isDraft ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-green-100 dark:bg-green-900/30'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+              {isDraft ? (
+                <Save className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              ) : (
+                <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
+              )}
             </div>
-            <h2 className="text-2xl font-semibold mb-2">Report Submitted!</h2>
+            <h2 className="text-2xl font-semibold mb-2">
+              {isDraft ? "Draft Saved!" : "Report Submitted!"}
+            </h2>
             <p className="text-muted-foreground mb-6">
-              Thank you for submitting your daily report for {formData?.departmentLabel}. Your manager will be notified.
+              {isDraft 
+                ? `Your draft report for ${formData?.departmentLabel} has been saved. You can complete and submit it later from the admin dashboard.`
+                : `Thank you for submitting your daily report for ${formData?.departmentLabel}. Your manager will be notified.`
+              }
             </p>
             <div className="space-y-3">
               <Button 
-                onClick={() => {
-                  setSubmitted(false);
-                  setPerformanceSummary("");
-                  setOverallRating(null);
-                  setHasCustomerConcerns(false);
-                  setCustomerConcernsSummary("");
-                  setMetricsData({});
-                  setProcedureCompletions({});
-                  setIncidents([]);
-                }}
+                onClick={resetForm}
                 className="w-full"
                 data-testid="button-submit-another"
               >
-                Submit Another Report for {formData?.departmentLabel}
+                {isDraft ? "Start a New Report" : `Submit Another Report for ${formData?.departmentLabel}`}
               </Button>
               {hasMultipleDepartments && (
                 <Button 
                   variant="outline"
                   onClick={() => {
-                    setSubmitted(false);
-                    setPerformanceSummary("");
-                    setOverallRating(null);
-                    setHasCustomerConcerns(false);
-                    setCustomerConcernsSummary("");
-                    setMetricsData({});
-                    setProcedureCompletions({});
-                    setIncidents([]);
+                    resetForm();
                     setSelectedDepartment(null);
                     setFormData(null);
                   }}
@@ -926,25 +958,47 @@ export default function PublicDailyReportForm() {
           </CardContent>
         </Card>
 
-        <Button 
-          className="w-full" 
-          size="lg"
-          onClick={() => submitMutation.mutate()}
-          disabled={submitMutation.isPending}
-          data-testid="button-submit-report"
-        >
-          {submitMutation.isPending ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Submitting...
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              Submit Report
-            </>
-          )}
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button 
+            variant="secondary"
+            className="flex-1" 
+            size="lg"
+            onClick={() => saveDraftMutation.mutate()}
+            disabled={saveDraftMutation.isPending || submitMutation.isPending}
+            data-testid="button-save-draft"
+          >
+            {saveDraftMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save as Draft
+              </>
+            )}
+          </Button>
+          <Button 
+            className="flex-1" 
+            size="lg"
+            onClick={() => submitMutation.mutate()}
+            disabled={submitMutation.isPending || saveDraftMutation.isPending}
+            data-testid="button-submit-report"
+          >
+            {submitMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Submit Report
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

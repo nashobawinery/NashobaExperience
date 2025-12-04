@@ -7325,6 +7325,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save a draft report from public form (without submitting)
+  app.post('/api/public/daily-reports/save-draft', async (req, res) => {
+    try {
+      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
+
+      // Validate access code
+      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      if (!accessCode || !accessCode.isActive) {
+        return res.status(403).json({ message: 'Invalid or inactive access code' });
+      }
+
+      // Get procedure templates to calculate totals
+      const procedures = await storage.getDailyProcedureTemplates(accessCode.department, true);
+      const proceduresTotalCount = procedures.length;
+      let proceduresCompletedCount = 0;
+
+      // Count completed procedures
+      if (procedureCompletions && typeof procedureCompletions === 'object') {
+        proceduresCompletedCount = Object.values(procedureCompletions).filter(Boolean).length;
+      }
+
+      // NO validation of required procedures for drafts - allow saving incomplete work
+
+      // Create the report as draft
+      const reportDateValue = reportDate ? new Date(reportDate + 'T12:00:00Z') : new Date();
+      
+      const report = await storage.createDailyReport({
+        department: accessCode.department,
+        reportDate: reportDateValue,
+        status: 'draft',
+        performanceSummary: performanceSummary || null,
+        overallRating: overallRating || null,
+        hasCustomerConcerns: hasCustomerConcerns || false,
+        customerConcernsSummary: customerConcernsSummary || null,
+        metricsData: metricsData || null,
+        proceduresCompletedCount,
+        proceduresTotalCount,
+        proceduresCompleted: proceduresCompletedCount === proceduresTotalCount && proceduresTotalCount > 0,
+        submittedById: `access_code_${accessCode.id}`,
+        submittedByName: accessCode.staffName
+        // Note: No submittedAt for drafts
+      });
+
+      // Save procedure completions
+      if (procedureCompletions && typeof procedureCompletions === 'object') {
+        for (const [procedureId, completed] of Object.entries(procedureCompletions)) {
+          await storage.upsertDailyProcedureCompletion({
+            reportId: report.id,
+            procedureTemplateId: procedureId,
+            completed: completed === true,
+            completedById: `access_code_${accessCode.id}`,
+            completedByName: accessCode.staffName
+          });
+        }
+      }
+
+      // Create incidents if any
+      if (incidents && Array.isArray(incidents)) {
+        for (const incident of incidents) {
+          await storage.createDailyReportIncident({
+            reportId: report.id,
+            ...incident
+          });
+        }
+      }
+
+      // Update last used
+      await storage.updateDailyReportAccessCodeLastUsed(code);
+
+      // NO email notifications for drafts
+
+      res.json({ success: true, reportId: report.id, status: 'draft' });
+    } catch (error) {
+      console.error('Error saving draft report:', error);
+      res.status(500).json({ message: 'Failed to save draft' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
