@@ -451,7 +451,7 @@ function ReportFieldsTab() {
                         <Badge variant="secondary">Inactive</Badge>
                       )}
                     </div>
-                    <div className="col-span-2 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="col-span-2 flex justify-end gap-1">
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -464,11 +464,11 @@ function ReportFieldsTab() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8 w-8"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => handleDeleteField(field)}
                         data-testid={`button-delete-field-${field.key}`}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
