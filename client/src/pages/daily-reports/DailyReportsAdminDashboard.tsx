@@ -793,7 +793,7 @@ export default function DailyReportsAdminDashboard() {
 
   const { data: allFieldAssignments = {} } = useQuery<Record<string, DepartmentFieldAssignment[]>>({
     queryKey: ['/api/daily-reports/field-assignments'],
-    enabled: activeTab === 'departments'
+    enabled: activeTab === 'departments' || isReportDialogOpen
   });
 
   const createEmailRecipientMutation = useMutation({
@@ -2722,24 +2722,37 @@ export default function DailyReportsAdminDashboard() {
                 <div className="border-t pt-4">
                   <Label className="text-base font-medium">Daily Metrics</Label>
                   <div className="grid grid-cols-2 gap-4 mt-3">
-                    {selectedTemplate.metrics.map(metric => (
-                      <div key={metric.key} className="space-y-2">
-                        <Label htmlFor={`metric-${metric.key}`}>{metric.label}</Label>
-                        <Input
-                          id={`metric-${metric.key}`}
-                          type="number"
-                          step={metric.type === "currency" || metric.type === "percentage" ? "0.01" : "1"}
-                          value={reportFormData.metrics[metric.key] || ""}
-                          onChange={(e) => setReportFormData({
-                            ...reportFormData,
-                            metrics: { ...reportFormData.metrics, [metric.key]: e.target.value }
-                          })}
-                          placeholder={metric.type === "currency" ? "$0.00" : "0"}
-                          data-testid={`input-metric-${metric.key}`}
-                        />
-                      </div>
-                    ))}
+                    {/* Use enabled fields from junction table assignments */}
+                    {(allFieldAssignments[selectedTemplate.id] || [])
+                      .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map(assignment => {
+                        const metric = assignment.fieldDefinition;
+                        if (!metric) return null;
+                        return (
+                          <div key={metric.key} className="space-y-2">
+                            <Label htmlFor={`metric-${metric.key}`}>{metric.label}</Label>
+                            <Input
+                              id={`metric-${metric.key}`}
+                              type={metric.type === "text" ? "text" : "number"}
+                              step="1"
+                              value={reportFormData.metrics[metric.key] || ""}
+                              onChange={(e) => setReportFormData({
+                                ...reportFormData,
+                                metrics: { ...reportFormData.metrics, [metric.key]: e.target.value }
+                              })}
+                              placeholder={metric.type === "text" ? `Enter ${metric.label.toLowerCase()}...` : "0"}
+                              data-testid={`input-metric-${metric.key}`}
+                            />
+                          </div>
+                        );
+                      })}
                   </div>
+                  {(allFieldAssignments[selectedTemplate.id] || []).filter(a => a.isEnabled).length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      No fields configured for this department. Configure fields in the Departments tab.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
