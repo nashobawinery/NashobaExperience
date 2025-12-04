@@ -6584,11 +6584,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.claims?.sub;
       const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
       
-      const data = insertDailyReportSchema.parse({
+      // Convert reportDate string to Date object if needed
+      const bodyData = {
         ...req.body,
         submittedById: userId,
-        submittedByName: userName
-      });
+        submittedByName: userName,
+        reportDate: req.body.reportDate ? new Date(req.body.reportDate) : new Date()
+      };
+      
+      const data = insertDailyReportSchema.parse(bodyData);
       
       const report = await storage.createDailyReport(data);
       
@@ -6663,7 +6667,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const data = insertDailyReportSchema.partial().parse(req.body);
+      
+      // Convert reportDate string to Date object if provided
+      const bodyData = { ...req.body };
+      if (bodyData.reportDate && typeof bodyData.reportDate === 'string') {
+        bodyData.reportDate = new Date(bodyData.reportDate);
+      }
+      
+      const data = insertDailyReportSchema.partial().parse(bodyData);
       
       // If submitting, update status
       if (req.body.submit === true) {
