@@ -43,6 +43,17 @@ import {
   insertDailyProcedureCompletionSchema,
   insertDailyReportEmailRecipientSchema,
   insertDailyReportFieldDefinitionSchema,
+  insertDepartmentFieldAssignmentSchema,
+  insertComplianceTaskHistorySchema,
+  insertComplianceReminderSchema,
+  insertComplianceAttachmentSchema,
+  insertCharacteristicSchema,
+  insertProductCharacteristicSchema,
+  insertProductMediaSchema,
+  insertSharedLocationSchema,
+  insertSharedEquipmentSchema,
+  insertSharedDocumentSchema,
+  insertGroupMembershipSchema,
 } from '@shared/schema';
 
 export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports';
@@ -205,6 +216,44 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['scoreThreshold', 'rewardType'],
     schema: insertTriviaAchievementSchema,
     exportFields: ['scoreThreshold', 'rewardType', 'rewardValue', 'rewardLabel', 'message', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'characteristics',
+    name: 'Product Characteristics',
+    description: 'Tasting characteristic definitions',
+    module: 'tasting',
+    sheetName: 'Characteristics',
+    businessKey: ['name', 'category'],
+    schema: insertCharacteristicSchema,
+    exportFields: ['name', 'category', 'description', 'color', 'icon', 'isActive', 'sortOrder'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'productCharacteristics',
+    name: 'Product Characteristic Assignments',
+    description: 'Product-characteristic relationships',
+    module: 'tasting',
+    sheetName: 'ProductCharacteristics',
+    businessKey: [],
+    parentTables: ['products', 'characteristics'],
+    schema: insertProductCharacteristicSchema,
+    exportFields: ['intensity'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'productMedia',
+    name: 'Product Media',
+    description: 'Product images and media files',
+    module: 'tasting',
+    sheetName: 'ProductMedia',
+    businessKey: ['objectPath'],
+    parentTables: ['products'],
+    schema: insertProductMediaSchema,
+    exportFields: ['role', 'objectPath', 'originalFilename', 'mimeType', 'fileSize', 'altText', 'caption', 'sortOrder', 'isActive'],
     dataType: 'reference',
     supportsBackup: true,
   },
@@ -472,6 +521,48 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     supportsBackup: true,
     productionWarning: 'Compliance tasks may have production completion dates and costs',
   },
+  {
+    id: 'complianceTaskHistory',
+    name: 'Compliance Task History',
+    description: 'Audit history for compliance tasks',
+    module: 'compliance',
+    sheetName: 'ComplianceTaskHistory',
+    businessKey: [],
+    parentTables: ['complianceTasks'],
+    schema: insertComplianceTaskHistorySchema,
+    exportFields: ['action', 'previousStatus', 'newStatus', 'notes', 'cost', 'performedBy'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
+  },
+  {
+    id: 'complianceReminders',
+    name: 'Compliance Reminders',
+    description: 'Email reminders for compliance tasks',
+    module: 'compliance',
+    sheetName: 'ComplianceReminders',
+    businessKey: [],
+    parentTables: ['complianceTasks'],
+    schema: insertComplianceReminderSchema,
+    exportFields: ['reminderType', 'scheduledFor', 'sentAt', 'email'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
+  },
+  {
+    id: 'complianceAttachments',
+    name: 'Compliance Attachments',
+    description: 'File attachments for compliance tasks',
+    module: 'compliance',
+    sheetName: 'ComplianceAttachments',
+    businessKey: [],
+    parentTables: ['complianceTasks'],
+    schema: insertComplianceAttachmentSchema,
+    exportFields: ['filename', 'mimeType', 'fileSize', 'objectPath', 'description', 'uploadedBy'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    excludeFromSync: true,
+  },
 
   // ============ RBAC MODULE ============
   {
@@ -529,6 +620,20 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     supportsBackup: true,
   },
   {
+    id: 'groupMemberships',
+    name: 'Group Memberships',
+    description: 'User assignments to groups',
+    module: 'rbac',
+    sheetName: 'GroupMemberships',
+    businessKey: ['userEmail', 'groupName'],
+    parentTables: ['userGroups', 'platformUsers'],
+    schema: insertGroupMembershipSchema,
+    exportFields: ['userEmail', 'groupName'],
+    dataType: 'user_generated',
+    supportsBackup: true,
+    productionWarning: 'Group memberships affect user access - verify before syncing',
+  },
+  {
     id: 'moduleFeatures',
     name: 'Module Features',
     description: 'Feature definitions for modules',
@@ -552,6 +657,43 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['moduleKey'],
     schema: insertPlatformModuleSchema,
     exportFields: ['moduleKey', 'moduleName', 'description', 'icon', 'route', 'sortOrder', 'isActive', 'progress', 'notes'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'sharedLocations',
+    name: 'Shared Locations',
+    description: 'Business locations shared across modules',
+    module: 'platform',
+    sheetName: 'SharedLocations',
+    businessKey: ['name'],
+    schema: insertSharedLocationSchema,
+    exportFields: ['name', 'type', 'address', 'city', 'state', 'zipCode', 'phone', 'email', 'coordinates', 'isActive', 'notes'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'sharedEquipment',
+    name: 'Shared Equipment',
+    description: 'Equipment registry shared across modules',
+    module: 'platform',
+    sheetName: 'SharedEquipment',
+    businessKey: ['serialNumber'],
+    parentTables: ['sharedLocations'],
+    schema: insertSharedEquipmentSchema,
+    exportFields: ['name', 'serialNumber', 'manufacturer', 'model', 'category', 'purchaseDate', 'warrantyExpiration', 'status', 'notes'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'sharedDocuments',
+    name: 'Shared Documents',
+    description: 'Document storage shared across modules',
+    module: 'platform',
+    sheetName: 'SharedDocuments',
+    businessKey: ['title', 'documentType'],
+    schema: insertSharedDocumentSchema,
+    exportFields: ['title', 'description', 'documentType', 'objectPath', 'version', 'status', 'effectiveDate', 'expirationDate', 'tags'],
     dataType: 'reference',
     supportsBackup: true,
   },
@@ -659,6 +801,19 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['fieldKey'],
     schema: insertDailyReportFieldDefinitionSchema,
     exportFields: ['fieldKey', 'fieldLabel', 'fieldType', 'description', 'placeholder', 'options', 'minValue', 'maxValue', 'validationRules', 'defaultValue', 'sortOrder', 'isSystemField', 'isActive'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'departmentFieldAssignments',
+    name: 'Department Field Assignments',
+    description: 'Which fields are enabled for each department',
+    module: 'daily_reports',
+    sheetName: 'DepartmentFieldAssignments',
+    businessKey: ['department', 'fieldKey'],
+    parentTables: ['dailyReportTemplates', 'dailyReportFieldDefinitions'],
+    schema: insertDepartmentFieldAssignmentSchema,
+    exportFields: ['department', 'fieldKey', 'isRequired', 'sortOrder', 'customLabel'],
     dataType: 'reference',
     supportsBackup: true,
   },
@@ -800,4 +955,85 @@ export function getProductionProtectedTables(): SyncTableConfig[] {
   return SYNC_TABLES.filter(t => 
     t.dataType === 'user_generated' || t.dataType === 'transactional'
   );
+}
+
+// ============ SYNC REGISTRY VALIDATION ============
+// Tables that should NOT be in sync registry (session/transient data)
+const EXCLUDED_TABLES = new Set([
+  'sessions',           // Authentication sessions
+  'b2bSessions',        // B2B customer sessions
+  'guestSessions',      // Guest sessions
+  'passwordResetTokens', // Password reset tokens
+  'b2bPasswordResetTokens', // B2B password resets
+  'users',              // Replit auth users (managed by OIDC)
+  'cartItems',          // Shopping cart items (transient)
+  'cartDiscounts',      // Cart discounts (transient)
+  'favorites',          // Guest favorites (transient)
+  'viewHistory',        // View history (transient)
+  'triviaAttempts',     // Trivia attempts (per session)
+  'triviaScores',       // Trivia scores (per session)
+  'achievementRedemptions', // Redemptions (per session)
+  'surveys',            // Guest surveys (transient)
+  'improvementNotes',   // Internal notes
+  'productNotes',       // Internal product notes
+  'platformAuditLog',   // Audit log (transactional, auto-generated)
+  'platformUserModuleAccess', // Deprecated/auto-generated
+  'userPermissionOverrides',  // Per-user overrides (special case)
+  'b2bRolePermissions', // B2B role permissions (separate auth system)
+  'b2bCommissions',     // Commission tracking (transactional)
+  'b2bEmailTemplates',  // Email templates (not yet ready for sync)
+  'b2bEmailAutomationLogs', // Email logs (transactional)
+  // LMS table aliases (schema uses lms prefix, syncRegistry uses short names)
+  'lmsCategories',      // -> courseCategories
+  'lmsCourses',         // -> courses
+  'lmsLessons',         // -> lessons
+  'lmsQuizQuestions',   // -> quizQuestions
+  'lmsCertificates',    // -> certificates
+  'lmsEnrollments',     // -> enrollments
+  'lmsLessonProgress',  // -> lessonProgress
+  'lmsQuizAttempts',    // -> quizAttempts
+]);
+
+export interface SyncRegistryValidation {
+  isValid: boolean;
+  registeredTables: number;
+  missingTables: string[];
+  excludedTables: string[];
+}
+
+export function validateSyncRegistry(schemaTables: string[]): SyncRegistryValidation {
+  const registeredTableIds = new Set(SYNC_TABLES.map(t => t.id));
+  const missingTables: string[] = [];
+  const excludedTables: string[] = [];
+  
+  for (const tableName of schemaTables) {
+    if (EXCLUDED_TABLES.has(tableName)) {
+      excludedTables.push(tableName);
+      continue;
+    }
+    
+    // Check if table is registered (using camelCase table name as ID)
+    if (!registeredTableIds.has(tableName)) {
+      missingTables.push(tableName);
+    }
+  }
+  
+  return {
+    isValid: missingTables.length === 0,
+    registeredTables: SYNC_TABLES.length,
+    missingTables,
+    excludedTables,
+  };
+}
+
+export function logSyncRegistryStatus(validation: SyncRegistryValidation): void {
+  console.log(`[Sync Registry] ${validation.registeredTables} tables registered`);
+  
+  if (validation.missingTables.length > 0) {
+    console.warn(`[Sync Registry] ⚠️  WARNING: ${validation.missingTables.length} tables NOT in sync registry:`);
+    validation.missingTables.forEach(t => console.warn(`  - ${t}`));
+    console.warn(`[Sync Registry] Add these tables to server/syncRegistry.ts to enable syncing`);
+  } else {
+    console.log(`[Sync Registry] ✓ All syncable tables registered`);
+  }
 }

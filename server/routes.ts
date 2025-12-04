@@ -22,6 +22,7 @@ import {
   type UserPermissions,
   type PermissionLevel
 } from "./rbac";
+import { validateSyncRegistry, logSyncRegistryStatus } from "./syncRegistry";
 import { triviaAttempts, achievementRedemptions } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
@@ -78,6 +79,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Seed Daily Reports department templates
   await seedDailyReportTemplates();
+
+  // Validate sync registry against schema tables
+  // Note: syncRegistry uses short IDs (e.g., 'courses' instead of 'lmsCourses')
+  const schemaTables = [
+    'products', 'filterOptions', 'triviaQuestions', 'slideshowImages', 'appSettings',
+    'mediaLibrary', 'whitelistedEmails', 'commercials', 'videos', 'triviaAchievements',
+    'characteristics', 'productCharacteristics', 'productMedia',
+    'tierPricing', 'salesReps', 'b2bCustomers', 'b2bCustomerLocations', 'b2bCustomerManualProducts',
+    'b2bOrders', 'b2bOrderItems', 'b2bSlideshowSlides', 'b2bAdmins', 'b2bSettings',
+    'courseCategories', 'courses', 'lessons', 'quizQuestions', 'certificates',
+    'enrollments', 'lessonProgress', 'quizAttempts',
+    'complianceTasks', 'complianceTaskHistory', 'complianceReminders', 'complianceAttachments',
+    'userGroups', 'platformUsers', 'groupModuleAccess', 'groupFeaturePermissions', 'groupMemberships', 'moduleFeatures',
+    'platformModules', 'sharedLocations', 'sharedEquipment', 'sharedDocuments',
+    'dailyReportTemplates', 'dailyReportAccessCodes', 'dailyReports', 'dailyReportIncidents',
+    'dailyProcedureTemplates', 'dailyProcedureCompletions', 'dailyReportEmailRecipients',
+    'dailyReportFieldDefinitions', 'departmentFieldAssignments',
+    // Excluded tables (session/transient) - these are intentionally excluded from sync
+    'sessions', 'b2bSessions', 'guestSessions', 'passwordResetTokens', 'b2bPasswordResetTokens',
+    'users', 'cartItems', 'cartDiscounts', 'favorites', 'viewHistory', 'triviaAttempts', 'triviaScores',
+    'achievementRedemptions', 'surveys', 'improvementNotes', 'productNotes', 'platformAuditLog',
+    'platformUserModuleAccess', 'userPermissionOverrides', 'b2bRolePermissions', 'b2bCommissions',
+    'b2bEmailTemplates', 'b2bEmailAutomationLogs',
+    // LMS table aliases (schema uses lms prefix, syncRegistry uses short names)
+    'lmsCategories', 'lmsCourses', 'lmsLessons', 'lmsQuizQuestions', 'lmsCertificates',
+    'lmsEnrollments', 'lmsLessonProgress', 'lmsQuizAttempts'
+  ];
+  const syncValidation = validateSyncRegistry(schemaTables);
+  logSyncRegistryStatus(syncValidation);
 
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
