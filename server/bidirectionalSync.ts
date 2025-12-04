@@ -1,7 +1,11 @@
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 import { SYNC_TABLES, SyncTableConfig, DataType, SyncModule } from './syncRegistry';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 import crypto from 'crypto';
+
+neonConfig.webSocketConstructor = ws;
 
 export type SyncDirection = 'dev_to_prod' | 'prod_to_dev' | 'bidirectional';
 export type RecordState = 'dev_newer' | 'prod_newer' | 'conflict' | 'identical' | 'dev_only' | 'prod_only';
@@ -319,8 +323,6 @@ export interface BidirectionalSyncConfig {
 }
 
 export async function connectToProductionDatabase(prodDatabaseUrl: string): Promise<boolean> {
-  const { Pool } = await import('pg');
-  
   try {
     const pool = new Pool({ connectionString: prodDatabaseUrl });
     const client = await pool.connect();
@@ -337,7 +339,6 @@ export async function connectToProductionDatabase(prodDatabaseUrl: string): Prom
 export async function scanBidirectional(
   config: BidirectionalSyncConfig
 ): Promise<SyncScanResult> {
-  const { Pool } = await import('pg');
   const scanId = crypto.randomUUID();
   const tables: TableSyncSummary[] = [];
   
