@@ -3875,6 +3875,15 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async getActiveAccessCodesByStaffName(staffName: string): Promise<DailyReportAccessCode[]> {
+    return await db.select().from(dailyReportAccessCodes)
+      .where(and(
+        eq(dailyReportAccessCodes.staffName, staffName),
+        eq(dailyReportAccessCodes.isActive, true)
+      ))
+      .orderBy(dailyReportAccessCodes.department);
+  }
+
   async generateUniqueAccessCode(): Promise<string> {
     let code: string;
     let exists = true;

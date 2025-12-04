@@ -7047,7 +7047,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Access code is inactive' });
       }
 
-      // Get the department template
+      // Check if this staff member has access to multiple departments
+      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(accessCode.staffName);
+      
+      if (allStaffCodes.length > 1) {
+        // Staff has multiple departments - return list for selection
+        const availableDepartments = await Promise.all(
+          allStaffCodes.map(async (ac) => {
+            const template = await storage.getDailyReportTemplateByDepartment(ac.department);
+            return {
+              department: ac.department,
+              departmentLabel: template?.departmentLabel || ac.department,
+              code: ac.code
+            };
+          })
+        );
+
+        // Update last used timestamp
+        await storage.updateDailyReportAccessCodeLastUsed(code);
+
+        return res.json({
+          staffName: accessCode.staffName,
+          multipleDepartments: true,
+          availableDepartments
+        });
+      }
+
+      // Single department - return form data directly
       const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
 
       if (!template) {
@@ -7075,6 +7101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         staffName: accessCode.staffName,
         department: accessCode.department,
         departmentLabel: template?.departmentLabel || accessCode.department,
+        multipleDepartments: false,
         metrics: enabledMetrics,
         procedures: procedures.map(p => ({
           id: p.id,
@@ -7088,6 +7115,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error validating access code:', error);
       res.status(500).json({ message: 'Failed to validate access code' });
+    }
+  });
+
+  // Get form data for a specific department (after department selection)
+  app.get('/api/public/daily-reports/department/:department/form', async (req, res) => {
+    try {
+      const { department } = req.params;
+      const { staffName } = req.query;
+
+      if (!staffName || typeof staffName !== 'string') {
+        return res.status(400).json({ message: 'Staff name is required' });
+      }
+
+      // Verify this staff member has access to this department
+      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(staffName);
+      const departmentCode = allStaffCodes.find(ac => ac.department === department);
+
+      if (!departmentCode) {
+        return res.status(403).json({ message: 'Access denied to this department' });
+      }
+
+      const template = await storage.getDailyReportTemplateByDepartment(department as any);
+
+      if (!template) {
+        return res.status(404).json({ message: 'Department template not found' });
+      }
+
+      // Get active procedure templates for the department
+      const procedures = await storage.getDailyProcedureTemplates(department as any, true);
+
+      // Get enabled fields from the junction table (authoritative source)
+      const fieldAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+      const enabledMetrics = fieldAssignments
+        .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(a => ({
+          key: a.fieldDefinition?.key || '',
+          label: a.fieldDefinition?.label || '',
+          type: a.fieldDefinition?.type || 'text'
+        }));
+
+      res.json({
+        staffName: staffName,
+        department: department,
+        departmentLabel: template.departmentLabel || department,
+        code: departmentCode.code,
+        metrics: enabledMetrics,
+        procedures: procedures.map(p => ({
+          id: p.id,
+          name: p.procedureName,
+          description: p.description,
+          type: p.procedureType,
+          isRequired: p.isRequired,
+          sortOrder: p.sortOrder
+        }))
+      });
+    } catch (error) {
+      console.error('Error getting department form:', error);
+      res.status(500).json({ message: 'Failed to get department form' });
     }
   });
 
