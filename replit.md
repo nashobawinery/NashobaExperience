@@ -32,6 +32,9 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
   - **Department-level Email Notifications**: Each department template has its own notification email list (stored as JSONB array). Admins configure recipients in the Departments tab by clicking the edit button on any department card. Recipients receive emails via SendGrid when reports are submitted.
   - **Public Access via QR Codes**: Staff can submit reports without logging in using 6-digit access codes. Admins create codes in Settings tab, generate QR codes, and staff scan to access a mobile-friendly submission form at `/daily-report/:code`.
   - **Procedure Templates**: Can be categorized as 'opening', 'closing', or 'general' to track procedure completion status in daily reports.
+  - **Dual Save Options**: Both admin and public forms offer two save actions:
+    - **Save as Draft**: Saves report without validation or email notifications - allows incremental documentation
+    - **Save & Submit**: Saves and immediately submits for review in one step - validates required procedures and sends email notifications
   - **Report Review Workflow**: Reports follow a status-based workflow:
     - `draft` → Initial state, can be edited and submitted for review
     - `submitted` (Pending Review) → Awaiting manager review
