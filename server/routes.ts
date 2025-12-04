@@ -7050,15 +7050,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the department template
       const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
 
+      if (!template) {
+        return res.status(404).json({ message: 'Department template not found' });
+      }
+
       // Get active procedure templates for the department
       const procedures = await storage.getDailyProcedureTemplates(accessCode.department, true);
 
       // Update last used timestamp
       await storage.updateDailyReportAccessCodeLastUsed(code);
 
-      // Filter to only enabled metrics
-      const allMetrics = (template?.metrics || []) as Array<{ key: string; label: string; type?: string; unit?: string; isEnabled?: boolean }>;
-      const enabledMetrics = allMetrics.filter(m => m.isEnabled !== false);
+      // Get enabled fields from the junction table (authoritative source)
+      const fieldAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+      const enabledMetrics = fieldAssignments
+        .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(a => ({
+          key: a.fieldDefinition?.key || '',
+          label: a.fieldDefinition?.label || '',
+          type: a.fieldDefinition?.type || 'text'
+        }));
 
       res.json({
         staffName: accessCode.staffName,
