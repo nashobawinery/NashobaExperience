@@ -1093,14 +1093,14 @@ export default function AccessControl() {
 
       {/* Create User Dialog */}
       <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
               Add a new platform user with their details
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="user-firstName">First Name *</Label>
@@ -1223,14 +1223,14 @@ export default function AccessControl() {
 
       {/* Edit User Dialog */}
       <Dialog open={showEditUserDialog} onOpenChange={setShowEditUserDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
               Update user details for {editingUser?.first_name} {editingUser?.last_name}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-user-firstName">First Name *</Label>
