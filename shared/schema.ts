@@ -135,7 +135,12 @@ export const products = pgTable("products", {
   tags: text("tags").array(),
   caseSize: integer("case_size").notNull().default(12),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_products_category").on(table.category),
+  index("idx_products_wine_color").on(table.wineColor),
+  index("idx_products_available").on(table.available),
+  index("idx_products_category_available").on(table.category, table.available),
+]);
 
 export const guestSessions = pgTable("guest_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -465,7 +470,11 @@ export const b2bCustomers = pgTable("b2b_customers", {
   acceptsMarketing: boolean("accepts_marketing").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_b2b_customers_status").on(table.accountStatus),
+  index("idx_b2b_customers_type").on(table.customerType),
+  index("idx_b2b_customers_sales_rep").on(table.salesRepId),
+]);
 
 export const b2bCustomerLocations = pgTable("b2b_customer_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
