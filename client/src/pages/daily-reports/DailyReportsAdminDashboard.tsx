@@ -739,6 +739,9 @@ export default function DailyReportsAdminDashboard() {
     notificationEmailsText: ""
   });
   
+  const [inlineEditingEmailsTemplateId, setInlineEditingEmailsTemplateId] = useState<string | null>(null);
+  const [inlineEmailsText, setInlineEmailsText] = useState("");
+  
   const [isProcedureTemplateDialogOpen, setIsProcedureTemplateDialogOpen] = useState(false);
   const [editingProcedureTemplate, setEditingProcedureTemplate] = useState<DailyProcedureTemplate | null>(null);
   const [procedureTemplateFormData, setProcedureTemplateFormData] = useState({
@@ -1316,6 +1319,40 @@ export default function DailyReportsAdminDashboard() {
       id: editingDepartment.id,
       data: {
         notificationEmails: emailList
+      }
+    });
+  };
+
+  const handleStartInlineEmailEdit = (template: DailyReportTemplate) => {
+    const emailsText = (template.notificationEmails || [])
+      .map(e => e.email)
+      .join(', ');
+    setInlineEmailsText(emailsText);
+    setInlineEditingEmailsTemplateId(template.id);
+  };
+
+  const handleCancelInlineEmailEdit = () => {
+    setInlineEditingEmailsTemplateId(null);
+    setInlineEmailsText("");
+  };
+
+  const handleSaveInlineEmails = (templateId: string) => {
+    const emailList = inlineEmailsText
+      .split(',')
+      .map(email => email.trim().toLowerCase())
+      .filter(email => email.length > 0 && email.includes('@'))
+      .map(email => ({ email, name: undefined, role: undefined }));
+    
+    updateDepartmentMutation.mutate({
+      id: templateId,
+      data: {
+        notificationEmails: emailList
+      }
+    }, {
+      onSuccess: () => {
+        setInlineEditingEmailsTemplateId(null);
+        setInlineEmailsText("");
+        toast({ title: "Notification emails updated" });
       }
     });
   };
@@ -2223,16 +2260,64 @@ export default function DailyReportsAdminDashboard() {
                             </div>
                           </div>
                           
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-medium">
-                              <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span>Notification Emails</span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                <span>Notification Emails</span>
+                              </div>
+                              {inlineEditingEmailsTemplateId !== template.id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleStartInlineEmailEdit(template)}
+                                  data-testid={`button-edit-emails-${template.department}`}
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit
+                                </Button>
+                              )}
                             </div>
-                            <div className="text-sm text-muted-foreground pl-6">
-                              {emailCount === 0 
-                                ? "None configured" 
-                                : (template.notificationEmails || []).map(e => e.email).join(', ')}
-                            </div>
+                            
+                            {inlineEditingEmailsTemplateId === template.id ? (
+                              <div className="space-y-2 pl-6">
+                                <Textarea
+                                  placeholder="Enter email addresses separated by commas&#10;e.g., manager@company.com, supervisor@company.com"
+                                  value={inlineEmailsText}
+                                  onChange={(e) => setInlineEmailsText(e.target.value)}
+                                  className="min-h-[80px] resize-none text-sm"
+                                  data-testid={`input-inline-emails-${template.department}`}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Separate multiple emails with commas
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveInlineEmails(template.id)}
+                                    disabled={updateDepartmentMutation.isPending}
+                                    data-testid={`button-save-emails-${template.department}`}
+                                  >
+                                    {updateDepartmentMutation.isPending ? "Saving..." : "Save"}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCancelInlineEmailEdit}
+                                    disabled={updateDepartmentMutation.isPending}
+                                    data-testid={`button-cancel-emails-${template.department}`}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground pl-6">
+                                {emailCount === 0 
+                                  ? "None configured" 
+                                  : (template.notificationEmails || []).map(e => e.email).join(', ')}
+                              </div>
+                            )}
                           </div>
                           
                           <div className="border-t pt-3">
