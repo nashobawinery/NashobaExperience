@@ -736,10 +736,7 @@ export default function DailyReportsAdminDashboard() {
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DailyReportTemplate | null>(null);
   const [departmentFormData, setDepartmentFormData] = useState({
-    notificationEmails: [] as NotificationEmail[],
-    newEmail: "",
-    newEmailName: "",
-    newEmailRole: ""
+    notificationEmailsText: ""
   });
   
   const [isProcedureTemplateDialogOpen, setIsProcedureTemplateDialogOpen] = useState(false);
@@ -1297,58 +1294,28 @@ export default function DailyReportsAdminDashboard() {
 
   const handleEditDepartment = (template: DailyReportTemplate) => {
     setEditingDepartment(template);
+    const emailsText = (template.notificationEmails || [])
+      .map(e => e.email)
+      .join(', ');
     setDepartmentFormData({
-      notificationEmails: template.notificationEmails || [],
-      newEmail: "",
-      newEmailName: "",
-      newEmailRole: ""
+      notificationEmailsText: emailsText
     });
     setIsDepartmentDialogOpen(true);
-  };
-
-  const handleAddNotificationEmail = () => {
-    const emailToAdd = departmentFormData.newEmail.trim().toLowerCase();
-    
-    if (!emailToAdd || !emailToAdd.includes('@')) {
-      toast({ title: "Please enter a valid email address", variant: "destructive" });
-      return;
-    }
-    
-    // Check for duplicates
-    if (departmentFormData.notificationEmails.some(e => e.email.toLowerCase() === emailToAdd)) {
-      toast({ title: "This email address is already in the list", variant: "destructive" });
-      return;
-    }
-    
-    const newEmail: NotificationEmail = {
-      email: emailToAdd,
-      name: departmentFormData.newEmailName.trim() || undefined,
-      role: departmentFormData.newEmailRole.trim() || undefined
-    };
-    
-    setDepartmentFormData(prev => ({
-      ...prev,
-      notificationEmails: [...prev.notificationEmails, newEmail],
-      newEmail: "",
-      newEmailName: "",
-      newEmailRole: ""
-    }));
-  };
-
-  const handleRemoveNotificationEmail = (index: number) => {
-    setDepartmentFormData(prev => ({
-      ...prev,
-      notificationEmails: prev.notificationEmails.filter((_, i) => i !== index)
-    }));
   };
 
   const handleSaveDepartment = () => {
     if (!editingDepartment) return;
     
+    const emailList = departmentFormData.notificationEmailsText
+      .split(',')
+      .map(email => email.trim().toLowerCase())
+      .filter(email => email.length > 0 && email.includes('@'))
+      .map(email => ({ email, name: undefined, role: undefined }));
+    
     updateDepartmentMutation.mutate({
       id: editingDepartment.id,
       data: {
-        notificationEmails: departmentFormData.notificationEmails
+        notificationEmails: emailList
       }
     });
   };
@@ -2256,13 +2223,16 @@ export default function DailyReportsAdminDashboard() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="h-4 w-4" />
-                            <span>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>Notification Emails</span>
+                            </div>
+                            <div className="text-sm text-muted-foreground pl-6">
                               {emailCount === 0 
-                                ? "No notification emails configured" 
-                                : `${emailCount} notification email${emailCount !== 1 ? 's' : ''}`}
-                            </span>
+                                ? "None configured" 
+                                : (template.notificationEmails || []).map(e => e.email).join(', ')}
+                            </div>
                           </div>
                           
                           <div className="border-t pt-3">
@@ -3397,77 +3367,19 @@ export default function DailyReportsAdminDashboard() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="space-y-3">
-              <Label>Notification Emails</Label>
-              
-              {departmentFormData.notificationEmails.length > 0 && (
-                <div className="space-y-2">
-                  {departmentFormData.notificationEmails.map((email, index) => (
-                    <div 
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{email.email}</span>
-                        {email.name && (
-                          <span className="text-muted-foreground text-sm">({email.name})</span>
-                        )}
-                        {email.role && (
-                          <Badge variant="secondary" className="text-xs">{email.role}</Badge>
-                        )}
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleRemoveNotificationEmail(index)}
-                        data-testid={`button-remove-email-${index}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              <div className="border rounded-lg p-3 space-y-3">
-                <div className="text-sm font-medium">Add Email Recipient</div>
-                <div className="grid grid-cols-1 gap-2">
-                  <Input
-                    type="email"
-                    placeholder="Email address *"
-                    value={departmentFormData.newEmail}
-                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmail: e.target.value })}
-                    data-testid="input-new-notification-email"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="text"
-                      placeholder="Name (optional)"
-                      value={departmentFormData.newEmailName}
-                      onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmailName: e.target.value })}
-                      data-testid="input-new-notification-name"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Role (optional)"
-                      value={departmentFormData.newEmailRole}
-                      onChange={(e) => setDepartmentFormData({ ...departmentFormData, newEmailRole: e.target.value })}
-                      data-testid="input-new-notification-role"
-                    />
-                  </div>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleAddNotificationEmail}
-                  disabled={!departmentFormData.newEmail}
-                  data-testid="button-add-notification-email"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Email
-                </Button>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="notificationEmails">Notification Emails</Label>
+              <Textarea
+                id="notificationEmails"
+                placeholder="Enter email addresses separated by commas&#10;e.g., manager@company.com, supervisor@company.com"
+                value={departmentFormData.notificationEmailsText}
+                onChange={(e) => setDepartmentFormData({ ...departmentFormData, notificationEmailsText: e.target.value })}
+                className="min-h-[100px] resize-none"
+                data-testid="input-notification-emails"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter multiple email addresses separated by commas. Recipients will receive notifications when reports are submitted for this department.
+              </p>
             </div>
           </div>
 
