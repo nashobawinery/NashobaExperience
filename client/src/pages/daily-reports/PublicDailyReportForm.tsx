@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks } from "lucide-react";
+import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight } from "lucide-react";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 
 interface Procedure {
@@ -22,10 +22,27 @@ interface Procedure {
   sortOrder: number;
 }
 
+interface AvailableDepartment {
+  department: string;
+  departmentLabel: string;
+  code: string;
+}
+
+interface ValidationResponse {
+  staffName: string;
+  multipleDepartments: boolean;
+  availableDepartments?: AvailableDepartment[];
+  department?: string;
+  departmentLabel?: string;
+  metrics?: Array<{ key: string; label: string; type?: string; unit?: string }>;
+  procedures?: Procedure[];
+}
+
 interface FormData {
   staffName: string;
   department: string;
   departmentLabel: string;
+  code: string;
   metrics: Array<{ key: string; label: string; type?: string; unit?: string }>;
   procedures: Procedure[];
 }
@@ -47,6 +64,12 @@ export default function PublicDailyReportForm() {
   const [validatedCode, setValidatedCode] = useState<string | null>(urlCode || null);
   const [isValidating, setIsValidating] = useState(false);
   
+  // Multi-department support
+  const [validationData, setValidationData] = useState<ValidationResponse | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [formData, setFormData] = useState<FormData | null>(null);
+  const [isLoadingForm, setIsLoadingForm] = useState(false);
+  
   const [performanceSummary, setPerformanceSummary] = useState("");
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [hasCustomerConcerns, setHasCustomerConcerns] = useState(false);
@@ -63,11 +86,6 @@ export default function PublicDailyReportForm() {
     followUpNotes: ""
   });
   const [submitted, setSubmitted] = useState(false);
-
-  const { data: formData, isLoading: isLoadingForm, error: formError, refetch } = useQuery<FormData>({
-    queryKey: ['/api/public/daily-reports/validate', validatedCode],
-    enabled: !!validatedCode,
-  });
 
   // Initialize procedure completions when form data loads
   useEffect(() => {
@@ -102,9 +120,25 @@ export default function PublicDailyReportForm() {
     try {
       const response = await fetch(`/api/public/daily-reports/validate/${code}`);
       if (response.ok) {
+        const data: ValidationResponse = await response.json();
         setValidatedCode(code);
+        setValidationData(data);
+        
         if (!urlCode) {
           navigate(`/daily-report/${code}`, { replace: true });
+        }
+
+        // If only one department, load form data directly
+        if (!data.multipleDepartments && data.department) {
+          setFormData({
+            staffName: data.staffName,
+            department: data.department,
+            departmentLabel: data.departmentLabel || data.department,
+            code: code,
+            metrics: data.metrics || [],
+            procedures: data.procedures || []
+          });
+          setSelectedDepartment(data.department);
         }
       } else {
         const error = await response.json();
@@ -114,6 +148,36 @@ export default function PublicDailyReportForm() {
       toast({ title: "Failed to validate code", variant: "destructive" });
     } finally {
       setIsValidating(false);
+    }
+  };
+
+  const handleSelectDepartment = async (department: string) => {
+    if (!validationData?.staffName) return;
+    
+    setIsLoadingForm(true);
+    try {
+      const response = await fetch(
+        `/api/public/daily-reports/department/${department}/form?staffName=${encodeURIComponent(validationData.staffName)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setFormData({
+          staffName: data.staffName,
+          department: data.department,
+          departmentLabel: data.departmentLabel,
+          code: data.code,
+          metrics: data.metrics || [],
+          procedures: data.procedures || []
+        });
+        setSelectedDepartment(department);
+      } else {
+        const error = await response.json();
+        toast({ title: error.message || "Failed to load form", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Failed to load department form", variant: "destructive" });
+    } finally {
+      setIsLoadingForm(false);
     }
   };
 
@@ -133,11 +197,13 @@ export default function PublicDailyReportForm() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      // Use formData.code for multi-department scenarios (the department-specific code)
+      const codeToSubmit = formData?.code || validatedCode;
       const response = await fetch("/api/public/daily-reports/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: validatedCode,
+          code: codeToSubmit,
           performanceSummary: performanceSummary || null,
           overallRating,
           hasCustomerConcerns,
@@ -183,6 +249,8 @@ export default function PublicDailyReportForm() {
   };
 
   if (submitted) {
+    const hasMultipleDepartments = validationData?.multipleDepartments && validationData.availableDepartments;
+    
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
@@ -192,23 +260,47 @@ export default function PublicDailyReportForm() {
             </div>
             <h2 className="text-2xl font-semibold mb-2">Report Submitted!</h2>
             <p className="text-muted-foreground mb-6">
-              Thank you for submitting your daily report. Your manager will be notified.
+              Thank you for submitting your daily report for {formData?.departmentLabel}. Your manager will be notified.
             </p>
-            <Button 
-              onClick={() => {
-                setSubmitted(false);
-                setPerformanceSummary("");
-                setOverallRating(null);
-                setHasCustomerConcerns(false);
-                setCustomerConcernsSummary("");
-                setMetricsData({});
-                setProcedureCompletions({});
-                setIncidents([]);
-              }}
-              data-testid="button-submit-another"
-            >
-              Submit Another Report
-            </Button>
+            <div className="space-y-3">
+              <Button 
+                onClick={() => {
+                  setSubmitted(false);
+                  setPerformanceSummary("");
+                  setOverallRating(null);
+                  setHasCustomerConcerns(false);
+                  setCustomerConcernsSummary("");
+                  setMetricsData({});
+                  setProcedureCompletions({});
+                  setIncidents([]);
+                }}
+                className="w-full"
+                data-testid="button-submit-another"
+              >
+                Submit Another Report for {formData?.departmentLabel}
+              </Button>
+              {hasMultipleDepartments && (
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setSubmitted(false);
+                    setPerformanceSummary("");
+                    setOverallRating(null);
+                    setHasCustomerConcerns(false);
+                    setCustomerConcernsSummary("");
+                    setMetricsData({});
+                    setProcedureCompletions({});
+                    setIncidents([]);
+                    setSelectedDepartment(null);
+                    setFormData(null);
+                  }}
+                  className="w-full"
+                  data-testid="button-switch-department"
+                >
+                  Switch to a Different Department
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -273,7 +365,59 @@ export default function PublicDailyReportForm() {
     );
   }
 
-  if (formError || !formData) {
+  // Show department selection when staff has multiple departments
+  if (validationData?.multipleDepartments && validationData.availableDepartments && !selectedDepartment) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+              <img src={dailyReportIcon} alt="Daily Report" className="w-16 h-16 object-contain" />
+            </div>
+            <CardTitle className="text-2xl">Select Department</CardTitle>
+            <CardDescription>
+              Welcome, {validationData.staffName}! Choose which department you're reporting for today.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {validationData.availableDepartments.map((dept) => (
+                <button
+                  key={dept.department}
+                  onClick={() => handleSelectDepartment(dept.department)}
+                  className="w-full flex items-center justify-between p-4 rounded-lg border bg-card hover-elevate transition-all text-left"
+                  data-testid={`button-select-department-${dept.department}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-primary" />
+                    </div>
+                    <span className="font-medium">{dept.departmentLabel}</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 pt-4 border-t">
+              <Button 
+                variant="ghost" 
+                className="w-full"
+                onClick={() => {
+                  setValidatedCode(null);
+                  setValidationData(null);
+                }}
+                data-testid="button-use-different-code"
+              >
+                Use a Different Code
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!formData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
@@ -294,20 +438,44 @@ export default function PublicDailyReportForm() {
     );
   }
 
+  const hasMultipleDepartments = validationData?.multipleDepartments && validationData.availableDepartments;
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <div className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-primary" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="font-semibold text-lg" data-testid="text-department-name">{formData.departmentLabel}</h1>
+                <p className="text-sm text-muted-foreground" data-testid="text-staff-name">
+                  Reporting as: {formData.staffName}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-semibold text-lg" data-testid="text-department-name">{formData.departmentLabel}</h1>
-              <p className="text-sm text-muted-foreground" data-testid="text-staff-name">
-                Reporting as: {formData.staffName}
-              </p>
-            </div>
+            {hasMultipleDepartments && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedDepartment(null);
+                  setFormData(null);
+                  setPerformanceSummary("");
+                  setOverallRating(null);
+                  setHasCustomerConcerns(false);
+                  setCustomerConcernsSummary("");
+                  setMetricsData({});
+                  setProcedureCompletions({});
+                  setIncidents([]);
+                }}
+                data-testid="button-change-department"
+              >
+                Change
+              </Button>
+            )}
           </div>
         </div>
       </div>
