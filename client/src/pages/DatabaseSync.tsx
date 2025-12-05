@@ -605,6 +605,31 @@ export default function DatabaseSync() {
     importMutation.mutate({ file: importFile, tables: selectedTables });
   };
 
+  // Scan for differences between dev and prod
+  const handleScanForDifferences = async () => {
+    setIsScanning(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync/scan-bidirectional', { 
+        prodDatabaseUrl: prodDbUrl,
+        tableIds: selectedTables.length > 0 ? selectedTables : undefined,
+      });
+      const data = await response.json();
+      setScanResult(data);
+      toast({
+        title: "Scan Complete",
+        description: `Found differences in ${data.tables.filter((t: any) => t.records.length > 0).length} tables`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Scan Failed",
+        description: error.message || "Failed to scan databases",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   // Apply bidirectional sync
   const applySync = async () => {
     setIsApplyingSync(true);
@@ -1321,29 +1346,7 @@ export default function DatabaseSync() {
                 <CardContent>
                   <div className="flex items-center gap-4">
                     <Button
-                      onClick={async () => {
-                        setIsScanning(true);
-                        try {
-                          const response = await apiRequest('POST', '/api/admin/sync/scan-bidirectional', { 
-                            prodDatabaseUrl: prodDbUrl,
-                            tableIds: selectedTables.length > 0 ? selectedTables : undefined,
-                          });
-                          const data = await response.json();
-                          setScanResult(data);
-                          toast({
-                            title: "Scan Complete",
-                            description: `Found differences in ${data.tables.filter((t: any) => t.records.length > 0).length} tables`,
-                          });
-                        } catch (error: any) {
-                          toast({
-                            title: "Scan Failed",
-                            description: error.message || "Failed to scan databases",
-                            variant: "destructive",
-                          });
-                        } finally {
-                          setIsScanning(false);
-                        }
-                      }}
+                      onClick={handleScanForDifferences}
                       disabled={isScanning}
                       data-testid="button-scan"
                     >
@@ -1504,9 +1507,9 @@ export default function DatabaseSync() {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => {
+                              onClick={async () => {
+                                await handleScanForDifferences();
                                 setSyncApplyResult(null);
-                                handleScanForDifferences();
                               }}
                               disabled={isScanning}
                               data-testid="button-rescan-after-sync"
@@ -1522,6 +1525,7 @@ export default function DatabaseSync() {
                               variant="ghost" 
                               size="sm" 
                               onClick={() => setSyncApplyResult(null)}
+                              disabled={isScanning}
                               data-testid="button-dismiss-result"
                             >
                               <X className="h-4 w-4 mr-1" />
