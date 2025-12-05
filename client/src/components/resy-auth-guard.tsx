@@ -1,10 +1,14 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, hasModuleAccess } = useAuth();
   const redirectAttempted = useRef(false);
+  const [, setLocation] = useLocation();
+
+  const hasResyAccess = hasModuleAccess('reservations');
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !redirectAttempted.current) {
@@ -13,9 +17,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, isLoading]);
 
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !hasResyAccess && !redirectAttempted.current) {
+      redirectAttempted.current = true;
+      setLocation("/");
+    }
+  }, [isAuthenticated, isLoading, hasResyAccess, setLocation]);
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen" data-testid="auth-loading">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -23,6 +34,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  if (!hasResyAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4" data-testid="no-module-access">
+        <p className="text-muted-foreground">You don't have access to the Reservations module.</p>
+        <p className="text-sm text-muted-foreground">Redirecting...</p>
+      </div>
+    );
   }
 
   return <>{children}</>;

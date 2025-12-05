@@ -2,7 +2,10 @@ import { Router } from "express";
 import { db } from "./db";
 import { eq, and, desc, sql, inArray, notInArray, not } from "drizzle-orm";
 import { isAuthenticated } from "./replitAuth";
+import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+
+const requireResyAdmin = requireModuleAccess('reservations');
 import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
 import {
@@ -595,7 +598,7 @@ router.get("/api/resy/locations/:id", async (req, res) => {
   }
 });
 
-router.post("/api/resy/locations", isAuthenticated, async (req, res) => {
+router.post("/api/resy/locations", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyLocationSchema.parse(req.body);
     const location = await resyStorage.createLocation(validated);
@@ -605,7 +608,7 @@ router.post("/api/resy/locations", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/locations/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/locations/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyLocationSchema.partial().parse(req.body);
     const location = await resyStorage.updateLocation(req.params.id, validated);
@@ -616,7 +619,7 @@ router.patch("/api/resy/locations/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/locations/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/locations/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteLocation(req.params.id);
     res.json({ success: true });
@@ -644,7 +647,7 @@ router.get("/api/resy/experiences/:id", async (req, res) => {
   }
 });
 
-router.post("/api/resy/experiences", isAuthenticated, async (req, res) => {
+router.post("/api/resy/experiences", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyExperienceSchema.parse(req.body);
     const experience = await resyStorage.createExperience(validated);
@@ -654,7 +657,7 @@ router.post("/api/resy/experiences", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/experiences/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyExperienceSchema.partial().parse(req.body);
     const experience = await resyStorage.updateExperience(req.params.id, validated);
@@ -665,7 +668,7 @@ router.patch("/api/resy/experiences/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/experiences/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteExperience(req.params.id);
     res.json({ success: true });
@@ -674,7 +677,7 @@ router.delete("/api/resy/experiences/:id", isAuthenticated, async (req, res) => 
   }
 });
 
-router.get("/api/resy/reservations", isAuthenticated, async (req, res) => {
+router.get("/api/resy/reservations", requireResyAdmin, async (req, res) => {
   try {
     const reservations = await resyStorage.getReservations();
     res.json(reservations);
@@ -703,7 +706,7 @@ router.post("/api/resy/reservations", async (req, res) => {
   }
 });
 
-router.put("/api/resy/reservations/:id", isAuthenticated, async (req, res) => {
+router.put("/api/resy/reservations/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyReservationSchema.partial().parse(req.body);
     const reservation = await resyStorage.updateReservation(req.params.id, validated);
@@ -714,7 +717,7 @@ router.put("/api/resy/reservations/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.get("/api/resy/customers", isAuthenticated, async (req, res) => {
+router.get("/api/resy/customers", requireResyAdmin, async (req, res) => {
   try {
     const customers = await resyStorage.getCustomers();
     res.json(customers);
@@ -723,7 +726,7 @@ router.get("/api/resy/customers", isAuthenticated, async (req, res) => {
   }
 });
 
-router.get("/api/resy/customers/search", isAuthenticated, async (req, res) => {
+router.get("/api/resy/customers/search", requireResyAdmin, async (req, res) => {
   try {
     const { q } = req.query;
     if (!q || typeof q !== "string") return res.status(400).json({ message: "Search query required" });
@@ -734,7 +737,7 @@ router.get("/api/resy/customers/search", isAuthenticated, async (req, res) => {
   }
 });
 
-router.get("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
+router.get("/api/resy/customers/:id", requireResyAdmin, async (req, res) => {
   try {
     const customer = await resyStorage.getCustomer(req.params.id);
     if (!customer) return res.status(404).json({ message: "Customer not found" });
@@ -744,7 +747,7 @@ router.get("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.post("/api/resy/customers", isAuthenticated, async (req, res) => {
+router.post("/api/resy/customers", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyCustomerSchema.parse(req.body);
     const existing = await resyStorage.getCustomerByEmail(validated.email);
@@ -756,7 +759,7 @@ router.post("/api/resy/customers", isAuthenticated, async (req, res) => {
   }
 });
 
-router.put("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
+router.put("/api/resy/customers/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyCustomerSchema.partial().parse(req.body);
     if (validated.email) {
@@ -773,7 +776,7 @@ router.put("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/customers/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteCustomer(req.params.id);
     res.status(204).send();
@@ -782,7 +785,7 @@ router.delete("/api/resy/customers/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.get("/api/resy/customers/:id/visits", isAuthenticated, async (req, res) => {
+router.get("/api/resy/customers/:id/visits", requireResyAdmin, async (req, res) => {
   try {
     const visits = await resyStorage.getCustomerVisits(req.params.id);
     res.json(visits);
@@ -791,7 +794,7 @@ router.get("/api/resy/customers/:id/visits", isAuthenticated, async (req, res) =
   }
 });
 
-router.post("/api/resy/customers/:id/adjust-points", isAuthenticated, async (req, res) => {
+router.post("/api/resy/customers/:id/adjust-points", requireResyAdmin, async (req, res) => {
   try {
     const { adjustment } = req.body;
     if (typeof adjustment !== "number") return res.status(400).json({ message: "Adjustment must be a number" });
@@ -812,7 +815,7 @@ router.get("/api/resy/meal-periods", async (req, res) => {
   }
 });
 
-router.post("/api/resy/meal-periods", isAuthenticated, async (req, res) => {
+router.post("/api/resy/meal-periods", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyMealPeriodSchema.parse(req.body);
     const period = await resyStorage.createMealPeriod(validated);
@@ -822,7 +825,7 @@ router.post("/api/resy/meal-periods", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/meal-periods/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/meal-periods/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyMealPeriodSchema.partial().parse(req.body);
     const period = await resyStorage.updateMealPeriod(req.params.id, validated);
@@ -833,7 +836,7 @@ router.patch("/api/resy/meal-periods/:id", isAuthenticated, async (req, res) => 
   }
 });
 
-router.delete("/api/resy/meal-periods/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/meal-periods/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteMealPeriod(req.params.id);
     res.json({ success: true });
@@ -860,7 +863,7 @@ router.get("/api/resy/locations/:locationId/operating-hours", async (req, res) =
   }
 });
 
-router.post("/api/resy/operating-hours", isAuthenticated, async (req, res) => {
+router.post("/api/resy/operating-hours", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyOperatingHoursSchema.parse(req.body);
     const hours = await resyStorage.createOperatingHours(validated);
@@ -870,7 +873,7 @@ router.post("/api/resy/operating-hours", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/operating-hours/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/operating-hours/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyOperatingHoursSchema.partial().parse(req.body);
     const hours = await resyStorage.updateOperatingHours(req.params.id, validated);
@@ -881,7 +884,7 @@ router.patch("/api/resy/operating-hours/:id", isAuthenticated, async (req, res) 
   }
 });
 
-router.delete("/api/resy/operating-hours/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/operating-hours/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteOperatingHours(req.params.id);
     res.json({ success: true });
@@ -899,7 +902,7 @@ router.get("/api/resy/flow-controls", async (req, res) => {
   }
 });
 
-router.post("/api/resy/flow-controls", isAuthenticated, async (req, res) => {
+router.post("/api/resy/flow-controls", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyFlowControlSchema.parse(req.body);
     const control = await resyStorage.createFlowControl(validated);
@@ -909,7 +912,7 @@ router.post("/api/resy/flow-controls", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/flow-controls/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/flow-controls/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyFlowControlSchema.partial().parse(req.body);
     const control = await resyStorage.updateFlowControl(req.params.id, validated);
@@ -920,7 +923,7 @@ router.patch("/api/resy/flow-controls/:id", isAuthenticated, async (req, res) =>
   }
 });
 
-router.delete("/api/resy/flow-controls/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/flow-controls/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteFlowControl(req.params.id);
     res.json({ success: true });
@@ -938,7 +941,7 @@ router.get("/api/resy/turn-times", async (req, res) => {
   }
 });
 
-router.post("/api/resy/turn-times", isAuthenticated, async (req, res) => {
+router.post("/api/resy/turn-times", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyTurnTimeSettingSchema.parse(req.body);
     const setting = await resyStorage.createTurnTimeSettings(validated);
@@ -948,7 +951,7 @@ router.post("/api/resy/turn-times", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/turn-times/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/turn-times/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyTurnTimeSettingSchema.partial().parse(req.body);
     const setting = await resyStorage.updateTurnTimeSettings(req.params.id, validated);
@@ -959,7 +962,7 @@ router.patch("/api/resy/turn-times/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/turn-times/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/turn-times/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteTurnTimeSettings(req.params.id);
     res.json({ success: true });
@@ -986,7 +989,7 @@ router.get("/api/resy/locations/:locationId/tables", async (req, res) => {
   }
 });
 
-router.post("/api/resy/location-tables", isAuthenticated, async (req, res) => {
+router.post("/api/resy/location-tables", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyLocationTableSchema.parse(req.body);
     const table = await resyStorage.createLocationTable(validated);
@@ -996,7 +999,7 @@ router.post("/api/resy/location-tables", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/location-tables/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/location-tables/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyLocationTableSchema.partial().parse(req.body);
     const table = await resyStorage.updateLocationTable(req.params.id, validated);
@@ -1007,7 +1010,7 @@ router.patch("/api/resy/location-tables/:id", isAuthenticated, async (req, res) 
   }
 });
 
-router.delete("/api/resy/location-tables/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/location-tables/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteLocationTable(req.params.id);
     res.json({ success: true });
@@ -1025,7 +1028,7 @@ router.get("/api/resy/private-events", async (req, res) => {
   }
 });
 
-router.post("/api/resy/private-events", isAuthenticated, async (req, res) => {
+router.post("/api/resy/private-events", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyPrivateEventSchema.parse(req.body);
     const event = await resyStorage.createPrivateEvent(validated);
@@ -1035,7 +1038,7 @@ router.post("/api/resy/private-events", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/private-events/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/private-events/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyPrivateEventSchema.partial().parse(req.body);
     const event = await resyStorage.updatePrivateEvent(req.params.id, validated);
@@ -1046,7 +1049,7 @@ router.patch("/api/resy/private-events/:id", isAuthenticated, async (req, res) =
   }
 });
 
-router.delete("/api/resy/private-events/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/private-events/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deletePrivateEvent(req.params.id);
     res.json({ success: true });
@@ -1064,7 +1067,7 @@ router.get("/api/resy/special-dates", async (req, res) => {
   }
 });
 
-router.post("/api/resy/special-dates", isAuthenticated, async (req, res) => {
+router.post("/api/resy/special-dates", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResySpecialDateSchema.parse(req.body);
     const date = await resyStorage.createSpecialDate(validated);
@@ -1074,7 +1077,7 @@ router.post("/api/resy/special-dates", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/special-dates/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/special-dates/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResySpecialDateSchema.partial().parse(req.body);
     const date = await resyStorage.updateSpecialDate(req.params.id, validated);
@@ -1085,7 +1088,7 @@ router.patch("/api/resy/special-dates/:id", isAuthenticated, async (req, res) =>
   }
 });
 
-router.delete("/api/resy/special-dates/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/special-dates/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteSpecialDate(req.params.id);
     res.json({ success: true });
@@ -1113,7 +1116,7 @@ router.get("/api/resy/clubs/:id", async (req, res) => {
   }
 });
 
-router.post("/api/resy/clubs", isAuthenticated, async (req, res) => {
+router.post("/api/resy/clubs", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyClubSchema.parse(req.body);
     const club = await resyStorage.createClub(validated);
@@ -1123,7 +1126,7 @@ router.post("/api/resy/clubs", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/clubs/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/clubs/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyClubSchema.partial().parse(req.body);
     const club = await resyStorage.updateClub(req.params.id, validated);
@@ -1134,7 +1137,7 @@ router.patch("/api/resy/clubs/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/clubs/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/clubs/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteClub(req.params.id);
     res.json({ success: true });
@@ -1152,7 +1155,7 @@ router.get("/api/resy/club-experience-discounts", async (req, res) => {
   }
 });
 
-router.post("/api/resy/club-experience-discounts", isAuthenticated, async (req, res) => {
+router.post("/api/resy/club-experience-discounts", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyClubExperienceDiscountSchema.parse(req.body);
     const discount = await resyStorage.createClubExperienceDiscount(validated);
@@ -1162,7 +1165,7 @@ router.post("/api/resy/club-experience-discounts", isAuthenticated, async (req, 
   }
 });
 
-router.patch("/api/resy/club-experience-discounts/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/club-experience-discounts/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyClubExperienceDiscountSchema.partial().parse(req.body);
     const discount = await resyStorage.updateClubExperienceDiscount(req.params.id, validated);
@@ -1173,7 +1176,7 @@ router.patch("/api/resy/club-experience-discounts/:id", isAuthenticated, async (
   }
 });
 
-router.delete("/api/resy/club-experience-discounts/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/club-experience-discounts/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteClubExperienceDiscount(req.params.id);
     res.json({ success: true });
@@ -1191,7 +1194,7 @@ router.get("/api/resy/experience-discounts", async (req, res) => {
   }
 });
 
-router.post("/api/resy/experience-discounts", isAuthenticated, async (req, res) => {
+router.post("/api/resy/experience-discounts", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyExperienceDiscountSchema.parse(req.body);
     const discount = await resyStorage.createDiscount(validated);
@@ -1201,7 +1204,7 @@ router.post("/api/resy/experience-discounts", isAuthenticated, async (req, res) 
   }
 });
 
-router.patch("/api/resy/experience-discounts/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/experience-discounts/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyExperienceDiscountSchema.partial().parse(req.body);
     const discount = await resyStorage.updateDiscount(req.params.id, validated);
@@ -1212,7 +1215,7 @@ router.patch("/api/resy/experience-discounts/:id", isAuthenticated, async (req, 
   }
 });
 
-router.delete("/api/resy/experience-discounts/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/experience-discounts/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteDiscount(req.params.id);
     res.json({ success: true });
@@ -1230,7 +1233,7 @@ router.get("/api/resy/footer-links", async (req, res) => {
   }
 });
 
-router.post("/api/resy/footer-links", isAuthenticated, async (req, res) => {
+router.post("/api/resy/footer-links", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyFooterLinkSchema.parse(req.body);
     const link = await resyStorage.createFooterLink(validated);
@@ -1240,7 +1243,7 @@ router.post("/api/resy/footer-links", isAuthenticated, async (req, res) => {
   }
 });
 
-router.patch("/api/resy/footer-links/:id", isAuthenticated, async (req, res) => {
+router.patch("/api/resy/footer-links/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyFooterLinkSchema.partial().parse(req.body);
     const link = await resyStorage.updateFooterLink(req.params.id, validated);
@@ -1251,7 +1254,7 @@ router.patch("/api/resy/footer-links/:id", isAuthenticated, async (req, res) => 
   }
 });
 
-router.delete("/api/resy/footer-links/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/footer-links/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteFooterLink(req.params.id);
     res.json({ success: true });
@@ -1260,7 +1263,7 @@ router.delete("/api/resy/footer-links/:id", isAuthenticated, async (req, res) =>
   }
 });
 
-router.get("/api/resy/users", isAuthenticated, async (req, res) => {
+router.get("/api/resy/users", requireResyAdmin, async (req, res) => {
   try {
     const users = await resyStorage.getAllUsers();
     res.json(users);
@@ -1269,7 +1272,7 @@ router.get("/api/resy/users", isAuthenticated, async (req, res) => {
   }
 });
 
-router.put("/api/resy/users/:id/role", isAuthenticated, async (req, res) => {
+router.put("/api/resy/users/:id/role", requireResyAdmin, async (req, res) => {
   try {
     const { role, isActive } = req.body;
     const user = await resyStorage.updateUserRole(req.params.id, role, isActive);
@@ -1289,7 +1292,7 @@ router.get("/api/resy/time-slots/:experienceId", async (req, res) => {
   }
 });
 
-router.post("/api/resy/time-slots", isAuthenticated, async (req, res) => {
+router.post("/api/resy/time-slots", requireResyAdmin, async (req, res) => {
   try {
     const slot = await resyStorage.createTimeSlot(req.body);
     res.json(slot);
@@ -1298,7 +1301,7 @@ router.post("/api/resy/time-slots", isAuthenticated, async (req, res) => {
   }
 });
 
-router.delete("/api/resy/time-slots/:id", isAuthenticated, async (req, res) => {
+router.delete("/api/resy/time-slots/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteTimeSlot(req.params.id);
     res.json({ success: true });
@@ -1316,7 +1319,7 @@ router.get("/api/resy/site-settings", async (req, res) => {
   }
 });
 
-router.put("/api/resy/site-settings/:key", isAuthenticated, async (req, res) => {
+router.put("/api/resy/site-settings/:key", requireResyAdmin, async (req, res) => {
   try {
     const { value } = req.body;
     await resyStorage.updateSiteSetting(req.params.key, value);
