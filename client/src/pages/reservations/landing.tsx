@@ -3,16 +3,16 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ExternalLink, Calendar, Wine, Users, Link2 } from "lucide-react";
-import type { Experience, SiteSettings, FooterLink } from "@shared/schema";
-import heroImage from "@assets/generated_images/Winery_hero_vineyard_landscape_1f84c262.png";
+import type { Experience, ResySiteSetting, FooterLink } from "@shared/schema";
+import heroImageDefault from "@assets/stock_images/winery_vineyard_land_9ae4eda8.jpg";
 
 export default function Landing() {
   const { data: experiences, isLoading: experiencesLoading } = useQuery<Experience[]>({
     queryKey: ["/api/resy/experiences"],
   });
 
-  const { data: settings } = useQuery<SiteSettings>({
-    queryKey: ["/api/settings"],
+  const { data: settingsArray = [] } = useQuery<ResySiteSetting[]>({
+    queryKey: ["/api/resy/settings"],
   });
 
   const { data: footerLinks = [] } = useQuery<FooterLink[]>({
@@ -21,9 +21,14 @@ export default function Landing() {
 
   const activeExperiences = experiences?.filter(exp => exp.isActive) || [];
   
-  const headerImage = settings?.headerImageUrl || heroImage;
-  const headerTitle = settings?.headerTitle || "Welcome to Nashoba Valley Winery, Distillery and Brewery Reservation Page";
-  const headerSubtitle = settings?.headerSubtitle || "Experience the finest wines, spirits, and cuisine at our multi-location destination";
+  const getSetting = (key: string, defaultValue: string = "") => {
+    const setting = settingsArray.find(s => s.key === key);
+    return setting?.value || defaultValue;
+  };
+  
+  const headerImage = getSetting("headerImageUrl", "") || heroImageDefault;
+  const headerTitle = getSetting("headerTitle", "Welcome to Nashoba Valley Winery, Distillery and Brewery Reservation Page");
+  const headerSubtitle = getSetting("headerSubtitle", "Experience the finest wines, spirits, and cuisine at our multi-location destination");
 
   return (
     <div className="min-h-screen bg-background">
