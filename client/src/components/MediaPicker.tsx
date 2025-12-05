@@ -238,7 +238,7 @@ export function MediaPicker({
             )}
           </div>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <ScrollArea className="flex-1 -mx-6 px-6 h-[50vh]">
             {isLoading ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 pb-4">
                 {Array.from({ length: 10 }).map((_, i) => (
