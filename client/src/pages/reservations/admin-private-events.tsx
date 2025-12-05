@@ -14,31 +14,38 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Loader2, CalendarOff } from "lucide-react";
-import { format, parse } from "date-fns";
+import { Plus, Pencil, Trash2, Loader2, CalendarOff, Users, Mail, Phone, Clock } from "lucide-react";
+import { format, parse, isValid } from "date-fns";
 import type { 
   Location, 
-  MealPeriod, 
-  PrivateEvent,
-  InsertPrivateEvent
+  ResyPrivateEvent,
+  InsertResyPrivateEvent,
+  ResyExperience
 } from "@shared/schema";
-import { insertPrivateEventSchema } from "@shared/schema";
+import { insertResyPrivateEventSchema } from "@shared/schema";
+
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "completed", label: "Completed" },
+];
 
 export default function AdminPrivateEvents() {
   const { toast } = useToast();
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<PrivateEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<ResyPrivateEvent | null>(null);
 
   const { data: locations, isLoading: locationsLoading } = useQuery<Location[]>({
     queryKey: ["/api/resy/locations"],
   });
 
-  const { data: mealPeriods, isLoading: periodsLoading } = useQuery<MealPeriod[]>({
-    queryKey: ["/api/resy/meal-periods"],
+  const { data: experiences, isLoading: experiencesLoading } = useQuery<ResyExperience[]>({
+    queryKey: ["/api/resy/experiences"],
   });
 
-  const { data: allEvents, isLoading: eventsLoading } = useQuery<PrivateEvent[]>({
+  const { data: allEvents, isLoading: eventsLoading } = useQuery<ResyPrivateEvent[]>({
     queryKey: ["/api/resy/private-events"],
   });
 
@@ -46,18 +53,18 @@ export default function AdminPrivateEvents() {
     ? allEvents?.filter(event => event.locationId === selectedLocationId)
     : allEvents;
 
-  // Group events by date for better organization
   const eventsByDate = filteredEvents?.reduce((acc, event) => {
-    if (!acc[event.date]) {
-      acc[event.date] = [];
+    const dateKey = event.eventDate || "unknown";
+    if (!acc[dateKey]) {
+      acc[dateKey] = [];
     }
-    acc[event.date].push(event);
+    acc[dateKey].push(event);
     return acc;
-  }, {} as Record<string, PrivateEvent[]>) || {};
+  }, {} as Record<string, ResyPrivateEvent[]>) || {};
 
   const sortedDates = Object.keys(eventsByDate).sort((a, b) => a.localeCompare(b));
 
-  const handleEdit = (event: PrivateEvent) => {
+  const handleEdit = (event: ResyPrivateEvent) => {
     setEditingEvent(event);
     setIsDialogOpen(true);
   };
@@ -67,35 +74,41 @@ export default function AdminPrivateEvents() {
     setIsDialogOpen(true);
   };
 
-  const isLoading = locationsLoading || periodsLoading || eventsLoading;
+  const isLoading = locationsLoading || experiencesLoading || eventsLoading;
+
+  const formatDateDisplay = (dateStr: string): string => {
+    if (!dateStr) return "Unknown Date";
+    try {
+      const parsed = parse(dateStr, "yyyy-MM-dd", new Date());
+      if (isValid(parsed)) {
+        return format(parsed, "EEEE, MMMM d, yyyy");
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Private Events</h1>
         <p className="text-muted-foreground">
-          Manage private events that close the location during specified times. 
-          The system will warn you about existing reservations before booking.
+          Manage private event bookings and reservations for special occasions.
         </p>
       </div>
 
-      {/* Location Filter and Add Button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="w-full sm:w-64">
-            <Select
-              value={selectedLocationId || undefined}
-              onValueChange={(value) => setSelectedLocationId(value || "")}
-              disabled={isLoading}
-            >
+            <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
               <SelectTrigger data-testid="select-location-filter">
                 <SelectValue placeholder="All Locations" />
               </SelectTrigger>
               <SelectContent>
-                {locations?.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name}
-                  </SelectItem>
+                <SelectItem value="">All Locations</SelectItem>
+                {locations?.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -120,7 +133,6 @@ export default function AdminPrivateEvents() {
         </Button>
       </div>
 
-      {/* Events List */}
       {isLoading ? (
         <div className="grid gap-4">
           {[...Array(3)].map((_, i) => (
@@ -140,7 +152,7 @@ export default function AdminPrivateEvents() {
             <Card key={date}>
               <CardHeader>
                 <CardTitle className="text-xl">
-                  {format(parse(date, "yyyy-MM-dd", new Date()), "EEEE, MMMM d, yyyy")}
+                  {formatDateDisplay(date)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -150,7 +162,7 @@ export default function AdminPrivateEvents() {
                       key={event.id}
                       event={event}
                       locations={locations || []}
-                      mealPeriods={mealPeriods || []}
+                      experiences={experiences || []}
                       onEdit={handleEdit}
                     />
                   ))}
@@ -165,19 +177,18 @@ export default function AdminPrivateEvents() {
             <div className="text-center text-muted-foreground">
               <CalendarOff className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg">No private events scheduled</p>
-              <p className="text-sm mt-2">Add a private event to block availability for specific meal periods</p>
+              <p className="text-sm mt-2">Add a private event to start managing bookings</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Create/Edit Dialog */}
       <PrivateEventDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         event={editingEvent}
         locations={locations || []}
-        mealPeriods={mealPeriods || []}
+        experiences={experiences || []}
         defaultLocationId={selectedLocationId}
       />
     </div>
@@ -185,20 +196,20 @@ export default function AdminPrivateEvents() {
 }
 
 interface PrivateEventCardProps {
-  event: PrivateEvent;
+  event: ResyPrivateEvent;
   locations: Location[];
-  mealPeriods: MealPeriod[];
-  onEdit: (event: PrivateEvent) => void;
+  experiences: ResyExperience[];
+  onEdit: (event: ResyPrivateEvent) => void;
 }
 
-function PrivateEventCard({ event, locations, mealPeriods, onEdit }: PrivateEventCardProps) {
+function PrivateEventCard({ event, locations, experiences, onEdit }: PrivateEventCardProps) {
   const { toast } = useToast();
   const location = locations.find(l => l.id === event.locationId);
-  const mealPeriod = mealPeriods.find(mp => mp.id === event.mealPeriodId);
+  const experience = experiences.find(e => e.id === event.experienceId);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/private-events/${event.id}`);
+      await apiRequest("DELETE", `/api/resy/private-events/${event.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/private-events"] });
@@ -224,31 +235,62 @@ function PrivateEventCard({ event, locations, mealPeriods, onEdit }: PrivateEven
     },
   });
 
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      pending: "secondary",
+      confirmed: "default",
+      cancelled: "destructive",
+      completed: "outline",
+    };
+    return (
+      <Badge variant={variants[status] || "secondary"}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base truncate">{location?.name || "Unknown Location"}</CardTitle>
-            <CardDescription className="text-sm mt-1">{mealPeriod?.name || "Unknown Period"}</CardDescription>
+            <CardTitle className="text-base truncate">{event.customerName}</CardTitle>
+            <CardDescription className="text-sm mt-1">
+              {experience?.name || "Private Event"}
+            </CardDescription>
           </div>
-          {!event.isActive && (
-            <Badge variant="secondary" className="shrink-0">
-              Inactive
-            </Badge>
-          )}
+          {getStatusBadge(event.status)}
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Time:</span>
+            <Clock className="w-3 h-3 text-muted-foreground" />
             <span>{event.startTime} - {event.endTime}</span>
           </div>
-          {event.message && (
-            <div>
-              <span className="text-muted-foreground">Message:</span>
-              <p className="mt-1 text-sm line-clamp-2">{event.message}</p>
+          <div className="flex items-center gap-2">
+            <Users className="w-3 h-3 text-muted-foreground" />
+            <span>{event.partySize} guests</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Mail className="w-3 h-3 text-muted-foreground" />
+            <span className="truncate">{event.customerEmail}</span>
+          </div>
+          {event.customerPhone && (
+            <div className="flex items-center gap-2">
+              <Phone className="w-3 h-3 text-muted-foreground" />
+              <span>{event.customerPhone}</span>
+            </div>
+          )}
+          {location && (
+            <div className="text-xs text-muted-foreground mt-2">
+              {location.name}
+            </div>
+          )}
+          {event.notes && (
+            <div className="mt-2 pt-2 border-t">
+              <p className="text-muted-foreground text-xs">Notes:</p>
+              <p className="text-sm line-clamp-2">{event.notes}</p>
             </div>
           )}
         </div>
@@ -266,35 +308,31 @@ function PrivateEventCard({ event, locations, mealPeriods, onEdit }: PrivateEven
             <AlertDialogTrigger asChild>
               <Button
                 size="sm"
-                variant="outline"
+                variant="destructive"
+                disabled={deleteMutation.isPending}
                 data-testid={`button-delete-event-${event.id}`}
               >
-                <Trash2 className="w-3 h-3 mr-2" />
-                Delete
+                {deleteMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Private Event</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete this private event? This action cannot be undone.
+                  Are you sure you want to delete this private event for {event.customerName}? This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                  data-testid="button-confirm-delete"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  {deleteMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    "Delete"
-                  )}
+                  Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -308,58 +346,75 @@ function PrivateEventCard({ event, locations, mealPeriods, onEdit }: PrivateEven
 interface PrivateEventDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  event: PrivateEvent | null;
+  event: ResyPrivateEvent | null;
   locations: Location[];
-  mealPeriods: MealPeriod[];
+  experiences: ResyExperience[];
   defaultLocationId?: string;
 }
 
-interface ConflictData {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  time: string;
-  partySize: number;
-  experienceName: string;
-}
-
-interface ConflictResponse {
-  hasConflicts: boolean;
-  conflictCount: number;
-  conflicts: ConflictData[];
-}
-
-function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods, defaultLocationId }: PrivateEventDialogProps) {
+function PrivateEventDialog({ 
+  open, 
+  onOpenChange, 
+  event, 
+  locations, 
+  experiences,
+  defaultLocationId 
+}: PrivateEventDialogProps) {
   const { toast } = useToast();
   const isEditing = !!event;
-  const [conflicts, setConflicts] = useState<ConflictData[]>([]);
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
-  const [pendingData, setPendingData] = useState<InsertPrivateEvent | null>(null);
 
-  const form = useForm<InsertPrivateEvent>({
-    resolver: zodResolver(insertPrivateEventSchema),
-    defaultValues: event ? {
-      locationId: event.locationId,
-      mealPeriodId: event.mealPeriodId,
-      date: event.date,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      message: event.message,
-      isActive: event.isActive,
-    } : {
+  const form = useForm<InsertResyPrivateEvent>({
+    resolver: zodResolver(insertResyPrivateEventSchema),
+    defaultValues: {
+      experienceId: "",
       locationId: defaultLocationId || "",
-      mealPeriodId: "",
-      date: format(new Date(), "yyyy-MM-dd"),
-      startTime: "17:00",
+      eventDate: format(new Date(), "yyyy-MM-dd"),
+      startTime: "18:00",
       endTime: "22:00",
-      message: "Closed for private event",
-      isActive: true,
+      customerName: "",
+      customerEmail: "",
+      customerPhone: "",
+      partySize: 10,
+      status: "pending",
+      notes: "",
     },
   });
 
+  const resetForm = () => {
+    if (event) {
+      form.reset({
+        experienceId: event.experienceId,
+        locationId: event.locationId || "",
+        eventDate: event.eventDate,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        customerName: event.customerName,
+        customerEmail: event.customerEmail,
+        customerPhone: event.customerPhone || "",
+        partySize: event.partySize,
+        status: event.status,
+        notes: event.notes || "",
+      });
+    } else {
+      form.reset({
+        experienceId: "",
+        locationId: defaultLocationId || "",
+        eventDate: format(new Date(), "yyyy-MM-dd"),
+        startTime: "18:00",
+        endTime: "22:00",
+        customerName: "",
+        customerEmail: "",
+        customerPhone: "",
+        partySize: 10,
+        status: "pending",
+        notes: "",
+      });
+    }
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: InsertPrivateEvent) => {
-      return await apiRequest("POST", "/api/resy/private-events", data);
+    mutationFn: async (data: InsertResyPrivateEvent) => {
+      await apiRequest("POST", "/api/resy/private-events", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/private-events"] });
@@ -368,7 +423,6 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
         description: "Private event has been created successfully.",
       });
       onOpenChange(false);
-      form.reset();
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
@@ -388,8 +442,8 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: InsertPrivateEvent) => {
-      return await apiRequest("PATCH", `/api/private-events/${event!.id}`, data);
+    mutationFn: async (data: InsertResyPrivateEvent) => {
+      await apiRequest("PATCH", `/api/resy/private-events/${event!.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/private-events"] });
@@ -398,7 +452,6 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
         description: "Private event has been updated successfully.",
       });
       onOpenChange(false);
-      form.reset();
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
@@ -417,102 +470,77 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
     },
   });
 
-  const checkConflicts = async (data: InsertPrivateEvent): Promise<ConflictResponse> => {
-    try {
-      const response = await fetch(
-        `/api/private-events/check-conflicts?locationId=${data.locationId}&date=${data.date}&startTime=${data.startTime}&endTime=${data.endTime}${data.mealPeriodId ? `&mealPeriodId=${data.mealPeriodId}` : ''}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to check conflicts");
-      }
-      return await response.json();
-    } catch (error) {
-      console.error("Error checking conflicts:", error);
-      return { hasConflicts: false, conflictCount: 0, conflicts: [] };
-    }
-  };
-
-  const onSubmit = async (data: InsertPrivateEvent) => {
-    // Check for conflicts before submitting
-    const conflictResponse = await checkConflicts(data);
-    
-    if (conflictResponse.hasConflicts) {
-      // Show conflict dialog
-      setConflicts(conflictResponse.conflicts);
-      setPendingData(data);
-      setShowConflictDialog(true);
+  const onSubmit = (data: InsertResyPrivateEvent) => {
+    if (isEditing) {
+      updateMutation.mutate(data);
     } else {
-      // No conflicts, proceed with submission
-      if (isEditing) {
-        updateMutation.mutate(data);
-      } else {
-        createMutation.mutate(data);
-      }
+      createMutation.mutate(data);
     }
   };
-
-  const confirmBookingWithConflicts = () => {
-    if (pendingData) {
-      if (isEditing) {
-        updateMutation.mutate(pendingData);
-      } else {
-        createMutation.mutate(pendingData);
-      }
-      setShowConflictDialog(false);
-      setPendingData(null);
-      setConflicts([]);
-    }
-  };
-
-  const cancelBooking = () => {
-    setShowConflictDialog(false);
-    setPendingData(null);
-    setConflicts([]);
-  };
-
-  const selectedLocationId = form.watch("locationId");
-  const filteredMealPeriods = mealPeriods.filter(mp => mp.locationId === selectedLocationId);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" onOpenAutoFocus={() => resetForm()}>
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Private Event" : "Add Private Event"}</DialogTitle>
           <DialogDescription>
-            {isEditing 
-              ? "Update the private event details. The location will be closed during this event's time period." 
-              : "Create a new private event to close the location for a specific time period. You'll be notified if there are existing reservations."}
+            {isEditing ? "Update the private event details" : "Create a new private event booking"}
           </DialogDescription>
         </DialogHeader>
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="experienceId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Experience *</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger data-testid="select-experience">
+                        <SelectValue placeholder="Select experience" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {experiences?.map((exp) => (
+                          <SelectItem key={exp.id} value={exp.id}>{exp.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="locationId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Location</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={isPending}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="select-event-location">
-                        <SelectValue placeholder="Select a location" />
+                  <FormControl>
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={field.onChange}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger data-testid="select-location">
+                        <SelectValue placeholder="Select location" />
                       </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <SelectContent>
+                        <SelectItem value="">No specific location</SelectItem>
+                        {locations?.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -520,42 +548,10 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
 
             <FormField
               control={form.control}
-              name="mealPeriodId"
+              name="eventDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Meal Period</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={isPending || !selectedLocationId}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="select-event-meal-period">
-                        <SelectValue placeholder={!selectedLocationId ? "Select a location first" : "Select a meal period"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {filteredMealPeriods.map((period) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {period.name} ({period.startTime} - {period.endTime})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Select the meal period that will be blocked by this private event
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel>Event Date *</FormLabel>
                   <FormControl>
                     <Input
                       type="date"
@@ -564,9 +560,6 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
                       data-testid="input-event-date"
                     />
                   </FormControl>
-                  <FormDescription>
-                    The date when this private event occurs
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -578,13 +571,13 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
                 name="startTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Time</FormLabel>
+                    <FormLabel>Start Time *</FormLabel>
                     <FormControl>
                       <Input
                         type="time"
                         {...field}
                         disabled={isPending}
-                        data-testid="input-event-start-time"
+                        data-testid="input-start-time"
                       />
                     </FormControl>
                     <FormMessage />
@@ -597,13 +590,13 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
                 name="endTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>End Time</FormLabel>
+                    <FormLabel>End Time *</FormLabel>
                     <FormControl>
                       <Input
                         type="time"
                         {...field}
                         disabled={isPending}
-                        data-testid="input-event-end-time"
+                        data-testid="input-end-time"
                       />
                     </FormControl>
                     <FormMessage />
@@ -614,34 +607,139 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
 
             <FormField
               control={form.control}
-              name="message"
+              name="customerName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Message</FormLabel>
+                  <FormLabel>Customer Name *</FormLabel>
                   <FormControl>
-                    <Textarea
+                    <Input
                       {...field}
+                      placeholder="Full name"
                       disabled={isPending}
-                      placeholder="Closed for private event"
-                      rows={3}
-                      data-testid="input-event-message"
+                      data-testid="input-customer-name"
                     />
                   </FormControl>
-                  <FormDescription>
-                    Custom message to display when this period is blocked (e.g., "Closed for wedding reception")
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="flex justify-end gap-2 pt-4">
+            <FormField
+              control={form.control}
+              name="customerEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer Email *</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      {...field}
+                      placeholder="email@example.com"
+                      disabled={isPending}
+                      data-testid="input-customer-email"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="customerPhone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer Phone</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="tel"
+                      {...field}
+                      value={field.value || ""}
+                      placeholder="(555) 123-4567"
+                      disabled={isPending}
+                      data-testid="input-customer-phone"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="partySize"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Party Size *</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      disabled={isPending}
+                      data-testid="input-party-size"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger data-testid="select-status">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      value={field.value || ""}
+                      placeholder="Special requests, dietary restrictions, etc."
+                      rows={3}
+                      disabled={isPending}
+                      data-testid="input-notes"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end gap-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
-                data-testid="button-cancel-event"
               >
                 Cancel
               </Button>
@@ -650,64 +748,13 @@ function PrivateEventDialog({ open, onOpenChange, event, locations, mealPeriods,
                 disabled={isPending}
                 data-testid="button-save-event"
               >
-                {isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isEditing ? "Updating..." : "Creating..."}
-                  </>
-                ) : (
-                  isEditing ? "Update Event" : "Create Event"
-                )}
+                {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isEditing ? "Update Event" : "Create Event"}
               </Button>
             </div>
           </form>
         </Form>
       </DialogContent>
-
-      {/* Conflict Warning Dialog */}
-      <AlertDialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
-        <AlertDialogContent className="max-w-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Existing Reservations Found</AlertDialogTitle>
-            <AlertDialogDescription>
-              There are {conflicts.length} existing reservation{conflicts.length !== 1 ? 's' : ''} during this time period. 
-              Booking this private event will close the location, potentially affecting these guests.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="max-h-60 overflow-y-auto space-y-2 my-4">
-            {conflicts.map((conflict) => (
-              <Card key={conflict.id}>
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="font-medium">Guest:</span> {conflict.customerName}
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span> {conflict.customerEmail}
-                    </div>
-                    <div>
-                      <span className="font-medium">Time:</span> {conflict.time}
-                    </div>
-                    <div>
-                      <span className="font-medium">Party Size:</span> {conflict.partySize}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelBooking} data-testid="button-cancel-conflict">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmBookingWithConflicts} data-testid="button-confirm-conflict">
-              Book Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   );
 }
