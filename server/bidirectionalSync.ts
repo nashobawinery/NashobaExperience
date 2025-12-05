@@ -541,18 +541,31 @@ export async function applySync(
   };
 }
 
-// Convert tableId to snake_case database table name
+// Convert camelCase to snake_case for database column names
 function toSnakeCase(str: string): string {
   return str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
 }
 
+// Convert snake_case to camelCase for reading from database
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
 // Helper to safely escape identifiers (prevents SQL injection)
+// Converts camelCase to snake_case for database columns
 function escapeIdentifier(name: string): string {
+  // Convert camelCase to snake_case for database
+  const snakeName = toSnakeCase(name);
   // Validate: only allow alphanumeric and underscore
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(snakeName)) {
     throw new Error(`Invalid identifier: ${name}`);
   }
-  return `"${name}"`;
+  return `"${snakeName}"`;
+}
+
+// Get the snake_case version of a field name for database operations
+function getDbColumnName(fieldName: string): string {
+  return toSnakeCase(fieldName);
 }
 
 // New function to apply sync operations with actual data copying
@@ -638,11 +651,22 @@ export async function applySyncOperations(
               continue;
             }
             
+            // Database returns snake_case columns - convert record keys to snake_case for access
             const devRecord = devResult.rows[0] as Record<string, any>;
+            
+            // Helper to get value from record using camelCase field name
+            const getDbValue = (fieldName: string) => {
+              const snakeName = toSnakeCase(fieldName);
+              return devRecord[snakeName];
+            };
             
             if (!dryRun) {
               // Get all columns that have values, excluding auto-generated fields
-              const columns = allFields.filter(f => devRecord[f] !== undefined && f !== 'id' && f !== 'createdAt');
+              // Check both camelCase and snake_case versions of the field
+              const columns = allFields.filter(f => {
+                const val = getDbValue(f);
+                return val !== undefined && f !== 'id' && f !== 'createdAt';
+              });
               
               if (columns.length === 0) {
                 errors.push({ tableId, error: 'No syncable columns found' });
@@ -650,10 +674,11 @@ export async function applySyncOperations(
               }
               
               // Build parameterized INSERT/UPDATE for production
+              // escapeIdentifier already converts to snake_case
               const insertCols = columns.map(c => escapeIdentifier(c)).join(', ');
               const insertVals = columns.map((_, i) => `$${i + 1}`).join(', ');
               const values = columns.map(c => {
-                const val = devRecord[c];
+                const val = getDbValue(c);
                 // Convert dates to ISO strings for proper serialization
                 if (val instanceof Date) return val.toISOString();
                 return val;
@@ -675,7 +700,7 @@ export async function applySyncOperations(
                   const updateValues = [
                     ...whereValues,
                     ...updateCols.map(c => {
-                      const val = devRecord[c];
+                      const val = getDbValue(c);
                       if (val instanceof Date) return val.toISOString();
                       return val;
                     })
@@ -713,11 +738,21 @@ export async function applySyncOperations(
               continue;
             }
             
+            // Database returns snake_case columns
             const prodRecord = prodResult.rows[0] as Record<string, any>;
+            
+            // Helper to get value from record using camelCase field name
+            const getDbValue = (fieldName: string) => {
+              const snakeName = toSnakeCase(fieldName);
+              return prodRecord[snakeName];
+            };
             
             if (!dryRun) {
               // Get all columns that have values, excluding auto-generated fields
-              const columns = allFields.filter(f => prodRecord[f] !== undefined && f !== 'id' && f !== 'createdAt');
+              const columns = allFields.filter(f => {
+                const val = getDbValue(f);
+                return val !== undefined && f !== 'id' && f !== 'createdAt';
+              });
               
               if (columns.length === 0) {
                 errors.push({ tableId, error: 'No syncable columns found' });
@@ -729,9 +764,9 @@ export async function applySyncOperations(
               const existsResult = await devPool.query(devExistsQuery, whereValues);
               const existsInDev = existsResult.rows && existsResult.rows.length > 0;
               
-              // Prepare values
+              // Prepare values using getDbValue to read snake_case columns
               const values = columns.map(c => {
-                const val = prodRecord[c];
+                const val = getDbValue(c);
                 if (val instanceof Date) return val.toISOString();
                 return val;
               });
@@ -746,7 +781,7 @@ export async function applySyncOperations(
                   const updateValues = [
                     ...whereValues,
                     ...updateCols.map(c => {
-                      const val = prodRecord[c];
+                      const val = getDbValue(c);
                       if (val instanceof Date) return val.toISOString();
                       return val;
                     })

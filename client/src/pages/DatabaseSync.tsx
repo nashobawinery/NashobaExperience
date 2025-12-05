@@ -1461,24 +1461,74 @@ export default function DatabaseSync() {
                       )}
 
                       {syncApplyResult && (
-                        <Alert variant={syncApplyResult.success ? "default" : "destructive"} className="mt-4">
-                          <CheckCircle className="h-4 w-4" />
-                          <AlertTitle>{syncApplyResult.success ? 'Sync Complete!' : 'Sync Completed with Errors'}</AlertTitle>
-                          <AlertDescription>
-                            <p>Applied {syncApplyResult.appliedToProdCount} records to Production</p>
-                            <p>Applied {syncApplyResult.appliedToDevCount} records to Development</p>
-                            {syncApplyResult.errors.length > 0 && (
-                              <div className="mt-2 text-sm">
-                                <p className="font-medium">Errors:</p>
-                                <ul className="list-disc list-inside">
-                                  {syncApplyResult.errors.map((e, i) => (
-                                    <li key={i}>{e.tableId}: {e.error}</li>
-                                  ))}
-                                </ul>
-                              </div>
+                        <div className="mt-4 space-y-3">
+                          <Alert variant={syncApplyResult.success ? "default" : "destructive"}>
+                            {syncApplyResult.success ? (
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
                             )}
-                          </AlertDescription>
-                        </Alert>
+                            <AlertTitle className="flex items-center gap-2">
+                              {syncApplyResult.success ? 'Sync Complete!' : 'Sync Completed with Errors'}
+                            </AlertTitle>
+                            <AlertDescription>
+                              <div className="mt-2 grid grid-cols-2 gap-4">
+                                <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                                  <ArrowRight className="h-4 w-4 text-blue-500" />
+                                  <span className="font-medium">{syncApplyResult.appliedToProdCount}</span>
+                                  <span className="text-sm text-muted-foreground">records to Production</span>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                                  <ArrowLeft className="h-4 w-4 text-green-500" />
+                                  <span className="font-medium">{syncApplyResult.appliedToDevCount}</span>
+                                  <span className="text-sm text-muted-foreground">records to Development</span>
+                                </div>
+                              </div>
+                              {syncApplyResult.errors.length > 0 && (
+                                <div className="mt-3 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                                  <p className="font-medium text-destructive">Errors ({syncApplyResult.errors.length}):</p>
+                                  <ul className="mt-1 text-sm space-y-1">
+                                    {syncApplyResult.errors.map((e, i) => (
+                                      <li key={i} className="flex items-start gap-2">
+                                        <X className="h-3 w-3 mt-0.5 text-destructive flex-shrink-0" />
+                                        <span><strong>{e.tableId}:</strong> {e.error}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </AlertDescription>
+                          </Alert>
+                          
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setSyncApplyResult(null);
+                                handleScanForDifferences();
+                              }}
+                              disabled={isScanning}
+                              data-testid="button-rescan-after-sync"
+                            >
+                              {isScanning ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Re-scan to Verify Changes
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setSyncApplyResult(null)}
+                              data-testid="button-dismiss-result"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
