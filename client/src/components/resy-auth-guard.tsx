@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/resy-sidebar";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, hasModuleAccess } = useAuth();
@@ -45,5 +47,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-14 items-center gap-4 border-b px-6">
+          <SidebarTrigger data-testid="button-sidebar-toggle" />
+        </header>
+        <main className="flex-1 overflow-auto p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
