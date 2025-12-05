@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Wine, Users, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Wine, Users, DollarSign, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import type { Reservation, Experience } from "@shared/schema";
 
@@ -22,9 +23,19 @@ export default function AdminHome() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to your reservation management system</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome to your reservation management system</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => window.open('/reservations', '_blank')}
+          data-testid="button-view-customer-page"
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          View Customer Page
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
