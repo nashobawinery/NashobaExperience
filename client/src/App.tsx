@@ -79,6 +79,9 @@ import { ProtectedRoute } from "@/components/b2b/ProtectedRoute";
 import { B2bAuthProvider as B2bAuthProviderSync } from "@/contexts/B2bAuthContext";
 import { B2bLayout as B2bLayoutSync } from "@/components/b2b/B2bLayout";
 
+// Import Reservations AuthGuard synchronously for proper layout wrapping
+import { AuthGuard as ResyAuthGuard } from "@/components/resy-auth-guard";
+
 // Loading fallback component
 function PageLoader() {
   return (
@@ -322,110 +325,125 @@ function ResyConfirmationRoute() {
   );
 }
 
-// Reservation Routes - Admin (protected)
+// Reservation Routes - Admin (protected with sidebar layout)
 function ResyAdminHomeRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminHome /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminHome /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminCalendarRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminCalendar /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminCalendar /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminExperiencesRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminExperiences /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminExperiences /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminReservationsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminReservations /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminReservations /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminLocationsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminLocations /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminLocations /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminLocationDetailRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminLocationDetail /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminLocationDetail /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminCustomersRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminCustomers /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminCustomers /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminCustomerDetailRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminCustomerDetail /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminCustomerDetail /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminClubsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminClubs /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminClubs /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminSpecialDatesRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminSpecialDates /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminSpecialDates /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminPrivateEventsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminPrivateEvents /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminPrivateEvents /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminFlowSettingsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminFlowSettings /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminFlowSettings /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminUsersRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminUsers /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminUsers /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminSettingsRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminSettings /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminSettings /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 function ResyAdminDocumentationRoute() {
-  const { isLoading, isAdmin } = useAuth();
-  if (isLoading) return <PageLoader />;
-  if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><ResyAdminDocumentation /></Suspense>;
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminDocumentation /></Suspense>
+    </ResyAuthGuard>
+  );
 }
 
 // B2B Routes Component with lazy loaded pages
