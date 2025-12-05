@@ -20,7 +20,6 @@ import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, D
 import type { Experience, InsertExperience, TimeSlot, ExperienceDiscount, InsertExperienceDiscount } from "@shared/schema";
 import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/schema";
 import { ObjectUploader } from "@/components/ResyObjectUploader";
-import type { UploadResult } from "@uppy/core";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },
@@ -918,32 +917,18 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                     </div>
                   ) : (
                     <ObjectUploader
-                      maxNumberOfFiles={1}
-                      maxFileSize={10485760}
-                      onGetUploadParameters={async () => {
-                        const response = await apiRequest("POST", "/api/objects/upload", {});
-                        const data = await response.json();
-                        return { method: "PUT" as const, url: data.uploadURL };
-                      }}
-                      onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                        setUploadingPrimary(false);
-                        if (result.successful && result.successful.length > 0) {
-                          const uploadedFile = result.successful[0];
-                          console.log("Upload result:", uploadedFile);
-                          if (uploadedFile.uploadURL) {
-                            setPrimaryImageURL(uploadedFile.uploadURL);
-                            toast({
-                              title: "Image Uploaded",
-                              description: "Primary image uploaded successfully. Save to confirm.",
-                            });
-                          }
-                        }
+                      onComplete={(imageUrl) => {
+                        setPrimaryImageURL(imageUrl);
+                        toast({
+                          title: "Image Selected",
+                          description: "Primary image selected. Save to confirm.",
+                        });
                       }}
                       variant="outline"
                       size="sm"
                     >
                       <Upload className="w-3 h-3 mr-2" />
-                      Upload Primary
+                      Select Primary
                     </ObjectUploader>
                   )
                 ) : experience?.primaryImageKey ? (
@@ -971,32 +956,18 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                   </div>
                 ) : (
                   <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={10485760}
-                    onGetUploadParameters={async () => {
-                      const response = await apiRequest("POST", "/api/objects/upload", {});
-                      const data = await response.json();
-                      return { method: "PUT" as const, url: data.uploadURL };
-                    }}
-                    onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                      setUploadingPrimary(false);
-                      if (result.successful && result.successful.length > 0) {
-                        const uploadedFile = result.successful[0];
-                        console.log("Upload result:", uploadedFile);
-                        if (uploadedFile.uploadURL) {
-                          setPrimaryImageURL(uploadedFile.uploadURL);
-                          toast({
-                            title: "Image Uploaded",
-                            description: "Primary image uploaded successfully. Save to confirm.",
-                          });
-                        }
-                      }
+                    onComplete={(imageUrl) => {
+                      setPrimaryImageURL(imageUrl);
+                      toast({
+                        title: "Image Selected",
+                        description: "Primary image selected. Save to confirm.",
+                      });
                     }}
                     variant="outline"
                     size="sm"
                   >
                     <Upload className="w-3 h-3 mr-2" />
-                    Upload Primary
+                    Select Primary
                   </ObjectUploader>
                 )}
               </div>
@@ -1029,28 +1000,18 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                     </div>
                   ) : (
                     <ObjectUploader
-                      maxNumberOfFiles={1}
-                      maxFileSize={10485760}
-                      onGetUploadParameters={async () => {
-                        const response = await apiRequest("POST", "/api/objects/upload", {});
-                        const data = await response.json();
-                        return { method: "PUT" as const, url: data.uploadURL };
-                      }}
-                      onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                        setUploadingSecondary(false);
-                        if (result.successful && result.successful.length > 0 && result.successful[0].uploadURL) {
-                          setSecondaryImageURL(result.successful[0].uploadURL);
-                          toast({
-                            title: "Image Uploaded",
-                            description: "Secondary image uploaded successfully. Save to confirm.",
-                          });
-                        }
+                      onComplete={(imageUrl) => {
+                        setSecondaryImageURL(imageUrl);
+                        toast({
+                          title: "Image Selected",
+                          description: "Secondary image selected. Save to confirm.",
+                        });
                       }}
                       variant="outline"
                       size="sm"
                     >
                       <Upload className="w-3 h-3 mr-2" />
-                      Upload Secondary
+                      Select Secondary
                     </ObjectUploader>
                   )
                 ) : experience?.secondaryImageKey ? (
@@ -1078,28 +1039,18 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                   </div>
                 ) : (
                   <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={10485760}
-                    onGetUploadParameters={async () => {
-                      const response = await apiRequest("POST", "/api/objects/upload", {});
-                      const data = await response.json();
-                      return { method: "PUT" as const, url: data.uploadURL };
-                    }}
-                    onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                      setUploadingSecondary(false);
-                      if (result.successful && result.successful.length > 0 && result.successful[0].uploadURL) {
-                        setSecondaryImageURL(result.successful[0].uploadURL);
-                        toast({
-                          title: "Image Uploaded",
-                          description: "Secondary image uploaded successfully. Save to confirm.",
-                        });
-                      }
+                    onComplete={(imageUrl) => {
+                      setSecondaryImageURL(imageUrl);
+                      toast({
+                        title: "Image Selected",
+                        description: "Secondary image selected. Save to confirm.",
+                      });
                     }}
                     variant="outline"
                     size="sm"
                   >
                     <Upload className="w-3 h-3 mr-2" />
-                    Upload Secondary
+                    Select Secondary
                   </ObjectUploader>
                 )}
               </div>

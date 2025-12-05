@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -13,44 +13,48 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Upload, X, Building2, Image, Link2, Plus, Pencil, Trash2, GripVertical, ExternalLink } from "lucide-react";
-import type { SiteSettings, InsertSiteSettings, FooterLink, InsertFooterLink } from "@shared/schema";
-import { insertSiteSettingsSchema, insertFooterLinkSchema } from "@shared/schema";
+import { Loader2, Building2, Image, Link2, Plus, Pencil, Trash2, ExternalLink, Settings } from "lucide-react";
+import type { ResyFooterLink, InsertResyFooterLink } from "@shared/schema";
+import { insertResyFooterLinkSchema } from "@shared/schema";
 import { ObjectUploader } from "@/components/ResyObjectUploader";
-import type { UploadResult } from "@uppy/core";
 import { z } from "zod";
+
+type SiteSettings = Record<string, string | null>;
+
+const siteSettingsSchema = z.object({
+  headerTitle: z.string().optional(),
+  headerSubtitle: z.string().optional(),
+  headerImageUrl: z.string().optional(),
+  companyName: z.string().optional(),
+  companyAddress: z.string().optional(),
+  companyCity: z.string().optional(),
+  companyState: z.string().optional(),
+  companyZipCode: z.string().optional(),
+  companyPhone: z.string().optional(),
+  companyEmail: z.string().email().optional().or(z.literal("")),
+  companyWebsite: z.string().url().optional().or(z.literal("")),
+});
+
+type SiteSettingsForm = z.infer<typeof siteSettingsSchema>;
 
 export default function AdminSettings() {
   const { toast } = useToast();
   const [headerImageURL, setHeaderImageURL] = useState<string | null>(null);
-  const [uploadingHeader, setUploadingHeader] = useState(false);
   const [isFooterLinkDialogOpen, setIsFooterLinkDialogOpen] = useState(false);
-  const [editingFooterLink, setEditingFooterLink] = useState<FooterLink | null>(null);
-  const [deletingFooterLink, setDeletingFooterLink] = useState<FooterLink | null>(null);
+  const [editingFooterLink, setEditingFooterLink] = useState<ResyFooterLink | null>(null);
+  const [deletingFooterLink, setDeletingFooterLink] = useState<ResyFooterLink | null>(null);
 
   const { data: settings, isLoading } = useQuery<SiteSettings>({
-    queryKey: ["/api/settings"],
+    queryKey: ["/api/resy/site-settings"],
   });
 
-  const { data: footerLinks = [], isLoading: isLoadingFooterLinks } = useQuery<FooterLink[]>({
+  const { data: footerLinks = [], isLoading: isLoadingFooterLinks } = useQuery<ResyFooterLink[]>({
     queryKey: ["/api/resy/footer-links"],
   });
 
-  const form = useForm<InsertSiteSettings>({
-    resolver: zodResolver(insertSiteSettingsSchema),
-    values: settings ? {
-      headerTitle: settings.headerTitle,
-      headerSubtitle: settings.headerSubtitle,
-      headerImageUrl: settings.headerImageUrl || "",
-      companyName: settings.companyName || "",
-      companyAddress: settings.companyAddress || "",
-      companyCity: settings.companyCity || "",
-      companyState: settings.companyState || "",
-      companyZipCode: settings.companyZipCode || "",
-      companyPhone: settings.companyPhone || "",
-      companyEmail: settings.companyEmail || "",
-      companyWebsite: settings.companyWebsite || "",
-    } : {
+  const form = useForm<SiteSettingsForm>({
+    resolver: zodResolver(siteSettingsSchema),
+    defaultValues: {
       headerTitle: "",
       headerSubtitle: "",
       headerImageUrl: "",
@@ -65,12 +69,30 @@ export default function AdminSettings() {
     },
   });
 
-  const footerLinkFormSchema = insertFooterLinkSchema.extend({
+  useEffect(() => {
+    if (settings) {
+      form.reset({
+        headerTitle: settings.headerTitle || "",
+        headerSubtitle: settings.headerSubtitle || "",
+        headerImageUrl: settings.headerImageUrl || "",
+        companyName: settings.companyName || "",
+        companyAddress: settings.companyAddress || "",
+        companyCity: settings.companyCity || "",
+        companyState: settings.companyState || "",
+        companyZipCode: settings.companyZipCode || "",
+        companyPhone: settings.companyPhone || "",
+        companyEmail: settings.companyEmail || "",
+        companyWebsite: settings.companyWebsite || "",
+      });
+    }
+  }, [settings, form]);
+
+  const footerLinkFormSchema = insertResyFooterLinkSchema.extend({
     name: z.string().min(1, "Link name is required"),
     url: z.string().url("Please enter a valid URL"),
   });
 
-  const footerLinkForm = useForm<InsertFooterLink>({
+  const footerLinkForm = useForm<InsertResyFooterLink>({
     resolver: zodResolver(footerLinkFormSchema),
     defaultValues: {
       name: "",
@@ -80,49 +102,55 @@ export default function AdminSettings() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async (data: InsertSiteSettings) => {
-      if (headerImageURL !== null) {
-        await apiRequest("PUT", "/api/settings/image", { headerImageURL: headerImageURL || "" });
-      }
-      
-      const settingsData = { ...data };
-      if (headerImageURL !== null) {
-        delete settingsData.headerImageUrl;
-      }
-      await apiRequest("PUT", "/api/settings", settingsData);
-      
-      setHeaderImageURL(null);
+  const updateSettingMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      await apiRequest("PUT", `/api/resy/site-settings/${key}`, { value });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({
-        title: "Settings Updated",
-        description: "Site settings have been updated successfully",
-      });
-    },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          description: "You must be logged in to update settings.",
           variant: "destructive",
         });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update setting.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Update Failed",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
+  const onSubmit = async (data: SiteSettingsForm) => {
+    try {
+      const updates = Object.entries(data).map(([key, value]) => 
+        updateSettingMutation.mutateAsync({ key, value: value || "" })
+      );
+      
+      if (headerImageURL !== null) {
+        updates.push(
+          updateSettingMutation.mutateAsync({ key: "headerImageUrl", value: headerImageURL })
+        );
+      }
+      
+      await Promise.all(updates);
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/site-settings"] });
+      setHeaderImageURL(null);
+      
+      toast({
+        title: "Settings saved",
+        description: "Your site settings have been updated successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+    }
+  };
+
   const createFooterLinkMutation = useMutation({
-    mutationFn: async (data: InsertFooterLink) => {
+    mutationFn: async (data: InsertResyFooterLink) => {
       await apiRequest("POST", "/api/resy/footer-links", data);
     },
     onSuccess: () => {
@@ -130,33 +158,31 @@ export default function AdminSettings() {
       setIsFooterLinkDialogOpen(false);
       footerLinkForm.reset();
       toast({
-        title: "Link Created",
-        description: "Footer link has been created successfully",
+        title: "Link created",
+        description: "Footer link has been created successfully.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          description: "You must be logged in to create footer links.",
           variant: "destructive",
         });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create footer link.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Creation Failed",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
   const updateFooterLinkMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertFooterLink> }) => {
-      await apiRequest("PUT", `/api/footer-links/${id}`, data);
+    mutationFn: async (data: InsertResyFooterLink & { id: string }) => {
+      const { id, ...rest } = data;
+      await apiRequest("PATCH", `/api/resy/footer-links/${id}`, rest);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/footer-links"] });
@@ -164,99 +190,97 @@ export default function AdminSettings() {
       setEditingFooterLink(null);
       footerLinkForm.reset();
       toast({
-        title: "Link Updated",
-        description: "Footer link has been updated successfully",
+        title: "Link updated",
+        description: "Footer link has been updated successfully.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          description: "You must be logged in to update footer links.",
           variant: "destructive",
         });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update footer link.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Update Failed",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
   const deleteFooterLinkMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/footer-links/${id}`);
+      await apiRequest("DELETE", `/api/resy/footer-links/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/footer-links"] });
       setDeletingFooterLink(null);
       toast({
-        title: "Link Deleted",
-        description: "Footer link has been deleted successfully",
+        title: "Link deleted",
+        description: "Footer link has been deleted successfully.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          description: "You must be logged in to delete footer links.",
           variant: "destructive",
         });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to delete footer link.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Deletion Failed",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
-  const onSubmit = (data: InsertSiteSettings) => {
-    updateMutation.mutate(data);
-  };
-
-  const handleOpenFooterLinkDialog = (link?: FooterLink) => {
-    if (link) {
-      setEditingFooterLink(link);
-      footerLinkForm.reset({
-        name: link.name,
-        iconUrl: link.iconUrl || "",
-        url: link.url,
-        displayOrder: link.displayOrder,
-      });
-    } else {
-      setEditingFooterLink(null);
-      footerLinkForm.reset({
-        name: "",
-        iconUrl: "",
-        url: "",
-        displayOrder: footerLinks.length,
-      });
-    }
+  const handleEditFooterLink = (link: ResyFooterLink) => {
+    setEditingFooterLink(link);
+    footerLinkForm.reset({
+      name: link.name,
+      iconUrl: link.iconUrl || "",
+      url: link.url,
+      displayOrder: link.displayOrder,
+    });
     setIsFooterLinkDialogOpen(true);
   };
 
-  const handleFooterLinkSubmit = (data: InsertFooterLink) => {
+  const handleAddFooterLink = () => {
+    setEditingFooterLink(null);
+    footerLinkForm.reset({
+      name: "",
+      iconUrl: "",
+      url: "",
+      displayOrder: footerLinks.length,
+    });
+    setIsFooterLinkDialogOpen(true);
+  };
+
+  const onSubmitFooterLink = (data: InsertResyFooterLink) => {
     if (editingFooterLink) {
-      updateFooterLinkMutation.mutate({ id: editingFooterLink.id, data });
+      updateFooterLinkMutation.mutate({ ...data, id: editingFooterLink.id });
     } else {
       createFooterLinkMutation.mutate(data);
     }
   };
 
+  const isPending = updateSettingMutation.isPending;
+  const isFooterLinkPending = createFooterLinkMutation.isPending || updateFooterLinkMutation.isPending;
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="space-y-8">
+        <div>
+          <div className="h-10 bg-muted rounded animate-pulse w-1/3 mb-2" />
+          <div className="h-6 bg-muted rounded animate-pulse w-1/2" />
+        </div>
+        <div className="h-96 bg-muted rounded animate-pulse" />
       </div>
     );
   }
@@ -264,56 +288,56 @@ export default function AdminSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Site Settings</h1>
+        <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your website's branding, company information, and footer links
+          Configure your reservation site settings and footer links.
         </p>
       </div>
 
-      <Tabs defaultValue="branding" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="branding" className="gap-2" data-testid="tab-branding">
-            <Image className="w-4 h-4" />
-            Branding
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList data-testid="tabs-settings">
+          <TabsTrigger value="general" data-testid="tab-general">
+            <Settings className="w-4 h-4 mr-2" />
+            General
           </TabsTrigger>
-          <TabsTrigger value="company" className="gap-2" data-testid="tab-company">
-            <Building2 className="w-4 h-4" />
+          <TabsTrigger value="company" data-testid="tab-company">
+            <Building2 className="w-4 h-4 mr-2" />
             Company Info
           </TabsTrigger>
-          <TabsTrigger value="footer" className="gap-2" data-testid="tab-footer">
-            <Link2 className="w-4 h-4" />
-            Footer
+          <TabsTrigger value="header" data-testid="tab-header">
+            <Image className="w-4 h-4 mr-2" />
+            Header
+          </TabsTrigger>
+          <TabsTrigger value="footer" data-testid="tab-footer">
+            <Link2 className="w-4 h-4 mr-2" />
+            Footer Links
           </TabsTrigger>
         </TabsList>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <TabsContent value="branding" className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <TabsContent value="general">
               <Card>
                 <CardHeader>
-                  <CardTitle>Header Settings</CardTitle>
-                  <CardDescription>
-                    Customize the main header that appears on your landing page
-                  </CardDescription>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>Basic configuration for your reservation site.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
                   <FormField
                     control={form.control}
                     name="headerTitle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Header Title *</FormLabel>
+                        <FormLabel>Site Title</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Nashoba Valley Winery" 
-                            {...field} 
-                            value={field.value || ""}
+                          <Input
+                            {...field}
+                            placeholder="Your Winery Name"
+                            disabled={isPending}
                             data-testid="input-header-title"
                           />
                         </FormControl>
-                        <FormDescription>
-                          The main title displayed in the header
-                        </FormDescription>
+                        <FormDescription>The main title shown on your reservation page.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -324,137 +348,39 @@ export default function AdminSettings() {
                     name="headerSubtitle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Header Subtitle *</FormLabel>
+                        <FormLabel>Site Subtitle</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="Experience the finest wines and dining" 
-                            {...field} 
-                            value={field.value || ""}
+                          <Textarea
+                            {...field}
+                            placeholder="Welcome to our tasting room..."
+                            rows={3}
+                            disabled={isPending}
                             data-testid="input-header-subtitle"
-                            rows={2}
                           />
                         </FormControl>
-                        <FormDescription>
-                          A brief subtitle or tagline for your winery
-                        </FormDescription>
+                        <FormDescription>A brief description shown below the title.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <div className="space-y-4 rounded-md border p-4">
-                    <div>
-                      <h3 className="text-sm font-medium mb-2">Header Background Image</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Upload header background image (max 10MB)</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      {settings?.headerImageUrl && !headerImageURL ? (
-                        <div className="flex items-center gap-2">
-                          <img 
-                            src={settings.headerImageUrl} 
-                            alt="Header" 
-                            className="w-32 h-20 object-cover rounded-md border"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setHeaderImageURL("");
-                              toast({
-                                title: "Image will be removed",
-                                description: "Save the form to confirm deletion",
-                              });
-                            }}
-                            data-testid="button-delete-header-image"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ) : uploadingHeader ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Uploading...
-                        </div>
-                      ) : headerImageURL ? (
-                        <div className="flex items-center gap-2">
-                          <img 
-                            src={headerImageURL} 
-                            alt="Header" 
-                            className="w-32 h-20 object-cover rounded-md border"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setHeaderImageURL(null)}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <ObjectUploader
-                          maxNumberOfFiles={1}
-                          maxFileSize={10485760}
-                          onGetUploadParameters={async () => {
-                            setUploadingHeader(true);
-                            const response = await apiRequest("POST", "/api/objects/upload", {});
-                            const data = await response.json();
-                            return { method: "PUT" as const, url: data.uploadURL };
-                          }}
-                          onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                            setUploadingHeader(false);
-                            if (result.successful && result.successful.length > 0) {
-                              const uploadedFile = result.successful[0];
-                              if (uploadedFile.uploadURL) {
-                                setHeaderImageURL(uploadedFile.uploadURL);
-                                toast({
-                                  title: "Image Uploaded",
-                                  description: "Header image uploaded successfully",
-                                });
-                              }
-                            }
-                          }}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Upload className="w-3 h-3 mr-2" />
-                          Upload Header Image
-                        </ObjectUploader>
-                      )}
-                    </div>
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={isPending} data-testid="button-save-general">
+                      {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Settings
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="flex justify-end gap-2">
-                <Button 
-                  type="submit" 
-                  disabled={updateMutation.isPending}
-                  data-testid="button-save-settings"
-                >
-                  {updateMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Settings"
-                  )}
-                </Button>
-              </div>
             </TabsContent>
 
-            <TabsContent value="company" className="space-y-6">
+            <TabsContent value="company">
               <Card>
                 <CardHeader>
                   <CardTitle>Company Information</CardTitle>
-                  <CardDescription>
-                    Your business contact details and address
-                  </CardDescription>
+                  <CardDescription>Your business contact details shown on the reservation site.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
                   <FormField
                     control={form.control}
                     name="companyName"
@@ -462,10 +388,10 @@ export default function AdminSettings() {
                       <FormItem>
                         <FormLabel>Company Name</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Nashoba Valley Winery" 
-                            {...field} 
-                            value={field.value || ""}
+                          <Input
+                            {...field}
+                            placeholder="Your Business Name"
+                            disabled={isPending}
                             data-testid="input-company-name"
                           />
                         </FormControl>
@@ -479,12 +405,12 @@ export default function AdminSettings() {
                     name="companyAddress"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Street Address</FormLabel>
+                        <FormLabel>Address</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="100 Winery Lane" 
-                            {...field} 
-                            value={field.value || ""}
+                          <Input
+                            {...field}
+                            placeholder="123 Main Street"
+                            disabled={isPending}
                             data-testid="input-company-address"
                           />
                         </FormControl>
@@ -493,18 +419,18 @@ export default function AdminSettings() {
                     )}
                   />
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <FormField
                       control={form.control}
                       name="companyCity"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="col-span-2 md:col-span-1">
                           <FormLabel>City</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="Bolton" 
-                              {...field} 
-                              value={field.value || ""}
+                            <Input
+                              {...field}
+                              placeholder="City"
+                              disabled={isPending}
                               data-testid="input-company-city"
                             />
                           </FormControl>
@@ -512,6 +438,7 @@ export default function AdminSettings() {
                         </FormItem>
                       )}
                     />
+
                     <FormField
                       control={form.control}
                       name="companyState"
@@ -519,10 +446,10 @@ export default function AdminSettings() {
                         <FormItem>
                           <FormLabel>State</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="MA" 
-                              {...field} 
-                              value={field.value || ""}
+                            <Input
+                              {...field}
+                              placeholder="MA"
+                              disabled={isPending}
                               data-testid="input-company-state"
                             />
                           </FormControl>
@@ -530,17 +457,18 @@ export default function AdminSettings() {
                         </FormItem>
                       )}
                     />
+
                     <FormField
                       control={form.control}
                       name="companyZipCode"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Zip Code</FormLabel>
+                          <FormLabel>ZIP Code</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="01740" 
-                              {...field} 
-                              value={field.value || ""}
+                            <Input
+                              {...field}
+                              placeholder="01234"
+                              disabled={isPending}
                               data-testid="input-company-zip"
                             />
                           </FormControl>
@@ -550,18 +478,19 @@ export default function AdminSettings() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="companyPhone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
+                          <FormLabel>Phone</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="(978) 779-5521" 
-                              {...field} 
-                              value={field.value || ""}
+                            <Input
+                              {...field}
+                              type="tel"
+                              placeholder="(555) 123-4567"
+                              disabled={isPending}
                               data-testid="input-company-phone"
                             />
                           </FormControl>
@@ -569,18 +498,19 @@ export default function AdminSettings() {
                         </FormItem>
                       )}
                     />
+
                     <FormField
                       control={form.control}
                       name="companyEmail"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email Address</FormLabel>
+                          <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input 
+                            <Input
+                              {...field}
                               type="email"
-                              placeholder="info@nashobavalleywinery.com" 
-                              {...field} 
-                              value={field.value || ""}
+                              placeholder="info@example.com"
+                              disabled={isPending}
                               data-testid="input-company-email"
                             />
                           </FormControl>
@@ -595,13 +525,13 @@ export default function AdminSettings() {
                     name="companyWebsite"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Website URL</FormLabel>
+                        <FormLabel>Website</FormLabel>
                         <FormControl>
-                          <Input 
+                          <Input
+                            {...field}
                             type="url"
-                            placeholder="https://www.nashobavalleywinery.com" 
-                            {...field} 
-                            value={field.value || ""}
+                            placeholder="https://www.example.com"
+                            disabled={isPending}
                             data-testid="input-company-website"
                           />
                         </FormControl>
@@ -609,43 +539,113 @@ export default function AdminSettings() {
                       </FormItem>
                     )}
                   />
+
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={isPending} data-testid="button-save-company">
+                      {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Settings
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
+            </TabsContent>
 
-              <div className="flex justify-end gap-2">
-                <Button 
-                  type="submit" 
-                  disabled={updateMutation.isPending}
-                  data-testid="button-save-company-settings"
-                >
-                  {updateMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Settings"
-                  )}
-                </Button>
-              </div>
+            <TabsContent value="header">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Header Image</CardTitle>
+                  <CardDescription>The hero image displayed at the top of your reservation page.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-4">
+                    <div>
+                      <FormLabel>Current Header Image</FormLabel>
+                      {headerImageURL !== null ? (
+                        <div className="mt-2">
+                          {headerImageURL ? (
+                            <div className="relative inline-block">
+                              <img
+                                src={headerImageURL}
+                                alt="New header"
+                                className="max-w-md rounded-lg border"
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-2 right-2"
+                                onClick={() => setHeaderImageURL(null)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Image will be removed when you save.</p>
+                          )}
+                        </div>
+                      ) : settings?.headerImageUrl ? (
+                        <div className="mt-2 relative inline-block">
+                          <img
+                            src={settings.headerImageUrl}
+                            alt="Current header"
+                            className="max-w-md rounded-lg border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={() => setHeaderImageURL("")}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">No header image set.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <FormLabel>Upload New Image</FormLabel>
+                      <div className="mt-2">
+                        <ObjectUploader
+                          onComplete={(imageUrl) => {
+                            setHeaderImageURL(imageUrl);
+                            toast({
+                              title: "Image selected",
+                              description: "Save settings to apply the new header image.",
+                            });
+                          }}
+                          variant="outline"
+                        >
+                          <Image className="w-4 h-4 mr-2" />
+                          Select from Media Library
+                        </ObjectUploader>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit" disabled={isPending} data-testid="button-save-header">
+                      {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Settings
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </form>
         </Form>
 
-        <TabsContent value="footer" className="space-y-6">
+        <TabsContent value="footer">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Footer Links</CardTitle>
-                  <CardDescription>
-                    Manage links that appear in the footer across all pages
-                  </CardDescription>
+                  <CardDescription>Links displayed in the footer of your reservation page.</CardDescription>
                 </div>
-                <Button 
-                  onClick={() => handleOpenFooterLinkDialog()}
-                  data-testid="button-add-footer-link"
-                >
+                <Button onClick={handleAddFooterLink} data-testid="button-add-footer-link">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Link
                 </Button>
@@ -653,70 +653,67 @@ export default function AdminSettings() {
             </CardHeader>
             <CardContent>
               {isLoadingFooterLinks ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="h-16 bg-muted rounded animate-pulse" />
+                  ))}
                 </div>
               ) : footerLinks.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Link2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No footer links configured yet.</p>
-                  <p className="text-sm">Click "Add Link" to create your first footer link.</p>
+                  <p>No footer links yet</p>
+                  <p className="text-sm mt-1">Add links to display in your site footer.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {footerLinks.sort((a, b) => a.displayOrder - b.displayOrder).map((link) => (
-                    <div 
-                      key={link.id} 
-                      className="flex items-center gap-3 p-3 rounded-md border bg-card hover-elevate"
-                      data-testid={`footer-link-${link.id}`}
-                    >
-                      <GripVertical className="w-4 h-4 text-muted-foreground" />
-                      
-                      {link.iconUrl ? (
-                        <img 
-                          src={link.iconUrl} 
-                          alt={link.name}
-                          className="w-8 h-8 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-                          <Link2 className="w-4 h-4 text-muted-foreground" />
+                <div className="space-y-3">
+                  {footerLinks
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .map((link) => (
+                      <div
+                        key={link.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          {link.iconUrl && (
+                            <img
+                              src={link.iconUrl}
+                              alt=""
+                              className="w-6 h-6 object-contain"
+                            />
+                          )}
+                          <div>
+                            <p className="font-medium">{link.name}</p>
+                            <a
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                            >
+                              {link.url}
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
                         </div>
-                      )}
-                      
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{link.name}</p>
-                        <a 
-                          href={link.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 truncate"
-                        >
-                          {link.url}
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditFooterLink(link)}
+                            data-testid={`button-edit-footer-link-${link.id}`}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingFooterLink(link)}
+                            data-testid={`button-delete-footer-link-${link.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenFooterLinkDialog(link)}
-                          data-testid={`button-edit-footer-link-${link.id}`}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingFooterLink(link)}
-                          data-testid={`button-delete-footer-link-${link.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </CardContent>
@@ -724,40 +721,30 @@ export default function AdminSettings() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isFooterLinkDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsFooterLinkDialogOpen(false);
-          setEditingFooterLink(null);
-          footerLinkForm.reset();
-        }
-      }}>
+      <Dialog open={isFooterLinkDialogOpen} onOpenChange={setIsFooterLinkDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingFooterLink ? "Edit Footer Link" : "Add Footer Link"}</DialogTitle>
             <DialogDescription>
-              {editingFooterLink 
-                ? "Update the details for this footer link" 
-                : "Create a new link that will appear in the site footer"}
+              {editingFooterLink ? "Update the footer link details." : "Add a new link to your site footer."}
             </DialogDescription>
           </DialogHeader>
           <Form {...footerLinkForm}>
-            <form onSubmit={footerLinkForm.handleSubmit(handleFooterLinkSubmit)} className="space-y-4">
+            <form onSubmit={footerLinkForm.handleSubmit(onSubmitFooterLink)} className="space-y-4">
               <FormField
                 control={footerLinkForm.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Link Name *</FormLabel>
+                    <FormLabel>Link Name</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="Facebook" 
+                      <Input
                         {...field}
+                        placeholder="Facebook"
+                        disabled={isFooterLinkPending}
                         data-testid="input-footer-link-name"
                       />
                     </FormControl>
-                    <FormDescription>
-                      The text displayed for this link
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -768,18 +755,16 @@ export default function AdminSettings() {
                 name="url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Link URL *</FormLabel>
+                    <FormLabel>URL</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="url"
-                        placeholder="https://facebook.com/yourpage" 
+                      <Input
                         {...field}
+                        type="url"
+                        placeholder="https://facebook.com/yourpage"
+                        disabled={isFooterLinkPending}
                         data-testid="input-footer-link-url"
                       />
                     </FormControl>
-                    <FormDescription>
-                      The destination URL when clicked
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -790,19 +775,17 @@ export default function AdminSettings() {
                 name="iconUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Icon/Thumbnail URL</FormLabel>
+                    <FormLabel>Icon URL (optional)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="url"
-                        placeholder="https://example.com/icon.png" 
+                      <Input
                         {...field}
                         value={field.value || ""}
+                        placeholder="https://example.com/icon.png"
+                        disabled={isFooterLinkPending}
                         data-testid="input-footer-link-icon"
                       />
                     </FormControl>
-                    <FormDescription>
-                      Optional icon or thumbnail image URL
-                    </FormDescription>
+                    <FormDescription>URL to an icon image for this link.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -815,19 +798,16 @@ export default function AdminSettings() {
                   <FormItem>
                     <FormLabel>Display Order</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number"
-                        min="0"
-                        step="1"
+                      <Input
                         {...field}
-                        value={field.value ?? 0}
+                        type="number"
+                        min={0}
                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        disabled={isFooterLinkPending}
                         data-testid="input-footer-link-order"
                       />
                     </FormControl>
-                    <FormDescription>
-                      Lower numbers appear first in the footer
-                    </FormDescription>
+                    <FormDescription>Lower numbers appear first.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -837,29 +817,14 @@ export default function AdminSettings() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setIsFooterLinkDialogOpen(false);
-                    setEditingFooterLink(null);
-                    footerLinkForm.reset();
-                  }}
+                  onClick={() => setIsFooterLinkDialogOpen(false)}
+                  disabled={isFooterLinkPending}
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={createFooterLinkMutation.isPending || updateFooterLinkMutation.isPending}
-                  data-testid="button-save-footer-link"
-                >
-                  {(createFooterLinkMutation.isPending || updateFooterLinkMutation.isPending) ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : editingFooterLink ? (
-                    "Update Link"
-                  ) : (
-                    "Add Link"
-                  )}
+                <Button type="submit" disabled={isFooterLinkPending} data-testid="button-save-footer-link">
+                  {isFooterLinkPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {editingFooterLink ? "Update Link" : "Add Link"}
                 </Button>
               </DialogFooter>
             </form>
@@ -867,7 +832,7 @@ export default function AdminSettings() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deletingFooterLink} onOpenChange={(open) => !open && setDeletingFooterLink(null)}>
+      <AlertDialog open={!!deletingFooterLink} onOpenChange={() => setDeletingFooterLink(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Footer Link</AlertDialogTitle>
@@ -880,16 +845,9 @@ export default function AdminSettings() {
             <AlertDialogAction
               onClick={() => deletingFooterLink && deleteFooterLinkMutation.mutate(deletingFooterLink.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete-footer-link"
             >
-              {deleteFooterLinkMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
+              {deleteFooterLinkMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
