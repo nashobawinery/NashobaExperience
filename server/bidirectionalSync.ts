@@ -541,6 +541,254 @@ export async function applySync(
   };
 }
 
+// Convert tableId to snake_case database table name
+function toSnakeCase(str: string): string {
+  return str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+}
+
+// Helper to safely escape identifiers (prevents SQL injection)
+function escapeIdentifier(name: string): string {
+  // Validate: only allow alphanumeric and underscore
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid identifier: ${name}`);
+  }
+  return `"${name}"`;
+}
+
+// New function to apply sync operations with actual data copying
+export async function applySyncOperations(
+  prodDbUrl: string,
+  operations: Array<{
+    tableId: string;
+    businessKey: Record<string, any>;
+    direction: 'dev_to_prod' | 'prod_to_dev';
+  }>,
+  dryRun: boolean = false
+): Promise<SyncApplyResult> {
+  const errors: Array<{ tableId: string; error: string }> = [];
+  let appliedToDevCount = 0;
+  let appliedToProdCount = 0;
+  
+  // Group operations by table for efficiency
+  const operationsByTable: Record<string, typeof operations> = {};
+  for (const op of operations) {
+    if (!operationsByTable[op.tableId]) {
+      operationsByTable[op.tableId] = [];
+    }
+    operationsByTable[op.tableId].push(op);
+  }
+  
+  if (Object.keys(operationsByTable).length === 0) {
+    return { success: true, appliedToDevCount: 0, appliedToProdCount: 0, errors: [] };
+  }
+  
+  // Create pools for both databases using Neon serverless driver
+  const prodPool = new Pool({ connectionString: prodDbUrl });
+  const devDbUrl = process.env.DATABASE_URL;
+  if (!devDbUrl) {
+    return { success: false, appliedToDevCount: 0, appliedToProdCount: 0, errors: [{ tableId: 'system', error: 'Development database URL not configured' }] };
+  }
+  const devPool = new Pool({ connectionString: devDbUrl });
+  
+  try {
+    for (const tableId of Object.keys(operationsByTable)) {
+      const tableOperations = operationsByTable[tableId];
+      const tableConfig = SYNC_TABLES.find(t => t.id === tableId);
+      if (!tableConfig) {
+        errors.push({ tableId, error: 'Table not found in sync registry' });
+        continue;
+      }
+      
+      // Get table info - convert id to snake_case for database table name
+      const tableName = toSnakeCase(tableConfig.id);
+      const businessKeys = tableConfig.businessKey;
+      const exportFields = tableConfig.exportFields || [];
+      
+      // Get all fields for the table - use Array.from to avoid Set iteration issues
+      const allFieldsSet = new Set([...businessKeys, ...exportFields]);
+      const allFields = Array.from(allFieldsSet);
+      
+      // Validate table and column names
+      try {
+        escapeIdentifier(tableName);
+        for (const key of businessKeys) escapeIdentifier(key);
+        for (const field of allFields) escapeIdentifier(field);
+      } catch (err: any) {
+        errors.push({ tableId, error: `Invalid table/column names: ${err.message}` });
+        continue;
+      }
+      
+      for (const op of tableOperations) {
+        try {
+          // Build WHERE clause for business key - properly parameterized
+          const whereConditions = businessKeys.map((key, idx) => 
+            `${escapeIdentifier(key)} = $${idx + 1}`
+          ).join(' AND ');
+          const whereValues = businessKeys.map(key => op.businessKey[key]);
+          
+          if (op.direction === 'dev_to_prod') {
+            // Copy from dev to prod
+            
+            // First, fetch the record from dev using parameterized query
+            const devQuery = `SELECT * FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`;
+            const devResult = await devPool.query(devQuery, whereValues);
+            
+            if (!devResult.rows || devResult.rows.length === 0) {
+              errors.push({ tableId, error: `Record not found in dev: ${JSON.stringify(op.businessKey)}` });
+              continue;
+            }
+            
+            const devRecord = devResult.rows[0] as Record<string, any>;
+            
+            if (!dryRun) {
+              // Get all columns that have values, excluding auto-generated fields
+              const columns = allFields.filter(f => devRecord[f] !== undefined && f !== 'id' && f !== 'createdAt');
+              
+              if (columns.length === 0) {
+                errors.push({ tableId, error: 'No syncable columns found' });
+                continue;
+              }
+              
+              // Build parameterized INSERT/UPDATE for production
+              const insertCols = columns.map(c => escapeIdentifier(c)).join(', ');
+              const insertVals = columns.map((_, i) => `$${i + 1}`).join(', ');
+              const values = columns.map(c => {
+                const val = devRecord[c];
+                // Convert dates to ISO strings for proper serialization
+                if (val instanceof Date) return val.toISOString();
+                return val;
+              });
+              
+              // Check if record exists in prod
+              const existsResult = await prodPool.query(
+                `SELECT 1 FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`,
+                whereValues
+              );
+              
+              if (existsResult.rows.length > 0) {
+                // Update existing record in production
+                const updateCols = columns.filter(c => !businessKeys.includes(c));
+                if (updateCols.length > 0) {
+                  const setClauses = updateCols.map((c, i) => 
+                    `${escapeIdentifier(c)} = $${businessKeys.length + i + 1}`
+                  ).join(', ');
+                  const updateValues = [
+                    ...whereValues,
+                    ...updateCols.map(c => {
+                      const val = devRecord[c];
+                      if (val instanceof Date) return val.toISOString();
+                      return val;
+                    })
+                  ];
+                  
+                  console.log(`[Sync] Updating ${tableName} in prod:`, { businessKey: op.businessKey });
+                  await prodPool.query(
+                    `UPDATE ${escapeIdentifier(tableName)} SET ${setClauses} WHERE ${whereConditions}`,
+                    updateValues
+                  );
+                }
+              } else {
+                // Insert new record in production
+                console.log(`[Sync] Inserting into ${tableName} in prod:`, { businessKey: op.businessKey });
+                await prodPool.query(
+                  `INSERT INTO ${escapeIdentifier(tableName)} (${insertCols}) VALUES (${insertVals})`,
+                  values
+                );
+              }
+            }
+            
+            appliedToProdCount++;
+            
+          } else if (op.direction === 'prod_to_dev') {
+            // Copy from prod to dev
+            
+            // Fetch the record from prod
+            const prodResult = await prodPool.query(
+              `SELECT * FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`,
+              whereValues
+            );
+            
+            if (!prodResult.rows || prodResult.rows.length === 0) {
+              errors.push({ tableId, error: `Record not found in prod: ${JSON.stringify(op.businessKey)}` });
+              continue;
+            }
+            
+            const prodRecord = prodResult.rows[0] as Record<string, any>;
+            
+            if (!dryRun) {
+              // Get all columns that have values, excluding auto-generated fields
+              const columns = allFields.filter(f => prodRecord[f] !== undefined && f !== 'id' && f !== 'createdAt');
+              
+              if (columns.length === 0) {
+                errors.push({ tableId, error: 'No syncable columns found' });
+                continue;
+              }
+              
+              // Check if record exists in dev
+              const devExistsQuery = `SELECT 1 FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`;
+              const existsResult = await devPool.query(devExistsQuery, whereValues);
+              const existsInDev = existsResult.rows && existsResult.rows.length > 0;
+              
+              // Prepare values
+              const values = columns.map(c => {
+                const val = prodRecord[c];
+                if (val instanceof Date) return val.toISOString();
+                return val;
+              });
+              
+              if (existsInDev) {
+                // Update existing record in dev
+                const updateCols = columns.filter(c => !businessKeys.includes(c));
+                if (updateCols.length > 0) {
+                  const setClauses = updateCols.map((c, i) => 
+                    `${escapeIdentifier(c)} = $${businessKeys.length + i + 1}`
+                  ).join(', ');
+                  const updateValues = [
+                    ...whereValues,
+                    ...updateCols.map(c => {
+                      const val = prodRecord[c];
+                      if (val instanceof Date) return val.toISOString();
+                      return val;
+                    })
+                  ];
+                  
+                  console.log(`[Sync] Updating ${tableName} in dev:`, { businessKey: op.businessKey });
+                  const updateQuery = `UPDATE ${escapeIdentifier(tableName)} SET ${setClauses} WHERE ${whereConditions}`;
+                  await devPool.query(updateQuery, updateValues);
+                }
+              } else {
+                // Insert new record in dev
+                const insertCols = columns.map(c => escapeIdentifier(c)).join(', ');
+                const insertVals = columns.map((_, i) => `$${i + 1}`).join(', ');
+                
+                console.log(`[Sync] Inserting into ${tableName} in dev:`, { businessKey: op.businessKey });
+                const insertQuery = `INSERT INTO ${escapeIdentifier(tableName)} (${insertCols}) VALUES (${insertVals})`;
+                await devPool.query(insertQuery, values);
+              }
+            }
+            
+            appliedToDevCount++;
+          }
+        } catch (error: any) {
+          console.error(`Error syncing ${tableId}:`, error);
+          errors.push({ tableId, error: error.message || 'Unknown error' });
+        }
+      }
+    }
+    
+  } finally {
+    await prodPool.end();
+    await devPool.end();
+  }
+  
+  return {
+    success: errors.length === 0,
+    appliedToDevCount,
+    appliedToProdCount,
+    errors,
+  };
+}
+
 export function getSyncSummary(scanResult: SyncScanResult): {
   totalTables: number;
   tablesWithDifferences: number;

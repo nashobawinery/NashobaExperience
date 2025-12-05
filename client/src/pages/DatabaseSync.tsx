@@ -6,6 +6,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -224,6 +234,17 @@ export default function DatabaseSync() {
   const [isScanning, setIsScanning] = useState(false);
   const [expandedSyncTables, setExpandedSyncTables] = useState<Set<string>>(new Set());
   
+  // Sync selection state: key is "tableId:businessKeyString", value is sync direction
+  const [syncSelections, setSyncSelections] = useState<Record<string, 'dev' | 'prod' | 'skip'>>({});
+  const [isApplyingSync, setIsApplyingSync] = useState(false);
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
+  const [syncApplyResult, setSyncApplyResult] = useState<{
+    success: boolean;
+    appliedToDevCount: number;
+    appliedToProdCount: number;
+    errors: Array<{ tableId: string; error: string }>;
+  } | null>(null);
+  
   const isProduction = window.location.hostname.includes('.replit.app') && 
                        !window.location.hostname.includes('-00-');
   const environmentName = isProduction ? 'Production' : 'Development';
@@ -371,6 +392,108 @@ export default function DatabaseSync() {
     selectModule('b2b');
   };
 
+  // Helper to create a unique key for a record
+  const getRecordKey = (tableId: string, businessKey: Record<string, any>) => {
+    return `${tableId}:${JSON.stringify(businessKey)}`;
+  };
+
+  // Toggle a single record's sync selection
+  const toggleRecordSelection = (tableId: string, businessKey: Record<string, any>, direction: 'dev' | 'prod' | 'skip') => {
+    const key = getRecordKey(tableId, businessKey);
+    setSyncSelections(prev => ({
+      ...prev,
+      [key]: direction,
+    }));
+  };
+
+  // Get current selection for a record
+  const getRecordSelection = (tableId: string, businessKey: Record<string, any>): 'dev' | 'prod' | 'skip' | undefined => {
+    const key = getRecordKey(tableId, businessKey);
+    return syncSelections[key];
+  };
+
+  // Select all records in a table with a specific direction
+  const selectAllInTable = (tableId: string, direction: 'dev' | 'prod' | 'skip') => {
+    if (!scanResult) return;
+    const table = scanResult.tables.find(t => t.tableId === tableId);
+    if (!table) return;
+    
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const record of table.records) {
+      const key = getRecordKey(tableId, record.businessKey);
+      newSelections[key] = direction;
+    }
+    setSyncSelections(newSelections);
+  };
+
+  // Select all dev-only records to sync to prod
+  const selectAllDevOnly = () => {
+    if (!scanResult) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const table of scanResult.tables) {
+      for (const record of table.records) {
+        if (record.state === 'dev_only' || record.state === 'dev_newer') {
+          const key = getRecordKey(table.tableId, record.businessKey);
+          newSelections[key] = 'dev';
+        }
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  // Select all prod-only records to sync to dev
+  const selectAllProdOnly = () => {
+    if (!scanResult) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const table of scanResult.tables) {
+      for (const record of table.records) {
+        if (record.state === 'prod_only' || record.state === 'prod_newer') {
+          const key = getRecordKey(table.tableId, record.businessKey);
+          newSelections[key] = 'prod';
+        }
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  // Select all following recommendations
+  const selectAllRecommended = () => {
+    if (!scanResult) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const table of scanResult.tables) {
+      for (const record of table.records) {
+        const key = getRecordKey(table.tableId, record.businessKey);
+        if (record.recommendation === 'keep_dev') {
+          newSelections[key] = 'dev';
+        } else if (record.recommendation === 'keep_prod') {
+          newSelections[key] = 'prod';
+        }
+        // Manual review items are left unselected
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  // Clear all selections
+  const clearAllSelections = () => {
+    setSyncSelections({});
+  };
+
+  // Count selected records by direction
+  const getSelectionCounts = () => {
+    let devToProd = 0;
+    let prodToDev = 0;
+    let skipped = 0;
+    
+    for (const direction of Object.values(syncSelections)) {
+      if (direction === 'dev') devToProd++;
+      else if (direction === 'prod') prodToDev++;
+      else if (direction === 'skip') skipped++;
+    }
+    
+    return { devToProd, prodToDev, skipped, total: devToProd + prodToDev };
+  };
+
   const exportMutation = useMutation({
     mutationFn: async (tables: string[]) => {
       const response = await fetch('/api/admin/data/export-selective', {
@@ -480,6 +603,85 @@ export default function DatabaseSync() {
       return;
     }
     importMutation.mutate({ file: importFile, tables: selectedTables });
+  };
+
+  // Apply bidirectional sync
+  const applySync = async () => {
+    setIsApplyingSync(true);
+    setSyncApplyResult(null);
+    
+    try {
+      // Convert selections to API format
+      const operations: Array<{
+        tableId: string;
+        businessKey: Record<string, any>;
+        direction: 'dev_to_prod' | 'prod_to_dev';
+      }> = [];
+
+      for (const [key, direction] of Object.entries(syncSelections)) {
+        if (direction === 'skip') continue;
+        
+        // Parse the key back to tableId and businessKey
+        const firstColonIndex = key.indexOf(':');
+        const tableId = key.substring(0, firstColonIndex);
+        const businessKey = JSON.parse(key.substring(firstColonIndex + 1));
+        
+        operations.push({
+          tableId,
+          businessKey,
+          direction: direction === 'dev' ? 'dev_to_prod' : 'prod_to_dev',
+        });
+      }
+
+      if (operations.length === 0) {
+        toast({
+          title: "No Operations Selected",
+          description: "Please select records to sync",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await fetch('/api/admin/sync/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prodDbUrl,
+          operations,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Apply sync failed');
+      }
+
+      const result = await response.json();
+      setSyncApplyResult(result);
+      
+      if (result.success) {
+        toast({
+          title: "Sync Applied Successfully",
+          description: `Applied ${result.appliedToProdCount} to Prod, ${result.appliedToDevCount} to Dev`,
+        });
+        clearAllSelections();
+      } else {
+        toast({
+          title: "Sync Completed with Errors",
+          description: `${result.errors.length} errors occurred`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to apply sync",
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplyingSync(false);
+      setShowSyncConfirm(false);
+    }
   };
 
   return (
@@ -1188,11 +1390,104 @@ export default function DatabaseSync() {
                     </CardContent>
                   </Card>
 
+                  {/* Sync Actions Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <CardTitle>Sync Actions</CardTitle>
+                          <CardDescription>
+                            Select records to sync between environments
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const counts = getSelectionCounts();
+                            return (
+                              <>
+                                {counts.devToProd > 0 && (
+                                  <Badge className="bg-blue-500">
+                                    {counts.devToProd} → Prod
+                                  </Badge>
+                                )}
+                                {counts.prodToDev > 0 && (
+                                  <Badge className="bg-green-500">
+                                    {counts.prodToDev} → Dev
+                                  </Badge>
+                                )}
+                                {counts.total === 0 && (
+                                  <Badge variant="outline">No selections</Badge>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={selectAllRecommended} data-testid="button-select-recommended">
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Select All Recommended
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={selectAllDevOnly} data-testid="button-select-dev-only">
+                          <ArrowRight className="h-4 w-4 mr-1" />
+                          All Dev → Prod
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={selectAllProdOnly} data-testid="button-select-prod-only">
+                          <ArrowLeft className="h-4 w-4 mr-1" />
+                          All Prod → Dev
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={clearAllSelections} data-testid="button-clear-selections">
+                          <X className="h-4 w-4 mr-1" />
+                          Clear All
+                        </Button>
+                      </div>
+                      
+                      {getSelectionCounts().total > 0 && (
+                        <div className="flex items-center gap-4 pt-2 border-t">
+                          <Button 
+                            onClick={() => setShowSyncConfirm(true)}
+                            disabled={isApplyingSync}
+                            data-testid="button-apply-sync"
+                          >
+                            {isApplyingSync && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Apply Sync ({getSelectionCounts().total} records)
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            {getSelectionCounts().devToProd} to production, {getSelectionCounts().prodToDev} to development
+                          </span>
+                        </div>
+                      )}
+
+                      {syncApplyResult && (
+                        <Alert variant={syncApplyResult.success ? "default" : "destructive"} className="mt-4">
+                          <CheckCircle className="h-4 w-4" />
+                          <AlertTitle>{syncApplyResult.success ? 'Sync Complete!' : 'Sync Completed with Errors'}</AlertTitle>
+                          <AlertDescription>
+                            <p>Applied {syncApplyResult.appliedToProdCount} records to Production</p>
+                            <p>Applied {syncApplyResult.appliedToDevCount} records to Development</p>
+                            {syncApplyResult.errors.length > 0 && (
+                              <div className="mt-2 text-sm">
+                                <p className="font-medium">Errors:</p>
+                                <ul className="list-disc list-inside">
+                                  {syncApplyResult.errors.map((e, i) => (
+                                    <li key={i}>{e.tableId}: {e.error}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+
                   <Card>
                     <CardHeader>
                       <CardTitle>Table Comparison</CardTitle>
                       <CardDescription>
-                        Click on a table to view record-level differences
+                        Click on a table to view and select record-level differences
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -1270,13 +1565,15 @@ export default function DatabaseSync() {
                                               <th className="text-left p-2">State</th>
                                               <th className="text-left p-2">Dev Updated</th>
                                               <th className="text-left p-2">Prod Updated</th>
-                                              <th className="text-left p-2">Recommendation</th>
+                                              <th className="text-left p-2">Sync Action</th>
                                             </tr>
                                           </thead>
                                           <tbody>
-                                            {table.records.slice(0, 50).map((record, idx) => (
+                                            {table.records.slice(0, 50).map((record, idx) => {
+                                              const currentSelection = getRecordSelection(table.tableId, record.businessKey);
+                                              return (
                                               <tr key={idx} className="border-t">
-                                                <td className="p-2 font-mono text-xs">
+                                                <td className="p-2 font-mono text-xs max-w-[200px] truncate">
                                                   {Object.entries(record.businessKey)
                                                     .map(([k, v]) => `${k}: ${v}`)
                                                     .join(', ')}
@@ -1300,12 +1597,33 @@ export default function DatabaseSync() {
                                                   {record.prodUpdatedAt ? new Date(record.prodUpdatedAt).toLocaleString() : '-'}
                                                 </td>
                                                 <td className="p-2">
-                                                  <Badge variant="outline" className="text-xs">
-                                                    {record.recommendation.replace('_', ' ')}
-                                                  </Badge>
+                                                  <div className="flex items-center gap-1">
+                                                    <Button 
+                                                      size="sm" 
+                                                      variant={currentSelection === 'dev' ? 'default' : 'outline'}
+                                                      className={`h-7 px-2 text-xs ${currentSelection === 'dev' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+                                                      onClick={() => toggleRecordSelection(table.tableId, record.businessKey, currentSelection === 'dev' ? 'skip' : 'dev')}
+                                                      disabled={record.state === 'prod_only'}
+                                                      title="Use Dev version"
+                                                    >
+                                                      <ArrowRight className="h-3 w-3 mr-1" />
+                                                      Prod
+                                                    </Button>
+                                                    <Button 
+                                                      size="sm" 
+                                                      variant={currentSelection === 'prod' ? 'default' : 'outline'}
+                                                      className={`h-7 px-2 text-xs ${currentSelection === 'prod' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                                                      onClick={() => toggleRecordSelection(table.tableId, record.businessKey, currentSelection === 'prod' ? 'skip' : 'prod')}
+                                                      disabled={record.state === 'dev_only'}
+                                                      title="Use Prod version"
+                                                    >
+                                                      <ArrowLeft className="h-3 w-3 mr-1" />
+                                                      Dev
+                                                    </Button>
+                                                  </div>
                                                 </td>
                                               </tr>
-                                            ))}
+                                            );})}
                                           </tbody>
                                         </table>
                                         {table.records.length > 50 && (
@@ -1558,6 +1876,44 @@ export default function DatabaseSync() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Sync Confirmation Dialog */}
+      <AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Database Sync</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>You are about to sync the following records:</p>
+                <div className="grid grid-cols-2 gap-4 py-2">
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-center">
+                    <div className="text-xl font-bold text-blue-600">{getSelectionCounts().devToProd}</div>
+                    <div className="text-sm">Dev → Production</div>
+                  </div>
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
+                    <div className="text-xl font-bold text-green-600">{getSelectionCounts().prodToDev}</div>
+                    <div className="text-sm">Prod → Development</div>
+                  </div>
+                </div>
+                <p className="text-sm text-destructive font-medium">
+                  This will overwrite records in the target database. This action cannot be undone.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isApplyingSync}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={applySync}
+              disabled={isApplyingSync}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isApplyingSync && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Apply Sync
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

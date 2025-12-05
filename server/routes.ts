@@ -1234,27 +1234,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply sync selections (dry run or actual)
   app.post("/api/admin/sync/apply", isAdmin, async (req, res) => {
     try {
-      const { prodDatabaseUrl, selections, dryRun = true } = req.body;
+      const { prodDbUrl, operations, dryRun = false } = req.body;
       
-      if (!prodDatabaseUrl) {
-        return res.status(400).json({ message: "Production database URL is required" });
+      if (!prodDbUrl) {
+        return res.status(400).json({ error: "Production database URL is required" });
       }
       
-      if (!selections || !Array.isArray(selections)) {
-        return res.status(400).json({ message: "Selections array is required" });
+      if (!operations || !Array.isArray(operations)) {
+        return res.status(400).json({ error: "Operations array is required" });
       }
       
-      const { applySync } = await import("./bidirectionalSync");
-      const result = await applySync({
-        prodDatabaseUrl,
-        direction: 'bidirectional',
-        dryRun,
-      }, selections);
+      const { applySyncOperations } = await import("./bidirectionalSync");
+      const result = await applySyncOperations(prodDbUrl, operations, dryRun);
       
       res.json(result);
     } catch (error: any) {
       console.error("Error applying sync:", error);
-      res.status(500).json({ message: error.message || "Failed to apply sync" });
+      res.status(500).json({ error: error.message || "Failed to apply sync" });
     }
   });
 
