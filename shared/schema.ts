@@ -1789,3 +1789,400 @@ export type DepartmentFieldAssignment = typeof departmentFieldAssignments.$infer
 export type DepartmentFieldAssignmentWithDefinition = DepartmentFieldAssignment & {
   fieldDefinition?: DailyReportFieldDefinition;
 };
+
+// ============================================
+// RESERVATION MODULE (resy_*) TABLES
+// ============================================
+
+// Resy Users - Staff and admin users for reservation system
+export const resyUsers = pgTable("resy_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email"),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  role: varchar("role").notNull().default("viewer"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyUserSchema = createInsertSchema(resyUsers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyUser = z.infer<typeof insertResyUserSchema>;
+export type ResyUser = typeof resyUsers.$inferSelect;
+
+// Resy Sessions - Session management for reservation system
+export const resySessions = pgTable("resy_sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+}, (table) => [
+  index("idx_resy_session_expire").on(table.expire),
+]);
+
+// Resy Locations - Venue locations
+export const resyLocations = pgTable("resy_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  address: text("address"),
+  imageUrl: text("image_url"),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  timezone: varchar("timezone").default("America/New_York"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyLocationSchema = createInsertSchema(resyLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyLocation = z.infer<typeof insertResyLocationSchema>;
+export type ResyLocation = typeof resyLocations.$inferSelect;
+
+// Resy Experiences - Tasting experiences/activities
+export const resyExperiences = pgTable("resy_experiences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  shortDescription: varchar("short_description", { length: 200 }),
+  longDescription: varchar("long_description", { length: 1000 }),
+  imageUrl: text("image_url"),
+  primaryImageKey: text("primary_image_key"),
+  secondaryImageKey: text("secondary_image_key"),
+  isExternal: boolean("is_external").notNull().default(false),
+  externalUrl: text("external_url"),
+  reservationType: text("reservation_type"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  showPrice: boolean("show_price").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  location: text("location"),
+  locationId: varchar("location_id"),
+  advanceBookingDays: integer("advance_booking_days"),
+  showWaitlist: boolean("show_waitlist").notNull().default(false),
+  closedMessage: text("closed_message"),
+  fullyBookedMessage: text("fully_booked_message"),
+  privateEventMessage: text("private_event_message"),
+  pointsEarned: integer("points_earned").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyExperienceSchema = createInsertSchema(resyExperiences).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyExperience = z.infer<typeof insertResyExperienceSchema>;
+export type ResyExperience = typeof resyExperiences.$inferSelect;
+
+// Resy Clubs - Membership clubs
+export const resyClubs = pgTable("resy_clubs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyClubSchema = createInsertSchema(resyClubs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyClub = z.infer<typeof insertResyClubSchema>;
+export type ResyClub = typeof resyClubs.$inferSelect;
+
+// Resy Customers - Guest/customer records
+export const resyCustomers = pgTable("resy_customers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  loyaltyPoints: integer("loyalty_points").notNull().default(0),
+  clubStatus: text("club_status").notNull().default("none"),
+  clubId: varchar("club_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyCustomerSchema = createInsertSchema(resyCustomers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyCustomer = z.infer<typeof insertResyCustomerSchema>;
+export type ResyCustomer = typeof resyCustomers.$inferSelect;
+
+// Resy Reservations - Booking records
+export const resyReservations = pgTable("resy_reservations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  experienceId: varchar("experience_id").notNull(),
+  locationId: varchar("location_id"),
+  customerId: varchar("customer_id"),
+  reservationDate: varchar("reservation_date", { length: 10 }).notNull(),
+  reservationTime: text("reservation_time").notNull(),
+  partySize: integer("party_size").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
+  status: text("status").notNull().default("confirmed"),
+  notes: text("notes"),
+  specialRequests: text("special_requests"),
+  tableAssignment: text("table_assignment"),
+  confirmationCode: varchar("confirmation_code"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resy_reservations_date").on(table.reservationDate),
+  index("idx_resy_reservations_experience").on(table.experienceId),
+  index("idx_resy_reservations_customer").on(table.customerId),
+]);
+
+export const insertResyReservationSchema = createInsertSchema(resyReservations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyReservation = z.infer<typeof insertResyReservationSchema>;
+export type ResyReservation = typeof resyReservations.$inferSelect;
+
+// Resy Time Slots - Available booking time slots
+export const resyTimeSlots = pgTable("resy_time_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  experienceId: varchar("experience_id").notNull(),
+  locationId: varchar("location_id"),
+  dayOfWeek: integer("day_of_week").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  maxPartySize: integer("max_party_size").notNull(),
+  maxReservations: integer("max_reservations"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resy_time_slots_experience").on(table.experienceId),
+  index("idx_resy_time_slots_day").on(table.dayOfWeek),
+]);
+
+export const insertResyTimeSlotSchema = createInsertSchema(resyTimeSlots).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyTimeSlot = z.infer<typeof insertResyTimeSlotSchema>;
+export type ResyTimeSlot = typeof resyTimeSlots.$inferSelect;
+
+// Resy Waitlist - Waitlist entries
+export const resyWaitlist = pgTable("resy_waitlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  experienceId: varchar("experience_id").notNull(),
+  locationId: varchar("location_id"),
+  requestedDate: timestamp("requested_date").notNull(),
+  partySize: integer("party_size").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyWaitlistSchema = createInsertSchema(resyWaitlist).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyWaitlist = z.infer<typeof insertResyWaitlistSchema>;
+export type ResyWaitlist = typeof resyWaitlist.$inferSelect;
+
+// Resy Customer Visits - Track customer visit history
+export const resyCustomerVisits = pgTable("resy_customer_visits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull(),
+  reservationId: varchar("reservation_id"),
+  experienceId: varchar("experience_id").notNull(),
+  visitDate: varchar("visit_date", { length: 10 }).notNull(),
+  visitTime: text("visit_time"),
+  partySize: integer("party_size"),
+  status: text("status").notNull().default("completed"),
+  totalSpent: decimal("total_spent", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertResyCustomerVisitSchema = createInsertSchema(resyCustomerVisits).omit({ id: true, createdAt: true });
+export type InsertResyCustomerVisit = z.infer<typeof insertResyCustomerVisitSchema>;
+export type ResyCustomerVisit = typeof resyCustomerVisits.$inferSelect;
+
+// Resy Meal Periods - Breakfast, Lunch, Dinner, etc.
+export const resyMealPeriods = pgTable("resy_meal_periods", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyMealPeriodSchema = createInsertSchema(resyMealPeriods).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyMealPeriod = z.infer<typeof insertResyMealPeriodSchema>;
+export type ResyMealPeriod = typeof resyMealPeriods.$inferSelect;
+
+// Resy Operating Hours - Location operating hours
+export const resyOperatingHours = pgTable("resy_operating_hours", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  openTime: text("open_time"),
+  closeTime: text("close_time"),
+  isClosed: boolean("is_closed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyOperatingHoursSchema = createInsertSchema(resyOperatingHours).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyOperatingHours = z.infer<typeof insertResyOperatingHoursSchema>;
+export type ResyOperatingHours = typeof resyOperatingHours.$inferSelect;
+
+// Resy Special Dates - Holidays and special closures
+export const resySpecialDates = pgTable("resy_special_dates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  date: varchar("date", { length: 10 }).notNull(),
+  name: text("name"),
+  isClosed: boolean("is_closed").notNull().default(true),
+  openTime: text("open_time"),
+  closeTime: text("close_time"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResySpecialDateSchema = createInsertSchema(resySpecialDates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResySpecialDate = z.infer<typeof insertResySpecialDateSchema>;
+export type ResySpecialDate = typeof resySpecialDates.$inferSelect;
+
+// Resy Location Tables - Physical tables at locations
+export const resyLocationTables = pgTable("resy_location_tables", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  tableLabel: varchar("table_label", { length: 5 }).notNull(),
+  minCapacity: integer("min_capacity").notNull(),
+  maxCapacity: integer("max_capacity").notNull(),
+  combinableWith: text("combinable_with").array().default(sql`'{}'::text[]`),
+  priority: integer("priority").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyLocationTableSchema = createInsertSchema(resyLocationTables).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyLocationTable = z.infer<typeof insertResyLocationTableSchema>;
+export type ResyLocationTable = typeof resyLocationTables.$inferSelect;
+
+// Resy Flow Controls - Reservation flow management
+export const resyFlowControls = pgTable("resy_flow_controls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  mealPeriodId: varchar("meal_period_id"),
+  intervalMinutes: integer("interval_minutes").notNull().default(15),
+  maxCoversPerInterval: integer("max_covers_per_interval").notNull(),
+  maxDailyCovers: integer("max_daily_covers"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyFlowControlSchema = createInsertSchema(resyFlowControls).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyFlowControl = z.infer<typeof insertResyFlowControlSchema>;
+export type ResyFlowControl = typeof resyFlowControls.$inferSelect;
+
+// Resy Turn Time Settings - Table turn time configuration
+export const resyTurnTimeSettings = pgTable("resy_turn_time_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  mealPeriodId: varchar("meal_period_id"),
+  minPartySize: integer("min_party_size").notNull(),
+  maxPartySize: integer("max_party_size").notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyTurnTimeSettingSchema = createInsertSchema(resyTurnTimeSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyTurnTimeSetting = z.infer<typeof insertResyTurnTimeSettingSchema>;
+export type ResyTurnTimeSetting = typeof resyTurnTimeSettings.$inferSelect;
+
+// Resy Experience Discounts - Discount codes for experiences
+export const resyExperienceDiscounts = pgTable("resy_experience_discounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  experienceId: varchar("experience_id").notNull(),
+  code: varchar("code", { length: 50 }).notNull(),
+  discountType: text("discount_type").notNull(),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull(),
+  maxUses: integer("max_uses"),
+  usedCount: integer("used_count").notNull().default(0),
+  validFrom: varchar("valid_from", { length: 10 }),
+  validUntil: varchar("valid_until", { length: 10 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyExperienceDiscountSchema = createInsertSchema(resyExperienceDiscounts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyExperienceDiscount = z.infer<typeof insertResyExperienceDiscountSchema>;
+export type ResyExperienceDiscount = typeof resyExperienceDiscounts.$inferSelect;
+
+// Resy Club Experience Discounts - Club member discounts
+export const resyClubExperienceDiscounts = pgTable("resy_club_experience_discounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clubId: varchar("club_id").notNull(),
+  experienceId: varchar("experience_id").notNull(),
+  discountType: text("discount_type").notNull(),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyClubExperienceDiscountSchema = createInsertSchema(resyClubExperienceDiscounts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyClubExperienceDiscount = z.infer<typeof insertResyClubExperienceDiscountSchema>;
+export type ResyClubExperienceDiscount = typeof resyClubExperienceDiscounts.$inferSelect;
+
+// Resy Private Events - Private event bookings
+export const resyPrivateEvents = pgTable("resy_private_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  experienceId: varchar("experience_id").notNull(),
+  locationId: varchar("location_id"),
+  eventDate: varchar("event_date", { length: 10 }).notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
+  partySize: integer("party_size").notNull(),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyPrivateEventSchema = createInsertSchema(resyPrivateEvents).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyPrivateEvent = z.infer<typeof insertResyPrivateEventSchema>;
+export type ResyPrivateEvent = typeof resyPrivateEvents.$inferSelect;
+
+// Resy Site Settings - Global configuration
+export const resySiteSettings = pgTable("resy_site_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResySiteSettingSchema = createInsertSchema(resySiteSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResySiteSetting = z.infer<typeof insertResySiteSettingSchema>;
+export type ResySiteSetting = typeof resySiteSettings.$inferSelect;
+
+// Resy Footer Links - Website footer links
+export const resyFooterLinks = pgTable("resy_footer_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  iconUrl: text("icon_url"),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyFooterLinkSchema = createInsertSchema(resyFooterLinks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyFooterLink = z.infer<typeof insertResyFooterLinkSchema>;
+export type ResyFooterLink = typeof resyFooterLinks.$inferSelect;
