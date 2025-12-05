@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Loader2, Upload, X, Building2, Image, Link2, Plus, Pencil, Trash2, GripVertical, ExternalLink } from "lucide-react";
 import type { SiteSettings, InsertSiteSettings, FooterLink, InsertFooterLink } from "@shared/schema";
 import { insertSiteSettingsSchema, insertFooterLinkSchema } from "@shared/schema";
-import { ObjectUploader } from "@/components/ObjectUploader";
+import { ObjectUploader } from "@/components/ResyObjectUploader";
 import type { UploadResult } from "@uppy/core";
 import { z } from "zod";
 

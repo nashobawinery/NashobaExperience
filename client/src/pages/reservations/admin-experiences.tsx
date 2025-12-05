@@ -22,13 +22,6 @@ import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/
 import { ObjectUploader } from "@/components/ResyObjectUploader";
 import type { UploadResult } from "@uppy/core";
 
-import restaurantImage from "@assets/generated_images/Restaurant_dining_interior_65e74c26.png";
-import tastingImage from "@assets/generated_images/Wine_tasting_glasses_e727eec6.png";
-import barrelImage from "@assets/generated_images/Wine_barrel_room_1a89a6db.png";
-import pavilionTastingImage from "@assets/generated_images/Outdoor_pavilion_tasting_5f38a008.png";
-import knollImage from "@assets/generated_images/Knoll_outdoor_dining_vista_a227d3e7.png";
-import pavilionSeatingImage from "@assets/generated_images/Pavilion_event_seating_6daeb5b9.png";
-
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sunday" },
   { value: 1, label: "Monday" },
@@ -38,15 +31,6 @@ const DAYS_OF_WEEK = [
   { value: 5, label: "Friday" },
   { value: 6, label: "Saturday" },
 ];
-
-const EXPERIENCE_IMAGES: Record<string, string> = {
-  "J's Restaurant": restaurantImage,
-  "Winery Tastings": tastingImage,
-  "Winery Tours": barrelImage,
-  "Pavilion Tastings": pavilionTastingImage,
-  "The Knoll Restaurant": knollImage,
-  "Pavilion Seating": pavilionSeatingImage,
-};
 
 export default function AdminExperiences() {
   const { toast } = useToast();
@@ -836,10 +820,6 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
   });
 
   const onSubmit = (data: InsertExperience) => {
-    // Set image URL based on name if not provided
-    if (!data.imageUrl && EXPERIENCE_IMAGES[data.name]) {
-      data.imageUrl = EXPERIENCE_IMAGES[data.name];
-    }
     saveMutation.mutate(data);
   };
 
