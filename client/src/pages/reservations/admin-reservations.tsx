@@ -1,0 +1,539 @@
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { isUnauthorizedError } from "@/lib/authUtils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertReservationSchema, type InsertReservation } from "@shared/schema";
+import type { Reservation, Experience } from "@shared/schema";
+import { format } from "date-fns";
+
+export default function AdminReservations() {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [experienceFilter, setExperienceFilter] = useState<string>("all");
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+
+  const { data: reservations, isLoading: reservationsLoading } = useQuery<Reservation[]>({
+    queryKey: ["/api/resy/reservations"],
+  });
+
+  const { data: experiences } = useQuery<Experience[]>({
+    queryKey: ["/api/resy/experiences"],
+  });
+
+  const filteredReservations = reservations?.filter((reservation) => {
+    const matchesSearch = reservation.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reservation.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || reservation.status === statusFilter;
+    const matchesExperience = experienceFilter === "all" || reservation.experienceId === experienceFilter;
+    return matchesSearch && matchesStatus && matchesExperience;
+  }) || [];
+
+  const handleEdit = (reservation: Reservation) => {
+    setEditingReservation(reservation);
+    setIsEditDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Reservations</h1>
+        <p className="text-muted-foreground">View and manage all customer reservations</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+                data-testid="input-search"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger data-testid="select-status">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={experienceFilter} onValueChange={setExperienceFilter}>
+              <SelectTrigger data-testid="select-experience">
+                <SelectValue placeholder="Filter by experience" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Experiences</SelectItem>
+                {experiences?.map((exp) => (
+                  <SelectItem key={exp.id} value={exp.id}>
+                    {exp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Reservations ({filteredReservations.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reservationsLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-16 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          ) : filteredReservations.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Experience</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Party/Tickets</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredReservations.map((reservation) => {
+                    const experience = experiences?.find(e => e.id === reservation.experienceId);
+                    return (
+                      <ReservationRow
+                        key={reservation.id}
+                        reservation={reservation}
+                        experience={experience}
+                        onEdit={handleEdit}
+                      />
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No reservations found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <EditReservationDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        reservation={editingReservation}
+      />
+    </div>
+  );
+}
+
+function ReservationRow({ reservation, experience, onEdit }: { reservation: Reservation; experience?: Experience; onEdit: (reservation: Reservation) => void }) {
+  const { toast } = useToast();
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      await apiRequest("PUT", `/api/reservations/${reservation.id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
+      toast({
+        title: "Status Updated",
+        description: "Reservation status has been updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return (
+          <Badge className="bg-green-600 hover:bg-green-700">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Confirmed
+          </Badge>
+        );
+      case 'cancelled':
+        return (
+          <Badge variant="destructive">
+            <XCircle className="w-3 h-3 mr-1" />
+            Cancelled
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
+        );
+    }
+  };
+
+  return (
+    <TableRow>
+      <TableCell>
+        <div>
+          <p className="font-medium">{reservation.customerName}</p>
+          <p className="text-sm text-muted-foreground">{reservation.customerEmail}</p>
+          {reservation.customerPhone && (
+            <p className="text-xs text-muted-foreground">{reservation.customerPhone}</p>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>{experience?.name || "Unknown"}</TableCell>
+      <TableCell>
+        {format(new Date(reservation.reservationDate), "MMM d, yyyy")}
+      </TableCell>
+      <TableCell>{reservation.reservationTime || "-"}</TableCell>
+      <TableCell>
+        {reservation.ticketQuantity ? `${reservation.ticketQuantity} tickets` : 
+         reservation.partySize ? `${reservation.partySize} guests` : "-"}
+      </TableCell>
+      <TableCell>
+        {reservation.totalAmount ? `$${parseFloat(reservation.totalAmount).toFixed(2)}` : "-"}
+      </TableCell>
+      <TableCell>{getStatusBadge(reservation.status)}</TableCell>
+      <TableCell>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onEdit(reservation)}
+            data-testid={`button-edit-${reservation.id}`}
+          >
+            <Pencil className="w-3 h-3 mr-2" />
+            Edit
+          </Button>
+          {reservation.status !== 'confirmed' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => updateStatusMutation.mutate('confirmed')}
+              disabled={updateStatusMutation.isPending}
+              data-testid={`button-confirm-${reservation.id}`}
+            >
+              Confirm
+            </Button>
+          )}
+          {reservation.status !== 'cancelled' && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => updateStatusMutation.mutate('cancelled')}
+              disabled={updateStatusMutation.isPending}
+              data-testid={`button-cancel-${reservation.id}`}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+interface EditReservationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reservation: Reservation | null;
+}
+
+function EditReservationDialog({ open, onOpenChange, reservation }: EditReservationDialogProps) {
+  const { toast } = useToast();
+
+  const form = useForm<Partial<InsertReservation>>({
+    resolver: zodResolver(insertReservationSchema.partial()),
+    defaultValues: {
+      customerName: "",
+      customerEmail: "",
+      customerPhone: "",
+      partySize: undefined,
+      ticketQuantity: undefined,
+      reservationDate: "",
+      reservationTime: "",
+      specialRequests: "",
+      status: "pending",
+    },
+  });
+
+  useEffect(() => {
+    if (reservation) {
+      form.reset({
+        customerName: reservation.customerName,
+        customerEmail: reservation.customerEmail,
+        customerPhone: reservation.customerPhone || "",
+        partySize: reservation.partySize || undefined,
+        ticketQuantity: reservation.ticketQuantity || undefined,
+        reservationDate: reservation.reservationDate,
+        reservationTime: reservation.reservationTime || "",
+        specialRequests: reservation.specialRequests || "",
+        status: reservation.status,
+      });
+    }
+  }, [reservation, form]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<InsertReservation>) => {
+      return await apiRequest("PUT", `/api/reservations/${reservation!.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
+      toast({
+        title: "Reservation updated",
+        description: "The reservation has been updated successfully.",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You must be logged in to update reservations.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update reservation.",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
+  const onSubmit = async (data: Partial<InsertReservation>) => {
+    updateMutation.mutate(data);
+  };
+
+  if (!reservation) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Reservation</DialogTitle>
+          <DialogDescription>
+            Update the reservation details for {reservation.customerName}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="customerName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-customer-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customerEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" data-testid="input-customer-email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customerPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-customer-phone" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="partySize"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Party Size</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min="1"
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                        value={field.value || ""}
+                        data-testid="input-party-size"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="reservationDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="date" data-testid="input-reservation-date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="reservationTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="time" data-testid="input-reservation-time" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-status">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="specialRequests"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Special Requests</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-special-requests" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={updateMutation.isPending}
+                data-testid="button-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending}
+                data-testid="button-save"
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}

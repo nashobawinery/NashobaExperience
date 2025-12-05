@@ -26,6 +26,20 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations (GPT-4o-mini), shopping cart with discounts, and tasting surveys. Admin dashboard for CRUD, QR codes, and media.
 - **B2B Wholesale Platform**: Customer and order management with dedicated authentication, category-specific pricing, multi-location support, and advanced features like "Where to Buy" visibility. Admin dashboard for customer, order, tier, and sales rep management.
 - **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, email reminders, audit history, portal integration, and cost tracking.
+- **Reservations Module**: Complete dining reservation system migrated from nashoba-reserve-hub. Features include:
+  - Customer-facing booking flow at `/reservations` with experience selection, time slot booking, checkout with Stripe payments, and confirmation
+  - Admin dashboard at `/reservations/admin` with comprehensive management:
+    - Experiences: Manage dining experiences, ticketed events, and tasting tours
+    - Locations: Configure venues with tables, meal periods, operating hours, flow controls, and turn times
+    - Reservations: View and manage all bookings with calendar view
+    - Customers: CRM with visit history, loyalty points, and club memberships
+    - Clubs: Wine club tiers with member discounts
+    - Special Dates: Holiday closures and private events
+    - Users: Reservation system-specific user management
+    - Settings: Site configuration and footer links
+  - Database tables prefixed with `resy_*` (21 tables total)
+  - API routes at `/api/resy/` for all CRUD operations
+  - Stripe integration for ticketed experience payments
 - **Daily Reports Module**: Department managers log incidents, performance summaries, and track procedure completion. Features include:
   - 10 department templates with customizable metrics
   - Incident logging with severity levels and follow-up tracking

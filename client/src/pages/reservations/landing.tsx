@@ -1,0 +1,220 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ExternalLink, Calendar, Wine, Users, Link2 } from "lucide-react";
+import type { Experience, SiteSettings, FooterLink } from "@shared/schema";
+import heroImage from "@assets/generated_images/Winery_hero_vineyard_landscape_1f84c262.png";
+
+export default function Landing() {
+  const { data: experiences, isLoading: experiencesLoading } = useQuery<Experience[]>({
+    queryKey: ["/api/resy/experiences"],
+  });
+
+  const { data: settings } = useQuery<SiteSettings>({
+    queryKey: ["/api/settings"],
+  });
+
+  const { data: footerLinks = [] } = useQuery<FooterLink[]>({
+    queryKey: ["/api/resy/footer-links"],
+  });
+
+  const activeExperiences = experiences?.filter(exp => exp.isActive) || [];
+  
+  const headerImage = settings?.headerImageUrl || heroImage;
+  const headerTitle = settings?.headerTitle || "Welcome to Nashoba Valley Winery, Distillery and Brewery Reservation Page";
+  const headerSubtitle = settings?.headerSubtitle || "Experience the finest wines, spirits, and cuisine at our multi-location destination";
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <div className="relative h-80 overflow-hidden">
+        <img
+          src={headerImage}
+          alt={headerTitle}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-semibold text-white mb-4 max-w-4xl">
+            {headerTitle}
+          </h1>
+          <p className="text-lg md:text-xl text-white/90 max-w-2xl">
+            {headerSubtitle}
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
+        <div className="text-center mb-12">
+          <h2 className="font-serif text-3xl md:text-4xl font-medium text-foreground mb-4">
+            Reserve Your Experience
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            From intimate tastings to guided tours and fine dining, discover all that Nashoba Valley has to offer
+          </p>
+        </div>
+
+        {/* Experiences Grid */}
+        {experiencesLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="overflow-hidden">
+                <div className="aspect-[4/3] bg-muted animate-pulse" />
+                <CardContent className="p-6">
+                  <div className="h-6 bg-muted rounded animate-pulse mb-3" />
+                  <div className="h-4 bg-muted rounded animate-pulse mb-2 w-3/4" />
+                  <div className="h-10 bg-muted rounded animate-pulse mt-4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeExperiences.map((experience) => (
+              <ExperienceCard key={experience.id} experience={experience} />
+            ))}
+          </div>
+        )}
+
+        {activeExperiences.length === 0 && !experiencesLoading && (
+          <div className="text-center py-12">
+            <Wine className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <p className="text-lg text-muted-foreground">
+              No experiences available at this time. Please check back soon.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <footer className="border-t mt-16">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {footerLinks.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-6 mb-6">
+              {footerLinks.sort((a, b) => a.displayOrder - b.displayOrder).map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid={`footer-link-${link.id}`}
+                >
+                  {link.iconUrl ? (
+                    <img 
+                      src={link.iconUrl} 
+                      alt={link.name}
+                      className="w-6 h-6 rounded object-cover"
+                    />
+                  ) : (
+                    <Link2 className="w-4 h-4" />
+                  )}
+                  <span className="text-sm">{link.name}</span>
+                </a>
+              ))}
+            </div>
+          )}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.
+            </p>
+            <div className="mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                data-testid="link-admin"
+              >
+                <a href="/api/login">Admin Login</a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function ExperienceCard({ experience }: { experience: Experience }) {
+  const getImageUrl = (exp: Experience) => {
+    if (exp.primaryImageKey) return exp.primaryImageKey;
+    if (exp.imageUrl) return exp.imageUrl;
+    return "";
+  };
+
+  const imageUrl = getImageUrl(experience);
+
+  const handleReservation = () => {
+    if (experience.isExternal && experience.externalUrl) {
+      window.open(experience.externalUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const shouldShowPrice = experience.showPrice !== false;
+
+  return (
+    <Card className="overflow-hidden hover-elevate transition-all duration-200 group">
+      {imageUrl && (
+        <div className="aspect-[4/3] overflow-hidden">
+          <img
+            src={imageUrl}
+            alt={experience.name}
+            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+          />
+        </div>
+      )}
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="font-sans text-xl font-semibold text-foreground">
+            {experience.name}
+          </h3>
+          {experience.isExternal && (
+            <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-2" />
+          )}
+        </div>
+        {(experience.shortDescription || experience.description) && (
+          <p className="text-sm text-muted-foreground mb-4 line-clamp-2" data-testid="text-short-description">
+            {experience.shortDescription || experience.description}
+          </p>
+        )}
+        {shouldShowPrice && experience.price && experience.reservationType === 'ticketed' && (
+          <p className="text-sm font-medium text-foreground mb-4">
+            From ${parseFloat(experience.price).toFixed(2)} per person
+          </p>
+        )}
+        {experience.isExternal ? (
+          <Button
+            className="w-full"
+            onClick={handleReservation}
+            data-testid={`button-book-${experience.id}`}
+          >
+            Reserve Now
+            <ExternalLink className="w-4 h-4 ml-2" />
+          </Button>
+        ) : (
+          <Button
+            className="w-full"
+            asChild
+            data-testid={`button-book-${experience.id}`}
+          >
+            <Link href={`/book/${experience.id}`}>
+              {experience.reservationType === 'ticketed' ? (
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Book Tickets
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4 mr-2" />
+                  Reserve Table
+                </>
+              )}
+            </Link>
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

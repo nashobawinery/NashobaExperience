@@ -30,6 +30,29 @@ const ComplianceAdminDashboard = lazy(() => import("@/pages/compliance/Complianc
 const DailyReportsAdminDashboard = lazy(() => import("@/pages/daily-reports/DailyReportsAdminDashboard"));
 const PublicDailyReportForm = lazy(() => import("@/pages/daily-reports/PublicDailyReportForm"));
 
+// Lazy load Reservations module - Customer facing
+const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
+const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
+const ResyCheckout = lazy(() => import("@/pages/reservations/checkout"));
+const ResyConfirmation = lazy(() => import("@/pages/reservations/confirmation"));
+
+// Lazy load Reservations module - Admin
+const ResyAdminHome = lazy(() => import("@/pages/reservations/admin-home"));
+const ResyAdminCalendar = lazy(() => import("@/pages/reservations/admin-calendar"));
+const ResyAdminExperiences = lazy(() => import("@/pages/reservations/admin-experiences"));
+const ResyAdminReservations = lazy(() => import("@/pages/reservations/admin-reservations"));
+const ResyAdminLocations = lazy(() => import("@/pages/reservations/admin-locations"));
+const ResyAdminLocationDetail = lazy(() => import("@/pages/reservations/admin-location-detail"));
+const ResyAdminCustomers = lazy(() => import("@/pages/reservations/admin-customers"));
+const ResyAdminCustomerDetail = lazy(() => import("@/pages/reservations/admin-customer-detail"));
+const ResyAdminClubs = lazy(() => import("@/pages/reservations/admin-clubs"));
+const ResyAdminSpecialDates = lazy(() => import("@/pages/reservations/admin-special-dates"));
+const ResyAdminPrivateEvents = lazy(() => import("@/pages/reservations/admin-private-events"));
+const ResyAdminFlowSettings = lazy(() => import("@/pages/reservations/admin-flow-settings"));
+const ResyAdminUsers = lazy(() => import("@/pages/reservations/admin-users"));
+const ResyAdminSettings = lazy(() => import("@/pages/reservations/admin-settings"));
+const ResyAdminDocumentation = lazy(() => import("@/pages/reservations/admin-documentation"));
+
 // Lazy load B2B module components
 const B2bAuthProvider = lazy(() => import("@/contexts/B2bAuthContext").then(m => ({ default: m.B2bAuthProvider })));
 const B2bLayout = lazy(() => import("@/components/b2b/B2bLayout").then(m => ({ default: m.B2bLayout })));
@@ -266,6 +289,145 @@ function ResetPasswordRoute() {
   );
 }
 
+// Reservation Routes - Customer facing (public)
+function ResyLandingRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyLanding />
+    </Suspense>
+  );
+}
+
+function ResyBookingRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyBooking />
+    </Suspense>
+  );
+}
+
+function ResyCheckoutRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyCheckout />
+    </Suspense>
+  );
+}
+
+function ResyConfirmationRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyConfirmation />
+    </Suspense>
+  );
+}
+
+// Reservation Routes - Admin (protected)
+function ResyAdminHomeRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminHome /></Suspense>;
+}
+
+function ResyAdminCalendarRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminCalendar /></Suspense>;
+}
+
+function ResyAdminExperiencesRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminExperiences /></Suspense>;
+}
+
+function ResyAdminReservationsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminReservations /></Suspense>;
+}
+
+function ResyAdminLocationsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminLocations /></Suspense>;
+}
+
+function ResyAdminLocationDetailRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminLocationDetail /></Suspense>;
+}
+
+function ResyAdminCustomersRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminCustomers /></Suspense>;
+}
+
+function ResyAdminCustomerDetailRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminCustomerDetail /></Suspense>;
+}
+
+function ResyAdminClubsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminClubs /></Suspense>;
+}
+
+function ResyAdminSpecialDatesRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminSpecialDates /></Suspense>;
+}
+
+function ResyAdminPrivateEventsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminPrivateEvents /></Suspense>;
+}
+
+function ResyAdminFlowSettingsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminFlowSettings /></Suspense>;
+}
+
+function ResyAdminUsersRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminUsers /></Suspense>;
+}
+
+function ResyAdminSettingsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminSettings /></Suspense>;
+}
+
+function ResyAdminDocumentationRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><ResyAdminDocumentation /></Suspense>;
+}
+
 // B2B Routes Component with lazy loaded pages
 function B2bRoutes() {
   return (
@@ -399,6 +561,27 @@ function Router() {
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
+        {/* Reservation Routes - Customer facing */}
+        <Route path="/reservations" component={ResyLandingRoute} />
+        <Route path="/reservations/booking" component={ResyBookingRoute} />
+        <Route path="/reservations/checkout" component={ResyCheckoutRoute} />
+        <Route path="/reservations/confirmation" component={ResyConfirmationRoute} />
+        {/* Reservation Routes - Admin */}
+        <Route path="/reservations/admin" component={ResyAdminHomeRoute} />
+        <Route path="/reservations/admin/calendar" component={ResyAdminCalendarRoute} />
+        <Route path="/reservations/admin/experiences" component={ResyAdminExperiencesRoute} />
+        <Route path="/reservations/admin/reservations" component={ResyAdminReservationsRoute} />
+        <Route path="/reservations/admin/locations" component={ResyAdminLocationsRoute} />
+        <Route path="/reservations/admin/locations/:id" component={ResyAdminLocationDetailRoute} />
+        <Route path="/reservations/admin/customers" component={ResyAdminCustomersRoute} />
+        <Route path="/reservations/admin/customers/:id" component={ResyAdminCustomerDetailRoute} />
+        <Route path="/reservations/admin/clubs" component={ResyAdminClubsRoute} />
+        <Route path="/reservations/admin/special-dates" component={ResyAdminSpecialDatesRoute} />
+        <Route path="/reservations/admin/private-events" component={ResyAdminPrivateEventsRoute} />
+        <Route path="/reservations/admin/flow-settings" component={ResyAdminFlowSettingsRoute} />
+        <Route path="/reservations/admin/users" component={ResyAdminUsersRoute} />
+        <Route path="/reservations/admin/settings" component={ResyAdminSettingsRoute} />
+        <Route path="/reservations/admin/documentation" component={ResyAdminDocumentationRoute} />
         <Route component={NotFound} />
       </Switch>
     </div>

@@ -7,6 +7,7 @@ import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import b2bRouter from "./b2b-routes";
+import resyRouter from "./resy-routes";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -70,8 +71,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(b2bRouter);
 
   // Setup authentication (provides /api/login, /api/logout, /api/callback routes)
-  // This applies session middleware to all non-B2B routes
+  // This applies session middleware to all routes that follow
   await setupAuth(app);
+  
+  // Mount Reservation (resy) routes AFTER setupAuth so session middleware is applied
+  app.use(resyRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();

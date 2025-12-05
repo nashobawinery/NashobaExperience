@@ -1830,6 +1830,7 @@ export const resyLocations = pgTable("resy_locations", {
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   timezone: varchar("timezone").default("America/New_York"),
+  reservationCloseTime: varchar("reservation_close_time", { length: 5 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1909,15 +1910,22 @@ export const insertResyCustomerSchema = createInsertSchema(resyCustomers).omit({
 export type InsertResyCustomer = z.infer<typeof insertResyCustomerSchema>;
 export type ResyCustomer = typeof resyCustomers.$inferSelect;
 
+// Update customer schema for partial updates
+export const updateResyCustomerSchema = insertResyCustomerSchema.partial();
+export type UpdateResyCustomer = z.infer<typeof updateResyCustomerSchema>;
+
 // Resy Reservations - Booking records
 export const resyReservations = pgTable("resy_reservations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   experienceId: varchar("experience_id").notNull(),
   locationId: varchar("location_id"),
   customerId: varchar("customer_id"),
+  timeSlotId: varchar("time_slot_id"),
+  tableId: varchar("table_id"),
   reservationDate: varchar("reservation_date", { length: 10 }).notNull(),
   reservationTime: text("reservation_time").notNull(),
   partySize: integer("party_size").notNull(),
+  ticketQuantity: integer("ticket_quantity"),
   customerName: text("customer_name").notNull(),
   customerEmail: text("customer_email").notNull(),
   customerPhone: text("customer_phone"),
@@ -1926,6 +1934,8 @@ export const resyReservations = pgTable("resy_reservations", {
   specialRequests: text("special_requests"),
   tableAssignment: text("table_assignment"),
   confirmationCode: varchar("confirmation_code"),
+  paymentIntentId: text("payment_intent_id"),
+  totalAmount: text("total_amount"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1948,6 +1958,7 @@ export const resyTimeSlots = pgTable("resy_time_slots", {
   endTime: text("end_time").notNull(),
   maxPartySize: integer("max_party_size").notNull(),
   maxReservations: integer("max_reservations"),
+  capacity: integer("capacity").notNull().default(10),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2001,6 +2012,7 @@ export type ResyCustomerVisit = typeof resyCustomerVisits.$inferSelect;
 // Resy Meal Periods - Breakfast, Lunch, Dinner, etc.
 export const resyMealPeriods = pgTable("resy_meal_periods", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id"),
   name: text("name").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
@@ -2018,9 +2030,11 @@ export type ResyMealPeriod = typeof resyMealPeriods.$inferSelect;
 export const resyOperatingHours = pgTable("resy_operating_hours", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   locationId: varchar("location_id").notNull(),
+  mealPeriodId: varchar("meal_period_id"),
   dayOfWeek: integer("day_of_week").notNull(),
   openTime: text("open_time"),
   closeTime: text("close_time"),
+  isOpen: boolean("is_open").notNull().default(true),
   isClosed: boolean("is_closed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2057,6 +2071,7 @@ export const resyLocationTables = pgTable("resy_location_tables", {
   combinableWith: text("combinable_with").array().default(sql`'{}'::text[]`),
   priority: integer("priority").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isPaused: boolean("is_paused").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2186,3 +2201,68 @@ export const resyFooterLinks = pgTable("resy_footer_links", {
 export const insertResyFooterLinkSchema = createInsertSchema(resyFooterLinks).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertResyFooterLink = z.infer<typeof insertResyFooterLinkSchema>;
 export type ResyFooterLink = typeof resyFooterLinks.$inferSelect;
+
+// Type aliases for backward compatibility with migrated reservation pages
+export type Location = ResyLocation;
+export type InsertLocation = InsertResyLocation;
+export type Experience = ResyExperience;
+export type InsertExperience = InsertResyExperience;
+export type Reservation = ResyReservation;
+export type InsertReservation = InsertResyReservation;
+export type Customer = ResyCustomer;
+export type InsertCustomer = InsertResyCustomer;
+export type Club = ResyClub;
+export type InsertClub = InsertResyClub;
+export type TimeSlot = ResyTimeSlot;
+export type InsertTimeSlot = InsertResyTimeSlot;
+export type WaitlistEntry = ResyWaitlist;
+export type InsertWaitlistEntry = InsertResyWaitlist;
+export type CustomerVisit = ResyCustomerVisit;
+export type InsertCustomerVisit = InsertResyCustomerVisit;
+export type MealPeriod = ResyMealPeriod;
+export type InsertMealPeriod = InsertResyMealPeriod;
+export type OperatingHours = ResyOperatingHours;
+export type InsertOperatingHours = InsertResyOperatingHours;
+export type SpecialDate = ResySpecialDate;
+export type InsertSpecialDate = InsertResySpecialDate;
+export type LocationTable = ResyLocationTable;
+export type InsertLocationTable = InsertResyLocationTable;
+export type FlowControl = ResyFlowControl;
+export type InsertFlowControl = InsertResyFlowControl;
+export type TurnTimeSettings = ResyTurnTimeSetting;
+export type InsertTurnTimeSettings = InsertResyTurnTimeSetting;
+export type ExperienceDiscount = ResyExperienceDiscount;
+export type InsertExperienceDiscount = InsertResyExperienceDiscount;
+export type ClubExperienceDiscount = ResyClubExperienceDiscount;
+export type InsertClubExperienceDiscount = InsertResyClubExperienceDiscount;
+export type PrivateEvent = ResyPrivateEvent;
+export type InsertPrivateEvent = InsertResyPrivateEvent;
+export type SiteSetting = ResySiteSetting;
+export type InsertSiteSetting = InsertResySiteSetting;
+export type FooterLink = ResyFooterLink;
+export type InsertFooterLink = InsertResyFooterLink;
+export type ResyUserType = ResyUser;
+export type InsertResyUserType = InsertResyUser;
+
+// Schema aliases for backward compatibility
+export const insertLocationSchema = insertResyLocationSchema;
+export const insertExperienceSchema = insertResyExperienceSchema;
+export const insertReservationSchema = insertResyReservationSchema;
+export const insertCustomerSchema = insertResyCustomerSchema;
+export const insertClubSchema = insertResyClubSchema;
+export const insertTimeSlotSchema = insertResyTimeSlotSchema;
+export const insertWaitlistSchema = insertResyWaitlistSchema;
+export const insertCustomerVisitSchema = insertResyCustomerVisitSchema;
+export const insertMealPeriodSchema = insertResyMealPeriodSchema;
+export const insertOperatingHoursSchema = insertResyOperatingHoursSchema;
+export const insertSpecialDateSchema = insertResySpecialDateSchema;
+export const insertLocationTableSchema = insertResyLocationTableSchema;
+export const insertFlowControlSchema = insertResyFlowControlSchema;
+export const insertTurnTimeSettingsSchema = insertResyTurnTimeSettingSchema;
+export const insertExperienceDiscountSchema = insertResyExperienceDiscountSchema;
+export const insertClubExperienceDiscountSchema = insertResyClubExperienceDiscountSchema;
+export const insertPrivateEventSchema = insertResyPrivateEventSchema;
+export const insertSiteSettingSchema = insertResySiteSettingSchema;
+export const insertFooterLinkSchema = insertResyFooterLinkSchema;
+export const updateCustomerSchema = updateResyCustomerSchema;
+export type UpdateCustomer = UpdateResyCustomer;
