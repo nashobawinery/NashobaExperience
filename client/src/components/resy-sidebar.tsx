@@ -16,62 +16,62 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   {
     title: "Dashboard",
-    url: "/admin",
+    url: "/reservations/admin",
     icon: Home,
   },
   {
     title: "Experiences",
-    url: "/admin/experiences",
+    url: "/reservations/admin/experiences",
     icon: Wine,
   },
   {
     title: "Locations",
-    url: "/admin/locations",
+    url: "/reservations/admin/locations",
     icon: MapPin,
   },
   {
     title: "Private Events",
-    url: "/admin/private-events",
+    url: "/reservations/admin/private-events",
     icon: CalendarOff,
   },
   {
     title: "Special Dates",
-    url: "/admin/special-dates",
+    url: "/reservations/admin/special-dates",
     icon: CalendarX,
   },
   {
     title: "Calendar",
-    url: "/admin/calendar",
+    url: "/reservations/admin/calendar",
     icon: CalendarDays,
   },
   {
     title: "Reservations",
-    url: "/admin/reservations",
+    url: "/reservations/admin/reservations",
     icon: Calendar,
   },
   {
     title: "Customers",
-    url: "/admin/customers",
+    url: "/reservations/admin/customers",
     icon: Users,
   },
   {
     title: "Clubs",
-    url: "/admin/clubs",
+    url: "/reservations/admin/clubs",
     icon: Crown,
   },
   {
     title: "Settings",
-    url: "/admin/settings",
+    url: "/reservations/admin/settings",
     icon: Settings,
   },
   {
     title: "Users",
-    url: "/admin/users",
+    url: "/reservations/admin/users",
     icon: Shield,
   },
   {
     title: "Documentation",
-    url: "/admin/documentation",
+    url: "/reservations/admin/documentation",
     icon: BookOpen,
   },
 ];
@@ -93,7 +93,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase()}`}
+                    data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
