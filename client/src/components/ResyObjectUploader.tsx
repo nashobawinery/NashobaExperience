@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Check, Image as ImageIcon, Search, X } from "lucide-react";
@@ -131,7 +130,7 @@ export function ObjectUploader({
             )}
           </div>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto -mx-6 px-6" style={{ maxHeight: "50vh" }}>
             {isLoading ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 pb-4">
                 {Array.from({ length: 10 }).map((_, i) => (
@@ -184,7 +183,7 @@ export function ObjectUploader({
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
