@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, DollarSign, Calendar } from "lucide-react";
 import type { Experience, InsertExperience, TimeSlot, ExperienceDiscount, InsertExperienceDiscount } from "@shared/schema";
 import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/schema";
-import { ObjectUploader } from "@/components/ObjectUploader";
+import { ObjectUploader } from "@/components/ResyObjectUploader";
 import type { UploadResult } from "@uppy/core";
 
 import restaurantImage from "@assets/generated_images/Restaurant_dining_interior_65e74c26.png";
