@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { LabeledSwitch } from "@/components/ui/labeled-switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -1324,7 +1325,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                 </FormDescription>
               </div>
               <FormControl>
-                <Switch
+                <LabeledSwitch
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   data-testid="switch-external"
@@ -1500,7 +1501,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                 </FormDescription>
               </div>
               <FormControl>
-                <Switch
+                <LabeledSwitch
                   checked={field.value ?? true}
                   onCheckedChange={field.onChange}
                   data-testid="switch-show-price"
