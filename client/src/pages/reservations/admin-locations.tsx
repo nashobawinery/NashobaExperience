@@ -311,28 +311,6 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="reservationCloseTime"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Reservation Close Time</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="19:30"
-                  {...field}
-                  value={field.value || ""}
-                  data-testid="input-reservation-close-time"
-                />
-              </FormControl>
-              <FormDescription>
-                Last reservation time (HH:MM format). Leave empty to use meal period closing times. Example: "19:30" to stop taking reservations at 7:30 PM even if the restaurant closes at 8:00 PM.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <div className="flex justify-end gap-3">
           <Button
             type="submit"
