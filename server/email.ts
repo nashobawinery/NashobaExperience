@@ -882,6 +882,210 @@ This is an automated notification from the Nashoba Valley Daily Reports system.
   return { subject, html, text };
 }
 
+// Reservation confirmation email for ticketed events and table reservations
+export interface ReservationConfirmationData {
+  customerName: string;
+  customerEmail: string;
+  experienceName: string;
+  reservationDate: string;
+  reservationTime: string;
+  ticketQuantity?: number;
+  partySize?: number;
+  totalAmount?: string;
+  confirmationCode?: string;
+  specialRequests?: string;
+}
+
+export function generateReservationConfirmationEmail(data: ReservationConfirmationData): { subject: string; html: string; text: string } {
+  const {
+    customerName,
+    experienceName,
+    reservationDate,
+    reservationTime,
+    ticketQuantity,
+    partySize,
+    totalAmount,
+    confirmationCode,
+    specialRequests
+  } = data;
+
+  const isTicketed = ticketQuantity && ticketQuantity > 0;
+  const guestCount = isTicketed ? ticketQuantity : (partySize || 1);
+  const formattedDate = new Date(reservationDate + 'T00:00:00').toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
+  const subject = `Reservation Confirmed: ${experienceName} - ${formattedDate}`;
+  
+  const text = `
+Thank you for your reservation!
+
+Hi ${customerName},
+
+Your reservation at Nashoba Valley Winery has been confirmed.
+
+RESERVATION DETAILS
+Experience: ${experienceName}
+Date: ${formattedDate}
+Time: ${reservationTime}
+${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
+${totalAmount && parseFloat(totalAmount) > 0 ? `Amount: $${parseFloat(totalAmount).toFixed(2)}` : ''}
+${confirmationCode ? `Confirmation #: ${confirmationCode}` : ''}
+${specialRequests ? `Special Requests: ${specialRequests}` : ''}
+
+NEED TO MAKE CHANGES?
+To modify or cancel your reservation, please contact us at:
+Email: support@nashobawinery.com
+Phone: (978) 779-5521
+
+We look forward to seeing you!
+
+Nashoba Valley Winery
+100 Wattaquadock Hill Road
+Bolton, MA 01740
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+    .container { max-width: 600px; margin: 0 auto; background-color: white; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
+    .header h1 { margin: 0; font-size: 28px; }
+    .header p { margin: 10px 0 0; opacity: 0.9; font-size: 16px; }
+    .content { padding: 30px 25px; }
+    .greeting { font-size: 18px; margin-bottom: 20px; }
+    .confirmation-box { 
+      background: linear-gradient(135deg, #5C2535 0%, #7a3346 100%);
+      color: white;
+      padding: 25px;
+      border-radius: 12px;
+      margin: 25px 0;
+    }
+    .confirmation-box h2 { margin: 0 0 20px 0; font-size: 20px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px; }
+    .detail-row { display: flex; justify-content: space-between; margin: 12px 0; padding: 8px 0; }
+    .detail-label { opacity: 0.85; }
+    .detail-value { font-weight: bold; }
+    ${confirmationCode ? `
+    .confirmation-code { 
+      background: rgba(255,255,255,0.15); 
+      padding: 15px; 
+      border-radius: 8px; 
+      text-align: center; 
+      margin-top: 20px;
+    }
+    .confirmation-code .label { font-size: 12px; text-transform: uppercase; opacity: 0.8; }
+    .confirmation-code .code { font-size: 24px; font-weight: bold; letter-spacing: 2px; margin-top: 5px; }
+    ` : ''}
+    .contact-box { 
+      background-color: #F5F5F0; 
+      border-left: 4px solid #C9A961; 
+      padding: 20px; 
+      margin: 25px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .contact-box h3 { margin: 0 0 15px 0; color: #5C2535; }
+    .contact-box p { margin: 8px 0; }
+    .contact-box a { color: #5C2535; font-weight: bold; }
+    ${specialRequests ? `
+    .special-requests { 
+      background-color: #fff8e7; 
+      border: 1px solid #f0e4c8; 
+      padding: 15px; 
+      border-radius: 8px; 
+      margin: 20px 0;
+    }
+    .special-requests h4 { margin: 0 0 10px 0; color: #856404; }
+    ` : ''}
+    .footer { 
+      background-color: #f8f8f8; 
+      padding: 25px; 
+      text-align: center; 
+      border-top: 1px solid #eee;
+    }
+    .footer p { margin: 5px 0; color: #666; font-size: 14px; }
+    .footer .brand { color: #5C2535; font-weight: bold; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Reservation Confirmed!</h1>
+      <p>Thank you for booking with us</p>
+    </div>
+    
+    <div class="content">
+      <p class="greeting">Hi ${customerName},</p>
+      
+      <p>Your reservation at Nashoba Valley Winery has been confirmed. We're excited to have you!</p>
+      
+      <div class="confirmation-box">
+        <h2>Reservation Details</h2>
+        <div class="detail-row">
+          <span class="detail-label">Experience</span>
+          <span class="detail-value">${experienceName}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Date</span>
+          <span class="detail-value">${formattedDate}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Time</span>
+          <span class="detail-value">${reservationTime}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">${isTicketed ? 'Tickets' : 'Party Size'}</span>
+          <span class="detail-value">${guestCount} ${isTicketed ? (guestCount === 1 ? 'ticket' : 'tickets') : (guestCount === 1 ? 'guest' : 'guests')}</span>
+        </div>
+        ${totalAmount && parseFloat(totalAmount) > 0 ? `
+        <div class="detail-row">
+          <span class="detail-label">Amount Charged</span>
+          <span class="detail-value">$${parseFloat(totalAmount).toFixed(2)}</span>
+        </div>
+        ` : ''}
+        ${confirmationCode ? `
+        <div class="confirmation-code">
+          <div class="label">Confirmation Number</div>
+          <div class="code">${confirmationCode}</div>
+        </div>
+        ` : ''}
+      </div>
+      
+      ${specialRequests ? `
+      <div class="special-requests">
+        <h4>Your Special Requests</h4>
+        <p>${specialRequests}</p>
+      </div>
+      ` : ''}
+      
+      <div class="contact-box">
+        <h3>Need to Make Changes?</h3>
+        <p>To modify or cancel your reservation, please contact us:</p>
+        <p><strong>Email:</strong> <a href="mailto:support@nashobawinery.com">support@nashobawinery.com</a></p>
+        <p><strong>Phone:</strong> (978) 779-5521</p>
+      </div>
+      
+      <p>We look forward to seeing you!</p>
+    </div>
+    
+    <div class="footer">
+      <p class="brand">Nashoba Valley Winery</p>
+      <p>100 Wattaquadock Hill Road, Bolton, MA 01740</p>
+      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {

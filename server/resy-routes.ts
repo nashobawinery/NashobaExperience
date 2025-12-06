@@ -4,6 +4,7 @@ import { eq, and, desc, sql, inArray, notInArray, not } from "drizzle-orm";
 import { isAuthenticated } from "./replitAuth";
 import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { generateReservationConfirmationEmail, sendEmail } from "./email";
 
 const requireResyAdmin = requireModuleAccess('reservations');
 import sgMail from "@sendgrid/mail";
@@ -954,8 +955,52 @@ router.get("/api/resy/reservations/:id", async (req, res) => {
 
 router.post("/api/resy/reservations", async (req, res) => {
   try {
-    const validated = insertResyReservationSchema.parse(req.body);
+    // For ticketed events, provide defaults for table reservation fields
+    const data = { ...req.body };
+    
+    // Get experience to determine type
+    const experience = await resyStorage.getExperience(data.experienceId);
+    
+    if (experience?.reservationType === "ticketed") {
+      // Provide defaults for ticketed events
+      data.partySize = data.ticketQuantity || 1;
+      
+      // If reservationTime is not set but we have a timeSlotId, get the time from the slot
+      if (!data.reservationTime && data.timeSlotId) {
+        const slot = await resyStorage.getTimeSlot(data.timeSlotId);
+        data.reservationTime = slot?.time || slot?.startTime || "12:00 PM";
+      } else if (!data.reservationTime) {
+        data.reservationTime = "12:00 PM";
+      }
+    }
+    
+    const validated = insertResyReservationSchema.parse(data);
     const reservation = await resyStorage.createReservation(validated);
+    
+    // Send confirmation email
+    try {
+      if (experience) {
+        const emailData = {
+          customerName: reservation.customerName,
+          customerEmail: reservation.customerEmail,
+          experienceName: experience.name,
+          reservationDate: reservation.reservationDate,
+          reservationTime: reservation.reservationTime || "TBD",
+          ticketQuantity: reservation.ticketQuantity || undefined,
+          partySize: reservation.partySize || undefined,
+          totalAmount: reservation.totalAmount || undefined,
+          confirmationCode: reservation.confirmationCode || undefined,
+          specialRequests: reservation.specialRequests || undefined,
+        };
+        const { subject, html, text } = generateReservationConfirmationEmail(emailData);
+        await sendEmail(reservation.customerEmail, subject, html, text);
+        console.log(`Confirmation email sent to ${reservation.customerEmail}`);
+      }
+    } catch (emailError) {
+      console.error("Failed to send confirmation email:", emailError);
+      // Don't fail the reservation if email fails
+    }
+    
     res.status(201).json(reservation);
   } catch (error: any) {
     res.status(400).json({ message: "Failed to create reservation: " + error.message });
