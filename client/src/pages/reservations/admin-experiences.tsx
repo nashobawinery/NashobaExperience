@@ -861,8 +861,8 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                 <FormLabel>Type of Experience *</FormLabel>
                 <Select onValueChange={(value) => {
                   field.onChange(value);
-                  // Clear location when type changes
-                  form.setValue("locationId", undefined);
+                  // Clear location when type changes to force re-selection from filtered list
+                  form.setValue("locationId", undefined, { shouldValidate: true });
                 }} value={field.value || ""}>
                   <FormControl>
                     <SelectTrigger data-testid="select-type-top">
