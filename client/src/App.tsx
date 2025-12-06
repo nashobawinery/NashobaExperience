@@ -49,7 +49,6 @@ const ResyAdminClubs = lazy(() => import("@/pages/reservations/admin-clubs"));
 const ResyAdminSpecialDates = lazy(() => import("@/pages/reservations/admin-special-dates"));
 const ResyAdminPrivateEvents = lazy(() => import("@/pages/reservations/admin-private-events"));
 const ResyAdminFlowSettings = lazy(() => import("@/pages/reservations/admin-flow-settings"));
-const ResyAdminUsers = lazy(() => import("@/pages/reservations/admin-users"));
 const ResyAdminSettings = lazy(() => import("@/pages/reservations/admin-settings"));
 const ResyAdminDocumentation = lazy(() => import("@/pages/reservations/admin-documentation"));
 
@@ -422,14 +421,6 @@ function ResyAdminFlowSettingsRoute() {
   );
 }
 
-function ResyAdminUsersRoute() {
-  return (
-    <ResyAuthGuard>
-      <Suspense fallback={<PageLoader />}><ResyAdminUsers /></Suspense>
-    </ResyAuthGuard>
-  );
-}
-
 function ResyAdminSettingsRoute() {
   return (
     <ResyAuthGuard>
@@ -597,7 +588,6 @@ function Router() {
         <Route path="/reservations/admin/special-dates" component={ResyAdminSpecialDatesRoute} />
         <Route path="/reservations/admin/private-events" component={ResyAdminPrivateEventsRoute} />
         <Route path="/reservations/admin/flow-settings" component={ResyAdminFlowSettingsRoute} />
-        <Route path="/reservations/admin/users" component={ResyAdminUsersRoute} />
         <Route path="/reservations/admin/settings" component={ResyAdminSettingsRoute} />
         <Route path="/reservations/admin/documentation" component={ResyAdminDocumentationRoute} />
         <Route component={NotFound} />

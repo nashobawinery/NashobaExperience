@@ -1,4 +1,4 @@
-import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, MapPin, Settings, LogOut, BookOpen, Users, Shield, Crown } from "lucide-react";
+import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, MapPin, Settings, LogOut, BookOpen, Users, Crown } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -63,11 +63,6 @@ const menuItems = [
     title: "Settings",
     url: "/reservations/admin/settings",
     icon: Settings,
-  },
-  {
-    title: "Users",
-    url: "/reservations/admin/users",
-    icon: Shield,
   },
   {
     title: "Documentation",

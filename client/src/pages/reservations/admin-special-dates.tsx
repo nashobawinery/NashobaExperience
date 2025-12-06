@@ -7,47 +7,48 @@ import { Calendar as CalendarIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { insertSpecialDateSchema, type InsertSpecialDate, type SpecialDate, type Experience } from "@shared/schema";
+import { insertResySpecialDateSchema, type InsertResySpecialDate, type ResySpecialDate, type ResyLocation } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export default function AdminSpecialDates() {
   const { toast } = useToast();
-  const [selectedExperienceId, setSelectedExperienceId] = useState<string>("");
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingSpecialDate, setEditingSpecialDate] = useState<SpecialDate | null>(null);
+  const [editingSpecialDate, setEditingSpecialDate] = useState<ResySpecialDate | null>(null);
 
-  const { data: experiences, isLoading: experiencesLoading } = useQuery<Experience[]>({
-    queryKey: ["/api/resy/experiences"],
+  const { data: locations, isLoading: locationsLoading } = useQuery<ResyLocation[]>({
+    queryKey: ["/api/resy/locations"],
   });
 
-  const { data: allSpecialDates, isLoading: specialDatesLoading } = useQuery<SpecialDate[]>({
+  const { data: allSpecialDates, isLoading: specialDatesLoading } = useQuery<ResySpecialDate[]>({
     queryKey: ["/api/resy/special-dates"],
   });
 
-  const filteredSpecialDates = selectedExperienceId 
-    ? allSpecialDates?.filter(sd => sd.experienceId === selectedExperienceId)
+  const filteredSpecialDates = selectedLocationId 
+    ? allSpecialDates?.filter(sd => sd.locationId === selectedLocationId)
     : allSpecialDates;
 
-  // Group special dates by experience for better organization
-  const specialDatesByExperience = filteredSpecialDates?.reduce((acc, sd) => {
-    if (!acc[sd.experienceId]) {
-      acc[sd.experienceId] = [];
+  // Group special dates by location for better organization
+  const specialDatesByLocation = filteredSpecialDates?.reduce((acc, sd) => {
+    if (!acc[sd.locationId]) {
+      acc[sd.locationId] = [];
     }
-    acc[sd.experienceId].push(sd);
+    acc[sd.locationId].push(sd);
     return acc;
-  }, {} as Record<string, SpecialDate[]>) || {};
+  }, {} as Record<string, ResySpecialDate[]>) || {};
 
-  const handleEdit = (specialDate: SpecialDate) => {
+  const handleEdit = (specialDate: ResySpecialDate) => {
     setEditingSpecialDate(specialDate);
     setIsDialogOpen(true);
   };
@@ -57,34 +58,34 @@ export default function AdminSpecialDates() {
     setIsDialogOpen(true);
   };
 
-  const isLoading = experiencesLoading || specialDatesLoading;
+  const isLoading = locationsLoading || specialDatesLoading;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Special Dates</h1>
         <p className="text-muted-foreground">
-          Close specific experiences for date ranges (vacations, short staffing, etc.). 
-          Customers will not be able to book during these periods.
+          Configure special operating hours or closures for specific dates (holidays, events, etc.).
         </p>
       </div>
 
-      {/* Experience Filter and Add Button */}
+      {/* Location Filter and Add Button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="w-full sm:w-64">
             <Select
-              value={selectedExperienceId || undefined}
-              onValueChange={(value) => setSelectedExperienceId(value || "")}
+              value={selectedLocationId || "all"}
+              onValueChange={(value) => setSelectedLocationId(value === "all" ? "" : value)}
               disabled={isLoading}
             >
-              <SelectTrigger data-testid="select-experience-filter">
-                <SelectValue placeholder="All Experiences" />
+              <SelectTrigger data-testid="select-location-filter">
+                <SelectValue placeholder="All Locations" />
               </SelectTrigger>
               <SelectContent>
-                {experiences?.map((experience) => (
-                  <SelectItem key={experience.id} value={experience.id}>
-                    {experience.name}
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations?.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -109,17 +110,17 @@ export default function AdminSpecialDates() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {Object.entries(specialDatesByExperience).map(([experienceId, specialDates]) => {
-            const experience = experiences?.find(e => e.id === experienceId);
+          {Object.entries(specialDatesByLocation).map(([locationId, specialDates]) => {
+            const location = locations?.find(l => l.id === locationId);
             return (
-              <div key={experienceId}>
-                <h2 className="text-lg font-semibold mb-3">{experience?.name || "Unknown Experience"}</h2>
+              <div key={locationId}>
+                <h2 className="text-lg font-semibold mb-3">{location?.name || "Unknown Location"}</h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {specialDates.map((specialDate) => (
                     <SpecialDateCard
                       key={specialDate.id}
                       specialDate={specialDate}
-                      experience={experience}
+                      location={location}
                       onEdit={handleEdit}
                     />
                   ))}
@@ -135,31 +136,31 @@ export default function AdminSpecialDates() {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         specialDate={editingSpecialDate}
-        experiences={experiences || []}
-        defaultExperienceId={selectedExperienceId}
+        locations={locations || []}
+        defaultLocationId={selectedLocationId}
       />
     </div>
   );
 }
 
 interface SpecialDateCardProps {
-  specialDate: SpecialDate;
-  experience?: Experience;
-  onEdit: (specialDate: SpecialDate) => void;
+  specialDate: ResySpecialDate;
+  location?: ResyLocation;
+  onEdit: (specialDate: ResySpecialDate) => void;
 }
 
-function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardProps) {
+function SpecialDateCard({ specialDate, location, onEdit }: SpecialDateCardProps) {
   const { toast } = useToast();
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/special-dates/${specialDate.id}`);
+      await apiRequest("DELETE", `/api/resy/special-dates/${specialDate.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/special-dates"] });
       toast({
         title: "Special date deleted",
-        description: "The closure has been deleted successfully.",
+        description: "The special date has been deleted successfully.",
       });
     },
     onError: (error: any) => {
@@ -179,13 +180,15 @@ function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardPro
     },
   });
 
-  const formatDateRange = () => {
-    const start = new Date(specialDate.startDate);
-    if (!specialDate.endDate) {
-      return format(start, "MMM d, yyyy");
+  const formatDate = () => {
+    if (!specialDate.date) return "No date set";
+    try {
+      const date = new Date(specialDate.date + "T00:00:00");
+      if (isNaN(date.getTime())) return "Invalid date";
+      return format(date, "MMM d, yyyy");
+    } catch {
+      return "Invalid date";
     }
-    const end = new Date(specialDate.endDate);
-    return `${format(start, "MMM d, yyyy")} - ${format(end, "MMM d, yyyy")}`;
   };
 
   return (
@@ -193,21 +196,23 @@ function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardPro
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base truncate">{formatDateRange()}</CardTitle>
-            <CardDescription className="text-sm mt-1">{experience?.name || "Unknown Experience"}</CardDescription>
+            <CardTitle className="text-base truncate">{formatDate()}</CardTitle>
+            <CardDescription className="text-sm mt-1">
+              {specialDate.name || (specialDate.isClosed ? "Closed" : "Special Hours")}
+            </CardDescription>
           </div>
-          {!specialDate.isActive && (
-            <Badge variant="secondary" className="shrink-0">
-              Inactive
-            </Badge>
-          )}
+          <Badge variant={specialDate.isClosed ? "destructive" : "secondary"} className="shrink-0">
+            {specialDate.isClosed ? "Closed" : "Modified Hours"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        {specialDate.reason && (
+        {!specialDate.isClosed && (specialDate.openTime || specialDate.closeTime) && (
           <div className="text-sm mb-4">
-            <span className="text-muted-foreground">Reason:</span>
-            <p className="mt-1 line-clamp-2">{specialDate.reason}</p>
+            <span className="text-muted-foreground">Hours:</span>
+            <p className="mt-1">
+              {specialDate.openTime || "?"} - {specialDate.closeTime || "?"}
+            </p>
           </div>
         )}
         <div className="flex gap-2">
@@ -233,9 +238,9 @@ function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardPro
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Special Date?</AlertDialogTitle>
+                <AlertDialogTitle>Delete Special Date</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will remove the closure for {formatDateRange()}. This action cannot be undone.
+                  Are you sure you want to delete this special date? This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -243,7 +248,6 @@ function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardPro
                 <AlertDialogAction
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
-                  data-testid="button-confirm-delete"
                 >
                   {deleteMutation.isPending ? "Deleting..." : "Delete"}
                 </AlertDialogAction>
@@ -259,118 +263,107 @@ function SpecialDateCard({ specialDate, experience, onEdit }: SpecialDateCardPro
 interface SpecialDateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  specialDate: SpecialDate | null;
-  experiences: Experience[];
-  defaultExperienceId?: string;
+  specialDate: ResySpecialDate | null;
+  locations: ResyLocation[];
+  defaultLocationId?: string;
 }
 
-function SpecialDateDialog({ open, onOpenChange, specialDate, experiences, defaultExperienceId }: SpecialDateDialogProps) {
+function SpecialDateDialog({ open, onOpenChange, specialDate, locations, defaultLocationId }: SpecialDateDialogProps) {
   const { toast } = useToast();
   const isEditing = !!specialDate;
 
-  const form = useForm<InsertSpecialDate>({
-    resolver: zodResolver(insertSpecialDateSchema),
-    defaultValues: specialDate ? {
-      experienceId: specialDate.experienceId,
-      startDate: specialDate.startDate,
-      endDate: specialDate.endDate || "",
-      reason: specialDate.reason || "",
-      isActive: specialDate.isActive,
-    } : {
-      experienceId: defaultExperienceId || "",
-      startDate: format(new Date(), "yyyy-MM-dd"),
-      endDate: "",
-      reason: "",
-      isActive: true,
+  const form = useForm<InsertResySpecialDate>({
+    resolver: zodResolver(insertResySpecialDateSchema),
+    defaultValues: {
+      locationId: specialDate?.locationId || defaultLocationId || "",
+      date: specialDate?.date || "",
+      name: specialDate?.name || "",
+      isClosed: specialDate?.isClosed ?? true,
+      openTime: specialDate?.openTime || "",
+      closeTime: specialDate?.closeTime || "",
     },
   });
 
+  // Reset form when dialog opens with new data
+  const resetForm = () => {
+    form.reset({
+      locationId: specialDate?.locationId || defaultLocationId || "",
+      date: specialDate?.date || "",
+      name: specialDate?.name || "",
+      isClosed: specialDate?.isClosed ?? true,
+      openTime: specialDate?.openTime || "",
+      closeTime: specialDate?.closeTime || "",
+    });
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: InsertSpecialDate) => {
-      return await apiRequest("POST", "/api/resy/special-dates", data);
+    mutationFn: async (data: InsertResySpecialDate) => {
+      const response = await apiRequest("POST", "/api/resy/special-dates", data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/special-dates"] });
       toast({
         title: "Special date created",
-        description: "The closure has been created successfully.",
+        description: "The special date has been created successfully.",
       });
       onOpenChange(false);
       form.reset();
     },
     onError: (error: any) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You must be logged in to create special dates.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to create special date.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create special date.",
+        variant: "destructive",
+      });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: InsertSpecialDate) => {
-      return await apiRequest("PATCH", `/api/special-dates/${specialDate!.id}`, data);
+    mutationFn: async (data: InsertResySpecialDate) => {
+      const response = await apiRequest("PUT", `/api/resy/special-dates/${specialDate?.id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/special-dates"] });
       toast({
         title: "Special date updated",
-        description: "The closure has been updated successfully.",
+        description: "The special date has been updated successfully.",
       });
       onOpenChange(false);
-      form.reset();
     },
     onError: (error: any) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You must be logged in to update special dates.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to update special date.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update special date.",
+        variant: "destructive",
+      });
     },
   });
 
-  const onSubmit = async (data: InsertSpecialDate) => {
-    // Convert empty string to null for endDate
-    const payload = {
-      ...data,
-      endDate: data.endDate || null,
-      reason: data.reason || null,
-    };
-
+  const onSubmit = (data: InsertResySpecialDate) => {
     if (isEditing) {
-      updateMutation.mutate(payload);
+      updateMutation.mutate(data);
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(data);
     }
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const isClosed = form.watch("isClosed");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (newOpen) resetForm();
+      onOpenChange(newOpen);
+    }}>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Special Date" : "Add Special Date"}</DialogTitle>
           <DialogDescription>
             {isEditing 
-              ? "Update the closure period for this experience."
-              : "Create a closure period when this experience will be unavailable."}
+              ? "Update the special date details below."
+              : "Configure a closure or modified hours for a specific date."}
           </DialogDescription>
         </DialogHeader>
 
@@ -378,24 +371,20 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, experiences, defau
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="experienceId"
+              name="locationId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Experience</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={isPending}
-                  >
+                  <FormLabel>Location</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
-                      <SelectTrigger data-testid="select-experience">
-                        <SelectValue placeholder="Select experience" />
+                      <SelectTrigger data-testid="select-location">
+                        <SelectValue placeholder="Select a location" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {experiences.map((experience) => (
-                        <SelectItem key={experience.id} value={experience.id}>
-                          {experience.name}
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -407,29 +396,39 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, experiences, defau
 
             <FormField
               control={form.control}
-              name="startDate"
+              name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Start Date</FormLabel>
+                  <FormLabel>Date</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
                           variant="outline"
-                          className="justify-start text-left font-normal"
-                          disabled={isPending}
-                          data-testid="button-start-date"
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          data-testid="button-select-date"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                          {field.value ? (
+                            format(new Date(field.value + "T00:00:00"), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={field.value ? new Date(field.value) : undefined}
-                        onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                        selected={field.value ? new Date(field.value + "T00:00:00") : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(format(date, "yyyy-MM-dd"));
+                          }
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
@@ -441,72 +440,93 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, experiences, defau
 
             <FormField
               control={form.control}
-              name="endDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>End Date (Optional)</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className="justify-start text-left font-normal"
-                          disabled={isPending}
-                          data-testid="button-end-date"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(new Date(field.value), "PPP") : <span>Single day closure</span>}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={field.value ? new Date(field.value) : undefined}
-                        onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="reason"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reason (Optional)</FormLabel>
+                  <FormLabel>Name (optional)</FormLabel>
                   <FormControl>
-                    <Textarea
+                    <Input
                       {...field}
-                      placeholder="e.g., Vacation, Short Staffed, Maintenance"
-                      disabled={isPending}
-                      data-testid="input-reason"
+                      value={field.value || ""}
+                      placeholder="e.g., Christmas Day, Private Event"
+                      data-testid="input-name"
                     />
                   </FormControl>
+                  <FormDescription>A name or reason for this special date.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="isClosed"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Closed</FormLabel>
+                    <FormDescription>
+                      Location is completely closed on this date
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="switch-is-closed"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {!isClosed && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="openTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Open Time</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          type="time"
+                          data-testid="input-open-time"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="closeTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Close Time</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          type="time"
+                          data-testid="input-close-time"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-                data-testid="button-cancel"
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isPending}
-                data-testid="button-submit"
-              >
+              <Button type="submit" disabled={isPending} data-testid="button-save-special-date">
                 {isPending ? "Saving..." : isEditing ? "Update" : "Create"}
               </Button>
             </DialogFooter>
