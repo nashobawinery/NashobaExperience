@@ -757,49 +757,118 @@ export default function Booking() {
               />
 
               {isTicketed && selectedDate && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Time Slot</label>
-                  {loadingAvailability ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Checking availability...
-                    </div>
-                  ) : availableSlotsForDay.length > 0 ? (
-                    <Select
-                      value={selectedTimeSlotId}
-                      onValueChange={setSelectedTimeSlotId}
-                    >
-                      <SelectTrigger data-testid="select-time">
-                        <SelectValue placeholder="Select a time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableSlotsForDay.map((slot) => (
-                          <SelectItem
-                            key={slot.id}
-                            value={slot.id}
-                            disabled={slot.available === 0}
-                          >
-                            <div className="flex items-center justify-between w-full gap-4">
-                              <span>{slot.time ? formatTo12Hour(slot.time) : formatTo12Hour(slot.startTime || "12:00")}</span>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Available Times</label>
+                    {loadingAvailability ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Checking availability...
+                      </div>
+                    ) : availableSlotsForDay.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-2" data-testid="timeslot-grid">
+                        {availableSlotsForDay.map((slot) => {
+                          const isSelected = selectedTimeSlotId === slot.id;
+                          const isSoldOut = slot.available === 0;
+                          const isLowAvailability = slot.available !== undefined && slot.available > 0 && slot.available < 5;
+                          
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              onClick={() => {
+                                if (!isSoldOut) {
+                                  setSelectedTimeSlotId(slot.id);
+                                  // Reset ticket quantity when changing time slot
+                                  form.setValue("ticketQuantity", 1);
+                                }
+                              }}
+                              disabled={isSoldOut}
+                              className={`
+                                flex items-center justify-between p-3 rounded-md border transition-colors
+                                ${isSelected 
+                                  ? "border-primary bg-primary/10 ring-2 ring-primary" 
+                                  : isSoldOut 
+                                    ? "border-muted bg-muted/50 cursor-not-allowed opacity-60" 
+                                    : "border-border hover-elevate cursor-pointer"
+                                }
+                              `}
+                              data-testid={`timeslot-${slot.id}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Clock className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {slot.time ? formatTo12Hour(slot.time) : formatTo12Hour(slot.startTime || "12:00")}
+                                </span>
+                              </div>
                               <span
-                                className={`text-xs ${slot.available === 0 ? "text-destructive" : slot.available && slot.available < 5 ? "text-amber-600" : "text-muted-foreground"}`}
+                                className={`text-sm ${
+                                  isSoldOut 
+                                    ? "text-destructive font-medium" 
+                                    : isLowAvailability 
+                                      ? "text-amber-600 font-medium" 
+                                      : "text-muted-foreground"
+                                }`}
                               >
                                 {slot.available !== undefined
-                                  ? slot.available === 0
+                                  ? isSoldOut
                                     ? "Sold Out"
                                     : `${slot.available} available`
                                   : ""}
                               </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No time slots available for this date
-                    </p>
-                  )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No time slots available for this date
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Quantity selector - only show when a time slot is selected */}
+                  {selectedTimeSlotId && (() => {
+                    const selectedSlot = availableSlotsForDay.find(s => s.id === selectedTimeSlotId);
+                    const maxAvailable = selectedSlot?.available || 0;
+                    const price = experience.price ? parseFloat(experience.price) : 0;
+                    const ticketQty = form.watch("ticketQuantity") || 1;
+                    const totalPrice = price * ticketQty;
+
+                    if (maxAvailable === 0) return null;
+
+                    return (
+                      <div className="space-y-4 pt-2 border-t">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Number of Tickets</label>
+                          <Select
+                            value={String(ticketQty)}
+                            onValueChange={(val) => form.setValue("ticketQuantity", parseInt(val))}
+                          >
+                            <SelectTrigger data-testid="select-quantity">
+                              <SelectValue placeholder="Select quantity" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: maxAvailable }, (_, i) => i + 1).map((num) => (
+                                <SelectItem key={num} value={String(num)}>
+                                  {num} {num === 1 ? "ticket" : "tickets"}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {price > 0 && (
+                          <div className="flex items-center justify-between p-3 rounded-md bg-muted">
+                            <span className="text-sm font-medium">Total Price</span>
+                            <span className="text-lg font-bold" data-testid="text-total-price">
+                              ${totalPrice.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1020,29 +1089,8 @@ export default function Booking() {
                     )}
                   />
 
-                  {isTicketed ? (
-                    <FormField
-                      control={form.control}
-                      name="ticketQuantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Number of Tickets *</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                              data-testid="input-tickets"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : (
+                  {/* Party size field only for table reservations - ticketed events use quantity selector in left column */}
+                  {!isTicketed && (
                     <FormField
                       control={form.control}
                       name="partySize"
