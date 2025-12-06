@@ -1017,29 +1017,97 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
             <div className="flex items-start gap-3">
               <div className="flex-1">
                 <label className="text-sm font-medium mb-2 block">Primary Image</label>
-                {uploadingPrimary ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading...
-                  </div>
-                ) : primaryImageURL !== null ? (
-                  primaryImageURL ? (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={primaryImageURL} 
-                        alt="Primary (new upload)" 
-                        className="w-20 h-20 object-cover rounded-md border"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPrimaryImageURL(null)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ) : (
+                {(() => {
+                  const existingPrimaryImage = experience?.primaryImageKey || experience?.imageUrl;
+                  
+                  if (uploadingPrimary) {
+                    return (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Uploading...
+                      </div>
+                    );
+                  }
+                  
+                  if (primaryImageURL !== null) {
+                    if (primaryImageURL) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={primaryImageURL} 
+                            alt="Primary (new upload)" 
+                            className="w-20 h-20 object-cover rounded-md border"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPrimaryImageURL(null)}
+                            data-testid="button-cancel-primary-image"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <ObjectUploader
+                          onComplete={(imageUrl) => {
+                            setPrimaryImageURL(imageUrl);
+                            toast({
+                              title: "Image Selected",
+                              description: "Primary image selected. Save to confirm.",
+                            });
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Upload className="w-3 h-3 mr-2" />
+                          Select Primary
+                        </ObjectUploader>
+                      );
+                    }
+                  }
+                  
+                  if (existingPrimaryImage) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={existingPrimaryImage} 
+                          alt="Primary" 
+                          className="w-20 h-20 object-cover rounded-md border"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPrimaryImageURL(null);
+                          }}
+                          data-testid="button-change-primary-image"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setPrimaryImageURL("");
+                            toast({
+                              title: "Image will be removed",
+                              description: "Save the form to confirm deletion",
+                            });
+                          }}
+                          data-testid="button-delete-primary-image"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    );
+                  }
+                  
+                  return (
                     <ObjectUploader
                       onComplete={(imageUrl) => {
                         setPrimaryImageURL(imageUrl);
@@ -1054,75 +1122,105 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                       <Upload className="w-3 h-3 mr-2" />
                       Select Primary
                     </ObjectUploader>
-                  )
-                ) : experience?.primaryImageKey ? (
-                  <div className="flex items-center gap-2">
-                    <img 
-                      src={experience.primaryImageKey} 
-                      alt="Primary" 
-                      className="w-20 h-20 object-cover rounded-md border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        setPrimaryImageURL("");
-                        toast({
-                          title: "Image will be removed",
-                          description: "Save the form to confirm deletion",
-                        });
-                      }}
-                      data-testid="button-delete-primary-image"
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <ObjectUploader
-                    onComplete={(imageUrl) => {
-                      setPrimaryImageURL(imageUrl);
-                      toast({
-                        title: "Image Selected",
-                        description: "Primary image selected. Save to confirm.",
-                      });
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Upload className="w-3 h-3 mr-2" />
-                    Select Primary
-                  </ObjectUploader>
-                )}
+                  );
+                })()}
               </div>
             </div>
 
             <div className="flex items-start gap-3">
               <div className="flex-1">
                 <label className="text-sm font-medium mb-2 block">Secondary Image</label>
-                {uploadingSecondary ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading...
-                  </div>
-                ) : secondaryImageURL !== null ? (
-                  secondaryImageURL ? (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={secondaryImageURL} 
-                        alt="Secondary (new upload)" 
-                        className="w-20 h-20 object-cover rounded-md border"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSecondaryImageURL(null)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ) : (
+                {(() => {
+                  const existingSecondaryImage = experience?.secondaryImageKey;
+                  
+                  if (uploadingSecondary) {
+                    return (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Uploading...
+                      </div>
+                    );
+                  }
+                  
+                  if (secondaryImageURL !== null) {
+                    if (secondaryImageURL) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={secondaryImageURL} 
+                            alt="Secondary (new upload)" 
+                            className="w-20 h-20 object-cover rounded-md border"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSecondaryImageURL(null)}
+                            data-testid="button-cancel-secondary-image"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <ObjectUploader
+                          onComplete={(imageUrl) => {
+                            setSecondaryImageURL(imageUrl);
+                            toast({
+                              title: "Image Selected",
+                              description: "Secondary image selected. Save to confirm.",
+                            });
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Upload className="w-3 h-3 mr-2" />
+                          Select Secondary
+                        </ObjectUploader>
+                      );
+                    }
+                  }
+                  
+                  if (existingSecondaryImage) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={existingSecondaryImage} 
+                          alt="Secondary" 
+                          className="w-20 h-20 object-cover rounded-md border"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSecondaryImageURL(null);
+                          }}
+                          data-testid="button-change-secondary-image"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setSecondaryImageURL("");
+                            toast({
+                              title: "Image will be removed",
+                              description: "Save the form to confirm deletion",
+                            });
+                          }}
+                          data-testid="button-delete-secondary-image"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    );
+                  }
+                  
+                  return (
                     <ObjectUploader
                       onComplete={(imageUrl) => {
                         setSecondaryImageURL(imageUrl);
@@ -1137,46 +1235,8 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                       <Upload className="w-3 h-3 mr-2" />
                       Select Secondary
                     </ObjectUploader>
-                  )
-                ) : experience?.secondaryImageKey ? (
-                  <div className="flex items-center gap-2">
-                    <img 
-                      src={experience.secondaryImageKey} 
-                      alt="Secondary" 
-                      className="w-20 h-20 object-cover rounded-md border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        setSecondaryImageURL("");
-                        toast({
-                          title: "Image will be removed",
-                          description: "Save the form to confirm deletion",
-                        });
-                      }}
-                      data-testid="button-delete-secondary-image"
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <ObjectUploader
-                    onComplete={(imageUrl) => {
-                      setSecondaryImageURL(imageUrl);
-                      toast({
-                        title: "Image Selected",
-                        description: "Secondary image selected. Save to confirm.",
-                      });
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Upload className="w-3 h-3 mr-2" />
-                    Select Secondary
-                  </ObjectUploader>
-                )}
+                  );
+                })()}
               </div>
             </div>
           </div>
