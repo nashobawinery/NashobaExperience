@@ -144,8 +144,10 @@ export default function Landing() {
 
 function ExperienceCard({ experience }: { experience: Experience }) {
   const getImageUrl = (exp: Experience) => {
-    if (exp.primaryImageKey) return exp.primaryImageKey;
-    if (exp.imageUrl) return exp.imageUrl;
+    // Prefer imageUrl as it contains resolved media library URLs
+    // primaryImageKey contains object storage keys that need resolution
+    if (exp.imageUrl && !exp.imageUrl.startsWith('/@fs/')) return exp.imageUrl;
+    if (exp.primaryImageKey && exp.primaryImageKey.startsWith('/api/')) return exp.primaryImageKey;
     return "";
   };
 

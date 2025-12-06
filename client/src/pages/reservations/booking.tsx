@@ -625,7 +625,13 @@ export default function Booking() {
 
   const isTicketed = experience.reservationType === "ticketed";
   const shouldShowPrice = experience.showPrice !== false;
-  const imageUrl = experience.primaryImageKey || experience.imageUrl;
+  // Prefer imageUrl as it contains resolved media library URLs
+  const getImageUrl = () => {
+    if (experience.imageUrl && !experience.imageUrl.startsWith('/@fs/')) return experience.imageUrl;
+    if (experience.primaryImageKey && experience.primaryImageKey.startsWith('/api/')) return experience.primaryImageKey;
+    return "";
+  };
+  const imageUrl = getImageUrl();
 
   // Calculate max bookable date for ticketed events with advance booking restrictions
   const maxBookableDate =
