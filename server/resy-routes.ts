@@ -21,6 +21,7 @@ import {
   resyMealPeriods,
   resyOperatingHours,
   resySpecialDates,
+  resyLocationHolidays,
   resyLocationTables,
   resyFlowControls,
   resyTurnTimeSettings,
@@ -39,6 +40,7 @@ import {
   insertResyTurnTimeSettingSchema,
   insertResyPrivateEventSchema,
   insertResySpecialDateSchema,
+  insertResyLocationHolidaySchema,
   insertResyLocationTableSchema,
   insertResyExperienceDiscountSchema,
   insertResyClubSchema,
@@ -437,6 +439,40 @@ class ResyStorage {
 
   async deleteSpecialDate(id: string): Promise<void> {
     await db.delete(resySpecialDates).where(eq(resySpecialDates.id, id));
+  }
+
+  async getLocationHolidays(locationId?: string): Promise<any[]> {
+    if (locationId) {
+      return await db.select().from(resyLocationHolidays).where(eq(resyLocationHolidays.locationId, locationId));
+    }
+    return await db.select().from(resyLocationHolidays);
+  }
+
+  async setLocationHoliday(data: any): Promise<any> {
+    const existing = await db.select().from(resyLocationHolidays)
+      .where(and(
+        eq(resyLocationHolidays.locationId, data.locationId),
+        eq(resyLocationHolidays.holidayKey, data.holidayKey)
+      ));
+    
+    if (existing.length > 0) {
+      const [updated] = await db.update(resyLocationHolidays)
+        .set({ isClosed: data.isClosed, updatedAt: new Date() })
+        .where(eq(resyLocationHolidays.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(resyLocationHolidays).values(data).returning();
+      return created;
+    }
+  }
+
+  async deleteLocationHoliday(locationId: string, holidayKey: string): Promise<void> {
+    await db.delete(resyLocationHolidays)
+      .where(and(
+        eq(resyLocationHolidays.locationId, locationId),
+        eq(resyLocationHolidays.holidayKey, holidayKey)
+      ));
   }
 
   async getClubs() {
@@ -1094,6 +1130,35 @@ router.delete("/api/resy/special-dates/:id", requireResyAdmin, async (req, res) 
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to delete special date: " + error.message });
+  }
+});
+
+router.get("/api/resy/location-holidays", async (req, res) => {
+  try {
+    const locationId = req.query.locationId as string | undefined;
+    const holidays = await resyStorage.getLocationHolidays(locationId);
+    res.json(holidays);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch location holidays: " + error.message });
+  }
+});
+
+router.post("/api/resy/location-holidays", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyLocationHolidaySchema.parse(req.body);
+    const holiday = await resyStorage.setLocationHoliday(validated);
+    res.json(holiday);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to set location holiday: " + error.message });
+  }
+});
+
+router.delete("/api/resy/location-holidays/:locationId/:holidayKey", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteLocationHoliday(req.params.locationId, req.params.holidayKey);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete location holiday: " + error.message });
   }
 });
 

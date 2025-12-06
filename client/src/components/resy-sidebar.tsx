@@ -1,4 +1,4 @@
-import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, MapPin, Settings, LogOut, BookOpen, Users, Crown } from "lucide-react";
+import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, CalendarHeart, MapPin, Settings, LogOut, BookOpen, Users, Crown } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -38,6 +38,11 @@ const menuItems = [
     title: "Special Dates",
     url: "/reservations/admin/special-dates",
     icon: CalendarX,
+  },
+  {
+    title: "Recurring Holidays",
+    url: "/reservations/admin/holidays",
+    icon: CalendarHeart,
   },
   {
     title: "Calendar",

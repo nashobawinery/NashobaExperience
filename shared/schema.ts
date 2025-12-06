@@ -2063,6 +2063,100 @@ export const insertResySpecialDateSchema = createInsertSchema(resySpecialDates).
 export type InsertResySpecialDate = z.infer<typeof insertResySpecialDateSchema>;
 export type ResySpecialDate = typeof resySpecialDates.$inferSelect;
 
+// Resy Location Holidays - Recurring annual holidays for each location
+// These holidays automatically apply every year without needing to recreate
+export const resyLocationHolidays = pgTable("resy_location_holidays", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  holidayKey: varchar("holiday_key", { length: 50 }).notNull(),
+  isClosed: boolean("is_closed").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertResyLocationHolidaySchema = createInsertSchema(resyLocationHolidays).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyLocationHoliday = z.infer<typeof insertResyLocationHolidaySchema>;
+export type ResyLocationHoliday = typeof resyLocationHolidays.$inferSelect;
+
+// Predefined holidays list with date calculation logic
+export const RECURRING_HOLIDAYS = [
+  { key: "new_years_day", name: "New Year's Day", getDate: (year: number) => `${year}-01-01` },
+  { key: "mlk_day", name: "Martin Luther King Jr. Day", getDate: (year: number) => getThirdMonday(year, 1) },
+  { key: "presidents_day", name: "Presidents' Day", getDate: (year: number) => getThirdMonday(year, 2) },
+  { key: "easter_sunday", name: "Easter Sunday", getDate: (year: number) => getEasterDate(year) },
+  { key: "memorial_day", name: "Memorial Day", getDate: (year: number) => getLastMonday(year, 5) },
+  { key: "july_4th", name: "Independence Day (July 4th)", getDate: (year: number) => `${year}-07-04` },
+  { key: "labor_day", name: "Labor Day", getDate: (year: number) => getFirstMonday(year, 9) },
+  { key: "columbus_day", name: "Columbus Day", getDate: (year: number) => getSecondMonday(year, 10) },
+  { key: "veterans_day", name: "Veterans Day", getDate: (year: number) => `${year}-11-11` },
+  { key: "thanksgiving", name: "Thanksgiving", getDate: (year: number) => getFourthThursday(year, 11) },
+  { key: "thanksgiving_friday", name: "Day After Thanksgiving", getDate: (year: number) => getDayAfterThanksgiving(year) },
+  { key: "christmas_eve", name: "Christmas Eve", getDate: (year: number) => `${year}-12-24` },
+  { key: "christmas_day", name: "Christmas Day", getDate: (year: number) => `${year}-12-25` },
+  { key: "new_years_eve", name: "New Year's Eve", getDate: (year: number) => `${year}-12-31` },
+] as const;
+
+// Helper functions for calculating holiday dates
+function getFirstMonday(year: number, month: number): string {
+  const date = new Date(year, month - 1, 1);
+  const day = date.getDay();
+  const diff = day === 0 ? 1 : (day === 1 ? 0 : 8 - day);
+  date.setDate(date.getDate() + diff);
+  return date.toISOString().split("T")[0];
+}
+
+function getSecondMonday(year: number, month: number): string {
+  const first = new Date(getFirstMonday(year, month));
+  first.setDate(first.getDate() + 7);
+  return first.toISOString().split("T")[0];
+}
+
+function getThirdMonday(year: number, month: number): string {
+  const first = new Date(getFirstMonday(year, month));
+  first.setDate(first.getDate() + 14);
+  return first.toISOString().split("T")[0];
+}
+
+function getLastMonday(year: number, month: number): string {
+  const date = new Date(year, month, 0);
+  const day = date.getDay();
+  const diff = day >= 1 ? day - 1 : 6;
+  date.setDate(date.getDate() - diff);
+  return date.toISOString().split("T")[0];
+}
+
+function getFourthThursday(year: number, month: number): string {
+  const date = new Date(year, month - 1, 1);
+  const day = date.getDay();
+  const diff = day <= 4 ? 4 - day : 11 - day;
+  date.setDate(date.getDate() + diff + 21);
+  return date.toISOString().split("T")[0];
+}
+
+function getDayAfterThanksgiving(year: number): string {
+  const thanksgiving = new Date(getFourthThursday(year, 11));
+  thanksgiving.setDate(thanksgiving.getDate() + 1);
+  return thanksgiving.toISOString().split("T")[0];
+}
+
+function getEasterDate(year: number): string {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 // Resy Location Tables - Physical tables at locations
 export const resyLocationTables = pgTable("resy_location_tables", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
