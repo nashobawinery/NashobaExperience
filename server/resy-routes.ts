@@ -1069,6 +1069,15 @@ router.delete("/api/resy/flow-controls/:id", requireResyAdmin, async (req, res) 
   }
 });
 
+router.get("/api/resy/locations/:locationId/turn-times", async (req, res) => {
+  try {
+    const settings = await resyStorage.getTurnTimeSettingsByLocation(req.params.locationId);
+    res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch turn times: " + error.message });
+  }
+});
+
 router.get("/api/resy/turn-times", async (req, res) => {
   try {
     const settings = await resyStorage.getAllTurnTimeSettings();
