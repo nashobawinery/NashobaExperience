@@ -177,7 +177,7 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
   const saveMutation = useMutation({
     mutationFn: async (data: InsertLocation) => {
       if (location) {
-        const response = await apiRequest("PATCH", `/api/locations/${location.id}`, data);
+        const response = await apiRequest("PATCH", `/api/resy/locations/${location.id}`, data);
         return response.json();
       }
       const response = await apiRequest("POST", "/api/resy/locations", data);
