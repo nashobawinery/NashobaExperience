@@ -2050,7 +2050,7 @@ function TurnTimeForm({
   const saveMutation = useMutation({
     mutationFn: async (data: InsertTurnTimeSettings) => {
       if (turnTime) {
-        await apiRequest("PATCH", `/api/turn-times/${turnTime.id}`, data);
+        await apiRequest("PATCH", `/api/resy/turn-times/${turnTime.id}`, data);
       } else {
         await apiRequest("POST", "/api/resy/turn-times", data);
       }
