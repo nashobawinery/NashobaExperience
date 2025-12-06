@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
 import { insertLocationTableSchema, insertMealPeriodSchema, insertOperatingHoursSchema, insertFlowControlSchema, insertTurnTimeSettingsSchema } from "@shared/schema";
 
-const MEAL_PERIOD_NAMES = ["breakfast", "lunch", "dinner", "brunch"];
+const MEAL_PERIOD_NAMES = ["breakfast", "lunch", "dinner", "brunch", "retail", "other"];
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatTime12Hour(time24: string | null | undefined): string {
@@ -280,7 +280,7 @@ function TableCard({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/location-tables/${table.id}`, {});
+      await apiRequest("DELETE", `/api/resy/location-tables/${table.id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/location-tables"] });
@@ -731,7 +731,7 @@ function ServicePeriodCard({ period, onEdit }: { period: MealPeriod; onEdit: (pe
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/meal-periods/${period.id}`, {});
+      await apiRequest("DELETE", `/api/resy/meal-periods/${period.id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", period.locationId, "meal-periods"] });
@@ -1149,7 +1149,7 @@ function OperatingHoursCard({ hours, locationId, onEdit }: { hours: OperatingHou
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/operating-hours/${hours.id}`, {});
+      await apiRequest("DELETE", `/api/resy/operating-hours/${hours.id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId, "operating-hours"] });
@@ -1481,7 +1481,7 @@ function FlowControlCard({ control, periodName, onEdit }: { control: FlowControl
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/flow-controls/${control.id}`, {});
+      await apiRequest("DELETE", `/api/resy/flow-controls/${control.id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", control.locationId, "flow-controls"] });
@@ -1912,7 +1912,7 @@ function TurnTimeCard({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/turn-times/${turnTime.id}`, {});
+      await apiRequest("DELETE", `/api/resy/turn-times/${turnTime.id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", turnTime.locationId, "turn-times"] });
