@@ -661,11 +661,14 @@ export async function applySyncOperations(
             };
             
             if (!dryRun) {
-              // Get all columns that have values, excluding auto-generated fields
+              // Get sensitive fields to exclude from sync (e.g., passwordHash)
+              const sensitiveFields = tableConfig.sensitiveFields || [];
+              
+              // Get all columns that have values, excluding auto-generated and sensitive fields
               // Check both camelCase and snake_case versions of the field
               const columns = allFields.filter(f => {
                 const val = getDbValue(f);
-                return val !== undefined && f !== 'id' && f !== 'createdAt';
+                return val !== undefined && f !== 'id' && f !== 'createdAt' && !sensitiveFields.includes(f);
               });
               
               if (columns.length === 0) {
@@ -673,16 +676,19 @@ export async function applySyncOperations(
                 continue;
               }
               
+              // Helper to serialize values properly (handles Date, JSON objects/arrays)
+              const serializeValue = (val: any) => {
+                if (val instanceof Date) return val.toISOString();
+                // Serialize objects and arrays as JSON strings for JSONB columns
+                if (val !== null && typeof val === 'object') return JSON.stringify(val);
+                return val;
+              };
+              
               // Build parameterized INSERT/UPDATE for production
               // escapeIdentifier already converts to snake_case
               const insertCols = columns.map(c => escapeIdentifier(c)).join(', ');
               const insertVals = columns.map((_, i) => `$${i + 1}`).join(', ');
-              const values = columns.map(c => {
-                const val = getDbValue(c);
-                // Convert dates to ISO strings for proper serialization
-                if (val instanceof Date) return val.toISOString();
-                return val;
-              });
+              const values = columns.map(c => serializeValue(getDbValue(c)));
               
               // Check if record exists in prod
               const existsResult = await prodPool.query(
@@ -699,11 +705,7 @@ export async function applySyncOperations(
                   ).join(', ');
                   const updateValues = [
                     ...whereValues,
-                    ...updateCols.map(c => {
-                      const val = getDbValue(c);
-                      if (val instanceof Date) return val.toISOString();
-                      return val;
-                    })
+                    ...updateCols.map(c => serializeValue(getDbValue(c)))
                   ];
                   
                   console.log(`[Sync] Updating ${tableName} in prod:`, { businessKey: op.businessKey });
@@ -748,10 +750,13 @@ export async function applySyncOperations(
             };
             
             if (!dryRun) {
-              // Get all columns that have values, excluding auto-generated fields
+              // Get sensitive fields to exclude from sync (e.g., passwordHash)
+              const sensitiveFields = tableConfig.sensitiveFields || [];
+              
+              // Get all columns that have values, excluding auto-generated and sensitive fields
               const columns = allFields.filter(f => {
                 const val = getDbValue(f);
-                return val !== undefined && f !== 'id' && f !== 'createdAt';
+                return val !== undefined && f !== 'id' && f !== 'createdAt' && !sensitiveFields.includes(f);
               });
               
               if (columns.length === 0) {
@@ -764,12 +769,16 @@ export async function applySyncOperations(
               const existsResult = await devPool.query(devExistsQuery, whereValues);
               const existsInDev = existsResult.rows && existsResult.rows.length > 0;
               
-              // Prepare values using getDbValue to read snake_case columns
-              const values = columns.map(c => {
-                const val = getDbValue(c);
+              // Helper to serialize values properly (handles Date, JSON objects/arrays)
+              const serializeValue = (val: any) => {
                 if (val instanceof Date) return val.toISOString();
+                // Serialize objects and arrays as JSON strings for JSONB columns
+                if (val !== null && typeof val === 'object') return JSON.stringify(val);
                 return val;
-              });
+              };
+              
+              // Prepare values using getDbValue to read snake_case columns
+              const values = columns.map(c => serializeValue(getDbValue(c)));
               
               if (existsInDev) {
                 // Update existing record in dev
@@ -780,11 +789,7 @@ export async function applySyncOperations(
                   ).join(', ');
                   const updateValues = [
                     ...whereValues,
-                    ...updateCols.map(c => {
-                      const val = getDbValue(c);
-                      if (val instanceof Date) return val.toISOString();
-                      return val;
-                    })
+                    ...updateCols.map(c => serializeValue(getDbValue(c)))
                   ];
                   
                   console.log(`[Sync] Updating ${tableName} in dev:`, { businessKey: op.businessKey });
