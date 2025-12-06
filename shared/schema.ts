@@ -2044,15 +2044,17 @@ export const insertResyOperatingHoursSchema = createInsertSchema(resyOperatingHo
 export type InsertResyOperatingHours = z.infer<typeof insertResyOperatingHoursSchema>;
 export type ResyOperatingHours = typeof resyOperatingHours.$inferSelect;
 
-// Resy Special Dates - Holidays and special closures
+// Resy Special Dates - Special events that take precedence over regular experiences
+// When a special date is created, it automatically blocks that time slot for other experiences at the location
 export const resySpecialDates = pgTable("resy_special_dates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   locationId: varchar("location_id").notNull(),
   date: varchar("date", { length: 10 }).notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
   name: text("name"),
+  description: text("description"),
   isClosed: boolean("is_closed").notNull().default(true),
-  openTime: text("open_time"),
-  closeTime: text("close_time"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

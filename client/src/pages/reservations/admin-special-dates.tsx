@@ -3,13 +3,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Pencil, Plus, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,6 @@ export default function AdminSpecialDates() {
     ? allSpecialDates?.filter(sd => sd.locationId === selectedLocationId)
     : allSpecialDates;
 
-  // Group special dates by location for better organization
   const specialDatesByLocation = filteredSpecialDates?.reduce((acc, sd) => {
     if (!acc[sd.locationId]) {
       acc[sd.locationId] = [];
@@ -65,11 +65,11 @@ export default function AdminSpecialDates() {
       <div>
         <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Special Dates</h1>
         <p className="text-muted-foreground">
-          Configure special operating hours or closures for specific dates (holidays, events, etc.).
+          Create special events that take precedence over regular experiences. 
+          When a special date is created, it automatically blocks that time slot for other experiences at the location.
         </p>
       </div>
 
-      {/* Location Filter and Add Button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="w-full sm:w-64">
@@ -99,7 +99,6 @@ export default function AdminSpecialDates() {
         </Button>
       </div>
 
-      {/* Special Dates List */}
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
       ) : !filteredSpecialDates || filteredSpecialDates.length === 0 ? (
@@ -131,7 +130,6 @@ export default function AdminSpecialDates() {
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
       <SpecialDateDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
@@ -185,9 +183,22 @@ function SpecialDateCard({ specialDate, location, onEdit }: SpecialDateCardProps
     try {
       const date = new Date(specialDate.date + "T00:00:00");
       if (isNaN(date.getTime())) return "Invalid date";
-      return format(date, "MMM d, yyyy");
+      return format(date, "EEEE, MMM d, yyyy");
     } catch {
       return "Invalid date";
+    }
+  };
+
+  const formatTime = (time: string | null) => {
+    if (!time) return "";
+    try {
+      const [hours, minutes] = time.split(":");
+      const hour = parseInt(hours);
+      const ampm = hour >= 12 ? "PM" : "AM";
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${minutes} ${ampm}`;
+    } catch {
+      return time;
     }
   };
 
@@ -196,26 +207,31 @@ function SpecialDateCard({ specialDate, location, onEdit }: SpecialDateCardProps
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base truncate">{formatDate()}</CardTitle>
-            <CardDescription className="text-sm mt-1">
-              {specialDate.name || (specialDate.isClosed ? "Closed" : "Special Hours")}
-            </CardDescription>
+            <CardTitle className="text-base">{specialDate.name || "Special Date"}</CardTitle>
+            <CardDescription className="text-sm mt-1">{formatDate()}</CardDescription>
           </div>
           <Badge variant={specialDate.isClosed ? "destructive" : "secondary"} className="shrink-0">
-            {specialDate.isClosed ? "Closed" : "Modified Hours"}
+            {specialDate.isClosed ? "Closed" : "Special Event"}
           </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        {!specialDate.isClosed && (specialDate.openTime || specialDate.closeTime) && (
-          <div className="text-sm mb-4">
-            <span className="text-muted-foreground">Hours:</span>
-            <p className="mt-1">
-              {specialDate.openTime || "?"} - {specialDate.closeTime || "?"}
-            </p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span>
+              {formatTime(specialDate.startTime)} - {formatTime(specialDate.endTime)}
+            </span>
           </div>
-        )}
-        <div className="flex gap-2">
+          
+          {specialDate.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {specialDate.description}
+            </p>
+          )}
+        </div>
+        
+        <div className="flex gap-2 mt-4">
           <Button
             size="sm"
             variant="outline"
@@ -240,7 +256,7 @@ function SpecialDateCard({ specialDate, location, onEdit }: SpecialDateCardProps
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Special Date</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete this special date? This action cannot be undone.
+                  Are you sure you want to delete this special date? This will remove the block on other experiences during this time.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -277,22 +293,23 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
     defaultValues: {
       locationId: specialDate?.locationId || defaultLocationId || "",
       date: specialDate?.date || "",
+      startTime: specialDate?.startTime || "09:00",
+      endTime: specialDate?.endTime || "17:00",
       name: specialDate?.name || "",
+      description: specialDate?.description || "",
       isClosed: specialDate?.isClosed ?? true,
-      openTime: specialDate?.openTime || "",
-      closeTime: specialDate?.closeTime || "",
     },
   });
 
-  // Reset form when dialog opens with new data
   const resetForm = () => {
     form.reset({
       locationId: specialDate?.locationId || defaultLocationId || "",
       date: specialDate?.date || "",
+      startTime: specialDate?.startTime || "09:00",
+      endTime: specialDate?.endTime || "17:00",
       name: specialDate?.name || "",
+      description: specialDate?.description || "",
       isClosed: specialDate?.isClosed ?? true,
-      openTime: specialDate?.openTime || "",
-      closeTime: specialDate?.closeTime || "",
     });
   };
 
@@ -305,7 +322,7 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
       queryClient.invalidateQueries({ queryKey: ["/api/resy/special-dates"] });
       toast({
         title: "Special date created",
-        description: "The special date has been created successfully.",
+        description: "The special date has been created. Other experiences at this location will be blocked during this time.",
       });
       onOpenChange(false);
       form.reset();
@@ -350,7 +367,6 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
-  const isClosed = form.watch("isClosed");
 
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
@@ -363,7 +379,7 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
           <DialogDescription>
             {isEditing 
               ? "Update the special date details below."
-              : "Configure a closure or modified hours for a specific date."}
+              : "Create a special event that will block other experiences at this location during the specified time."}
           </DialogDescription>
         </DialogHeader>
 
@@ -389,6 +405,25 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Event Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value || ""}
+                      placeholder="e.g., Private Wedding, Holiday Closure"
+                      data-testid="input-name"
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -438,21 +473,61 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
               )}
             />
 
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Time</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        type="time"
+                        data-testid="input-start-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="endTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Time</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        type="time"
+                        data-testid="input-end-time"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="name"
+              name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name (optional)</FormLabel>
+                  <FormLabel>Description (optional)</FormLabel>
                   <FormControl>
-                    <Input
+                    <Textarea
                       {...field}
                       value={field.value || ""}
-                      placeholder="e.g., Christmas Day, Private Event"
-                      data-testid="input-name"
+                      placeholder="Additional details about this special date..."
+                      rows={3}
+                      data-testid="input-description"
                     />
                   </FormControl>
-                  <FormDescription>A name or reason for this special date.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -464,9 +539,9 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <FormLabel>Closed</FormLabel>
+                    <FormLabel>Location Closed</FormLabel>
                     <FormDescription>
-                      Location is completely closed on this date
+                      Mark as closed (no reservations) vs special event
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -479,48 +554,6 @@ function SpecialDateDialog({ open, onOpenChange, specialDate, locations, default
                 </FormItem>
               )}
             />
-
-            {!isClosed && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="openTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Open Time</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          value={field.value || ""}
-                          type="time"
-                          data-testid="input-open-time"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="closeTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Close Time</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          value={field.value || ""}
-                          type="time"
-                          data-testid="input-close-time"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
