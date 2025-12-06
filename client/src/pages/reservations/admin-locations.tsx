@@ -238,7 +238,7 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
         <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
           <FormLabel className="text-base font-medium">Location Type</FormLabel>
           <FormDescription className="mt-0 mb-3">
-            Select what types of experiences this location supports
+            Select the type of experience this location supports
           </FormDescription>
           
           <FormField
@@ -249,13 +249,18 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
                 <FormControl>
                   <Checkbox
                     checked={field.value}
-                    onCheckedChange={field.onChange}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      if (checked) {
+                        form.setValue("isTicketedEventLocation", false);
+                      }
+                    }}
                     data-testid="checkbox-reservation-location"
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel className="font-normal">
-                    Table Reservation Location
+                    Table Reservation
                   </FormLabel>
                   <FormDescription>
                     For dining with table management, service periods, and turn times
@@ -273,13 +278,18 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
                 <FormControl>
                   <Checkbox
                     checked={field.value}
-                    onCheckedChange={field.onChange}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      if (checked) {
+                        form.setValue("isReservationLocation", false);
+                      }
+                    }}
                     data-testid="checkbox-ticketed-location"
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel className="font-normal">
-                    Ticketed Event Location
+                    Ticketed Event
                   </FormLabel>
                   <FormDescription>
                     For tours, tastings, and events with capacity limits (no table management)
