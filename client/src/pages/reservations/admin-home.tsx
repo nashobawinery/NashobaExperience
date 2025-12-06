@@ -34,7 +34,7 @@ export default function AdminHome() {
           data-testid="button-view-customer-page"
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          View Customer Page
+          Customer Reservation Page
         </Button>
       </div>
 
