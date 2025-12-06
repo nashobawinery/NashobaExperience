@@ -1160,6 +1160,23 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     const requestedDate = new Date(date as string);
     const dayOfWeek = requestedDate.getDay();
     
+    // Get the location to check for reservationCloseTime
+    const location = await resyStorage.getLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ message: "Location not found" });
+    }
+    
+    // Parse reservation close time if set
+    let closeTimeHour: number | null = null;
+    let closeTimeMin: number | null = null;
+    if (location.reservationCloseTime) {
+      const parts = location.reservationCloseTime.split(':').map(Number);
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        closeTimeHour = parts[0];
+        closeTimeMin = parts[1];
+      }
+    }
+    
     // Get operating hours for this day
     const operatingHours = await resyStorage.getOperatingHoursByLocation(locationId);
     const dayHours = operatingHours.filter(h => h.dayOfWeek === dayOfWeek && h.isOpen);
@@ -1178,26 +1195,44 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     const reservations = await resyStorage.getReservationsByDate(date as string, locationId);
     
     // Generate time slots based on operating hours
-    const availableTimes: Array<{time: string, available: boolean, capacity?: number}> = [];
+    const availableTimes: Array<{time: string, available: boolean, capacity?: number, mealPeriod?: string}> = [];
     
     for (const hours of dayHours) {
       if (!hours.openTime || !hours.closeTime) continue;
       
       // Parse times
       const [openHour, openMin] = hours.openTime.split(':').map(Number);
-      const [closeHour, closeMin] = hours.closeTime.split(':').map(Number);
+      let [closeHour, closeMin] = hours.closeTime.split(':').map(Number);
+      
+      // Apply reservation close time if set - limits the latest slot time
+      if (closeTimeHour !== null && closeTimeMin !== null) {
+        // Use the earlier of service period close or reservation close time
+        const serviceCloseMinutes = closeHour * 60 + closeMin;
+        const reservationCloseMinutes = closeTimeHour * 60 + closeTimeMin;
+        if (reservationCloseMinutes < serviceCloseMinutes) {
+          closeHour = closeTimeHour;
+          closeMin = closeTimeMin;
+        }
+      }
       
       // Get flow control for this meal period (or default)
       const flowControl = flowControls.find(fc => fc.mealPeriodId === hours.mealPeriodId && fc.isActive);
-      const intervalMinutes = flowControl?.intervalMinutes ?? 30;
+      // Ensure interval is positive to prevent infinite loops
+      const intervalMinutes = Math.max(flowControl?.intervalMinutes ?? 30, 1);
       const maxCovers = flowControl?.maxCoversPerInterval ?? 20;
       
-      // Generate time slots
-      let currentHour = openHour;
-      let currentMin = openMin;
+      // Calculate the effective close time in minutes for easier comparison
+      const effectiveCloseMinutes = closeHour * 60 + closeMin;
+      const openMinutes = openHour * 60 + openMin;
       
-      while (currentHour < closeHour || (currentHour === closeHour && currentMin < closeMin)) {
-        const timeStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+      // Generate time slots - iterate through all possible slots from open to close
+      // Only generate slots that are strictly BEFORE the effective close time
+      let currentMinutes = openMinutes;
+      
+      while (currentMinutes < effectiveCloseMinutes && currentMinutes < 24 * 60) {
+        const slotHour = Math.floor(currentMinutes / 60);
+        const slotMin = currentMinutes % 60;
+        const timeStr = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`;
         
         // Count existing reservations at this time
         const existingCovers = reservations
@@ -1214,11 +1249,7 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
         });
         
         // Advance by interval
-        currentMin += intervalMinutes;
-        if (currentMin >= 60) {
-          currentHour += Math.floor(currentMin / 60);
-          currentMin = currentMin % 60;
-        }
+        currentMinutes += intervalMinutes;
       }
     }
     

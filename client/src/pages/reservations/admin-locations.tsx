@@ -137,7 +137,7 @@ export default function AdminLocations() {
           <DialogHeader>
             <DialogTitle>{editingLocation ? "Edit Location Settings" : "Create New Location"}</DialogTitle>
             <DialogDescription>
-              {editingLocation ? "Update location configuration including reservation close time" : "Add a new dining location to the system"}
+              {editingLocation ? "Update location configuration" : "Add a new dining location to the system"}
             </DialogDescription>
           </DialogHeader>
           <LocationForm
@@ -163,7 +163,6 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
           name: location.name,
           description: location.description || "",
           address: location.address || "",
-          reservationCloseTime: location.reservationCloseTime || "",
           isActive: location.isActive,
           isTicketedEventLocation: location.isTicketedEventLocation ?? false,
           isReservationLocation: location.isReservationLocation ?? false,
@@ -172,7 +171,6 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
           name: "",
           description: "",
           address: "",
-          reservationCloseTime: "",
           isActive: true,
           isTicketedEventLocation: false,
           isReservationLocation: false,
