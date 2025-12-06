@@ -1544,7 +1544,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-md border p-4">
+            <FormItem className={`flex flex-row items-center justify-between rounded-md border p-4 transition-colors ${field.value ? 'border-primary bg-primary/10' : ''}`}>
               <div className="space-y-0.5">
                 <FormLabel>Active</FormLabel>
                 <FormDescription>
@@ -1552,7 +1552,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
                 </FormDescription>
               </div>
               <FormControl>
-                <Switch
+                <LabeledSwitch
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   data-testid="switch-active"
