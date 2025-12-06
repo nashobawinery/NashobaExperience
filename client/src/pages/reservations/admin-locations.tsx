@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight } from "lucide-react";
 import type { Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
 import { insertLocationTableSchema, insertLocationSchema } from "@shared/schema";
@@ -164,6 +165,8 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
           address: location.address || "",
           reservationCloseTime: location.reservationCloseTime || "",
           isActive: location.isActive,
+          isTicketedEventLocation: location.isTicketedEventLocation ?? false,
+          isReservationLocation: location.isReservationLocation ?? false,
         }
       : {
           name: "",
@@ -171,6 +174,8 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
           address: "",
           reservationCloseTime: "",
           isActive: true,
+          isTicketedEventLocation: false,
+          isReservationLocation: false,
         },
   });
 
@@ -231,6 +236,61 @@ function LocationForm({ location, onSuccess }: { location: Location | null; onSu
             </FormItem>
           )}
         />
+
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <FormLabel className="text-base font-medium">Location Type</FormLabel>
+          <FormDescription className="mt-0 mb-3">
+            Select what types of experiences this location supports
+          </FormDescription>
+          
+          <FormField
+            control={form.control}
+            name="isReservationLocation"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    data-testid="checkbox-reservation-location"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="font-normal">
+                    Table Reservation Location
+                  </FormLabel>
+                  <FormDescription>
+                    For dining with table management, service periods, and turn times
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="isTicketedEventLocation"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    data-testid="checkbox-ticketed-location"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="font-normal">
+                    Ticketed Event Location
+                  </FormLabel>
+                  <FormDescription>
+                    For tours, tastings, and events with capacity limits (no table management)
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}

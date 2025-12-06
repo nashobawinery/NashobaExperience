@@ -708,7 +708,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
   const [uploadingPrimary, setUploadingPrimary] = useState(false);
   const [uploadingSecondary, setUploadingSecondary] = useState(false);
 
-  const { data: locations } = useQuery<{ id: string; name: string; isActive: boolean }[]>({
+  const { data: locations } = useQuery<{ id: string; name: string; isActive: boolean; isTicketedEventLocation: boolean; isReservationLocation: boolean }[]>({
     queryKey: ["/api/resy/locations"],
   });
 
@@ -749,6 +749,14 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
 
   const isExternal = form.watch("isExternal");
   const reservationType = form.watch("reservationType");
+  
+  // Filter locations based on selected reservation type
+  const filteredLocations = locations?.filter(l => {
+    if (!l.isActive) return false;
+    if (reservationType === 'ticketed') return l.isTicketedEventLocation;
+    if (reservationType === 'table') return l.isReservationLocation;
+    return true; // Show all active if no type selected
+  }) || [];
 
   const saveMutation = useMutation({
     mutationFn: async (data: InsertExperience) => {
@@ -838,6 +846,77 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
             </FormItem>
           )}
         />
+
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div>
+            <h3 className="text-sm font-medium">Experience Type & Location</h3>
+            <p className="text-sm text-muted-foreground">Select the type first to see eligible locations</p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="reservationType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Type of Experience *</FormLabel>
+                <Select onValueChange={(value) => {
+                  field.onChange(value);
+                  // Clear location when type changes
+                  form.setValue("locationId", undefined);
+                }} value={field.value || ""}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-type-top">
+                      <SelectValue placeholder="Select experience type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="ticketed">Ticketed Event (tours, tastings, events)</SelectItem>
+                    <SelectItem value="table">Table Reservation (dining)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {!isExternal && (
+            <FormField
+              control={form.control}
+              name="locationId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""} disabled={!reservationType}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-location-top">
+                        <SelectValue placeholder={reservationType ? "Select location" : "Select type first"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {filteredLocations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {reservationType && filteredLocations.length === 0 && (
+                    <FormDescription className="text-amber-600">
+                      No locations configured for {reservationType === 'ticketed' ? 'ticketed events' : 'table reservations'}. 
+                      Configure location types in Locations settings.
+                    </FormDescription>
+                  )}
+                  {reservationType && filteredLocations.length > 0 && (
+                    <FormDescription>
+                      Showing {reservationType === 'ticketed' ? 'ticketed event' : 'reservation'} locations only
+                    </FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
 
         <FormField
           control={form.control}
@@ -1171,56 +1250,6 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
           />
         ) : (
           <>
-            <FormField
-              control={form.control}
-              name="locationId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-location">
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {locations?.filter(l => l.isActive).map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Required for internal bookings - this location's settings will determine availability
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="reservationType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reservation Type *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-type">
-                        <SelectValue placeholder="Select reservation type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ticketed">Ticketed Event</SelectItem>
-                      <SelectItem value="table">Table Reservation</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="price"

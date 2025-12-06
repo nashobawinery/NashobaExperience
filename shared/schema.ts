@@ -1829,6 +1829,8 @@ export const resyLocations = pgTable("resy_locations", {
   imageUrl: text("image_url"),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isTicketedEventLocation: boolean("is_ticketed_event_location").notNull().default(false),
+  isReservationLocation: boolean("is_reservation_location").notNull().default(false),
   timezone: varchar("timezone").default("America/New_York"),
   reservationCloseTime: varchar("reservation_close_time", { length: 5 }),
   createdAt: timestamp("created_at").defaultNow(),

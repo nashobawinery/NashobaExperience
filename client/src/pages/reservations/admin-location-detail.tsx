@@ -89,16 +89,20 @@ export default function AdminLocationDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="tables" className="space-y-6">
+      <Tabs defaultValue={location.isReservationLocation ? "tables" : "operating-hours"} className="space-y-6">
         <TabsList data-testid="tabs-location-detail">
-          <TabsTrigger value="tables" data-testid="tab-tables">
-            <Users className="w-3 h-3 mr-2" />
-            Tables
-          </TabsTrigger>
-          <TabsTrigger value="service-periods" data-testid="tab-service-periods">
-            <Clock className="w-3 h-3 mr-2" />
-            Service Periods
-          </TabsTrigger>
+          {location.isReservationLocation && (
+            <TabsTrigger value="tables" data-testid="tab-tables">
+              <Users className="w-3 h-3 mr-2" />
+              Tables
+            </TabsTrigger>
+          )}
+          {location.isReservationLocation && (
+            <TabsTrigger value="service-periods" data-testid="tab-service-periods">
+              <Clock className="w-3 h-3 mr-2" />
+              Service Periods
+            </TabsTrigger>
+          )}
           <TabsTrigger value="operating-hours" data-testid="tab-operating-hours">
             <Calendar className="w-3 h-3 mr-2" />
             Operating Hours
@@ -107,23 +111,29 @@ export default function AdminLocationDetail() {
             <Gauge className="w-3 h-3 mr-2" />
             Flow Controls
           </TabsTrigger>
-          <TabsTrigger value="turn-times" data-testid="tab-turn-times">
-            <Timer className="w-3 h-3 mr-2" />
-            Turn Times
-          </TabsTrigger>
+          {location.isReservationLocation && (
+            <TabsTrigger value="turn-times" data-testid="tab-turn-times">
+              <Timer className="w-3 h-3 mr-2" />
+              Turn Times
+            </TabsTrigger>
+          )}
           <TabsTrigger value="private-events" data-testid="tab-private-events">
             <CalendarOff className="w-3 h-3 mr-2" />
             Private Events
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tables">
-          <TablesTab locationId={locationId!} />
-        </TabsContent>
+        {location.isReservationLocation && (
+          <TabsContent value="tables">
+            <TablesTab locationId={locationId!} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="service-periods">
-          <ServicePeriodsTab locationId={locationId!} />
-        </TabsContent>
+        {location.isReservationLocation && (
+          <TabsContent value="service-periods">
+            <ServicePeriodsTab locationId={locationId!} />
+          </TabsContent>
+        )}
 
         <TabsContent value="operating-hours">
           <OperatingHoursTab locationId={locationId!} />
@@ -133,9 +143,11 @@ export default function AdminLocationDetail() {
           <FlowControlsTab locationId={locationId!} />
         </TabsContent>
 
-        <TabsContent value="turn-times">
-          <TurnTimesTab locationId={locationId!} />
-        </TabsContent>
+        {location.isReservationLocation && (
+          <TabsContent value="turn-times">
+            <TurnTimesTab locationId={locationId!} />
+          </TabsContent>
+        )}
 
         <TabsContent value="private-events">
           <PrivateEventsTab locationId={locationId!} />
