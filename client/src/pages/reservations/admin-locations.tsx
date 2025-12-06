@@ -43,7 +43,7 @@ export default function AdminLocations() {
   };
 
   const handleManageLocation = (locationId: string) => {
-    navigate(`/reservations/admin-locations/${locationId}`);
+    navigate(`/reservations/admin/locations/${locationId}`);
   };
 
   const groupedTables = allTables?.reduce((acc, table) => {

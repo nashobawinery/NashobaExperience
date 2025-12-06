@@ -1269,32 +1269,32 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="advanceBookingDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Advance Booking Window (Days)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="30"
+                      {...field}
+                      value={field.value || ""}
+                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                      data-testid="input-advance-booking-days"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Maximum days in advance this experience can be booked (leave empty for no limit)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {reservationType === 'ticketed' && (
               <>
-                <FormField
-                  control={form.control}
-                  name="advanceBookingDays"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Advance Booking Window (Days)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="30"
-                          {...field}
-                          value={field.value || ""}
-                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                          data-testid="input-advance-booking-days"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Maximum days in advance tickets can be purchased (leave empty for no limit)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 {!experience && (
                   <>
                     <div className="space-y-3">
