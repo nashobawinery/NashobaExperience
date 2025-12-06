@@ -881,6 +881,15 @@ router.delete("/api/resy/meal-periods/:id", requireResyAdmin, async (req, res) =
   }
 });
 
+router.get("/api/resy/locations/:locationId/meal-periods", async (req, res) => {
+  try {
+    const periods = await resyStorage.getMealPeriodsByLocation(req.params.locationId);
+    res.json(periods);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch meal periods: " + error.message });
+  }
+});
+
 router.get("/api/resy/operating-hours", async (req, res) => {
   try {
     const hours = await resyStorage.getAllOperatingHours();
