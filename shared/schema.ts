@@ -2270,6 +2270,55 @@ export const insertResyPrivateEventSchema = createInsertSchema(resyPrivateEvents
 export type InsertResyPrivateEvent = z.infer<typeof insertResyPrivateEventSchema>;
 export type ResyPrivateEvent = typeof resyPrivateEvents.$inferSelect;
 
+// Resy Ticketed Event Definitions - Defines single or recurring ticketed events for locations
+export const resyTicketedEventDefinitions = pgTable("resy_ticketed_event_definitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull(),
+  experienceId: varchar("experience_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  eventType: text("event_type").notNull().default("single"), // 'single' or 'recurring'
+  // For single events
+  singleEventDate: varchar("single_event_date", { length: 10 }), // YYYY-MM-DD
+  singleEventTime: text("single_event_time"), // HH:MM
+  singleEventCapacity: integer("single_event_capacity"),
+  // For recurring events
+  frequency: text("frequency"), // 'daily', 'weekly', 'monthly', 'yearly'
+  daysOfWeek: integer("days_of_week").array().default(sql`'{}'::integer[]`), // 0=Sun, 1=Mon, ..., 6=Sat
+  startDate: varchar("start_date", { length: 10 }), // When recurring event schedule starts
+  endDate: varchar("end_date", { length: 10 }), // Optional end date for recurring schedule
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resy_ticketed_events_location").on(table.locationId),
+  index("idx_resy_ticketed_events_experience").on(table.experienceId),
+]);
+
+export const insertResyTicketedEventDefinitionSchema = createInsertSchema(resyTicketedEventDefinitions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyTicketedEventDefinition = z.infer<typeof insertResyTicketedEventDefinitionSchema>;
+export type ResyTicketedEventDefinition = typeof resyTicketedEventDefinitions.$inferSelect;
+
+// Resy Ticketed Event Timeslots - Time slots with capacity for recurring events
+// For recurring events, each day of week can have multiple time slots
+export const resyTicketedEventTimeslots = pgTable("resy_ticketed_event_timeslots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  definitionId: varchar("definition_id").notNull(),
+  dayOfWeek: integer("day_of_week"), // 0=Sun, 1=Mon, ..., 6=Sat (null for single events or all-days)
+  startTime: text("start_time").notNull(), // HH:MM
+  capacity: integer("capacity").notNull().default(20),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resy_ticketed_timeslots_definition").on(table.definitionId),
+  index("idx_resy_ticketed_timeslots_day").on(table.dayOfWeek),
+]);
+
+export const insertResyTicketedEventTimeslotSchema = createInsertSchema(resyTicketedEventTimeslots).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResyTicketedEventTimeslot = z.infer<typeof insertResyTicketedEventTimeslotSchema>;
+export type ResyTicketedEventTimeslot = typeof resyTicketedEventTimeslots.$inferSelect;
+
 // Resy Site Settings - Global configuration
 export const resySiteSettings = pgTable("resy_site_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2335,6 +2384,10 @@ export type ClubExperienceDiscount = ResyClubExperienceDiscount;
 export type InsertClubExperienceDiscount = InsertResyClubExperienceDiscount;
 export type PrivateEvent = ResyPrivateEvent;
 export type InsertPrivateEvent = InsertResyPrivateEvent;
+export type TicketedEventDefinition = ResyTicketedEventDefinition;
+export type InsertTicketedEventDefinition = InsertResyTicketedEventDefinition;
+export type TicketedEventTimeslot = ResyTicketedEventTimeslot;
+export type InsertTicketedEventTimeslot = InsertResyTicketedEventTimeslot;
 export type SiteSetting = ResySiteSetting;
 export type InsertSiteSetting = InsertResySiteSetting;
 export type FooterLink = ResyFooterLink;
@@ -2360,6 +2413,8 @@ export const insertTurnTimeSettingsSchema = insertResyTurnTimeSettingSchema;
 export const insertExperienceDiscountSchema = insertResyExperienceDiscountSchema;
 export const insertClubExperienceDiscountSchema = insertResyClubExperienceDiscountSchema;
 export const insertPrivateEventSchema = insertResyPrivateEventSchema;
+export const insertTicketedEventDefinitionSchema = insertResyTicketedEventDefinitionSchema;
+export const insertTicketedEventTimeslotSchema = insertResyTicketedEventTimeslotSchema;
 export const insertSiteSettingSchema = insertResySiteSettingSchema;
 export const insertFooterLinkSchema = insertResyFooterLinkSchema;
 export const updateCustomerSchema = updateResyCustomerSchema;
