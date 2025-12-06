@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play } from "lucide-react";
+import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
@@ -89,8 +89,17 @@ export default function AdminLocationDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue={location.isReservationLocation ? "tables" : "operating-hours"} className="space-y-6">
+      <Tabs defaultValue={location.isTicketedEventLocation ? "ticketed-events" : (location.isReservationLocation ? "tables" : "operating-hours")} className="space-y-6">
         <TabsList data-testid="tabs-location-detail">
+          {/* Ticketed Event Location tabs */}
+          {location.isTicketedEventLocation && (
+            <TabsTrigger value="ticketed-events" data-testid="tab-ticketed-events">
+              <Ticket className="w-3 h-3 mr-2" />
+              Ticketed Events
+            </TabsTrigger>
+          )}
+          
+          {/* Table Reservation Location tabs */}
           {location.isReservationLocation && (
             <TabsTrigger value="tables" data-testid="tab-tables">
               <Users className="w-3 h-3 mr-2" />
@@ -103,6 +112,8 @@ export default function AdminLocationDetail() {
               Service Periods
             </TabsTrigger>
           )}
+          
+          {/* Common tabs for both location types */}
           <TabsTrigger value="operating-hours" data-testid="tab-operating-hours">
             <Calendar className="w-3 h-3 mr-2" />
             Operating Hours
@@ -111,18 +122,32 @@ export default function AdminLocationDetail() {
             <Gauge className="w-3 h-3 mr-2" />
             Flow Controls
           </TabsTrigger>
+          
+          {/* Table Reservation specific tabs */}
           {location.isReservationLocation && (
             <TabsTrigger value="turn-times" data-testid="tab-turn-times">
               <Timer className="w-3 h-3 mr-2" />
               Turn Times
             </TabsTrigger>
           )}
-          <TabsTrigger value="private-events" data-testid="tab-private-events">
-            <CalendarOff className="w-3 h-3 mr-2" />
-            Private Events
-          </TabsTrigger>
+          
+          {/* Special Dates tab (replaces Private Events for Table Reservation locations) */}
+          {location.isReservationLocation && (
+            <TabsTrigger value="special-dates" data-testid="tab-special-dates">
+              <CalendarOff className="w-3 h-3 mr-2" />
+              Special Dates
+            </TabsTrigger>
+          )}
         </TabsList>
 
+        {/* Ticketed Events Tab Content */}
+        {location.isTicketedEventLocation && (
+          <TabsContent value="ticketed-events">
+            <TicketedEventsTab locationId={locationId!} />
+          </TabsContent>
+        )}
+
+        {/* Table Reservation Location Content */}
         {location.isReservationLocation && (
           <TabsContent value="tables">
             <TablesTab locationId={locationId!} />
@@ -135,6 +160,7 @@ export default function AdminLocationDetail() {
           </TabsContent>
         )}
 
+        {/* Common Content */}
         <TabsContent value="operating-hours">
           <OperatingHoursTab locationId={locationId!} location={location} />
         </TabsContent>
@@ -149,9 +175,12 @@ export default function AdminLocationDetail() {
           </TabsContent>
         )}
 
-        <TabsContent value="private-events">
-          <PrivateEventsTab locationId={locationId!} />
-        </TabsContent>
+        {/* Special Dates Tab - redirects to Special Dates admin */}
+        {location.isReservationLocation && (
+          <TabsContent value="special-dates">
+            <SpecialDatesRedirectTab locationId={locationId!} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -2351,39 +2380,606 @@ function TurnTimeForm({
   );
 }
 
-// Private Events Tab - Information about private event conflict management
-function PrivateEventsTab({ locationId }: { locationId: string }) {
+// Special Dates Redirect Tab - Links to Special Dates management
+function SpecialDatesRedirectTab({ locationId }: { locationId: string }) {
   const [, setLocation] = useLocation();
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Private Events</CardTitle>
+        <CardTitle>Special Dates & Private Events</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground">
-          Private events for this location are managed through the Special Dates feature.
+          Closures, holidays, and private events for this location are managed through the Special Dates feature.
         </p>
         <div className="space-y-2">
-          <h4 className="font-medium">How to Block Private Events</h4>
-          <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-            <li>Navigate to Special Dates in the admin menu</li>
-            <li>Create a new special date or closure</li>
-            <li>Select this location ({locationId})</li>
-            <li>Configure the date range and closure type</li>
-            <li>Enable "Private Event" to block public reservations</li>
-          </ol>
+          <h4 className="font-medium">What You Can Do</h4>
+          <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+            <li>Block specific dates for private events</li>
+            <li>Set holiday closures</li>
+            <li>Configure one-time special hours</li>
+            <li>Manage recurring annual holidays</li>
+          </ul>
         </div>
         <div className="pt-4">
           <Button
             onClick={() => setLocation("/reservations/admin/special-dates")}
             data-testid="button-go-to-special-dates"
           >
-            <Calendar className="w-4 h-4 mr-2" />
+            <ExternalLink className="w-4 h-4 mr-2" />
             Go to Special Dates
           </Button>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// Ticketed Events Tab - Manage ticketed events for this location
+function TicketedEventsTab({ locationId }: { locationId: string }) {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+
+  const { data: ticketedEvents, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/resy/ticketed-events", { locationId }],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/resy/ticketed-events/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/ticketed-events"] });
+      toast({ title: "Ticketed event deleted successfully" });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "You don't have permission to delete ticketed events", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    },
+  });
+
+  const handleEdit = (event: any) => {
+    setEditingEvent(event);
+    setIsDialogOpen(true);
+  };
+
+  const handleCreate = () => {
+    setEditingEvent(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setEditingEvent(null);
+  };
+
+  const events = ticketedEvents?.filter(e => e.locationId === locationId) || [];
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle>Ticketed Events</CardTitle>
+          <Button onClick={handleCreate} data-testid="button-add-ticketed-event">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Ticketed Event
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Ticket className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No ticketed events configured for this location.</p>
+              <p className="text-sm mt-2">Add events for tours, tastings, or other ticketed experiences.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {events.map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                  data-testid={`ticketed-event-${event.id}`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{event.name}</span>
+                      <Badge variant={event.eventType === "recurring" ? "default" : "secondary"}>
+                        {event.eventType === "recurring" ? "Recurring" : "Single Event"}
+                      </Badge>
+                      {!event.isActive && (
+                        <Badge variant="outline">Inactive</Badge>
+                      )}
+                    </div>
+                    {event.description && (
+                      <p className="text-sm text-muted-foreground">{event.description}</p>
+                    )}
+                    {event.eventType === "single" && event.singleEventDate && (
+                      <p className="text-sm text-muted-foreground">
+                        {event.singleEventDate} at {formatTime12Hour(event.singleEventTime)} - Capacity: {event.singleEventCapacity}
+                      </p>
+                    )}
+                    {event.eventType === "recurring" && (
+                      <p className="text-sm text-muted-foreground">
+                        {event.frequency?.charAt(0).toUpperCase() + event.frequency?.slice(1)} - 
+                        {event.daysOfWeek?.map((d: number) => DAYS_OF_WEEK[d]?.slice(0, 3)).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleEdit(event)}
+                      data-testid={`button-edit-ticketed-event-${event.id}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          data-testid={`button-delete-ticketed-event-${event.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Ticketed Event</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{event.name}"? This will also remove all associated time slots.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(event.id)}
+                            data-testid="button-confirm-delete-ticketed-event"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingEvent ? "Edit Ticketed Event" : "Create Ticketed Event"}</DialogTitle>
+          </DialogHeader>
+          <TicketedEventForm
+            locationId={locationId}
+            event={editingEvent}
+            onSuccess={handleDialogClose}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// Ticketed Event Form Component
+function TicketedEventForm({
+  locationId,
+  event,
+  onSuccess,
+}: {
+  locationId: string;
+  event: any | null;
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const [eventType, setEventType] = useState<"single" | "recurring">(event?.eventType || "single");
+  const [selectedDays, setSelectedDays] = useState<number[]>(event?.daysOfWeek || []);
+  const [timeslots, setTimeslots] = useState<Array<{ dayOfWeek: number | null; startTime: string; capacity: number }>>(
+    []
+  );
+
+  // Fetch existing timeslots if editing
+  const { data: existingTimeslots } = useQuery<any[]>({
+    queryKey: ["/api/resy/ticketed-events", event?.id, "timeslots"],
+    enabled: !!event?.id,
+  });
+
+  // Initialize timeslots when data loads
+  useState(() => {
+    if (existingTimeslots) {
+      setTimeslots(existingTimeslots.map(ts => ({
+        dayOfWeek: ts.dayOfWeek,
+        startTime: ts.startTime,
+        capacity: ts.capacity,
+      })));
+    }
+  });
+
+  const form = useForm({
+    defaultValues: {
+      name: event?.name || "",
+      description: event?.description || "",
+      eventType: event?.eventType || "single",
+      singleEventDate: event?.singleEventDate || "",
+      singleEventTime: event?.singleEventTime || "",
+      singleEventCapacity: event?.singleEventCapacity || 20,
+      frequency: event?.frequency || "weekly",
+      startDate: event?.startDate || "",
+      endDate: event?.endDate || "",
+      isActive: event?.isActive ?? true,
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const payload = {
+        ...data,
+        locationId,
+        eventType,
+        daysOfWeek: eventType === "recurring" ? selectedDays : [],
+      };
+
+      let response;
+      if (event?.id) {
+        response = await apiRequest("PATCH", `/api/resy/ticketed-events/${event.id}`, payload);
+      } else {
+        response = await apiRequest("POST", "/api/resy/ticketed-events", payload);
+      }
+      const savedEvent = await response.json();
+
+      // Save timeslots for recurring events
+      if (eventType === "recurring" && savedEvent?.id) {
+        for (const slot of timeslots) {
+          await apiRequest("POST", `/api/resy/ticketed-events/${savedEvent.id}/timeslots`, {
+            dayOfWeek: slot.dayOfWeek,
+            startTime: slot.startTime,
+            capacity: slot.capacity,
+          });
+        }
+      }
+
+      return savedEvent;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/ticketed-events"] });
+      toast({ title: event ? "Ticketed event updated successfully" : "Ticketed event created successfully" });
+      onSuccess();
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "You don't have permission to manage ticketed events", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    },
+  });
+
+  const toggleDay = (day: number) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
+    );
+  };
+
+  const addTimeslot = () => {
+    setTimeslots(prev => [...prev, { dayOfWeek: null, startTime: "12:00", capacity: 20 }]);
+  };
+
+  const removeTimeslot = (index: number) => {
+    setTimeslots(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateTimeslot = (index: number, field: string, value: any) => {
+    setTimeslots(prev => prev.map((slot, i) => 
+      i === index ? { ...slot, [field]: value } : slot
+    ));
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit((data) => saveMutation.mutate(data))} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Name</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="e.g., Winery Tour, Tasting Session" data-testid="input-event-name" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description (Optional)</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="Brief description of the event" data-testid="input-event-description" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="space-y-2">
+          <FormLabel>Event Type</FormLabel>
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant={eventType === "single" ? "default" : "outline"}
+              onClick={() => setEventType("single")}
+              data-testid="button-event-type-single"
+            >
+              Single Event
+            </Button>
+            <Button
+              type="button"
+              variant={eventType === "recurring" ? "default" : "outline"}
+              onClick={() => setEventType("recurring")}
+              data-testid="button-event-type-recurring"
+            >
+              Recurring
+            </Button>
+          </div>
+        </div>
+
+        {eventType === "single" && (
+          <div className="space-y-4 p-4 border rounded-lg">
+            <h4 className="font-medium">Single Event Details</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="singleEventDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} data-testid="input-single-event-date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="singleEventTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} data-testid="input-single-event-time" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="singleEventCapacity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Maximum Capacity</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                      data-testid="input-single-event-capacity"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {eventType === "recurring" && (
+          <div className="space-y-4 p-4 border rounded-lg">
+            <h4 className="font-medium">Recurring Event Details</h4>
+            
+            <FormField
+              control={form.control}
+              name="frequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Frequency</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-frequency">
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-2">
+              <FormLabel>Days of Week</FormLabel>
+              <div className="flex flex-wrap gap-2">
+                {DAYS_OF_WEEK.map((day, index) => (
+                  <Button
+                    key={day}
+                    type="button"
+                    variant={selectedDays.includes(index) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleDay(index)}
+                    data-testid={`button-day-${day.toLowerCase()}`}
+                  >
+                    {day.slice(0, 3)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} data-testid="input-start-date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Date (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} data-testid="input-end-date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <FormLabel>Time Slots</FormLabel>
+                <Button type="button" variant="outline" size="sm" onClick={addTimeslot} data-testid="button-add-timeslot">
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add Time Slot
+                </Button>
+              </div>
+              
+              {timeslots.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  No time slots configured. Add time slots to define when this event is offered.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {timeslots.map((slot, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 border rounded">
+                      <Select
+                        value={slot.dayOfWeek?.toString() || "all"}
+                        onValueChange={(v) => updateTimeslot(index, "dayOfWeek", v === "all" ? null : parseInt(v))}
+                      >
+                        <SelectTrigger className="w-32" data-testid={`select-timeslot-day-${index}`}>
+                          <SelectValue placeholder="Day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Days</SelectItem>
+                          {selectedDays.map(d => (
+                            <SelectItem key={d} value={d.toString()}>{DAYS_OF_WEEK[d]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="time"
+                        value={slot.startTime}
+                        onChange={(e) => updateTimeslot(index, "startTime", e.target.value)}
+                        className="w-28"
+                        data-testid={`input-timeslot-time-${index}`}
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={slot.capacity}
+                        onChange={(e) => updateTimeslot(index, "capacity", parseInt(e.target.value) || 1)}
+                        className="w-20"
+                        placeholder="Cap"
+                        data-testid={`input-timeslot-capacity-${index}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeTimeslot(index)}
+                        data-testid={`button-remove-timeslot-${index}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <FormField
+          control={form.control}
+          name="isActive"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  data-testid="checkbox-event-active"
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Active</FormLabel>
+                <FormDescription>
+                  Enable this ticketed event for booking
+                </FormDescription>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end gap-3">
+          <Button
+            type="submit"
+            disabled={saveMutation.isPending}
+            data-testid="button-save-ticketed-event"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              event ? "Update Event" : "Create Event"
+            )}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }
