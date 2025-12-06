@@ -53,7 +53,8 @@ import {
   Eye,
   Search,
   GitCompare,
-  Loader2
+  Loader2,
+  Calendar
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,6 +100,7 @@ const MODULE_ICONS: Record<string, typeof Wine> = {
   daily_reports: ClipboardList,
   rbac: Shield,
   platform: Settings,
+  reservation: Calendar,
 };
 
 const DATA_TYPE_BADGES: Record<DataType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; icon: typeof Lock; description: string }> = {
