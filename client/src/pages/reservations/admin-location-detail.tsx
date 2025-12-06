@@ -248,7 +248,7 @@ function TableCard({
 
   const pauseMutation = useMutation<LocationTable, Error, void>({
     mutationFn: async () => {
-      const res = await apiRequest("PATCH", `/api/location-tables/${table.id}/toggle-pause`, {});
+      const res = await apiRequest("PATCH", `/api/resy/location-tables/${table.id}/toggle-pause`, {});
       return await res.json();
     },
     onSuccess: (updatedTable: LocationTable) => {

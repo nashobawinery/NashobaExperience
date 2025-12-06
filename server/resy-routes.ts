@@ -304,6 +304,11 @@ class ResyStorage {
     return await db.select().from(resyLocationTables).orderBy(resyLocationTables.tableLabel);
   }
 
+  async getLocationTable(id: string): Promise<ResyLocationTable | undefined> {
+    const [table] = await db.select().from(resyLocationTables).where(eq(resyLocationTables.id, id));
+    return table;
+  }
+
   async createLocationTable(data: any): Promise<ResyLocationTable> {
     const [table] = await db.insert(resyLocationTables).values(data).returning();
     return table;
@@ -1241,6 +1246,20 @@ router.patch("/api/resy/location-tables/:id", requireResyAdmin, async (req, res)
     res.json(table);
   } catch (error: any) {
     res.status(400).json({ message: "Failed to update table: " + error.message });
+  }
+});
+
+router.patch("/api/resy/location-tables/:id/toggle-pause", requireResyAdmin, async (req, res) => {
+  try {
+    const table = await resyStorage.getLocationTable(req.params.id);
+    if (!table) return res.status(404).json({ message: "Table not found" });
+    
+    const updatedTable = await resyStorage.updateLocationTable(req.params.id, {
+      isPaused: !table.isPaused
+    });
+    res.json(updatedTable);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to toggle table pause: " + error.message });
   }
 });
 
