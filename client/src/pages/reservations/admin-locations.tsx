@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy } from "lucide-react";
 import type { Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
 import { insertLocationTableSchema, insertLocationSchema } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +31,38 @@ export default function AdminLocations() {
 
   const { data: allTables, isLoading: tablesLoading } = useQuery<LocationTable[]>({
     queryKey: ["/api/resy/location-tables"],
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/resy/locations/${id}/clone`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
+      toast({
+        title: "Location Cloned",
+        description: "A copy of the location has been created",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Clone Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleEditLocation = (location: Location) => {
@@ -117,6 +149,19 @@ export default function AdminLocations() {
                       data-testid={`button-edit-location-${location.id}`}
                     >
                       <Settings className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={() => cloneMutation.mutate(location.id)}
+                      size="icon"
+                      variant="outline"
+                      disabled={cloneMutation.isPending}
+                      data-testid={`button-clone-location-${location.id}`}
+                    >
+                      {cloneMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </CardContent>

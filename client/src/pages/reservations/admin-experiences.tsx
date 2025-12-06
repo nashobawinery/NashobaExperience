@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, DollarSign, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink, Loader2, Upload, X, Tag, Percent, DollarSign, Calendar, Copy } from "lucide-react";
 import type { Experience, InsertExperience, TimeSlot, ExperienceDiscount, InsertExperienceDiscount } from "@shared/schema";
 import { insertExperienceSchema, insertExperienceDiscountSchema } from "@shared/schema";
 import { ObjectUploader } from "@/components/ResyObjectUploader";
@@ -158,6 +158,38 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
     },
   });
 
+  const cloneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/resy/experiences/${id}/clone`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/experiences"] });
+      toast({
+        title: "Experience Cloned",
+        description: "A copy of the experience has been created",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Clone Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <Card className="overflow-hidden">
       {experience.imageUrl && (
@@ -221,6 +253,19 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
               Discounts
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => cloneMutation.mutate(experience.id)}
+            disabled={cloneMutation.isPending}
+            data-testid={`button-clone-${experience.id}`}
+          >
+            {cloneMutation.isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Copy className="w-3 h-3" />
+            )}
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button

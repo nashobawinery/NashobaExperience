@@ -744,6 +744,23 @@ router.delete("/api/resy/locations/:id", requireResyAdmin, async (req, res) => {
   }
 });
 
+router.post("/api/resy/locations/:id/clone", requireResyAdmin, async (req, res) => {
+  try {
+    const original = await resyStorage.getLocation(req.params.id);
+    if (!original) return res.status(404).json({ message: "Location not found" });
+    
+    const { id, createdAt, updatedAt, ...cloneData } = original;
+    const cloned = await resyStorage.createLocation({
+      ...cloneData,
+      name: `${original.name} copy`,
+      isActive: false,
+    });
+    res.json(cloned);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to clone location: " + error.message });
+  }
+});
+
 router.get("/api/resy/experiences", async (req, res) => {
   try {
     const experiences = await resyStorage.getExperiences();
@@ -816,6 +833,23 @@ router.delete("/api/resy/experiences/:id", requireResyAdmin, async (req, res) =>
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to delete experience: " + error.message });
+  }
+});
+
+router.post("/api/resy/experiences/:id/clone", requireResyAdmin, async (req, res) => {
+  try {
+    const original = await resyStorage.getExperience(req.params.id);
+    if (!original) return res.status(404).json({ message: "Experience not found" });
+    
+    const { id, createdAt, updatedAt, ...cloneData } = original;
+    const cloned = await resyStorage.createExperience({
+      ...cloneData,
+      name: `${original.name} copy`,
+      isActive: false,
+    });
+    res.json(cloned);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to clone experience: " + error.message });
   }
 });
 
