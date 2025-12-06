@@ -5,8 +5,12 @@ import { isAuthenticated } from "./replitAuth";
 import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateReservationConfirmationEmail, sendEmail } from "./email";
+import { scheduleReminders, sendDailyReminders } from "./reservationReminders";
 
 const requireResyAdmin = requireModuleAccess('reservations');
+
+// Initialize the reservation reminder scheduler
+scheduleReminders();
 import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
 import {
@@ -1930,6 +1934,21 @@ router.put("/api/resy/site-settings/:key", requireResyAdmin, async (req, res) =>
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ message: "Failed to update site setting: " + error.message });
+  }
+});
+
+// Admin endpoint to manually trigger reminder emails (for testing)
+router.post("/api/resy/send-reminders", requireResyAdmin, async (req, res) => {
+  try {
+    const result = await sendDailyReminders();
+    res.json({ 
+      message: `Reminder emails processed`, 
+      sent: result.sent, 
+      errors: result.errors, 
+      total: result.total 
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to send reminders: " + error.message });
   }
 });
 

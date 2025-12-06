@@ -1086,6 +1086,235 @@ Bolton, MA 01740
   return { subject, html, text };
 }
 
+// Reservation reminder email - sent morning of the reservation
+export interface ReservationReminderData {
+  customerName: string;
+  customerEmail: string;
+  experienceName: string;
+  reservationDate: string;
+  reservationTime: string;
+  ticketQuantity?: number;
+  partySize?: number;
+  specialRequests?: string;
+}
+
+export function generateReservationReminderEmail(data: ReservationReminderData): { subject: string; html: string; text: string } {
+  const {
+    customerName,
+    experienceName,
+    reservationTime,
+    ticketQuantity,
+    partySize,
+    specialRequests
+  } = data;
+
+  const isTicketed = ticketQuantity && ticketQuantity > 0;
+  const guestCount = isTicketed ? ticketQuantity : (partySize || 1);
+
+  const subject = `Today's the Day! Your ${experienceName} Awaits`;
+  
+  const text = `
+YOUR EXPERIENCE AWAITS TODAY!
+
+Hi ${customerName},
+
+Today is the day! We're thrilled to welcome you to Nashoba Valley Winery for your ${experienceName} experience.
+
+YOUR RESERVATION
+Experience: ${experienceName}
+Time: ${reservationTime}
+${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
+${specialRequests ? `Special Requests: ${specialRequests}` : ''}
+
+ARRIVAL TIPS
+- Please arrive 10-15 minutes before your scheduled time
+- Check in at our welcome desk when you arrive
+- Comfortable shoes are recommended for walking tours
+
+We've been preparing for your visit and can't wait to share our passion for winemaking with you!
+
+Questions? Contact us:
+Email: support@nashobawinery.com
+Phone: (978) 779-5521
+
+See you soon!
+
+Nashoba Valley Winery
+100 Wattaquadock Hill Road
+Bolton, MA 01740
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+    .container { max-width: 600px; margin: 0 auto; background-color: white; }
+    .header { 
+      background: linear-gradient(135deg, #5C2535 0%, #7a3346 50%, #5C2535 100%);
+      color: #F5F5F0; 
+      padding: 40px 20px; 
+      text-align: center; 
+    }
+    .header h1 { margin: 0; font-size: 32px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+    .header .subtitle { margin: 15px 0 0; font-size: 18px; opacity: 0.95; font-style: italic; }
+    .celebration-banner {
+      background: linear-gradient(90deg, #C9A961 0%, #E8D4A8 50%, #C9A961 100%);
+      color: #5C2535;
+      padding: 15px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .content { padding: 30px 25px; }
+    .greeting { font-size: 18px; margin-bottom: 20px; }
+    .intro-text { font-size: 16px; line-height: 1.8; margin-bottom: 25px; }
+    .reservation-card { 
+      background: #F5F5F0;
+      border: 2px solid #C9A961;
+      border-radius: 12px;
+      padding: 25px;
+      margin: 25px 0;
+    }
+    .reservation-card h2 { 
+      margin: 0 0 20px 0; 
+      color: #5C2535; 
+      font-size: 20px;
+      border-bottom: 2px solid #C9A961;
+      padding-bottom: 10px;
+    }
+    .detail-row { display: flex; justify-content: space-between; margin: 12px 0; padding: 8px 0; }
+    .detail-label { color: #666; }
+    .detail-value { font-weight: bold; color: #5C2535; }
+    .tips-section {
+      background-color: #fff8e7;
+      border-left: 4px solid #C9A961;
+      padding: 20px;
+      margin: 25px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .tips-section h3 { margin: 0 0 15px 0; color: #5C2535; }
+    .tips-section ul { margin: 0; padding-left: 20px; }
+    .tips-section li { margin: 8px 0; color: #555; }
+    ${specialRequests ? `
+    .special-requests { 
+      background-color: #e8f4fd; 
+      border: 1px solid #b8d4e8; 
+      padding: 15px; 
+      border-radius: 8px; 
+      margin: 20px 0;
+    }
+    .special-requests h4 { margin: 0 0 10px 0; color: #0066cc; }
+    ` : ''}
+    .excitement-box {
+      background: linear-gradient(135deg, #5C2535 0%, #7a3346 100%);
+      color: white;
+      padding: 25px;
+      border-radius: 12px;
+      text-align: center;
+      margin: 25px 0;
+    }
+    .excitement-box p { margin: 0; font-size: 18px; font-style: italic; }
+    .contact-box { 
+      background-color: #f8f8f8; 
+      padding: 20px; 
+      margin: 25px 0;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .contact-box h3 { margin: 0 0 15px 0; color: #5C2535; }
+    .contact-box p { margin: 5px 0; }
+    .contact-box a { color: #5C2535; font-weight: bold; }
+    .footer { 
+      background-color: #5C2535; 
+      padding: 25px; 
+      text-align: center; 
+      color: #F5F5F0;
+    }
+    .footer p { margin: 5px 0; font-size: 14px; }
+    .footer .brand { font-weight: bold; font-size: 18px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Today's the Day!</h1>
+      <p class="subtitle">Your Experience Awaits</p>
+    </div>
+    
+    <div class="celebration-banner">
+      YOUR ${experienceName.toUpperCase()} IS TODAY
+    </div>
+    
+    <div class="content">
+      <p class="greeting">Hi ${customerName},</p>
+      
+      <p class="intro-text">
+        Today is the day! We're absolutely thrilled to welcome you to Nashoba Valley Winery. 
+        Our team has been preparing for your visit, and we can't wait to share an unforgettable experience with you.
+      </p>
+      
+      <div class="reservation-card">
+        <h2>Your Reservation Details</h2>
+        <div class="detail-row">
+          <span class="detail-label">Experience</span>
+          <span class="detail-value">${experienceName}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Time</span>
+          <span class="detail-value">${reservationTime}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">${isTicketed ? 'Tickets' : 'Party Size'}</span>
+          <span class="detail-value">${guestCount} ${isTicketed ? (guestCount === 1 ? 'ticket' : 'tickets') : (guestCount === 1 ? 'guest' : 'guests')}</span>
+        </div>
+      </div>
+      
+      ${specialRequests ? `
+      <div class="special-requests">
+        <h4>Your Special Requests</h4>
+        <p>${specialRequests}</p>
+      </div>
+      ` : ''}
+      
+      <div class="tips-section">
+        <h3>Arrival Tips</h3>
+        <ul>
+          <li>Please arrive 10-15 minutes before your scheduled time</li>
+          <li>Check in at our welcome desk when you arrive</li>
+          <li>Comfortable shoes are recommended for walking tours</li>
+          <li>Feel free to explore our beautiful grounds before or after your experience</li>
+        </ul>
+      </div>
+      
+      <div class="excitement-box">
+        <p>We've been preparing for your visit and can't wait to share our passion for winemaking with you!</p>
+      </div>
+      
+      <div class="contact-box">
+        <h3>Questions or Running Late?</h3>
+        <p><strong>Email:</strong> <a href="mailto:support@nashobawinery.com">support@nashobawinery.com</a></p>
+        <p><strong>Phone:</strong> (978) 779-5521</p>
+      </div>
+      
+      <p style="text-align: center; font-size: 18px; font-weight: bold; color: #5C2535;">See you soon!</p>
+    </div>
+    
+    <div class="footer">
+      <p class="brand">Nashoba Valley Winery</p>
+      <p>100 Wattaquadock Hill Road, Bolton, MA 01740</p>
+      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {
