@@ -23,6 +23,15 @@ import { insertLocationTableSchema, insertMealPeriodSchema, insertOperatingHours
 const MEAL_PERIOD_NAMES = ["breakfast", "lunch", "dinner", "brunch"];
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+function formatTime12Hour(time24: string | null | undefined): string {
+  if (!time24) return "";
+  const [hours, minutes] = time24.split(":").map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return time24;
+  const period = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12;
+  return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
 export default function AdminLocationDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -765,7 +774,7 @@ function ServicePeriodCard({ period, onEdit }: { period: MealPeriod; onEdit: (pe
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>{period.startTime} - {period.endTime}</span>
+            <span>{formatTime12Hour(period.startTime)} - {formatTime12Hour(period.endTime)}</span>
           </div>
         </div>
         <div className="flex gap-1">
@@ -1063,7 +1072,7 @@ function OperatingHoursTab({ locationId }: { locationId: string }) {
                   <div>
                     <CardTitle className="text-xl capitalize">{period.name}</CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {period.startTime} - {period.endTime}
+                      {formatTime12Hour(period.startTime)} - {formatTime12Hour(period.endTime)}
                     </p>
                   </div>
                   <Button
@@ -1666,7 +1675,7 @@ function FlowControlForm({
                   <SelectItem value="all">All Service Periods</SelectItem>
                   {periods.map((period) => (
                     <SelectItem key={period.id} value={period.id}>
-                      {period.name} ({period.startTime} - {period.endTime})
+                      {period.name} ({formatTime12Hour(period.startTime)} - {formatTime12Hour(period.endTime)})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2097,7 +2106,7 @@ function TurnTimeForm({
                   <SelectItem value="all">All Service Periods</SelectItem>
                   {periods?.map((period) => (
                     <SelectItem key={period.id} value={period.id}>
-                      {period.name} ({period.startTime} - {period.endTime})
+                      {period.name} ({formatTime12Hour(period.startTime)} - {formatTime12Hour(period.endTime)})
                     </SelectItem>
                   ))}
                 </SelectContent>
