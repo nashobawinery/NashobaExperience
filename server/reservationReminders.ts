@@ -1,7 +1,8 @@
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
-import { resyReservations, resyExperiences } from "@shared/schema";
+import { resyReservations, resyExperiences, resyCustomers } from "@shared/schema";
 import { generateReservationReminderEmail, sendEmail } from "./email";
+import { sendSMS, generateReservationReminderSMS, isSmsConfigured } from "./sms";
 import { format } from "date-fns";
 
 async function sendDailyReminders() {
@@ -37,24 +38,53 @@ async function sendDailyReminders() {
           continue;
         }
         
-        const emailData = {
-          customerName: reservation.customerName,
-          customerEmail: reservation.customerEmail,
-          experienceName: experience.name,
-          reservationDate: reservation.reservationDate,
-          reservationTime: reservation.reservationTime || "TBD",
-          ticketQuantity: reservation.ticketQuantity || undefined,
-          partySize: reservation.partySize || undefined,
-          specialRequests: reservation.specialRequests || undefined,
-        };
+        // Get customer preferences
+        let notificationPreference = "email";
+        if (reservation.customerEmail) {
+          const [customer] = await db
+            .select()
+            .from(resyCustomers)
+            .where(eq(resyCustomers.email, reservation.customerEmail));
+          if (customer?.notificationPreference) {
+            notificationPreference = customer.notificationPreference;
+          }
+        }
         
-        const { subject, html, text } = generateReservationReminderEmail(emailData);
-        await sendEmail(reservation.customerEmail, subject, html, text);
+        const shouldSendEmail = notificationPreference === "email" || notificationPreference === "both";
+        const shouldSendSMS = (notificationPreference === "text" || notificationPreference === "both") && reservation.customerPhone;
         
-        console.log(`[Reservation Reminders] Sent reminder to ${reservation.customerEmail} for ${experience.name}`);
+        // Send email reminder
+        if (shouldSendEmail) {
+          const emailData = {
+            customerName: reservation.customerName,
+            customerEmail: reservation.customerEmail,
+            experienceName: experience.name,
+            reservationDate: reservation.reservationDate,
+            reservationTime: reservation.reservationTime || "TBD",
+            ticketQuantity: reservation.ticketQuantity || undefined,
+            partySize: reservation.partySize || undefined,
+            specialRequests: reservation.specialRequests || undefined,
+          };
+          
+          const { subject, html, text } = generateReservationReminderEmail(emailData);
+          await sendEmail(reservation.customerEmail, subject, html, text);
+          console.log(`[Reservation Reminders] Sent email reminder to ${reservation.customerEmail} for ${experience.name}`);
+        }
+        
+        // Send SMS reminder
+        if (shouldSendSMS && isSmsConfigured()) {
+          const smsMessage = generateReservationReminderSMS({
+            customerName: reservation.customerName,
+            experienceName: experience.name,
+            reservationTime: reservation.reservationTime || "TBD",
+          });
+          await sendSMS(reservation.customerPhone!, smsMessage);
+          console.log(`[Reservation Reminders] Sent SMS reminder to ${reservation.customerPhone} for ${experience.name}`);
+        }
+        
         sentCount++;
-      } catch (emailError) {
-        console.error(`[Reservation Reminders] Failed to send reminder for reservation ${reservation.id}:`, emailError);
+      } catch (reminderError) {
+        console.error(`[Reservation Reminders] Failed to send reminder for reservation ${reservation.id}:`, reminderError);
         errorCount++;
       }
     }

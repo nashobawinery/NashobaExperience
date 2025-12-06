@@ -6,6 +6,7 @@ import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateReservationConfirmationEmail, sendEmail } from "./email";
 import { scheduleReminders, sendDailyReminders } from "./reservationReminders";
+import { sendSMS, generateReservationConfirmationSMS, isSmsConfigured } from "./sms";
 
 const requireResyAdmin = requireModuleAccess('reservations');
 
@@ -981,28 +982,72 @@ router.post("/api/resy/reservations", async (req, res) => {
     const validated = insertResyReservationSchema.parse(data);
     const reservation = await resyStorage.createReservation(validated);
     
-    // Send confirmation email
+    // Update or create customer with notification preferences
+    const notificationPreference = data.notificationPreference || "email";
+    const newsletterOptIn = data.newsletterOptIn || false;
+    
     try {
-      if (experience) {
-        const emailData = {
-          customerName: reservation.customerName,
-          customerEmail: reservation.customerEmail,
-          experienceName: experience.name,
-          reservationDate: reservation.reservationDate,
-          reservationTime: reservation.reservationTime || "TBD",
-          ticketQuantity: reservation.ticketQuantity || undefined,
-          partySize: reservation.partySize || undefined,
-          totalAmount: reservation.totalAmount || undefined,
-          confirmationCode: reservation.confirmationCode || undefined,
-          specialRequests: reservation.specialRequests || undefined,
-        };
-        const { subject, html, text } = generateReservationConfirmationEmail(emailData);
-        await sendEmail(reservation.customerEmail, subject, html, text);
-        console.log(`Confirmation email sent to ${reservation.customerEmail}`);
+      const existingCustomer = await resyStorage.getCustomerByEmail(reservation.customerEmail);
+      if (existingCustomer) {
+        // Update existing customer preferences
+        await db.update(resyCustomers)
+          .set({
+            notificationPreference,
+            newsletterOptIn,
+            phone: reservation.customerPhone || existingCustomer.phone,
+          })
+          .where(eq(resyCustomers.id, existingCustomer.id));
       }
-    } catch (emailError) {
-      console.error("Failed to send confirmation email:", emailError);
-      // Don't fail the reservation if email fails
+    } catch (customerError) {
+      console.error("Failed to update customer preferences:", customerError);
+    }
+    
+    // Send confirmation email if preference includes email
+    const shouldSendEmail = notificationPreference === "email" || notificationPreference === "both";
+    const shouldSendSMS = (notificationPreference === "text" || notificationPreference === "both") && reservation.customerPhone;
+    
+    if (shouldSendEmail) {
+      try {
+        if (experience) {
+          const emailData = {
+            customerName: reservation.customerName,
+            customerEmail: reservation.customerEmail,
+            experienceName: experience.name,
+            reservationDate: reservation.reservationDate,
+            reservationTime: reservation.reservationTime || "TBD",
+            ticketQuantity: reservation.ticketQuantity || undefined,
+            partySize: reservation.partySize || undefined,
+            totalAmount: reservation.totalAmount || undefined,
+            confirmationCode: reservation.confirmationCode || undefined,
+            specialRequests: reservation.specialRequests || undefined,
+          };
+          const { subject, html, text } = generateReservationConfirmationEmail(emailData);
+          await sendEmail(reservation.customerEmail, subject, html, text);
+          console.log(`Confirmation email sent to ${reservation.customerEmail}`);
+        }
+      } catch (emailError) {
+        console.error("Failed to send confirmation email:", emailError);
+      }
+    }
+    
+    // Send confirmation SMS if preference includes text and we have a phone number
+    if (shouldSendSMS && isSmsConfigured()) {
+      try {
+        if (experience) {
+          const smsMessage = generateReservationConfirmationSMS({
+            customerName: reservation.customerName,
+            experienceName: experience.name,
+            reservationDate: reservation.reservationDate,
+            reservationTime: reservation.reservationTime || "TBD",
+            ticketQuantity: reservation.ticketQuantity || undefined,
+            partySize: reservation.partySize || undefined,
+          });
+          await sendSMS(reservation.customerPhone!, smsMessage);
+          console.log(`Confirmation SMS sent to ${reservation.customerPhone}`);
+        }
+      } catch (smsError) {
+        console.error("Failed to send confirmation SMS:", smsError);
+      }
     }
     
     res.status(201).json(reservation);

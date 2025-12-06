@@ -63,6 +63,7 @@ const bookingFormSchema = z.object({
   customerName: z.string().min(2, "Name must be at least 2 characters"),
   customerEmail: z.string().email("Please enter a valid email address"),
   customerPhone: z.string().optional(),
+  notificationPreference: z.enum(["email", "text", "both"]).default("email"),
   partySize: z.number().min(1).optional(),
   ticketQuantity: z.number().min(1).optional(),
   specialRequests: z.string().optional(),
@@ -131,6 +132,7 @@ export default function Booking() {
       customerName: "",
       customerEmail: "",
       customerPhone: "",
+      notificationPreference: "email",
       specialRequests: "",
       partySize: 2,
       ticketQuantity: 1,
@@ -431,6 +433,7 @@ export default function Booking() {
         customerName: data.customerName,
         customerEmail: data.customerEmail,
         customerPhone: data.customerPhone || null,
+        notificationPreference: data.notificationPreference || "email",
         reservationDate: format(selectedDate, "yyyy-MM-dd"),
         reservationTime:
           experience.reservationType === "ticketed"
@@ -1084,6 +1087,32 @@ export default function Booking() {
                             data-testid="input-phone"
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="notificationPreference"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>How should we contact you?</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-notification-preference">
+                              <SelectValue placeholder="Select notification preference" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="email">Email only</SelectItem>
+                            <SelectItem value="text">Text message only</SelectItem>
+                            <SelectItem value="both">Both email and text</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
