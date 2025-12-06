@@ -47,8 +47,13 @@ import {
 import type { Experience, TimeSlot } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
 
-function formatTo12Hour(time24: string): string {
-  const [hours, minutes] = time24.split(":").map(Number);
+function formatTo12Hour(timeStr: string): string {
+  // If already in 12-hour format (contains AM/PM), return as-is
+  if (timeStr.includes("AM") || timeStr.includes("PM")) {
+    return timeStr;
+  }
+  // Convert 24-hour format to 12-hour
+  const [hours, minutes] = timeStr.split(":").map(Number);
   const period = hours >= 12 ? "PM" : "AM";
   const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
@@ -429,7 +434,7 @@ export default function Booking() {
         reservationDate: format(selectedDate, "yyyy-MM-dd"),
         reservationTime:
           experience.reservationType === "ticketed"
-            ? selectedSlot?.time || null
+            ? selectedSlot?.time || selectedSlot?.startTime || null
             : selectedTableTime || null,
         timeSlotId: selectedTimeSlotId || null,
         partySize:
@@ -639,9 +644,19 @@ export default function Booking() {
       ? addDays(startOfToday(), experience.advanceBookingDays)
       : undefined;
 
+  // Get the set of days that have timeslots configured for ticketed events
+  const availableDaysOfWeek = timeSlots
+    ? new Set(timeSlots.filter(slot => slot.isActive !== false).map(slot => slot.dayOfWeek))
+    : new Set<number>();
+
   const isDateDisabled = (date: Date) => {
     if (date < startOfToday()) return true;
     if (maxBookableDate && date > maxBookableDate) return true;
+    // For ticketed events, disable days without configured timeslots
+    if (isTicketed && timeSlots && timeSlots.length > 0) {
+      const dayOfWeek = date.getDay();
+      if (!availableDaysOfWeek.has(dayOfWeek)) return true;
+    }
     return false;
   };
 
@@ -765,7 +780,7 @@ export default function Booking() {
                             disabled={slot.available === 0}
                           >
                             <div className="flex items-center justify-between w-full gap-4">
-                              <span>{formatTo12Hour(slot.time)}</span>
+                              <span>{slot.time ? formatTo12Hour(slot.time) : formatTo12Hour(slot.startTime || "12:00")}</span>
                               <span
                                 className={`text-xs ${slot.available === 0 ? "text-destructive" : slot.available && slot.available < 5 ? "text-amber-600" : "text-muted-foreground"}`}
                               >

@@ -664,6 +664,11 @@ class ResyStorage {
       .orderBy(resyTimeSlots.dayOfWeek, resyTimeSlots.startTime);
   }
 
+  async getTimeSlot(id: string) {
+    const [slot] = await db.select().from(resyTimeSlots).where(eq(resyTimeSlots.id, id));
+    return slot;
+  }
+
   async createTimeSlot(data: any) {
     const [slot] = await db.insert(resyTimeSlots).values(data).returning();
     return slot;
@@ -897,6 +902,15 @@ router.delete("/api/resy/discounts/:id", requireResyAdmin, async (req, res) => {
 });
 
 // Experience timeslots
+router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => {
+  try {
+    const slots = await resyStorage.getTimeSlotsByExperience(req.params.experienceId);
+    res.json(slots);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch timeslots: " + error.message });
+  }
+});
+
 router.post("/api/resy/experiences/:experienceId/timeslots", requireResyAdmin, async (req, res) => {
   try {
     const { days, times, capacity } = req.body;
@@ -1815,6 +1829,43 @@ router.delete("/api/resy/time-slots/:id", requireResyAdmin, async (req, res) => 
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to delete time slot: " + error.message });
+  }
+});
+
+// Timeslot availability endpoint - check how many spots are available for a specific slot on a date
+router.get("/api/timeslots/:id/availability", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+    
+    if (!date || typeof date !== 'string') {
+      return res.status(400).json({ message: "Date query parameter is required" });
+    }
+    
+    // Get the timeslot
+    const timeSlot = await resyStorage.getTimeSlot(id);
+    if (!timeSlot) {
+      return res.status(404).json({ message: "Timeslot not found" });
+    }
+    
+    // Count existing reservations for this slot on this date
+    const reservations = await resyStorage.getReservations();
+    const bookedCount = reservations.filter(r => 
+      r.timeSlotId === id && 
+      r.reservationDate === date &&
+      r.status !== 'cancelled'
+    ).reduce((sum, r) => sum + (r.ticketQuantity || 1), 0);
+    
+    const capacity = timeSlot.capacity || 20;
+    const available = Math.max(0, capacity - bookedCount);
+    
+    res.json({
+      capacity,
+      booked: bookedCount,
+      available
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch availability: " + error.message });
   }
 });
 

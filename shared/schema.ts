@@ -1961,6 +1961,7 @@ export const resyTimeSlots = pgTable("resy_time_slots", {
   maxPartySize: integer("max_party_size").notNull(),
   maxReservations: integer("max_reservations"),
   capacity: integer("capacity").notNull().default(10),
+  time: text("time"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
