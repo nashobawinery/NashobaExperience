@@ -680,9 +680,11 @@ function TableForm({
               <div className="space-y-1 leading-none">
                 <FormLabel>Communal Table</FormLabel>
                 <FormDescription>
-                  A communal table remains available for additional bookings until all seats are filled. 
-                  Turn time is based on the total number of guests at the table. 
-                  Non-communal tables become unavailable after a single booking regardless of party size.
+                  A communal table allows multiple reservations to be booked so that people who may not know each other are seated together, 
+                  with all reservations starting at the same time. The table remains open for additional reservations until all seats are filled. 
+                  Turn time is based on the total number of guests at the table. If this option is not selected, the table when booked will be 
+                  unavailable for another reservation regardless of the number of people, and will remain unavailable until after the turn time 
+                  for the number of people at the table has expired.
                 </FormDescription>
               </div>
             </FormItem>
