@@ -1904,6 +1904,8 @@ export const resyCustomers = pgTable("resy_customers", {
   clubStatus: text("club_status").notNull().default("none"),
   clubId: varchar("club_id"),
   notes: text("notes"),
+  notificationPreference: text("notification_preference").notNull().default("email"),
+  newsletterOptIn: boolean("newsletter_opt_in").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2396,6 +2398,56 @@ export type FooterLink = ResyFooterLink;
 export type InsertFooterLink = InsertResyFooterLink;
 export type ResyUserType = ResyUser;
 export type InsertResyUserType = InsertResyUser;
+
+// Platform Future Concepts - Ideas and roadmap items
+export const platformFutureConcepts = pgTable("platform_future_concepts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("general"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("idea"),
+  notes: text("notes"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlatformFutureConceptSchema = createInsertSchema(platformFutureConcepts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPlatformFutureConcept = z.infer<typeof insertPlatformFutureConceptSchema>;
+export type PlatformFutureConcept = typeof platformFutureConcepts.$inferSelect;
+
+// Platform Company Information - Company details and settings
+export const platformCompanyInfo = pgTable("platform_company_info", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyName: text("company_name").notNull().default("Nashoba Valley Winery"),
+  tagline: text("tagline"),
+  description: text("description"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  phone: text("phone"),
+  email: text("email"),
+  supportEmail: text("support_email"),
+  website: text("website"),
+  mailingListUrl: text("mailing_list_url"),
+  facebookUrl: text("facebook_url"),
+  instagramUrl: text("instagram_url"),
+  twitterUrl: text("twitter_url"),
+  linkedinUrl: text("linkedin_url"),
+  yelpUrl: text("yelp_url"),
+  tripAdvisorUrl: text("trip_advisor_url"),
+  googleMapsUrl: text("google_maps_url"),
+  hoursOfOperation: text("hours_of_operation"),
+  additionalInfo: text("additional_info"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlatformCompanyInfoSchema = createInsertSchema(platformCompanyInfo).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPlatformCompanyInfo = z.infer<typeof insertPlatformCompanyInfoSchema>;
+export type PlatformCompanyInfo = typeof platformCompanyInfo.$inferSelect;
 
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;

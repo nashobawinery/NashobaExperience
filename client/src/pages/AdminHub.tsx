@@ -15,8 +15,9 @@ import {
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
   Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList,
-  LogOut, User, Lock, ChevronDown
+  LogOut, User, Lock, ChevronDown, Lightbulb, Info
 } from "lucide-react";
+import { Link } from "wouter";
 
 type ModuleStatus = 'active' | 'development' | 'planned' | 'inactive';
 
@@ -241,6 +242,25 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
           </div>
         </div>
       </header>
+
+      {/* Quick Links Ribbon */}
+      {isAdmin && (
+        <div className="border-b bg-muted/30">
+          <div className="container py-2">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-muted-foreground font-medium">Quick Links:</span>
+              <Link href="/future-concepts" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-future-concepts">
+                <Lightbulb className="h-4 w-4 text-yellow-500" />
+                Future Concepts
+              </Link>
+              <Link href="/company-info" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-company-info">
+                <Info className="h-4 w-4 text-blue-500" />
+                Company Info
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="container py-8">
         <Tabs defaultValue="overview" className="w-full">

@@ -8,7 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Loader2, CreditCard, Mail, Bell } from "lucide-react";
 import type { Reservation, Experience } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -28,6 +30,7 @@ function CheckoutForm({ reservation, experience }: { reservation: Reservation; e
   const elements = useElements();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +108,45 @@ function CheckoutForm({ reservation, experience }: { reservation: Reservation; e
           <div className="flex justify-between text-lg font-semibold">
             <span>Total</span>
             <span>${parseFloat(reservation.totalAmount || "0").toFixed(2)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Important Information */}
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+            <Mail className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium">Email Confirmation</p>
+              <p className="text-muted-foreground">
+                You will receive an email confirmation with your reservation details. 
+                No physical tickets will be issued - simply check in at our welcome desk when you arrive.
+              </p>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="flex items-start space-x-3">
+            <Checkbox 
+              id="newsletter" 
+              checked={newsletterOptIn}
+              onCheckedChange={(checked) => setNewsletterOptIn(checked === true)}
+              data-testid="checkbox-newsletter"
+            />
+            <div className="grid gap-1.5 leading-none">
+              <Label 
+                htmlFor="newsletter" 
+                className="text-sm font-medium leading-none cursor-pointer flex items-center gap-2"
+              >
+                <Bell className="w-4 h-4 text-primary" />
+                Sign up for our newsletter
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Receive updates about special events, wine releases, and exclusive offers from Nashoba Valley Winery.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

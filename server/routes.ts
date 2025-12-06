@@ -4135,6 +4135,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // =====================================================
+  // PLATFORM FUTURE CONCEPTS ROUTES
+  // =====================================================
+
+  // Get all future concepts
+  app.get('/api/platform/future-concepts', isAuthenticated, async (req, res) => {
+    try {
+      const concepts = await db.execute(sql`
+        SELECT 
+          id,
+          title,
+          description,
+          category,
+          priority,
+          status,
+          notes,
+          created_by as "createdBy",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        FROM platform_future_concepts
+        ORDER BY created_at DESC
+      `);
+      res.json(concepts.rows);
+    } catch (error) {
+      console.error('Error fetching future concepts:', error);
+      res.status(500).json({ message: 'Failed to fetch future concepts' });
+    }
+  });
+
+  // Create a future concept
+  app.post('/api/platform/future-concepts', isAdmin, async (req, res) => {
+    try {
+      const { title, description, category, priority, status, notes, createdBy } = req.body;
+      
+      const result = await db.execute(sql`
+        INSERT INTO platform_future_concepts (title, description, category, priority, status, notes, created_by)
+        VALUES (${title}, ${description || null}, ${category || 'general'}, ${priority || 'medium'}, ${status || 'idea'}, ${notes || null}, ${createdBy || null})
+        RETURNING *
+      `);
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating future concept:', error);
+      res.status(500).json({ message: 'Failed to create future concept' });
+    }
+  });
+
+  // Update a future concept
+  app.patch('/api/platform/future-concepts/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, category, priority, status, notes } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE platform_future_concepts 
+        SET 
+          title = COALESCE(${title}, title),
+          description = COALESCE(${description}, description),
+          category = COALESCE(${category}, category),
+          priority = COALESCE(${priority}, priority),
+          status = COALESCE(${status}, status),
+          notes = COALESCE(${notes}, notes),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Concept not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating future concept:', error);
+      res.status(500).json({ message: 'Failed to update future concept' });
+    }
+  });
+
+  // Delete a future concept
+  app.delete('/api/platform/future-concepts/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        DELETE FROM platform_future_concepts WHERE id = ${id}
+        RETURNING id
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Concept not found' });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting future concept:', error);
+      res.status(500).json({ message: 'Failed to delete future concept' });
+    }
+  });
+
+  // =====================================================
+  // PLATFORM COMPANY INFO ROUTES
+  // =====================================================
+
+  // Get company info
+  app.get('/api/platform/company-info', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          id,
+          company_name as "companyName",
+          tagline,
+          description,
+          address,
+          city,
+          state,
+          zip_code as "zipCode",
+          phone,
+          email,
+          support_email as "supportEmail",
+          website,
+          mailing_list_url as "mailingListUrl",
+          facebook_url as "facebookUrl",
+          instagram_url as "instagramUrl",
+          twitter_url as "twitterUrl",
+          linkedin_url as "linkedinUrl",
+          yelp_url as "yelpUrl",
+          trip_advisor_url as "tripAdvisorUrl",
+          google_maps_url as "googleMapsUrl",
+          hours_of_operation as "hoursOfOperation",
+          additional_info as "additionalInfo",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
+        FROM platform_company_info
+        LIMIT 1
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.json(null);
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching company info:', error);
+      res.status(500).json({ message: 'Failed to fetch company info' });
+    }
+  });
+
+  // Update company info
+  app.put('/api/platform/company-info', isAdmin, async (req, res) => {
+    try {
+      const data = req.body;
+      
+      // Check if record exists
+      const existing = await db.execute(sql`SELECT id FROM platform_company_info LIMIT 1`);
+      
+      if (existing.rows.length === 0) {
+        // Create new record
+        const result = await db.execute(sql`
+          INSERT INTO platform_company_info (
+            company_name, tagline, description, address, city, state, zip_code,
+            phone, email, support_email, website, mailing_list_url,
+            facebook_url, instagram_url, twitter_url, linkedin_url,
+            yelp_url, trip_advisor_url, google_maps_url, hours_of_operation, additional_info
+          ) VALUES (
+            ${data.companyName || 'Nashoba Valley Winery'},
+            ${data.tagline || null},
+            ${data.description || null},
+            ${data.address || null},
+            ${data.city || null},
+            ${data.state || null},
+            ${data.zipCode || null},
+            ${data.phone || null},
+            ${data.email || null},
+            ${data.supportEmail || null},
+            ${data.website || null},
+            ${data.mailingListUrl || null},
+            ${data.facebookUrl || null},
+            ${data.instagramUrl || null},
+            ${data.twitterUrl || null},
+            ${data.linkedinUrl || null},
+            ${data.yelpUrl || null},
+            ${data.tripAdvisorUrl || null},
+            ${data.googleMapsUrl || null},
+            ${data.hoursOfOperation || null},
+            ${data.additionalInfo || null}
+          )
+          RETURNING *
+        `);
+        return res.status(201).json(result.rows[0]);
+      }
+      
+      // Update existing record
+      const result = await db.execute(sql`
+        UPDATE platform_company_info SET
+          company_name = ${data.companyName || 'Nashoba Valley Winery'},
+          tagline = ${data.tagline || null},
+          description = ${data.description || null},
+          address = ${data.address || null},
+          city = ${data.city || null},
+          state = ${data.state || null},
+          zip_code = ${data.zipCode || null},
+          phone = ${data.phone || null},
+          email = ${data.email || null},
+          support_email = ${data.supportEmail || null},
+          website = ${data.website || null},
+          mailing_list_url = ${data.mailingListUrl || null},
+          facebook_url = ${data.facebookUrl || null},
+          instagram_url = ${data.instagramUrl || null},
+          twitter_url = ${data.twitterUrl || null},
+          linkedin_url = ${data.linkedinUrl || null},
+          yelp_url = ${data.yelpUrl || null},
+          trip_advisor_url = ${data.tripAdvisorUrl || null},
+          google_maps_url = ${data.googleMapsUrl || null},
+          hours_of_operation = ${data.hoursOfOperation || null},
+          additional_info = ${data.additionalInfo || null},
+          updated_at = NOW()
+        WHERE id = ${existing.rows[0].id}
+        RETURNING *
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating company info:', error);
+      res.status(500).json({ message: 'Failed to update company info' });
+    }
+  });
+
+  // =====================================================
   // PLATFORM MODULE MANAGEMENT ROUTES
   // =====================================================
 
