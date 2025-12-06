@@ -129,7 +129,7 @@ function ExperienceCard({ experience, onEdit }: { experience: Experience; onEdit
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/experiences/${id}`, {});
+      await apiRequest("DELETE", `/api/resy/experiences/${id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/experiences"] });
@@ -278,7 +278,7 @@ function DiscountManageDialog({ experience, isOpen, onOpenChange }: {
   const { data: discounts, isLoading } = useQuery<ExperienceDiscount[]>({
     queryKey: ["/api/resy/experiences", experience.id, "discounts"],
     queryFn: async () => {
-      const res = await fetch(`/api/experiences/${experience.id}/discounts`);
+      const res = await fetch(`/api/resy/experiences/${experience.id}/discounts`);
       if (!res.ok) throw new Error("Failed to fetch discounts");
       return res.json();
     },
@@ -287,7 +287,7 @@ function DiscountManageDialog({ experience, isOpen, onOpenChange }: {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/discounts/${id}`, {});
+      await apiRequest("DELETE", `/api/resy/discounts/${id}`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/experiences", experience.id, "discounts"] });
@@ -481,9 +481,9 @@ function DiscountForm({ experienceId, discount, onSuccess, onCancel }: {
   const saveMutation = useMutation({
     mutationFn: async (data: InsertExperienceDiscount) => {
       if (discount) {
-        await apiRequest("PUT", `/api/discounts/${discount.id}`, data);
+        await apiRequest("PUT", `/api/resy/discounts/${discount.id}`, data);
       } else {
-        await apiRequest("POST", `/api/experiences/${experienceId}/discounts`, data);
+        await apiRequest("POST", `/api/resy/experiences/${experienceId}/discounts`, data);
       }
     },
     onSuccess: () => {
@@ -754,7 +754,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
     mutationFn: async (data: InsertExperience) => {
       let savedExperience;
       if (experience) {
-        await apiRequest("PUT", `/api/experiences/${experience.id}`, data);
+        await apiRequest("PUT", `/api/resy/experiences/${experience.id}`, data);
         savedExperience = experience;
       } else {
         const response = await apiRequest("POST", "/api/resy/experiences", data);
@@ -767,7 +767,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
         if (primaryImageURL !== null) imageData.primaryImageURL = primaryImageURL || "";
         if (secondaryImageURL !== null) imageData.secondaryImageURL = secondaryImageURL || "";
         
-        const response = await apiRequest("PUT", `/api/experiences/${savedExperience.id}/images`, imageData);
+        const response = await apiRequest("PUT", `/api/resy/experiences/${savedExperience.id}/images`, imageData);
         savedExperience = await response.json();
       }
 
@@ -777,7 +777,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
       // If ticketed event and not editing, create time slots
       if (!experience && reservationType === 'ticketed' && selectedDays.length > 0 && timeSlots.length > 0 && savedExperience) {
         try {
-          await apiRequest("POST", `/api/experiences/${savedExperience.id}/timeslots`, {
+          await apiRequest("POST", `/api/resy/experiences/${savedExperience.id}/timeslots`, {
             days: selectedDays,
             times: timeSlots,
             capacity: parseInt(capacity) || 30,
