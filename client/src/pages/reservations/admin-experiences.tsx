@@ -1256,7 +1256,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
           control={form.control}
           name="isExternal"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-md border p-4">
+            <FormItem className={`flex flex-row items-center justify-between rounded-md border p-4 transition-colors ${field.value ? 'border-primary bg-primary/10' : ''}`}>
               <div className="space-y-0.5">
                 <FormLabel>External Platform</FormLabel>
                 <FormDescription>
@@ -1432,7 +1432,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
           control={form.control}
           name="showPrice"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-md border p-4">
+            <FormItem className={`flex flex-row items-center justify-between rounded-md border p-4 transition-colors ${field.value ? 'border-primary bg-primary/10' : ''}`}>
               <div className="space-y-0.5">
                 <FormLabel>Show Price</FormLabel>
                 <FormDescription>
@@ -1441,7 +1441,7 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
               </div>
               <FormControl>
                 <Switch
-                  checked={field.value}
+                  checked={field.value ?? true}
                   onCheckedChange={field.onChange}
                   data-testid="switch-show-price"
                 />
