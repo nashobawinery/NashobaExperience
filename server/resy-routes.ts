@@ -704,12 +704,104 @@ router.patch("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => 
   }
 });
 
+router.put("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyExperienceSchema.partial().parse(req.body);
+    const experience = await resyStorage.updateExperience(req.params.id, validated);
+    if (!experience) return res.status(404).json({ message: "Experience not found" });
+    res.json(experience);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update experience: " + error.message });
+  }
+});
+
+router.put("/api/resy/experiences/:id/images", requireResyAdmin, async (req, res) => {
+  try {
+    const { primaryImageURL, secondaryImageURL } = req.body;
+    const updateData: any = {};
+    if (primaryImageURL !== undefined) updateData.imageUrl = primaryImageURL || null;
+    if (secondaryImageURL !== undefined) updateData.secondaryImageUrl = secondaryImageURL || null;
+    
+    const experience = await resyStorage.updateExperience(req.params.id, updateData);
+    if (!experience) return res.status(404).json({ message: "Experience not found" });
+    res.json(experience);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update experience images: " + error.message });
+  }
+});
+
 router.delete("/api/resy/experiences/:id", requireResyAdmin, async (req, res) => {
   try {
     await resyStorage.deleteExperience(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to delete experience: " + error.message });
+  }
+});
+
+// Experience discounts - nested routes
+router.get("/api/resy/experiences/:experienceId/discounts", requireResyAdmin, async (req, res) => {
+  try {
+    const discounts = await resyStorage.getDiscountsByExperience(req.params.experienceId);
+    res.json(discounts);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch discounts: " + error.message });
+  }
+});
+
+router.post("/api/resy/experiences/:experienceId/discounts", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyExperienceDiscountSchema.parse({
+      ...req.body,
+      experienceId: req.params.experienceId,
+    });
+    const discount = await resyStorage.createDiscount(validated);
+    res.json(discount);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to create discount: " + error.message });
+  }
+});
+
+router.put("/api/resy/discounts/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyExperienceDiscountSchema.partial().parse(req.body);
+    const discount = await resyStorage.updateDiscount(req.params.id, validated);
+    if (!discount) return res.status(404).json({ message: "Discount not found" });
+    res.json(discount);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update discount: " + error.message });
+  }
+});
+
+router.delete("/api/resy/discounts/:id", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteDiscount(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete discount: " + error.message });
+  }
+});
+
+// Experience timeslots
+router.post("/api/resy/experiences/:experienceId/timeslots", requireResyAdmin, async (req, res) => {
+  try {
+    const { days, times, capacity } = req.body;
+    const createdSlots = [];
+    for (const day of days) {
+      for (const time of times) {
+        const slot = await resyStorage.createTimeSlot({
+          experienceId: req.params.experienceId,
+          dayOfWeek: day,
+          startTime: time,
+          capacity: capacity || 30,
+          isActive: true,
+        });
+        createdSlots.push(slot);
+      }
+    }
+    res.json(createdSlots);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to create timeslots: " + error.message });
   }
 });
 
