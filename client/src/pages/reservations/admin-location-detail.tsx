@@ -89,99 +89,66 @@ export default function AdminLocationDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue={location.isTicketedEventLocation ? "ticketed-events" : (location.isReservationLocation ? "tables" : "operating-hours")} className="space-y-6">
-        <TabsList data-testid="tabs-location-detail">
-          {/* Ticketed Event Location tabs */}
-          {location.isTicketedEventLocation && (
-            <TabsTrigger value="ticketed-events" data-testid="tab-ticketed-events">
-              <Ticket className="w-3 h-3 mr-2" />
-              Ticketed Events
-            </TabsTrigger>
-          )}
-          
-          {/* Table Reservation Location tabs */}
-          {location.isReservationLocation && (
+      {/* Ticketed Event Locations - show content directly without tabs */}
+      {location.isTicketedEventLocation && (
+        <TicketedEventsTab locationId={locationId!} />
+      )}
+
+      {/* Table Reservation Locations - show tabbed interface */}
+      {location.isReservationLocation && (
+        <Tabs defaultValue="tables" className="space-y-6">
+          <TabsList data-testid="tabs-location-detail">
             <TabsTrigger value="tables" data-testid="tab-tables">
               <Users className="w-3 h-3 mr-2" />
               Tables
             </TabsTrigger>
-          )}
-          {location.isReservationLocation && (
             <TabsTrigger value="service-periods" data-testid="tab-service-periods">
               <Clock className="w-3 h-3 mr-2" />
               Service Periods
             </TabsTrigger>
-          )}
-          
-          {/* Common tabs for both location types */}
-          <TabsTrigger value="operating-hours" data-testid="tab-operating-hours">
-            <Calendar className="w-3 h-3 mr-2" />
-            Operating Hours
-          </TabsTrigger>
-          <TabsTrigger value="flow-controls" data-testid="tab-flow-controls">
-            <Gauge className="w-3 h-3 mr-2" />
-            Flow Controls
-          </TabsTrigger>
-          
-          {/* Table Reservation specific tabs */}
-          {location.isReservationLocation && (
+            <TabsTrigger value="operating-hours" data-testid="tab-operating-hours">
+              <Calendar className="w-3 h-3 mr-2" />
+              Operating Hours
+            </TabsTrigger>
+            <TabsTrigger value="flow-controls" data-testid="tab-flow-controls">
+              <Gauge className="w-3 h-3 mr-2" />
+              Flow Controls
+            </TabsTrigger>
             <TabsTrigger value="turn-times" data-testid="tab-turn-times">
               <Timer className="w-3 h-3 mr-2" />
               Turn Times
             </TabsTrigger>
-          )}
-          
-          {/* Special Dates tab (replaces Private Events for Table Reservation locations) */}
-          {location.isReservationLocation && (
             <TabsTrigger value="special-dates" data-testid="tab-special-dates">
               <CalendarOff className="w-3 h-3 mr-2" />
               Special Dates
             </TabsTrigger>
-          )}
-        </TabsList>
+          </TabsList>
 
-        {/* Ticketed Events Tab Content */}
-        {location.isTicketedEventLocation && (
-          <TabsContent value="ticketed-events">
-            <TicketedEventsTab locationId={locationId!} />
-          </TabsContent>
-        )}
-
-        {/* Table Reservation Location Content */}
-        {location.isReservationLocation && (
           <TabsContent value="tables">
             <TablesTab locationId={locationId!} />
           </TabsContent>
-        )}
 
-        {location.isReservationLocation && (
           <TabsContent value="service-periods">
             <ServicePeriodsTab locationId={locationId!} />
           </TabsContent>
-        )}
 
-        {/* Common Content */}
-        <TabsContent value="operating-hours">
-          <OperatingHoursTab locationId={locationId!} location={location} />
-        </TabsContent>
+          <TabsContent value="operating-hours">
+            <OperatingHoursTab locationId={locationId!} location={location} />
+          </TabsContent>
 
-        <TabsContent value="flow-controls">
-          <FlowControlsTab locationId={locationId!} />
-        </TabsContent>
+          <TabsContent value="flow-controls">
+            <FlowControlsTab locationId={locationId!} />
+          </TabsContent>
 
-        {location.isReservationLocation && (
           <TabsContent value="turn-times">
             <TurnTimesTab locationId={locationId!} />
           </TabsContent>
-        )}
 
-        {/* Special Dates Tab - redirects to Special Dates admin */}
-        {location.isReservationLocation && (
           <TabsContent value="special-dates">
             <SpecialDatesRedirectTab locationId={locationId!} />
           </TabsContent>
-        )}
-      </Tabs>
+        </Tabs>
+      )}
     </div>
   );
 }
