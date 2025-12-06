@@ -30,6 +30,8 @@ import {
   resyPrivateEvents,
   resySiteSettings,
   resyFooterLinks,
+  resyTicketedEventDefinitions,
+  resyTicketedEventTimeslots,
   insertResyLocationSchema,
   insertResyExperienceSchema,
   insertResyReservationSchema,
@@ -47,6 +49,8 @@ import {
   insertResyClubExperienceDiscountSchema,
   insertResyCustomerVisitSchema,
   insertResyFooterLinkSchema,
+  insertResyTicketedEventDefinitionSchema,
+  insertResyTicketedEventTimeslotSchema,
   type ResyLocation,
   type ResyExperience,
   type ResyReservation,
@@ -57,6 +61,8 @@ import {
   type ResyTurnTimeSetting,
   type ResyLocationTable,
   type ResyUser,
+  type ResyTicketedEventDefinition,
+  type ResyTicketedEventTimeslot,
 } from "@shared/schema";
 
 const router = Router();
@@ -426,6 +432,67 @@ class ResyStorage {
 
   async deletePrivateEvent(id: string): Promise<void> {
     await db.delete(resyPrivateEvents).where(eq(resyPrivateEvents.id, id));
+  }
+
+  // Ticketed Event Definitions
+  async getTicketedEventDefinitions(locationId?: string): Promise<ResyTicketedEventDefinition[]> {
+    if (locationId) {
+      return await db.select().from(resyTicketedEventDefinitions).where(eq(resyTicketedEventDefinitions.locationId, locationId));
+    }
+    return await db.select().from(resyTicketedEventDefinitions);
+  }
+
+  async getTicketedEventDefinition(id: string): Promise<ResyTicketedEventDefinition | undefined> {
+    const [definition] = await db.select().from(resyTicketedEventDefinitions).where(eq(resyTicketedEventDefinitions.id, id));
+    return definition;
+  }
+
+  async createTicketedEventDefinition(data: any): Promise<ResyTicketedEventDefinition> {
+    const [definition] = await db.insert(resyTicketedEventDefinitions).values(data).returning();
+    return definition;
+  }
+
+  async updateTicketedEventDefinition(id: string, updates: any): Promise<ResyTicketedEventDefinition | undefined> {
+    const [definition] = await db
+      .update(resyTicketedEventDefinitions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(resyTicketedEventDefinitions.id, id))
+      .returning();
+    return definition;
+  }
+
+  async deleteTicketedEventDefinition(id: string): Promise<void> {
+    // First delete associated timeslots
+    await db.delete(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.definitionId, id));
+    // Then delete the definition
+    await db.delete(resyTicketedEventDefinitions).where(eq(resyTicketedEventDefinitions.id, id));
+  }
+
+  // Ticketed Event Timeslots
+  async getTicketedEventTimeslots(definitionId: string): Promise<ResyTicketedEventTimeslot[]> {
+    return await db.select().from(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.definitionId, definitionId));
+  }
+
+  async createTicketedEventTimeslot(data: any): Promise<ResyTicketedEventTimeslot> {
+    const [timeslot] = await db.insert(resyTicketedEventTimeslots).values(data).returning();
+    return timeslot;
+  }
+
+  async updateTicketedEventTimeslot(id: string, updates: any): Promise<ResyTicketedEventTimeslot | undefined> {
+    const [timeslot] = await db
+      .update(resyTicketedEventTimeslots)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(resyTicketedEventTimeslots.id, id))
+      .returning();
+    return timeslot;
+  }
+
+  async deleteTicketedEventTimeslot(id: string): Promise<void> {
+    await db.delete(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.id, id));
+  }
+
+  async deleteTicketedEventTimeslotsByDefinition(definitionId: string): Promise<void> {
+    await db.delete(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.definitionId, definitionId));
   }
 
   async getAllSpecialDates() {
@@ -1339,6 +1406,100 @@ router.delete("/api/resy/private-events/:id", requireResyAdmin, async (req, res)
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ message: "Failed to delete private event: " + error.message });
+  }
+});
+
+// Ticketed Event Definitions Routes
+router.get("/api/resy/ticketed-events", async (req, res) => {
+  try {
+    const locationId = req.query.locationId as string | undefined;
+    const definitions = await resyStorage.getTicketedEventDefinitions(locationId);
+    res.json(definitions);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch ticketed events: " + error.message });
+  }
+});
+
+router.get("/api/resy/ticketed-events/:id", async (req, res) => {
+  try {
+    const definition = await resyStorage.getTicketedEventDefinition(req.params.id);
+    if (!definition) return res.status(404).json({ message: "Ticketed event not found" });
+    res.json(definition);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch ticketed event: " + error.message });
+  }
+});
+
+router.post("/api/resy/ticketed-events", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyTicketedEventDefinitionSchema.parse(req.body);
+    const definition = await resyStorage.createTicketedEventDefinition(validated);
+    res.json(definition);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to create ticketed event: " + error.message });
+  }
+});
+
+router.patch("/api/resy/ticketed-events/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyTicketedEventDefinitionSchema.partial().parse(req.body);
+    const definition = await resyStorage.updateTicketedEventDefinition(req.params.id, validated);
+    if (!definition) return res.status(404).json({ message: "Ticketed event not found" });
+    res.json(definition);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update ticketed event: " + error.message });
+  }
+});
+
+router.delete("/api/resy/ticketed-events/:id", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteTicketedEventDefinition(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete ticketed event: " + error.message });
+  }
+});
+
+// Ticketed Event Timeslots Routes
+router.get("/api/resy/ticketed-events/:definitionId/timeslots", async (req, res) => {
+  try {
+    const timeslots = await resyStorage.getTicketedEventTimeslots(req.params.definitionId);
+    res.json(timeslots);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch timeslots: " + error.message });
+  }
+});
+
+router.post("/api/resy/ticketed-events/:definitionId/timeslots", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyTicketedEventTimeslotSchema.parse({
+      ...req.body,
+      definitionId: req.params.definitionId
+    });
+    const timeslot = await resyStorage.createTicketedEventTimeslot(validated);
+    res.json(timeslot);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to create timeslot: " + error.message });
+  }
+});
+
+router.patch("/api/resy/ticketed-event-timeslots/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyTicketedEventTimeslotSchema.partial().parse(req.body);
+    const timeslot = await resyStorage.updateTicketedEventTimeslot(req.params.id, validated);
+    if (!timeslot) return res.status(404).json({ message: "Timeslot not found" });
+    res.json(timeslot);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update timeslot: " + error.message });
+  }
+});
+
+router.delete("/api/resy/ticketed-event-timeslots/:id", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteTicketedEventTimeslot(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete timeslot: " + error.message });
   }
 });
 
