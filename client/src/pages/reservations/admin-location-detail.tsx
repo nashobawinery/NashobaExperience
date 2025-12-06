@@ -2961,10 +2961,20 @@ function TicketedEventForm({
           )}
         />
 
-        <div className="flex justify-end gap-3">
+        <div className="flex gap-3 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onSuccess}
+            className="flex-1"
+            data-testid="button-cancel-ticketed-event"
+          >
+            Cancel
+          </Button>
           <Button
             type="submit"
             disabled={saveMutation.isPending}
+            className="flex-1"
             data-testid="button-save-ticketed-event"
           >
             {saveMutation.isPending ? (
@@ -2973,7 +2983,7 @@ function TicketedEventForm({
                 Saving...
               </>
             ) : (
-              event ? "Update Event" : "Create Event"
+              event ? "Save Changes" : "Create Event"
             )}
           </Button>
         </div>
