@@ -161,6 +161,14 @@ class ResyStorage {
     return reservation;
   }
 
+  async getReservationsByDate(date: string, locationId?: string): Promise<ResyReservation[]> {
+    const conditions = [eq(resyReservations.reservationDate, date)];
+    if (locationId) {
+      conditions.push(eq(resyReservations.locationId, locationId));
+    }
+    return await db.select().from(resyReservations).where(and(...conditions));
+  }
+
   async createReservation(data: any): Promise<ResyReservation> {
     const [reservation] = await db.insert(resyReservations).values(data).returning();
     return reservation;
@@ -1132,6 +1140,86 @@ router.get("/api/resy/locations/:locationId/tables", async (req, res) => {
     res.json(tables);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch tables: " + error.message });
+  }
+});
+
+router.get("/api/resy/locations/:locationId/available-times", async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const { date, partySize } = req.query;
+    
+    if (!date) {
+      return res.status(400).json({ message: "Date is required" });
+    }
+    
+    const requestedDate = new Date(date as string);
+    const dayOfWeek = requestedDate.getDay();
+    
+    // Get operating hours for this day
+    const operatingHours = await resyStorage.getOperatingHoursByLocation(locationId);
+    const dayHours = operatingHours.filter(h => h.dayOfWeek === dayOfWeek && h.isOpen);
+    
+    if (dayHours.length === 0) {
+      return res.json({ 
+        availableTimes: [], 
+        messages: { closed: "Location is closed on this day" } 
+      });
+    }
+    
+    // Get flow controls for capacity limits
+    const flowControls = await resyStorage.getFlowControlsByLocation(locationId);
+    
+    // Get existing reservations for this date
+    const reservations = await resyStorage.getReservationsByDate(date as string, locationId);
+    
+    // Generate time slots based on operating hours
+    const availableTimes: Array<{time: string, available: boolean, capacity?: number}> = [];
+    
+    for (const hours of dayHours) {
+      if (!hours.openTime || !hours.closeTime) continue;
+      
+      // Parse times
+      const [openHour, openMin] = hours.openTime.split(':').map(Number);
+      const [closeHour, closeMin] = hours.closeTime.split(':').map(Number);
+      
+      // Get flow control for this meal period (or default)
+      const flowControl = flowControls.find(fc => fc.mealPeriodId === hours.mealPeriodId && fc.isActive);
+      const intervalMinutes = flowControl?.intervalMinutes ?? 30;
+      const maxCovers = flowControl?.maxCoversPerInterval ?? 20;
+      
+      // Generate time slots
+      let currentHour = openHour;
+      let currentMin = openMin;
+      
+      while (currentHour < closeHour || (currentHour === closeHour && currentMin < closeMin)) {
+        const timeStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        
+        // Count existing reservations at this time
+        const existingCovers = reservations
+          .filter((r: ResyReservation) => r.reservationTime === timeStr)
+          .reduce((sum: number, r: ResyReservation) => sum + (r.partySize || 0), 0);
+        
+        const remaining = maxCovers - existingCovers;
+        const requestedSize = parseInt(partySize as string) || 2;
+        
+        availableTimes.push({
+          time: timeStr,
+          available: remaining >= requestedSize,
+          capacity: remaining
+        });
+        
+        // Advance by interval
+        currentMin += intervalMinutes;
+        if (currentMin >= 60) {
+          currentHour += Math.floor(currentMin / 60);
+          currentMin = currentMin % 60;
+        }
+      }
+    }
+    
+    res.json({ availableTimes, messages: {} });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch available times: " + error.message });
   }
 });
 

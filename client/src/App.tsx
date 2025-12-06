@@ -581,7 +581,8 @@ function Router() {
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}
         <Route path="/reservations" component={ResyLandingRoute} />
-        <Route path="/reservations/booking" component={ResyBookingRoute} />
+        <Route path="/reservations/booking/:id" component={ResyBookingRoute} />
+        <Route path="/book/:id" component={ResyBookingRoute} />
         <Route path="/reservations/checkout" component={ResyCheckoutRoute} />
         <Route path="/reservations/confirmation" component={ResyConfirmationRoute} />
         {/* Reservation Routes - Admin */}

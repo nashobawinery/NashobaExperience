@@ -191,7 +191,7 @@ export default function Booking() {
 
         try {
           const response = await fetch(
-            `/api/locations/${experience.locationId}/available-times?date=${format(selectedDate, "yyyy-MM-dd")}&partySize=${partySize}&experienceId=${experience.id}`,
+            `/api/resy/locations/${experience.locationId}/available-times?date=${format(selectedDate, "yyyy-MM-dd")}&partySize=${partySize}&experienceId=${experience.id}`,
           );
 
           if (response.ok) {
