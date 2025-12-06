@@ -362,10 +362,13 @@ function TableCard({
     <div className="border rounded-md p-4 space-y-3 hover-elevate">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Badge variant="outline" className="text-sm font-semibold">
               Table {table.tableLabel}
             </Badge>
+            {table.isCommunal && (
+              <Badge variant="default">Communal</Badge>
+            )}
             {!table.isActive && (
               <Badge variant="secondary">Inactive</Badge>
             )}
@@ -473,6 +476,7 @@ function TableForm({
       minCapacity: table.minCapacity,
       maxCapacity: table.maxCapacity,
       combinableWith: table.combinableWith || [],
+      isCommunal: table.isCommunal ?? false,
       isActive: table.isActive,
     } : {
       locationId: locationId,
@@ -480,6 +484,7 @@ function TableForm({
       minCapacity: 2,
       maxCapacity: 4,
       combinableWith: [],
+      isCommunal: false,
       isActive: true,
     },
   });
@@ -659,6 +664,30 @@ function TableForm({
             }}
           />
         )}
+
+        <FormField
+          control={form.control}
+          name="isCommunal"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  data-testid="checkbox-communal"
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Communal Table</FormLabel>
+                <FormDescription>
+                  A communal table remains available for additional bookings until all seats are filled. 
+                  Turn time is based on the total number of guests at the table. 
+                  Non-communal tables become unavailable after a single booking regardless of party size.
+                </FormDescription>
+              </div>
+            </FormItem>
+          )}
+        />
 
         <div className="flex justify-end gap-3">
           <Button

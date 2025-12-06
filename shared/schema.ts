@@ -2168,6 +2168,7 @@ export const resyLocationTables = pgTable("resy_location_tables", {
   maxCapacity: integer("max_capacity").notNull(),
   combinableWith: text("combinable_with").array().default(sql`'{}'::text[]`),
   priority: integer("priority").notNull().default(0),
+  isCommunal: boolean("is_communal").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   isPaused: boolean("is_paused").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
