@@ -136,7 +136,7 @@ export default function AdminLocationDetail() {
         )}
 
         <TabsContent value="operating-hours">
-          <OperatingHoursTab locationId={locationId!} />
+          <OperatingHoursTab locationId={locationId!} location={location} />
         </TabsContent>
 
         <TabsContent value="flow-controls">
@@ -1023,11 +1023,13 @@ function ServicePeriodForm({
 }
 
 // Operating Hours Tab - Operating hours for service periods at this location
-function OperatingHoursTab({ locationId }: { locationId: string }) {
+function OperatingHoursTab({ locationId, location }: { locationId: string; location: Location }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingHours, setEditingHours] = useState<OperatingHours | null>(null);
   const [selectedMealPeriodId, setSelectedMealPeriodId] = useState<string>("");
+  const [isCloseTimeDialogOpen, setIsCloseTimeDialogOpen] = useState(false);
+  const [reservationCloseTime, setReservationCloseTime] = useState(location.reservationCloseTime || "");
 
   const { data: periods, isLoading: periodsLoading } = useQuery<MealPeriod[]>({
     queryKey: ["/api/resy/locations", locationId, "meal-periods"],
@@ -1035,6 +1037,30 @@ function OperatingHoursTab({ locationId }: { locationId: string }) {
 
   const { data: allHours, isLoading: hoursLoading } = useQuery<OperatingHours[]>({
     queryKey: ["/api/resy/locations", locationId, "operating-hours"],
+  });
+
+  const updateCloseTimeMutation = useMutation({
+    mutationFn: async (closeTime: string) => {
+      await apiRequest("PUT", `/api/resy/locations/${locationId}`, {
+        ...location,
+        reservationCloseTime: closeTime || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId] });
+      toast({
+        title: "Reservation Close Time Updated",
+        description: reservationCloseTime ? `Reservations will close at ${formatTime12Hour(reservationCloseTime)}` : "Using service period end times",
+      });
+      setIsCloseTimeDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const operatingHours = allHours || [];
@@ -1062,6 +1088,92 @@ function OperatingHoursTab({ locationId }: { locationId: string }) {
 
   return (
     <>
+      {/* Reservation Close Time Setting */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Reservation Close Time</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Override when reservations stop being accepted
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setReservationCloseTime(location.reservationCloseTime || "");
+                setIsCloseTimeDialogOpen(true);
+              }}
+              data-testid="button-edit-close-time"
+            >
+              <Pencil className="w-3 h-3 mr-2" />
+              Edit
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {location.reservationCloseTime ? (
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span>Last reservation at <strong>{formatTime12Hour(location.reservationCloseTime)}</strong></span>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Not set - using service period end times
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Close Time Dialog */}
+      <Dialog open={isCloseTimeDialogOpen} onOpenChange={setIsCloseTimeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Reservation Close Time</DialogTitle>
+            <DialogDescription>
+              Set the last time reservations can be made. Leave empty to use service period end times.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Close Time (HH:MM)</label>
+              <Input
+                placeholder="19:30"
+                value={reservationCloseTime}
+                onChange={(e) => setReservationCloseTime(e.target.value)}
+                data-testid="input-reservation-close-time"
+              />
+              <p className="text-sm text-muted-foreground">
+                Example: "19:30" to stop taking reservations at 7:30 PM even if the location closes later.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsCloseTimeDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => updateCloseTimeMutation.mutate(reservationCloseTime)}
+                disabled={updateCloseTimeMutation.isPending}
+                data-testid="button-save-close-time"
+              >
+                {updateCloseTimeMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {periodsLoading || hoursLoading ? (
         <div className="grid gap-6">
           {[...Array(3)].map((_, i) => (
