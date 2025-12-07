@@ -1415,9 +1415,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updated = 0;
       
       for (const mod of devModules) {
+        // Handle both camelCase (from Drizzle) and snake_case (from raw SQL)
+        const moduleKey = mod.moduleKey || mod.module_key;
+        const moduleName = mod.moduleName || mod.module_name;
+        const routePrefix = mod.routePrefix || mod.route_prefix;
+        const sortOrder = mod.sortOrder || mod.sort_order || 0;
+        
+        if (!moduleKey) {
+          console.log('Skipping module with no key:', mod);
+          continue;
+        }
+        
         // Check if module exists in production
         const existing = await prodSql`
-          SELECT id FROM platform_modules WHERE module_key = ${mod.moduleKey}
+          SELECT id FROM platform_modules WHERE module_key = ${moduleKey}
         `;
         
         if (existing.length === 0) {
@@ -1426,15 +1437,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             INSERT INTO platform_modules (id, module_key, module_name, description, icon, color, route_prefix, status, progress, sort_order, notes, created_at, updated_at)
             VALUES (
               gen_random_uuid(),
-              ${mod.moduleKey},
-              ${mod.moduleName},
+              ${moduleKey},
+              ${moduleName},
               ${mod.description || null},
               ${mod.icon || null},
               ${mod.color || null},
-              ${mod.routePrefix},
+              ${routePrefix},
               ${mod.status},
               ${mod.progress},
-              ${mod.sortOrder},
+              ${sortOrder},
               ${mod.notes || null},
               NOW(),
               NOW()
@@ -1445,17 +1456,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Update existing module
           await prodSql`
             UPDATE platform_modules 
-            SET module_name = ${mod.moduleName},
+            SET module_name = ${moduleName},
                 description = ${mod.description || null},
                 icon = ${mod.icon || null},
                 color = ${mod.color || null},
-                route_prefix = ${mod.routePrefix},
+                route_prefix = ${routePrefix},
                 status = ${mod.status},
                 progress = ${mod.progress},
-                sort_order = ${mod.sortOrder},
+                sort_order = ${sortOrder},
                 notes = ${mod.notes || null},
                 updated_at = NOW()
-            WHERE module_key = ${mod.moduleKey}
+            WHERE module_key = ${moduleKey}
           `;
           updated++;
         }
