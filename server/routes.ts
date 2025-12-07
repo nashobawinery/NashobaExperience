@@ -67,6 +67,11 @@ import {
 import sgMail from "@sendgrid/mail";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint for deployment verification (responds immediately)
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Mount B2B routes FIRST (before main session middleware) to ensure session isolation
   app.use(b2bRouter);
 
