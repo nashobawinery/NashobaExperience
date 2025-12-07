@@ -1183,6 +1183,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { prodDatabaseUrl, tableIds } = req.body;
       
+      console.log(`[Sync] Bidirectional scan requested with ${tableIds?.length || 'all'} tables`);
+      if (tableIds) {
+        console.log(`[Sync] Tables requested:`, tableIds.slice(0, 10), tableIds.length > 10 ? `... and ${tableIds.length - 10} more` : '');
+      }
+      
       if (!prodDatabaseUrl) {
         return res.status(400).json({ message: "Production database URL is required" });
       }
@@ -1193,6 +1198,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         direction: 'bidirectional',
         tableIds,
       });
+      
+      console.log(`[Sync] Scan complete: ${result.tables.length} tables scanned`);
+      const tablesWithDiffs = result.tables.filter(t => t.devCount !== t.prodCount || t.records.length > 0);
+      console.log(`[Sync] Tables with differences: ${tablesWithDiffs.length}`);
       
       res.json(result);
     } catch (error: any) {
