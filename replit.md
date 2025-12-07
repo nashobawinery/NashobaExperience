@@ -29,6 +29,7 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Reservations Module**: Complete dining reservation system including customer-facing booking flow with experience selection, time slot booking, Stripe payments, and confirmation. Admin dashboard for managing experiences, locations, reservations, customers, clubs, special dates, and settings.
 - **Daily Reports Module**: Department managers log incidents and track procedure completion. Features include customizable department templates, incident logging, department-level email notifications via SendGrid, public access via QR codes for staff submission, procedure templates, dual save options (draft/submit), and a status-based report review workflow.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, granular feature permissions (none/view/edit/admin), and auto-sync for security entries. The system distinguishes between User Groups (for granular, module-level permissions) and a Global Role (for platform-level access like Admin Hub).
+- **Module Management**: Admin UI for managing platform module metadata (name, description, icon, color, status, sort order). Module registry is code-defined in server/rbac.ts (16 modules) with automatic seeding on startup. Global Admin access is automatically synchronized for all modules.
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Modules are designed with independent concerns within a monolithic structure.
