@@ -18,6 +18,9 @@ const DatabaseSync = lazy(() => import("@/pages/DatabaseSync"));
 const ModuleDirectory = lazy(() => import("@/pages/ModuleDirectory"));
 const AccessControl = lazy(() => import("@/pages/AccessControl"));
 const ModuleManagement = lazy(() => import("@/pages/ModuleManagement"));
+const ProceduresComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.ProceduresComingSoon })));
+const SupportComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.SupportComingSoon })));
+const AppleGameComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.AppleGameComingSoon })));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
 const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
@@ -257,6 +260,30 @@ function ModuleManagementRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ModuleManagement />
+    </Suspense>
+  );
+}
+
+function ProceduresComingSoonRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProceduresComingSoon />
+    </Suspense>
+  );
+}
+
+function SupportComingSoonRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SupportComingSoon />
+    </Suspense>
+  );
+}
+
+function AppleGameComingSoonRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <AppleGameComingSoon />
     </Suspense>
   );
 }
@@ -631,6 +658,11 @@ function Router() {
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/access-control" component={AccessControlRoute} />
         <Route path="/module-management" component={ModuleManagementRoute} />
+        <Route path="/procedures" component={ProceduresComingSoonRoute} />
+        <Route path="/procedures/admin" component={ProceduresComingSoonRoute} />
+        <Route path="/support" component={SupportComingSoonRoute} />
+        <Route path="/support/admin" component={SupportComingSoonRoute} />
+        <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />
