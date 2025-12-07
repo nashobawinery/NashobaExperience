@@ -1391,6 +1391,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync platform modules to production database
+  app.post("/api/admin/sync/push-modules", isAdmin, async (req, res) => {
+    try {
+      const prodDbUrl = process.env.PROD_DATABASE_URL;
+      
+      if (!prodDbUrl) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "PROD_DATABASE_URL secret is not configured. Please add it in Replit Secrets." 
+        });
+      }
+      
+      // Get all modules from development
+      const rbac = await import('./rbac');
+      const devModules = await rbac.getAllPlatformModules();
+      
+      // Connect to production and insert/update modules
+      const { neon } = await import('@neondatabase/serverless');
+      const prodSql = neon(prodDbUrl);
+      
+      let inserted = 0;
+      let updated = 0;
+      
+      for (const mod of devModules) {
+        // Check if module exists in production
+        const existing = await prodSql`
+          SELECT id FROM platform_modules WHERE module_key = ${mod.moduleKey}
+        `;
+        
+        if (existing.length === 0) {
+          // Insert new module
+          await prodSql`
+            INSERT INTO platform_modules (id, module_key, module_name, description, icon, color, route_prefix, status, progress, sort_order, notes, created_at, updated_at)
+            VALUES (
+              gen_random_uuid(),
+              ${mod.moduleKey},
+              ${mod.moduleName},
+              ${mod.description || null},
+              ${mod.icon || null},
+              ${mod.color || null},
+              ${mod.routePrefix},
+              ${mod.status},
+              ${mod.progress},
+              ${mod.sortOrder},
+              ${mod.notes || null},
+              NOW(),
+              NOW()
+            )
+          `;
+          inserted++;
+        } else {
+          // Update existing module
+          await prodSql`
+            UPDATE platform_modules 
+            SET module_name = ${mod.moduleName},
+                description = ${mod.description || null},
+                icon = ${mod.icon || null},
+                color = ${mod.color || null},
+                route_prefix = ${mod.routePrefix},
+                status = ${mod.status},
+                progress = ${mod.progress},
+                sort_order = ${mod.sortOrder},
+                notes = ${mod.notes || null},
+                updated_at = NOW()
+            WHERE module_key = ${mod.moduleKey}
+          `;
+          updated++;
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Synced ${devModules.length} modules to production. ${inserted} inserted, ${updated} updated.`,
+        details: {
+          total: devModules.length,
+          inserted,
+          updated
+        }
+      });
+    } catch (error: any) {
+      console.error("Error syncing modules to production:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message || "Failed to sync modules" 
+      });
+    }
+  });
+
   // Database Analysis Endpoint - Shows complete export analysis
   app.get("/api/admin/data/analyze", async (req, res) => {
     try {

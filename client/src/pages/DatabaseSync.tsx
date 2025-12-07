@@ -223,13 +223,17 @@ interface SyncScanResult {
 function SchemaPushCard() {
   const { toast } = useToast();
   const [isPushing, setIsPushing] = useState(false);
+  const [isSyncingModules, setIsSyncingModules] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
     details?: {
-      objectsProcessed: number;
-      alreadyExisted: number;
-      warnings: string[];
+      objectsProcessed?: number;
+      alreadyExisted?: number;
+      warnings?: string[];
+      total?: number;
+      inserted?: number;
+      updated?: number;
     };
   } | null>(null);
 
@@ -266,6 +270,39 @@ function SchemaPushCard() {
     }
   };
 
+  const handleSyncModules = async () => {
+    setIsSyncingModules(true);
+    setResult(null);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync/push-modules', {});
+      const data = await response.json();
+      setResult(data);
+      if (data.success) {
+        toast({
+          title: "Modules Synced",
+          description: data.message,
+        });
+      } else {
+        toast({
+          title: "Module Sync Failed",
+          description: data.error || data.message || "Unknown error",
+          variant: "destructive",
+        });
+        setResult({ success: false, message: data.error || data.message || "Unknown error" });
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "Failed to sync modules";
+      setResult({ success: false, message: errorMsg });
+      toast({
+        title: "Module Sync Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingModules(false);
+    }
+  };
+
   return (
     <Card className="border-primary/50">
       <CardHeader className="py-3">
@@ -286,25 +323,46 @@ function SchemaPushCard() {
           </AlertDescription>
         </Alert>
         
-        <Button 
-          onClick={handlePushSchema} 
-          disabled={isPushing}
-          variant="outline"
-          className="w-full"
-          data-testid="button-push-schema"
-        >
-          {isPushing ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Pushing Schema...
-            </>
-          ) : (
-            <>
-              <Upload className="h-4 w-4 mr-2" />
-              Push Schema to Production
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handlePushSchema} 
+            disabled={isPushing || isSyncingModules}
+            variant="outline"
+            className="flex-1"
+            data-testid="button-push-schema"
+          >
+            {isPushing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Pushing...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Push Schema
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={handleSyncModules} 
+            disabled={isPushing || isSyncingModules}
+            variant="outline"
+            className="flex-1"
+            data-testid="button-sync-modules"
+          >
+            {isSyncingModules ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Sync Modules
+              </>
+            )}
+          </Button>
+        </div>
 
         {result && (
           <Alert variant={result.success ? "default" : "destructive"} className="py-2">
@@ -315,10 +373,16 @@ function SchemaPushCard() {
             )}
             <AlertDescription className="text-xs">
               {result.message}
-              {result.details && (
+              {result.details && result.details.objectsProcessed !== undefined && (
                 <div className="mt-1">
                   <span className="block">Objects processed: {result.details.objectsProcessed}</span>
                   <span className="block">Already existed: {result.details.alreadyExisted}</span>
+                </div>
+              )}
+              {result.details && result.details.inserted !== undefined && (
+                <div className="mt-1">
+                  <span className="block">Inserted: {result.details.inserted}</span>
+                  <span className="block">Updated: {result.details.updated}</span>
                 </div>
               )}
             </AlertDescription>
