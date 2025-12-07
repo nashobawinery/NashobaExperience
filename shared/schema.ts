@@ -2449,6 +2449,374 @@ export const insertPlatformCompanyInfoSchema = createInsertSchema(platformCompan
 export type InsertPlatformCompanyInfo = z.infer<typeof insertPlatformCompanyInfoSchema>;
 export type PlatformCompanyInfo = typeof platformCompanyInfo.$inferSelect;
 
+// ============================================================================
+// LMS VERIFICATION TABLES
+// Manager/peer sign-off for hands-on skills verification
+// ============================================================================
+
+// Verification request status enum
+export const lmsVerificationStatusEnum = pgEnum("lms_verification_status", ["pending", "approved", "rejected", "expired"]);
+
+// LMS Skill Verifications - hands-on task verification by manager/peer
+export const lmsSkillVerifications = pgTable("lms_skill_verifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  courseId: varchar("course_id").notNull().references(() => lmsCourses.id, { onDelete: 'cascade' }),
+  lessonId: varchar("lesson_id").references(() => lmsLessons.id, { onDelete: 'cascade' }),
+  enrollmentId: varchar("enrollment_id").notNull().references(() => lmsEnrollments.id, { onDelete: 'cascade' }),
+  skillName: varchar("skill_name").notNull(), // e.g., "Correct Pour Technique"
+  description: text("description"), // What needs to be demonstrated
+  status: lmsVerificationStatusEnum("status").notNull().default("pending"),
+  evidenceUrl: text("evidence_url"), // Photo/video evidence URL
+  evidenceType: varchar("evidence_type"), // 'photo', 'video', 'checklist'
+  checklistItems: jsonb("checklist_items"), // Array of {item: string, checked: boolean}
+  reviewerId: varchar("reviewer_id").references(() => platformUsers.id),
+  reviewerNotes: text("reviewer_notes"),
+  requestedAt: timestamp("requested_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  expiresAt: timestamp("expires_at"),
+  locationId: varchar("location_id").references(() => sharedLocations.id),
+}, (table) => [
+  index("idx_lms_verify_user").on(table.userId),
+  index("idx_lms_verify_course").on(table.courseId),
+  index("idx_lms_verify_status").on(table.status),
+  index("idx_lms_verify_reviewer").on(table.reviewerId),
+]);
+
+export const insertLmsSkillVerificationSchema = createInsertSchema(lmsSkillVerifications).omit({ id: true, requestedAt: true });
+export type InsertLmsSkillVerification = z.infer<typeof insertLmsSkillVerificationSchema>;
+export type LmsSkillVerification = typeof lmsSkillVerifications.$inferSelect;
+
+// ============================================================================
+// CMMS (COMPUTERIZED MAINTENANCE MANAGEMENT SYSTEM) TABLES
+// Work orders, preventive maintenance, parts inventory, technician management
+// ============================================================================
+
+// Work order priority enum
+export const workOrderPriorityEnum = pgEnum("work_order_priority", ["low", "medium", "high", "critical"]);
+
+// Work order status enum  
+export const workOrderStatusEnum = pgEnum("work_order_status", ["open", "in_progress", "on_hold", "completed", "cancelled"]);
+
+// Work order type enum
+export const workOrderTypeEnum = pgEnum("work_order_type", ["corrective", "preventive", "inspection", "emergency", "project"]);
+
+// Maintenance frequency enum
+export const maintenanceFrequencyEnum = pgEnum("maintenance_frequency", ["daily", "weekly", "biweekly", "monthly", "quarterly", "semiannual", "annual", "custom"]);
+
+// Asset categories for organization
+export const maintenanceAssetCategories = pgTable("maintenance_asset_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  icon: varchar("icon"), // Lucide icon name
+  color: varchar("color"), // Tailwind color
+  parentId: varchar("parent_id"), // For hierarchical categories
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertMaintenanceAssetCategorySchema = createInsertSchema(maintenanceAssetCategories).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceAssetCategory = z.infer<typeof insertMaintenanceAssetCategorySchema>;
+export type MaintenanceAssetCategory = typeof maintenanceAssetCategories.$inferSelect;
+
+// Assets - equipment and facilities tracked for maintenance
+export const maintenanceAssets = pgTable("maintenance_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assetNumber: varchar("asset_number").notNull().unique(), // Internal tracking number
+  name: varchar("name").notNull(),
+  description: text("description"),
+  categoryId: varchar("category_id").references(() => maintenanceAssetCategories.id),
+  locationId: varchar("location_id").references(() => sharedLocations.id),
+  manufacturer: varchar("manufacturer"),
+  model: varchar("model"),
+  serialNumber: varchar("serial_number"),
+  purchaseDate: timestamp("purchase_date"),
+  purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
+  warrantyExpires: timestamp("warranty_expires"),
+  expectedLifeYears: integer("expected_life_years"),
+  status: varchar("status").notNull().default("operational"), // operational, maintenance, retired, disposed
+  criticality: varchar("criticality").notNull().default("medium"), // low, medium, high, critical
+  imageUrl: text("image_url"),
+  qrCode: varchar("qr_code"), // For mobile scanning
+  specifications: jsonb("specifications"), // Technical specs
+  documentUrls: text("document_urls").array(), // Manuals, SOPs
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_maint_asset_category").on(table.categoryId),
+  index("idx_maint_asset_location").on(table.locationId),
+  index("idx_maint_asset_status").on(table.status),
+  index("idx_maint_asset_number").on(table.assetNumber),
+]);
+
+export const insertMaintenanceAssetSchema = createInsertSchema(maintenanceAssets).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceAsset = z.infer<typeof insertMaintenanceAssetSchema>;
+export type MaintenanceAsset = typeof maintenanceAssets.$inferSelect;
+
+// Work Orders - maintenance tasks and repairs
+export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workOrderNumber: varchar("work_order_number").notNull().unique(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  assetId: varchar("asset_id").references(() => maintenanceAssets.id),
+  locationId: varchar("location_id").references(() => sharedLocations.id),
+  workOrderType: workOrderTypeEnum("work_order_type").notNull().default("corrective"),
+  priority: workOrderPriorityEnum("priority").notNull().default("medium"),
+  status: workOrderStatusEnum("status").notNull().default("open"),
+  
+  // Assignment
+  requestedById: varchar("requested_by_id").references(() => platformUsers.id),
+  assignedToId: varchar("assigned_to_id").references(() => platformUsers.id),
+  assignedTeam: varchar("assigned_team"), // For team assignments
+  
+  // Scheduling
+  dueDate: timestamp("due_date"),
+  scheduledStart: timestamp("scheduled_start"),
+  scheduledEnd: timestamp("scheduled_end"),
+  actualStart: timestamp("actual_start"),
+  actualEnd: timestamp("actual_end"),
+  estimatedHours: decimal("estimated_hours", { precision: 6, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 6, scale: 2 }),
+  
+  // Costs
+  laborCost: decimal("labor_cost", { precision: 10, scale: 2 }),
+  partsCost: decimal("parts_cost", { precision: 10, scale: 2 }),
+  externalCost: decimal("external_cost", { precision: 10, scale: 2 }),
+  
+  // Completion
+  completedById: varchar("completed_by_id").references(() => platformUsers.id),
+  completionNotes: text("completion_notes"),
+  failureReason: text("failure_reason"),
+  
+  // Checklists and procedures
+  checklistItems: jsonb("checklist_items"), // Array of {item, checked, notes}
+  instructions: text("instructions"),
+  attachmentUrls: text("attachment_urls").array(),
+  
+  // Preventive maintenance link
+  preventiveMaintenanceId: varchar("preventive_maintenance_id"), // Links to PM schedule
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_wo_asset").on(table.assetId),
+  index("idx_wo_status").on(table.status),
+  index("idx_wo_priority").on(table.priority),
+  index("idx_wo_assigned").on(table.assignedToId),
+  index("idx_wo_due_date").on(table.dueDate),
+  index("idx_wo_number").on(table.workOrderNumber),
+]);
+
+export const insertMaintenanceWorkOrderSchema = createInsertSchema(maintenanceWorkOrders).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceWorkOrder = z.infer<typeof insertMaintenanceWorkOrderSchema>;
+export type MaintenanceWorkOrder = typeof maintenanceWorkOrders.$inferSelect;
+
+// Work Order Comments - activity log and communication
+export const maintenanceWorkOrderComments = pgTable("maintenance_work_order_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workOrderId: varchar("work_order_id").notNull().references(() => maintenanceWorkOrders.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => platformUsers.id),
+  comment: text("comment").notNull(),
+  isSystemGenerated: boolean("is_system_generated").notNull().default(false),
+  attachmentUrls: text("attachment_urls").array(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_wo_comment_wo").on(table.workOrderId),
+]);
+
+export const insertMaintenanceWorkOrderCommentSchema = createInsertSchema(maintenanceWorkOrderComments).omit({ id: true, createdAt: true });
+export type InsertMaintenanceWorkOrderComment = z.infer<typeof insertMaintenanceWorkOrderCommentSchema>;
+export type MaintenanceWorkOrderComment = typeof maintenanceWorkOrderComments.$inferSelect;
+
+// Preventive Maintenance Schedules - recurring maintenance tasks
+export const maintenancePreventiveSchedules = pgTable("maintenance_preventive_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  assetId: varchar("asset_id").references(() => maintenanceAssets.id),
+  categoryId: varchar("category_id").references(() => maintenanceAssetCategories.id), // Or apply to category
+  
+  // Schedule settings
+  frequency: maintenanceFrequencyEnum("frequency").notNull().default("monthly"),
+  customDays: integer("custom_days"), // For custom frequency
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"), // Optional end date
+  lastGenerated: timestamp("last_generated"),
+  nextDue: timestamp("next_due"),
+  
+  // Work order template
+  workOrderTitle: varchar("work_order_title").notNull(),
+  workOrderDescription: text("work_order_description"),
+  workOrderPriority: workOrderPriorityEnum("work_order_priority").notNull().default("medium"),
+  estimatedHours: decimal("estimated_hours", { precision: 6, scale: 2 }),
+  assignedToId: varchar("assigned_to_id").references(() => platformUsers.id),
+  assignedTeam: varchar("assigned_team"),
+  checklistItems: jsonb("checklist_items"),
+  instructions: text("instructions"),
+  
+  // Settings
+  generateDaysAhead: integer("generate_days_ahead").notNull().default(7), // Create WO X days before due
+  active: boolean("active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_pm_asset").on(table.assetId),
+  index("idx_pm_next_due").on(table.nextDue),
+  index("idx_pm_active").on(table.active),
+]);
+
+export const insertMaintenancePreventiveScheduleSchema = createInsertSchema(maintenancePreventiveSchedules).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenancePreventiveSchedule = z.infer<typeof insertMaintenancePreventiveScheduleSchema>;
+export type MaintenancePreventiveSchedule = typeof maintenancePreventiveSchedules.$inferSelect;
+
+// Parts/Inventory - spare parts tracking
+export const maintenanceParts = pgTable("maintenance_parts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partNumber: varchar("part_number").notNull().unique(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category"),
+  locationId: varchar("location_id").references(() => sharedLocations.id), // Storage location
+  binLocation: varchar("bin_location"), // Specific storage bin/shelf
+  
+  // Stock levels
+  quantityOnHand: integer("quantity_on_hand").notNull().default(0),
+  minimumStock: integer("minimum_stock").notNull().default(0),
+  reorderPoint: integer("reorder_point").notNull().default(0),
+  reorderQuantity: integer("reorder_quantity").notNull().default(1),
+  
+  // Costs
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  totalValue: decimal("total_value", { precision: 10, scale: 2 }), // Computed
+  
+  // Supplier info
+  preferredVendor: varchar("preferred_vendor"),
+  vendorPartNumber: varchar("vendor_part_number"),
+  leadTimeDays: integer("lead_time_days"),
+  
+  // Tracking
+  lastRestocked: timestamp("last_restocked"),
+  lastUsed: timestamp("last_used"),
+  imageUrl: text("image_url"),
+  active: boolean("active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_part_number").on(table.partNumber),
+  index("idx_part_category").on(table.category),
+  index("idx_part_location").on(table.locationId),
+]);
+
+export const insertMaintenancePartSchema = createInsertSchema(maintenanceParts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenancePart = z.infer<typeof insertMaintenancePartSchema>;
+export type MaintenancePart = typeof maintenanceParts.$inferSelect;
+
+// Parts Usage - tracking parts used in work orders
+export const maintenancePartsUsage = pgTable("maintenance_parts_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workOrderId: varchar("work_order_id").notNull().references(() => maintenanceWorkOrders.id, { onDelete: 'cascade' }),
+  partId: varchar("part_id").notNull().references(() => maintenanceParts.id),
+  quantity: integer("quantity").notNull().default(1),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }),
+  usedById: varchar("used_by_id").references(() => platformUsers.id),
+  usedAt: timestamp("used_at").notNull().defaultNow(),
+  notes: text("notes"),
+}, (table) => [
+  index("idx_parts_usage_wo").on(table.workOrderId),
+  index("idx_parts_usage_part").on(table.partId),
+]);
+
+export const insertMaintenancePartsUsageSchema = createInsertSchema(maintenancePartsUsage).omit({ id: true, usedAt: true });
+export type InsertMaintenancePartsUsage = z.infer<typeof insertMaintenancePartsUsageSchema>;
+export type MaintenancePartsUsage = typeof maintenancePartsUsage.$inferSelect;
+
+// Asset-Part Links - which parts are used for which assets
+export const maintenanceAssetParts = pgTable("maintenance_asset_parts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assetId: varchar("asset_id").notNull().references(() => maintenanceAssets.id, { onDelete: 'cascade' }),
+  partId: varchar("part_id").notNull().references(() => maintenanceParts.id, { onDelete: 'cascade' }),
+  recommendedQuantity: integer("recommended_quantity").notNull().default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.assetId, table.partId),
+  index("idx_asset_parts_asset").on(table.assetId),
+  index("idx_asset_parts_part").on(table.partId),
+]);
+
+export const insertMaintenanceAssetPartSchema = createInsertSchema(maintenanceAssetParts).omit({ id: true, createdAt: true });
+export type InsertMaintenanceAssetPart = z.infer<typeof insertMaintenanceAssetPartSchema>;
+export type MaintenanceAssetPart = typeof maintenanceAssetParts.$inferSelect;
+
+// Technicians - maintenance staff with skills
+export const maintenanceTechnicians = pgTable("maintenance_technicians", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }).unique(),
+  employeeNumber: varchar("employee_number"),
+  skills: text("skills").array(), // e.g., ['electrical', 'plumbing', 'hvac']
+  certifications: jsonb("certifications"), // Array of {name, issuedDate, expiresDate}
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
+  shiftSchedule: varchar("shift_schedule"), // day, night, rotating
+  locationId: varchar("location_id").references(() => sharedLocations.id), // Primary location
+  phoneNumber: varchar("phone_number"),
+  available: boolean("available").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_tech_user").on(table.userId),
+  index("idx_tech_location").on(table.locationId),
+]);
+
+export const insertMaintenanceTechnicianSchema = createInsertSchema(maintenanceTechnicians).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceTechnician = z.infer<typeof insertMaintenanceTechnicianSchema>;
+export type MaintenanceTechnician = typeof maintenanceTechnicians.$inferSelect;
+
+// Maintenance Meters - for tracking usage-based maintenance (hours, miles, etc.)
+export const maintenanceMeters = pgTable("maintenance_meters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assetId: varchar("asset_id").notNull().references(() => maintenanceAssets.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(), // e.g., "Operating Hours", "Miles", "Cycles"
+  unit: varchar("unit").notNull(), // hours, miles, km, cycles
+  currentReading: decimal("current_reading", { precision: 12, scale: 2 }).notNull().default("0"),
+  lastReadingDate: timestamp("last_reading_date"),
+  averageDailyUsage: decimal("average_daily_usage", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_meter_asset").on(table.assetId),
+]);
+
+export const insertMaintenanceMeterSchema = createInsertSchema(maintenanceMeters).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceMeter = z.infer<typeof insertMaintenanceMeterSchema>;
+export type MaintenanceMeter = typeof maintenanceMeters.$inferSelect;
+
+// Meter Readings - historical meter reading log
+export const maintenanceMeterReadings = pgTable("maintenance_meter_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meterId: varchar("meter_id").notNull().references(() => maintenanceMeters.id, { onDelete: 'cascade' }),
+  reading: decimal("reading", { precision: 12, scale: 2 }).notNull(),
+  readingDate: timestamp("reading_date").notNull().defaultNow(),
+  recordedById: varchar("recorded_by_id").references(() => platformUsers.id),
+  notes: text("notes"),
+}, (table) => [
+  index("idx_meter_reading_meter").on(table.meterId),
+  index("idx_meter_reading_date").on(table.readingDate),
+]);
+
+export const insertMaintenanceMeterReadingSchema = createInsertSchema(maintenanceMeterReadings).omit({ id: true, readingDate: true });
+export type InsertMaintenanceMeterReading = z.infer<typeof insertMaintenanceMeterReadingSchema>;
+export type MaintenanceMeterReading = typeof maintenanceMeterReadings.$inferSelect;
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;

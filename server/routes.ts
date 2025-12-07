@@ -6957,6 +6957,660 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // LMS SKILL VERIFICATION ROUTES
+  // Manager/peer sign-off for hands-on skills
+  // ============================================
+
+  // Get pending verification requests for managers
+  app.get('/api/lms/verifications/pending', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT v.*, 
+               pu.first_name as user_first_name, pu.last_name as user_last_name, pu.email as user_email,
+               c.title as course_title, l.title as lesson_title
+        FROM lms_skill_verifications v
+        JOIN platform_users pu ON v.user_id = pu.id
+        JOIN lms_courses c ON v.course_id = c.id
+        LEFT JOIN lms_lessons l ON v.lesson_id = l.id
+        WHERE v.status = 'pending'
+        ORDER BY v.requested_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching pending verifications:', error);
+      res.status(500).json({ message: 'Failed to fetch verifications' });
+    }
+  });
+
+  // Request skill verification (learner)
+  app.post('/api/lms/verifications/request', isAuthenticated, async (req: any, res) => {
+    try {
+      const { enrollmentId, courseId, lessonId, skillName, description, evidenceUrl, evidenceType, checklistItems } = req.body;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const userId = userResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        INSERT INTO lms_skill_verifications (user_id, course_id, lesson_id, enrollment_id, skill_name, description, evidence_url, evidence_type, checklist_items)
+        VALUES (${userId}, ${courseId}, ${lessonId || null}, ${enrollmentId}, ${skillName}, ${description}, ${evidenceUrl}, ${evidenceType}, ${checklistItems ? JSON.stringify(checklistItems) : null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error requesting verification:', error);
+      res.status(500).json({ message: 'Failed to request verification' });
+    }
+  });
+
+  // Approve or reject verification (manager)
+  app.put('/api/lms/verifications/:id/review', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { status, reviewerNotes } = req.body;
+      const reviewerEmail = req.user?.claims?.email;
+      
+      const reviewerResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${reviewerEmail}`);
+      const reviewerId = reviewerResult.rows[0]?.id;
+      
+      const result = await db.execute(sql`
+        UPDATE lms_skill_verifications 
+        SET status = ${status}, reviewer_id = ${reviewerId}, reviewer_notes = ${reviewerNotes}, reviewed_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Verification not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error reviewing verification:', error);
+      res.status(500).json({ message: 'Failed to review verification' });
+    }
+  });
+
+  // Get user's verification history
+  app.get('/api/lms/verifications/my', isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.claims?.email;
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      if (userResult.rows.length === 0) {
+        return res.json([]);
+      }
+      const userId = userResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        SELECT v.*, c.title as course_title, l.title as lesson_title,
+               r.first_name as reviewer_first_name, r.last_name as reviewer_last_name
+        FROM lms_skill_verifications v
+        JOIN lms_courses c ON v.course_id = c.id
+        LEFT JOIN lms_lessons l ON v.lesson_id = l.id
+        LEFT JOIN platform_users r ON v.reviewer_id = r.id
+        WHERE v.user_id = ${userId}
+        ORDER BY v.requested_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching user verifications:', error);
+      res.status(500).json({ message: 'Failed to fetch verifications' });
+    }
+  });
+
+  // ============================================
+  // CMMS (MAINTENANCE) MODULE ROUTES
+  // Work orders, assets, preventive maintenance
+  // ============================================
+
+  // Helper to generate work order numbers
+  const generateWorkOrderNumber = async (): Promise<string> => {
+    const prefix = 'WO';
+    const year = new Date().getFullYear().toString().slice(-2);
+    const result = await db.execute(sql`
+      SELECT COUNT(*)::integer as count FROM maintenance_work_orders 
+      WHERE work_order_number LIKE ${`${prefix}${year}%`}
+    `);
+    const count = (result.rows[0]?.count || 0) + 1;
+    return `${prefix}${year}-${count.toString().padStart(5, '0')}`;
+  };
+
+  // Helper to generate asset numbers
+  const generateAssetNumber = async (): Promise<string> => {
+    const prefix = 'AST';
+    const result = await db.execute(sql`
+      SELECT COUNT(*)::integer as count FROM maintenance_assets
+    `);
+    const count = (result.rows[0]?.count || 0) + 1;
+    return `${prefix}-${count.toString().padStart(6, '0')}`;
+  };
+
+  // --- Asset Categories ---
+  app.get('/api/maintenance/categories', isAuthenticated, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM maintenance_asset_categories WHERE active = true ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching asset categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.post('/api/maintenance/categories', isAdmin, async (req, res) => {
+    try {
+      const { name, description, icon, color, parentId, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_asset_categories (name, description, icon, color, parent_id, sort_order)
+        VALUES (${name}, ${description}, ${icon}, ${color}, ${parentId || null}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating asset category:', error);
+      res.status(500).json({ message: 'Failed to create category' });
+    }
+  });
+
+  app.put('/api/maintenance/categories/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, icon, color, parentId, sortOrder, active } = req.body;
+      const result = await db.execute(sql`
+        UPDATE maintenance_asset_categories 
+        SET name = ${name}, description = ${description}, icon = ${icon}, color = ${color},
+            parent_id = ${parentId || null}, sort_order = ${sortOrder || 0}, active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating asset category:', error);
+      res.status(500).json({ message: 'Failed to update category' });
+    }
+  });
+
+  // --- Assets ---
+  app.get('/api/maintenance/assets', isAuthenticated, async (req, res) => {
+    try {
+      const { status, categoryId, locationId } = req.query;
+      const result = await db.execute(sql`
+        SELECT a.*, c.name as category_name, c.icon as category_icon, l.location_name
+        FROM maintenance_assets a
+        LEFT JOIN maintenance_asset_categories c ON a.category_id = c.id
+        LEFT JOIN shared_locations l ON a.location_id = l.id
+        WHERE 1=1
+        ${status ? sql` AND a.status = ${status}` : sql``}
+        ${categoryId ? sql` AND a.category_id = ${categoryId}` : sql``}
+        ${locationId ? sql` AND a.location_id = ${locationId}` : sql``}
+        ORDER BY a.name ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching assets:', error);
+      res.status(500).json({ message: 'Failed to fetch assets' });
+    }
+  });
+
+  app.get('/api/maintenance/assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        SELECT a.*, c.name as category_name, c.icon as category_icon, l.location_name
+        FROM maintenance_assets a
+        LEFT JOIN maintenance_asset_categories c ON a.category_id = c.id
+        LEFT JOIN shared_locations l ON a.location_id = l.id
+        WHERE a.id = ${id}
+      `);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Asset not found' });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching asset:', error);
+      res.status(500).json({ message: 'Failed to fetch asset' });
+    }
+  });
+
+  app.post('/api/maintenance/assets', isAdmin, async (req, res) => {
+    try {
+      const { name, description, categoryId, locationId, manufacturer, model, serialNumber, purchaseDate, purchaseCost, warrantyExpires, expectedLifeYears, status, criticality, imageUrl, qrCode, specifications, documentUrls, notes } = req.body;
+      const assetNumber = await generateAssetNumber();
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_assets (asset_number, name, description, category_id, location_id, manufacturer, model, serial_number, purchase_date, purchase_cost, warranty_expires, expected_life_years, status, criticality, image_url, qr_code, specifications, document_urls, notes)
+        VALUES (${assetNumber}, ${name}, ${description}, ${categoryId || null}, ${locationId || null}, ${manufacturer}, ${model}, ${serialNumber}, ${purchaseDate ? new Date(purchaseDate) : null}, ${purchaseCost}, ${warrantyExpires ? new Date(warrantyExpires) : null}, ${expectedLifeYears}, ${status || 'operational'}, ${criticality || 'medium'}, ${imageUrl}, ${qrCode}, ${specifications ? JSON.stringify(specifications) : null}, ${documentUrls || null}, ${notes})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating asset:', error);
+      res.status(500).json({ message: 'Failed to create asset' });
+    }
+  });
+
+  app.put('/api/maintenance/assets/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, categoryId, locationId, manufacturer, model, serialNumber, purchaseDate, purchaseCost, warrantyExpires, expectedLifeYears, status, criticality, imageUrl, qrCode, specifications, documentUrls, notes } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_assets SET
+          name = ${name}, description = ${description}, category_id = ${categoryId || null}, location_id = ${locationId || null},
+          manufacturer = ${manufacturer}, model = ${model}, serial_number = ${serialNumber},
+          purchase_date = ${purchaseDate ? new Date(purchaseDate) : null}, purchase_cost = ${purchaseCost},
+          warranty_expires = ${warrantyExpires ? new Date(warrantyExpires) : null}, expected_life_years = ${expectedLifeYears},
+          status = ${status}, criticality = ${criticality}, image_url = ${imageUrl}, qr_code = ${qrCode},
+          specifications = ${specifications ? JSON.stringify(specifications) : null}, document_urls = ${documentUrls || null},
+          notes = ${notes}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating asset:', error);
+      res.status(500).json({ message: 'Failed to update asset' });
+    }
+  });
+
+  // --- Work Orders ---
+  app.get('/api/maintenance/work-orders', isAuthenticated, async (req, res) => {
+    try {
+      const { status, priority, assignedToId, assetId } = req.query;
+      const result = await db.execute(sql`
+        SELECT wo.*, 
+               a.name as asset_name, a.asset_number,
+               l.location_name,
+               req.first_name as requester_first_name, req.last_name as requester_last_name,
+               asg.first_name as assignee_first_name, asg.last_name as assignee_last_name
+        FROM maintenance_work_orders wo
+        LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+        LEFT JOIN shared_locations l ON wo.location_id = l.id
+        LEFT JOIN platform_users req ON wo.requested_by_id = req.id
+        LEFT JOIN platform_users asg ON wo.assigned_to_id = asg.id
+        WHERE 1=1
+        ${status ? sql` AND wo.status = ${status}` : sql``}
+        ${priority ? sql` AND wo.priority = ${priority}` : sql``}
+        ${assignedToId ? sql` AND wo.assigned_to_id = ${assignedToId}` : sql``}
+        ${assetId ? sql` AND wo.asset_id = ${assetId}` : sql``}
+        ORDER BY 
+          CASE wo.priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+          wo.due_date ASC NULLS LAST
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching work orders:', error);
+      res.status(500).json({ message: 'Failed to fetch work orders' });
+    }
+  });
+
+  app.get('/api/maintenance/work-orders/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        SELECT wo.*, 
+               a.name as asset_name, a.asset_number, a.image_url as asset_image,
+               l.location_name,
+               req.first_name as requester_first_name, req.last_name as requester_last_name, req.email as requester_email,
+               asg.first_name as assignee_first_name, asg.last_name as assignee_last_name, asg.email as assignee_email
+        FROM maintenance_work_orders wo
+        LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+        LEFT JOIN shared_locations l ON wo.location_id = l.id
+        LEFT JOIN platform_users req ON wo.requested_by_id = req.id
+        LEFT JOIN platform_users asg ON wo.assigned_to_id = asg.id
+        WHERE wo.id = ${id}
+      `);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Work order not found' });
+      }
+      
+      // Get comments
+      const comments = await db.execute(sql`
+        SELECT c.*, u.first_name, u.last_name
+        FROM maintenance_work_order_comments c
+        LEFT JOIN platform_users u ON c.user_id = u.id
+        WHERE c.work_order_id = ${id}
+        ORDER BY c.created_at ASC
+      `);
+      
+      // Get parts usage
+      const partsUsage = await db.execute(sql`
+        SELECT pu.*, p.name as part_name, p.part_number
+        FROM maintenance_parts_usage pu
+        JOIN maintenance_parts p ON pu.part_id = p.id
+        WHERE pu.work_order_id = ${id}
+      `);
+      
+      res.json({
+        ...result.rows[0],
+        comments: comments.rows,
+        partsUsed: partsUsage.rows
+      });
+    } catch (error) {
+      console.error('Error fetching work order:', error);
+      res.status(500).json({ message: 'Failed to fetch work order' });
+    }
+  });
+
+  app.post('/api/maintenance/work-orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const { title, description, assetId, locationId, workOrderType, priority, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, checklistItems, instructions, attachmentUrls } = req.body;
+      
+      const workOrderNumber = await generateWorkOrderNumber();
+      const requestedById = req.user?.claims?.email ? 
+        (await db.execute(sql`SELECT id FROM platform_users WHERE email = ${req.user.claims.email}`)).rows[0]?.id : null;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, work_order_type, priority, status, requested_by_id, assigned_to_id, assigned_team, due_date, scheduled_start, scheduled_end, estimated_hours, checklist_items, instructions, attachment_urls)
+        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${assignedTeam}, ${dueDate ? new Date(dueDate) : null}, ${scheduledStart ? new Date(scheduledStart) : null}, ${scheduledEnd ? new Date(scheduledEnd) : null}, ${estimatedHours}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${attachmentUrls || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating work order:', error);
+      res.status(500).json({ message: 'Failed to create work order' });
+    }
+  });
+
+  app.put('/api/maintenance/work-orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, assetId, locationId, workOrderType, priority, status, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, actualHours, laborCost, partsCost, externalCost, completionNotes, failureReason, checklistItems, instructions, attachmentUrls } = req.body;
+      
+      let completedById = null;
+      if (status === 'completed') {
+        const userEmail = req.user?.claims?.email;
+        if (userEmail) {
+          const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+          completedById = userResult.rows[0]?.id;
+        }
+      }
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_work_orders SET
+          title = ${title}, description = ${description}, asset_id = ${assetId || null}, location_id = ${locationId || null},
+          work_order_type = ${workOrderType}, priority = ${priority}, status = ${status},
+          assigned_to_id = ${assignedToId || null}, assigned_team = ${assignedTeam},
+          due_date = ${dueDate ? new Date(dueDate) : null}, scheduled_start = ${scheduledStart ? new Date(scheduledStart) : null},
+          scheduled_end = ${scheduledEnd ? new Date(scheduledEnd) : null}, estimated_hours = ${estimatedHours},
+          actual_hours = ${actualHours}, labor_cost = ${laborCost}, parts_cost = ${partsCost}, external_cost = ${externalCost},
+          completed_by_id = ${completedById}, completion_notes = ${completionNotes}, failure_reason = ${failureReason},
+          checklist_items = ${checklistItems ? JSON.stringify(checklistItems) : null}, instructions = ${instructions},
+          attachment_urls = ${attachmentUrls || null},
+          actual_start = ${status === 'in_progress' ? sql`COALESCE(actual_start, NOW())` : sql`actual_start`},
+          actual_end = ${status === 'completed' ? sql`NOW()` : sql`actual_end`},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating work order:', error);
+      res.status(500).json({ message: 'Failed to update work order' });
+    }
+  });
+
+  // Add comment to work order
+  app.post('/api/maintenance/work-orders/:id/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { comment, attachmentUrls } = req.body;
+      const userEmail = req.user?.claims?.email;
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      const userId = userResult.rows[0]?.id;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_work_order_comments (work_order_id, user_id, comment, attachment_urls)
+        VALUES (${id}, ${userId}, ${comment}, ${attachmentUrls || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      res.status(500).json({ message: 'Failed to add comment' });
+    }
+  });
+
+  // --- Parts/Inventory ---
+  app.get('/api/maintenance/parts', isAuthenticated, async (req, res) => {
+    try {
+      const { category, lowStock, locationId } = req.query;
+      const result = await db.execute(sql`
+        SELECT p.*, l.location_name
+        FROM maintenance_parts p
+        LEFT JOIN shared_locations l ON p.location_id = l.id
+        WHERE p.active = true
+        ${category ? sql` AND p.category = ${category}` : sql``}
+        ${locationId ? sql` AND p.location_id = ${locationId}` : sql``}
+        ${lowStock === 'true' ? sql` AND p.quantity_on_hand <= p.reorder_point` : sql``}
+        ORDER BY p.name ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching parts:', error);
+      res.status(500).json({ message: 'Failed to fetch parts' });
+    }
+  });
+
+  app.post('/api/maintenance/parts', isAdmin, async (req, res) => {
+    try {
+      const { partNumber, name, description, category, locationId, binLocation, quantityOnHand, minimumStock, reorderPoint, reorderQuantity, unitCost, preferredVendor, vendorPartNumber, leadTimeDays, imageUrl } = req.body;
+      
+      const totalValue = (quantityOnHand || 0) * (unitCost || 0);
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_parts (part_number, name, description, category, location_id, bin_location, quantity_on_hand, minimum_stock, reorder_point, reorder_quantity, unit_cost, total_value, preferred_vendor, vendor_part_number, lead_time_days, image_url)
+        VALUES (${partNumber}, ${name}, ${description}, ${category}, ${locationId || null}, ${binLocation}, ${quantityOnHand || 0}, ${minimumStock || 0}, ${reorderPoint || 0}, ${reorderQuantity || 1}, ${unitCost}, ${totalValue}, ${preferredVendor}, ${vendorPartNumber}, ${leadTimeDays}, ${imageUrl})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating part:', error);
+      res.status(500).json({ message: 'Failed to create part' });
+    }
+  });
+
+  app.put('/api/maintenance/parts/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { partNumber, name, description, category, locationId, binLocation, quantityOnHand, minimumStock, reorderPoint, reorderQuantity, unitCost, preferredVendor, vendorPartNumber, leadTimeDays, imageUrl, active } = req.body;
+      
+      const totalValue = (quantityOnHand || 0) * (unitCost || 0);
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_parts SET
+          part_number = ${partNumber}, name = ${name}, description = ${description}, category = ${category},
+          location_id = ${locationId || null}, bin_location = ${binLocation}, quantity_on_hand = ${quantityOnHand || 0},
+          minimum_stock = ${minimumStock || 0}, reorder_point = ${reorderPoint || 0}, reorder_quantity = ${reorderQuantity || 1},
+          unit_cost = ${unitCost}, total_value = ${totalValue}, preferred_vendor = ${preferredVendor},
+          vendor_part_number = ${vendorPartNumber}, lead_time_days = ${leadTimeDays}, image_url = ${imageUrl},
+          active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating part:', error);
+      res.status(500).json({ message: 'Failed to update part' });
+    }
+  });
+
+  // Record part usage on work order
+  app.post('/api/maintenance/work-orders/:id/parts', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { partId, quantity, notes } = req.body;
+      const userEmail = req.user?.claims?.email;
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      const usedById = userResult.rows[0]?.id;
+      
+      // Get part info
+      const partResult = await db.execute(sql`SELECT unit_cost, quantity_on_hand FROM maintenance_parts WHERE id = ${partId}`);
+      const part = partResult.rows[0] as any;
+      const unitCost = part?.unit_cost || 0;
+      const totalCost = quantity * unitCost;
+      
+      // Record usage
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_parts_usage (work_order_id, part_id, quantity, unit_cost, total_cost, used_by_id, notes)
+        VALUES (${id}, ${partId}, ${quantity}, ${unitCost}, ${totalCost}, ${usedById}, ${notes})
+        RETURNING *
+      `);
+      
+      // Update inventory
+      await db.execute(sql`
+        UPDATE maintenance_parts SET 
+          quantity_on_hand = quantity_on_hand - ${quantity},
+          last_used = NOW(),
+          total_value = (quantity_on_hand - ${quantity}) * unit_cost,
+          updated_at = NOW()
+        WHERE id = ${partId}
+      `);
+      
+      // Update work order parts cost
+      await db.execute(sql`
+        UPDATE maintenance_work_orders SET
+          parts_cost = COALESCE(parts_cost, 0) + ${totalCost},
+          updated_at = NOW()
+        WHERE id = ${id}
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error recording part usage:', error);
+      res.status(500).json({ message: 'Failed to record part usage' });
+    }
+  });
+
+  // --- Preventive Maintenance Schedules ---
+  app.get('/api/maintenance/pm-schedules', isAuthenticated, async (req, res) => {
+    try {
+      const { assetId, active } = req.query;
+      const result = await db.execute(sql`
+        SELECT pm.*, a.name as asset_name, a.asset_number, u.first_name as assignee_first_name, u.last_name as assignee_last_name
+        FROM maintenance_preventive_schedules pm
+        LEFT JOIN maintenance_assets a ON pm.asset_id = a.id
+        LEFT JOIN platform_users u ON pm.assigned_to_id = u.id
+        WHERE 1=1
+        ${assetId ? sql` AND pm.asset_id = ${assetId}` : sql``}
+        ${active === 'true' ? sql` AND pm.active = true` : sql``}
+        ORDER BY pm.next_due ASC NULLS LAST
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching PM schedules:', error);
+      res.status(500).json({ message: 'Failed to fetch PM schedules' });
+    }
+  });
+
+  app.post('/api/maintenance/pm-schedules', isAdmin, async (req, res) => {
+    try {
+      const { name, description, assetId, categoryId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, assignedTeam, checklistItems, instructions, generateDaysAhead } = req.body;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_preventive_schedules (name, description, asset_id, category_id, frequency, custom_days, start_date, end_date, next_due, work_order_title, work_order_description, work_order_priority, estimated_hours, assigned_to_id, assigned_team, checklist_items, instructions, generate_days_ahead)
+        VALUES (${name}, ${description}, ${assetId || null}, ${categoryId || null}, ${frequency || 'monthly'}, ${customDays}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${workOrderTitle}, ${workOrderDescription}, ${workOrderPriority || 'medium'}, ${estimatedHours}, ${assignedToId || null}, ${assignedTeam}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${generateDaysAhead || 7})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating PM schedule:', error);
+      res.status(500).json({ message: 'Failed to create PM schedule' });
+    }
+  });
+
+  app.put('/api/maintenance/pm-schedules/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, assetId, categoryId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, assignedTeam, checklistItems, instructions, generateDaysAhead, active } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_preventive_schedules SET
+          name = ${name}, description = ${description}, asset_id = ${assetId || null}, category_id = ${categoryId || null},
+          frequency = ${frequency}, custom_days = ${customDays}, start_date = ${new Date(startDate)},
+          end_date = ${endDate ? new Date(endDate) : null}, work_order_title = ${workOrderTitle},
+          work_order_description = ${workOrderDescription}, work_order_priority = ${workOrderPriority},
+          estimated_hours = ${estimatedHours}, assigned_to_id = ${assignedToId || null}, assigned_team = ${assignedTeam},
+          checklist_items = ${checklistItems ? JSON.stringify(checklistItems) : null}, instructions = ${instructions},
+          generate_days_ahead = ${generateDaysAhead || 7}, active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating PM schedule:', error);
+      res.status(500).json({ message: 'Failed to update PM schedule' });
+    }
+  });
+
+  // --- Technicians ---
+  app.get('/api/maintenance/technicians', isAuthenticated, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT t.*, u.first_name, u.last_name, u.email, l.location_name
+        FROM maintenance_technicians t
+        JOIN platform_users u ON t.user_id = u.id
+        LEFT JOIN shared_locations l ON t.location_id = l.id
+        WHERE u.active = true
+        ORDER BY u.first_name, u.last_name
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching technicians:', error);
+      res.status(500).json({ message: 'Failed to fetch technicians' });
+    }
+  });
+
+  app.post('/api/maintenance/technicians', isAdmin, async (req, res) => {
+    try {
+      const { userId, employeeNumber, skills, certifications, hourlyRate, shiftSchedule, locationId, phoneNumber, notes } = req.body;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_technicians (user_id, employee_number, skills, certifications, hourly_rate, shift_schedule, location_id, phone_number, notes)
+        VALUES (${userId}, ${employeeNumber}, ${skills || null}, ${certifications ? JSON.stringify(certifications) : null}, ${hourlyRate}, ${shiftSchedule}, ${locationId || null}, ${phoneNumber}, ${notes})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating technician:', error);
+      res.status(500).json({ message: 'Failed to create technician' });
+    }
+  });
+
+  // --- Maintenance Dashboard Stats ---
+  app.get('/api/maintenance/stats', isAuthenticated, async (req, res) => {
+    try {
+      const stats = await db.execute(sql`
+        SELECT 
+          (SELECT COUNT(*)::integer FROM maintenance_assets WHERE status = 'operational') as operational_assets,
+          (SELECT COUNT(*)::integer FROM maintenance_assets WHERE status = 'maintenance') as assets_under_maintenance,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'open') as open_work_orders,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'in_progress') as in_progress_work_orders,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'completed' AND actual_end >= NOW() - INTERVAL '30 days') as completed_this_month,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE priority = 'critical' AND status NOT IN ('completed', 'cancelled')) as critical_work_orders,
+          (SELECT COUNT(*)::integer FROM maintenance_parts WHERE quantity_on_hand <= reorder_point AND active = true) as low_stock_parts,
+          (SELECT COUNT(*)::integer FROM maintenance_preventive_schedules WHERE next_due <= NOW() + INTERVAL '7 days' AND active = true) as upcoming_pm
+      `);
+      res.json(stats.rows[0]);
+    } catch (error) {
+      console.error('Error fetching maintenance stats:', error);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // ============================================
   // DAILY REPORTS MODULE ROUTES
   // ============================================
 
