@@ -858,6 +858,7 @@ export function getSyncSummary(scanResult: SyncScanResult): {
     daily_reports: { tables: 0, differences: 0 },
     rbac: { tables: 0, differences: 0 },
     platform: { tables: 0, differences: 0 },
+    reservation: { tables: 0, differences: 0 },
   };
   
   const byDataType: Record<DataType, { tables: number; differences: number }> = {

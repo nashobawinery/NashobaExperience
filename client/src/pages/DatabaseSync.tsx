@@ -110,36 +110,50 @@ const DATA_TYPE_BADGES: Record<DataType, { label: string; variant: 'default' | '
   transactional: { label: 'Transactional', variant: 'destructive', icon: FileWarning, description: 'Excluded from sync - contains runtime data' },
 };
 
-const FALLBACK_BASE_APP_TABLES = [
-  { id: 'products', name: 'Products', description: 'Wine and beverage products' },
-  { id: 'filterOptions', name: 'Filter Options', description: 'Dynamic filter configuration' },
-  { id: 'triviaQuestions', name: 'Trivia Questions', description: 'Tasting trivia game' },
-  { id: 'slideshowImages', name: 'Slideshow Images', description: 'Guest experience slideshow' },
-  { id: 'appSettings', name: 'App Settings', description: 'Application configuration' },
-  { id: 'mediaLibrary', name: 'Media Library', description: 'Uploaded images and files' },
-  { id: 'whitelistedEmails', name: 'Whitelisted Emails', description: 'Admin access list' },
-  { id: 'commercials', name: 'Commercials', description: 'Video commercials' },
-  { id: 'videos', name: 'Videos', description: 'Educational videos' },
-  { id: 'triviaAchievements', name: 'Trivia Achievements', description: 'Guest achievements' },
+const createFallbackTable = (id: string, name: string, description: string, dataType: DataType = 'reference'): SyncTable => ({
+  id,
+  name,
+  description,
+  sheetName: id,
+  businessKey: [],
+  exportFields: [],
+  parentTables: [],
+  excludeFromSync: false,
+  requiresConfirmation: false,
+  dataType,
+  supportsBackup: true,
+});
+
+const FALLBACK_BASE_APP_TABLES: SyncTable[] = [
+  createFallbackTable('products', 'Products', 'Wine and beverage products'),
+  createFallbackTable('filterOptions', 'Filter Options', 'Dynamic filter configuration'),
+  createFallbackTable('triviaQuestions', 'Trivia Questions', 'Tasting trivia game'),
+  createFallbackTable('slideshowImages', 'Slideshow Images', 'Guest experience slideshow'),
+  createFallbackTable('appSettings', 'App Settings', 'Application configuration', 'configuration'),
+  createFallbackTable('mediaLibrary', 'Media Library', 'Uploaded images and files'),
+  createFallbackTable('whitelistedEmails', 'Whitelisted Emails', 'Admin access list'),
+  createFallbackTable('commercials', 'Commercials', 'Video commercials'),
+  createFallbackTable('videos', 'Videos', 'Educational videos'),
+  createFallbackTable('triviaAchievements', 'Trivia Achievements', 'Guest achievements'),
 ];
 
-const FALLBACK_B2B_TABLES = [
-  { id: 'tierPricing', name: 'Tier Pricing', description: 'Wholesale pricing tiers' },
-  { id: 'salesReps', name: 'Sales Reps', description: 'Sales representative accounts' },
-  { id: 'b2bCustomers', name: 'B2B Customers', description: 'Wholesale customer accounts' },
-  { id: 'b2bCustomerLocations', name: 'Customer Locations', description: 'Store locations' },
-  { id: 'b2bCustomerManualProducts', name: 'Featured Products', description: 'Manual product assignments' },
-  { id: 'b2bOrders', name: 'B2B Orders', description: 'Wholesale orders' },
-  { id: 'b2bOrderItems', name: 'Order Items', description: 'Order line items' },
-  { id: 'b2bSlideshowSlides', name: 'B2B Slideshow', description: 'B2B landing page slides' },
-  { id: 'b2bAdmins', name: 'B2B Admins', description: 'B2B administrator accounts' },
-  { id: 'b2bSettings', name: 'B2B Settings', description: 'B2B platform configuration' },
-  { id: 'b2bCommissions', name: 'Commissions', description: 'Sales rep commission tracking' },
-  { id: 'b2bEmailTemplates', name: 'Email Templates', description: 'Automated email templates' },
-  { id: 'b2bEmailAutomationLogs', name: 'Email Logs', description: 'Email delivery history' },
+const FALLBACK_B2B_TABLES: SyncTable[] = [
+  createFallbackTable('tierPricing', 'Tier Pricing', 'Wholesale pricing tiers'),
+  createFallbackTable('salesReps', 'Sales Reps', 'Sales representative accounts'),
+  createFallbackTable('b2bCustomers', 'B2B Customers', 'Wholesale customer accounts', 'user_generated'),
+  createFallbackTable('b2bCustomerLocations', 'Customer Locations', 'Store locations', 'user_generated'),
+  createFallbackTable('b2bCustomerManualProducts', 'Featured Products', 'Manual product assignments'),
+  createFallbackTable('b2bOrders', 'B2B Orders', 'Wholesale orders', 'transactional'),
+  createFallbackTable('b2bOrderItems', 'Order Items', 'Order line items', 'transactional'),
+  createFallbackTable('b2bSlideshowSlides', 'B2B Slideshow', 'B2B landing page slides'),
+  createFallbackTable('b2bAdmins', 'B2B Admins', 'B2B administrator accounts', 'configuration'),
+  createFallbackTable('b2bSettings', 'B2B Settings', 'B2B platform configuration', 'configuration'),
+  createFallbackTable('b2bCommissions', 'Commissions', 'Sales rep commission tracking', 'transactional'),
+  createFallbackTable('b2bEmailTemplates', 'Email Templates', 'Automated email templates'),
+  createFallbackTable('b2bEmailAutomationLogs', 'Email Logs', 'Email delivery history', 'transactional'),
 ];
 
-const FALLBACK_ALL_TABLES = [...FALLBACK_BASE_APP_TABLES, ...FALLBACK_B2B_TABLES];
+const FALLBACK_ALL_TABLES: SyncTable[] = [...FALLBACK_BASE_APP_TABLES, ...FALLBACK_B2B_TABLES];
 
 interface MediaSyncStatus {
   bucketId: string;
@@ -1105,7 +1119,9 @@ export default function DatabaseSync() {
                                           </Badge>
                                         )}
                                         {table.requiresConfirmation && (
-                                          <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                          <span title={table.confirmationMessage}>
+                                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                          </span>
                                         )}
                                       </div>
                                       <p className="text-xs text-muted-foreground">{table.description}</p>
@@ -1290,7 +1306,9 @@ export default function DatabaseSync() {
                                           </Badge>
                                         )}
                                         {table.requiresConfirmation && (
-                                          <AlertTriangle className="h-3 w-3 text-amber-500" title={table.confirmationMessage} />
+                                          <span title={table.confirmationMessage}>
+                                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                          </span>
                                         )}
                                       </div>
                                       <p className="text-xs text-muted-foreground">{table.description}</p>
