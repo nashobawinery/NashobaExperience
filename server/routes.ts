@@ -1281,23 +1281,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ success: false, error: "Development database not configured" });
       }
       
-      // Export schema from dev (schema only, no data)
+      // Export schema from dev (schema only, no data, using CREATE IF NOT EXISTS style)
       const { stdout: schema } = await execAsync(
-        `pg_dump --schema-only "${devDbUrl}"`,
+        `pg_dump --schema-only --no-owner --no-acl "${devDbUrl}"`,
         { maxBuffer: 50 * 1024 * 1024 }
       );
       
-      // Clean up the schema SQL
-      const cleanSchema = schema
-        .split('\n')
-        .filter(line => !line.includes('\\restrict') && !line.includes('\\unrestrict'))
-        .filter(line => !line.includes('OWNER TO'))
-        .join('\n');
+      // Parse and filter to safe statements only (CREATE TABLE, CREATE INDEX, CREATE TYPE, CREATE SEQUENCE)
+      // This prevents any ALTER, DROP, or other destructive operations
+      const safeStatements: string[] = [];
+      const lines = schema.split('\n');
+      let currentStatement = '';
+      let inSafeStatement = false;
+      
+      for (const line of lines) {
+        // Skip psql commands and comments
+        if (line.startsWith('\\') || line.startsWith('--') || line.trim() === '') {
+          continue;
+        }
+        
+        // Check if starting a safe statement type
+        const upperLine = line.toUpperCase().trim();
+        if (upperLine.startsWith('CREATE TABLE') || 
+            upperLine.startsWith('CREATE INDEX') || 
+            upperLine.startsWith('CREATE UNIQUE INDEX') ||
+            upperLine.startsWith('CREATE TYPE') ||
+            upperLine.startsWith('CREATE SEQUENCE')) {
+          inSafeStatement = true;
+          currentStatement = line;
+        } else if (inSafeStatement) {
+          currentStatement += '\n' + line;
+        }
+        
+        // Check if statement is complete (ends with semicolon)
+        if (inSafeStatement && line.trim().endsWith(';')) {
+          // Convert CREATE TABLE to CREATE TABLE IF NOT EXISTS
+          let safeStatement = currentStatement;
+          if (safeStatement.toUpperCase().includes('CREATE TABLE ') && 
+              !safeStatement.toUpperCase().includes('IF NOT EXISTS')) {
+            safeStatement = safeStatement.replace(/CREATE TABLE /i, 'CREATE TABLE IF NOT EXISTS ');
+          }
+          if (safeStatement.toUpperCase().includes('CREATE INDEX ') && 
+              !safeStatement.toUpperCase().includes('IF NOT EXISTS')) {
+            safeStatement = safeStatement.replace(/CREATE INDEX /i, 'CREATE INDEX IF NOT EXISTS ');
+          }
+          if (safeStatement.toUpperCase().includes('CREATE UNIQUE INDEX ') && 
+              !safeStatement.toUpperCase().includes('IF NOT EXISTS')) {
+            safeStatement = safeStatement.replace(/CREATE UNIQUE INDEX /i, 'CREATE UNIQUE INDEX IF NOT EXISTS ');
+          }
+          if (safeStatement.toUpperCase().includes('CREATE SEQUENCE ') && 
+              !safeStatement.toUpperCase().includes('IF NOT EXISTS')) {
+            safeStatement = safeStatement.replace(/CREATE SEQUENCE /i, 'CREATE SEQUENCE IF NOT EXISTS ');
+          }
+          
+          safeStatements.push(safeStatement);
+          currentStatement = '';
+          inSafeStatement = false;
+        }
+      }
+      
+      // Also handle CREATE TYPE with DO block for safe creation
+      const typeStatements = safeStatements.filter(s => s.toUpperCase().includes('CREATE TYPE'));
+      const otherStatements = safeStatements.filter(s => !s.toUpperCase().includes('CREATE TYPE'));
+      
+      // Wrap types in DO blocks for IF NOT EXISTS behavior
+      const safeTypeStatements = typeStatements.map(stmt => {
+        const typeMatch = stmt.match(/CREATE TYPE\s+(\S+)/i);
+        if (typeMatch) {
+          const typeName = typeMatch[1];
+          return `DO $$ BEGIN ${stmt.replace(/;$/, '')}; EXCEPTION WHEN duplicate_object THEN null; END $$;`;
+        }
+        return stmt;
+      });
+      
+      const finalSchema = [...safeTypeStatements, ...otherStatements].join('\n\n');
       
       // Write to temp file
       const fs = await import("fs/promises");
       const tempFile = '/tmp/schema_push.sql';
-      await fs.writeFile(tempFile, cleanSchema);
+      await fs.writeFile(tempFile, finalSchema);
       
       // Apply to production (will show errors for existing objects, that's OK)
       const { stdout, stderr } = await execAsync(
@@ -1306,10 +1368,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Count results
-      const lines = (stdout + stderr).split('\n');
-      const created = lines.filter(l => l.includes('CREATE')).length;
-      const errors = lines.filter(l => l.includes('ERROR') && l.includes('already exists')).length;
-      const otherErrors = lines.filter(l => l.includes('ERROR') && !l.includes('already exists'));
+      const outputLines = (stdout + stderr).split('\n');
+      const created = outputLines.filter(l => l.includes('CREATE')).length;
+      const errors = outputLines.filter(l => l.includes('ERROR') && l.includes('already exists')).length;
+      const otherErrors = outputLines.filter(l => l.includes('ERROR') && !l.includes('already exists'));
       
       res.json({
         success: true,

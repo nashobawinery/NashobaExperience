@@ -136,6 +136,34 @@ When new modules or features are added to the platform, each User Group needs co
 3. Creates the missing entries with default values
 4. Shows a success message with the count of entries created
 
+### Schema Push to Production
+
+When adding new modules with database tables, the schema must be pushed to production before the module will work there.
+
+#### How to Push Schema
+
+1. Go to **Database Sync** page (Admin Hub → Platform → Environment Data Sync)
+2. Select the **Compare & Sync** tab
+3. Click **Push Schema to Production** button
+
+#### Prerequisites
+
+- The `PROD_DATABASE_URL` secret must be configured in Replit Secrets
+- Only admins can access this feature
+
+#### What It Does
+
+1. Exports schema from development database (tables, indexes, types, sequences only)
+2. Filters to safe CREATE statements with IF NOT EXISTS semantics
+3. Applies to production database without modifying existing tables
+4. Reports count of objects processed
+
+#### Limitations
+
+- Only creates new tables/indexes, does not modify existing table structures
+- Foreign key constraints may not be included if they were defined as separate ALTER statements
+- For structural changes to existing tables, use manual database migrations
+
 ### System Design Choices
 - **Microservices-inspired Modularity**: Modules are designed with independent concerns within a monolithic structure.
 - **API-First Approach**: All functionalities exposed via RESTful APIs.

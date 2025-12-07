@@ -248,9 +248,10 @@ function SchemaPushCard() {
       } else {
         toast({
           title: "Schema Push Failed",
-          description: data.error,
+          description: data.error || data.message || "Unknown error",
           variant: "destructive",
         });
+        setResult({ success: false, message: data.error || data.message || "Unknown error" });
       }
     } catch (error: any) {
       const errorMsg = error.message || "Failed to push schema";
