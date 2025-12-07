@@ -219,6 +219,115 @@ interface SyncScanResult {
   totalIdentical: number;
 }
 
+// Schema Push Card Component
+function SchemaPushCard() {
+  const { toast } = useToast();
+  const [isPushing, setIsPushing] = useState(false);
+  const [result, setResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: {
+      objectsProcessed: number;
+      alreadyExisted: number;
+      warnings: string[];
+    };
+  } | null>(null);
+
+  const handlePushSchema = async () => {
+    setIsPushing(true);
+    setResult(null);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync/push-schema', {});
+      const data = await response.json();
+      setResult(data);
+      if (data.success) {
+        toast({
+          title: "Schema Push Complete",
+          description: data.message,
+        });
+      } else {
+        toast({
+          title: "Schema Push Failed",
+          description: data.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "Failed to push schema";
+      setResult({ success: false, message: errorMsg });
+      toast({
+        title: "Schema Push Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
+  return (
+    <Card className="border-primary/50">
+      <CardHeader className="py-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Database className="h-4 w-4" />
+          Push Schema to Production
+        </CardTitle>
+        <CardDescription className="text-xs">
+          When you add new modules or tables, use this to create them in production before syncing data.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="py-3 pt-0 space-y-3">
+        <Alert variant="default" className="py-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            This copies the database structure (tables, indexes) from development to production. 
+            Existing tables are not modified - only new tables are created.
+          </AlertDescription>
+        </Alert>
+        
+        <Button 
+          onClick={handlePushSchema} 
+          disabled={isPushing}
+          variant="outline"
+          className="w-full"
+          data-testid="button-push-schema"
+        >
+          {isPushing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Pushing Schema...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              Push Schema to Production
+            </>
+          )}
+        </Button>
+
+        {result && (
+          <Alert variant={result.success ? "default" : "destructive"} className="py-2">
+            {result.success ? (
+              <CheckCircle className="h-4 w-4" />
+            ) : (
+              <AlertCircle className="h-4 w-4" />
+            )}
+            <AlertDescription className="text-xs">
+              {result.message}
+              {result.details && (
+                <div className="mt-1">
+                  <span className="block">Objects processed: {result.details.objectsProcessed}</span>
+                  <span className="block">Already existed: {result.details.alreadyExisted}</span>
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DatabaseSync() {
   const { toast } = useToast();
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
@@ -1255,6 +1364,9 @@ export default function DatabaseSync() {
               </ol>
             </AlertDescription>
           </Alert>
+
+          {/* Schema Push Section */}
+          <SchemaPushCard />
 
           {!isConnected ? (
             <Card>

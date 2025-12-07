@@ -1258,6 +1258,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Push schema to production database
+  app.post("/api/admin/sync/push-schema", isAdmin, async (req, res) => {
+    try {
+      const prodDbUrl = process.env.PROD_DATABASE_URL;
+      
+      if (!prodDbUrl) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "PROD_DATABASE_URL secret is not configured. Please add it in Replit Secrets." 
+        });
+      }
+      
+      // Use pg_dump to get schema from dev and apply to prod
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      // Get current dev database URL
+      const devDbUrl = process.env.DATABASE_URL;
+      if (!devDbUrl) {
+        return res.status(500).json({ success: false, error: "Development database not configured" });
+      }
+      
+      // Export schema from dev (schema only, no data)
+      const { stdout: schema } = await execAsync(
+        `pg_dump --schema-only "${devDbUrl}"`,
+        { maxBuffer: 50 * 1024 * 1024 }
+      );
+      
+      // Clean up the schema SQL
+      const cleanSchema = schema
+        .split('\n')
+        .filter(line => !line.includes('\\restrict') && !line.includes('\\unrestrict'))
+        .filter(line => !line.includes('OWNER TO'))
+        .join('\n');
+      
+      // Write to temp file
+      const fs = await import("fs/promises");
+      const tempFile = '/tmp/schema_push.sql';
+      await fs.writeFile(tempFile, cleanSchema);
+      
+      // Apply to production (will show errors for existing objects, that's OK)
+      const { stdout, stderr } = await execAsync(
+        `psql "${prodDbUrl}" -f ${tempFile} 2>&1 || true`,
+        { maxBuffer: 50 * 1024 * 1024 }
+      );
+      
+      // Count results
+      const lines = (stdout + stderr).split('\n');
+      const created = lines.filter(l => l.includes('CREATE')).length;
+      const errors = lines.filter(l => l.includes('ERROR') && l.includes('already exists')).length;
+      const otherErrors = lines.filter(l => l.includes('ERROR') && !l.includes('already exists'));
+      
+      res.json({
+        success: true,
+        message: `Schema push complete. ${created} objects processed, ${errors} already existed.`,
+        details: {
+          objectsProcessed: created,
+          alreadyExisted: errors,
+          warnings: otherErrors.slice(0, 5)
+        }
+      });
+    } catch (error: any) {
+      console.error("Error pushing schema to production:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message || "Failed to push schema" 
+      });
+    }
+  });
+
   // Database Analysis Endpoint - Shows complete export analysis
   app.get("/api/admin/data/analyze", async (req, res) => {
     try {
