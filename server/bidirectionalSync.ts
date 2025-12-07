@@ -354,6 +354,10 @@ export async function scanBidirectional(
       ? SYNC_TABLES.filter(t => config.tableIds!.includes(t.id) && !t.excludeFromSync)
       : SYNC_TABLES.filter(t => !t.excludeFromSync);
     
+    console.log(`[Sync] Scanning ${tablesToScan.length} tables`);
+    const resyTables = tablesToScan.filter(t => t.id.startsWith('resy'));
+    console.log(`[Sync] Resy tables to scan: ${resyTables.length} - ${resyTables.map(t => t.id).join(', ')}`);
+    
     for (const tableConfig of tablesToScan) {
       try {
         const devRecords = await fetchTableData(
@@ -363,6 +367,12 @@ export async function scanBidirectional(
         );
         
         const tableNameSnake = tableConfig.id.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+        
+        // Log resy tables for debugging
+        if (tableConfig.id.startsWith('resy')) {
+          console.log(`[Sync] ${tableConfig.id} -> ${tableNameSnake}: dev=${devRecords.length} rows`);
+        }
+        
         let prodRecords: Record<string, any>[] = [];
         
         try {
