@@ -1551,6 +1551,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `;
       }
       
+      // Check module_features count
+      const featureCount = await prodSql`SELECT COUNT(*) as count FROM module_features`;
+      const featuresByModule = await prodSql`
+        SELECT pm.module_key, COUNT(mf.id) as feature_count 
+        FROM platform_modules pm
+        LEFT JOIN module_features mf ON mf.module_id = pm.id
+        GROUP BY pm.module_key, pm.sort_order
+        ORDER BY pm.sort_order
+      `;
+      
       res.json({
         moduleCount: modules.length,
         modules: modules.map((m: any) => ({ key: m.module_key, name: m.module_name, status: m.status })),
@@ -1558,7 +1568,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         groups: groups.map((g: any) => g.name),
         totalAccessEntries: accessCount[0]?.count || 0,
         accessEntriesWithTrue: accessWithTrue[0]?.count || 0,
-        globalAdminAccess: globalAdminAccess.map((a: any) => ({ module: a.module_key, hasAccess: a.has_access }))
+        globalAdminAccess: globalAdminAccess.map((a: any) => ({ module: a.module_key, hasAccess: a.has_access })),
+        totalFeatures: featureCount[0]?.count || 0,
+        featuresByModule: featuresByModule.map((f: any) => ({ module: f.module_key, features: parseInt(f.feature_count) }))
       });
     } catch (error: any) {
       console.error("Error checking production:", error);
