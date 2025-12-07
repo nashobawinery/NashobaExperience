@@ -680,7 +680,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     sheetName: 'PlatformModules',
     businessKey: ['moduleKey'],
     schema: insertPlatformModuleSchema,
-    exportFields: ['moduleKey', 'moduleName', 'description', 'icon', 'route', 'sortOrder', 'isActive', 'progress', 'notes'],
+    exportFields: ['moduleKey', 'moduleName', 'description', 'icon', 'color', 'routePrefix', 'status', 'progress', 'sortOrder', 'notes'],
     dataType: 'reference',
     supportsBackup: true,
   },
