@@ -1062,7 +1062,7 @@ export async function seedPlatformModules(): Promise<void> {
       icon: 'Wrench',
       color: 'bg-gray-500',
       routePrefix: '/maintenance',
-      status: 'planned',
+      status: 'active',
       sortOrder: 8
     },
     {
@@ -1156,7 +1156,9 @@ export async function seedPlatformModules(): Promise<void> {
         VALUES (${mod.moduleKey}, ${mod.moduleName}, ${mod.description}, ${mod.icon}, ${mod.color}, ${mod.routePrefix}, ${mod.status}, ${mod.sortOrder})
         ON CONFLICT (module_key) DO UPDATE SET
           route_prefix = EXCLUDED.route_prefix,
-          sort_order = EXCLUDED.sort_order
+          sort_order = EXCLUDED.sort_order,
+          status = EXCLUDED.status,
+          description = EXCLUDED.description
       `);
     } catch (err) {
       // Ignore errors for individual modules
