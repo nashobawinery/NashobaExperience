@@ -1111,7 +1111,7 @@ export async function seedPlatformModules(): Promise<void> {
       description: 'Dining reservation system with experience booking, payments, and customer management',
       icon: 'Calendar',
       color: 'bg-rose-500',
-      routePrefix: '/resy',
+      routePrefix: '/reservations',
       status: 'active',
       sortOrder: 13
     },
@@ -1154,7 +1154,9 @@ export async function seedPlatformModules(): Promise<void> {
       await db.execute(sql`
         INSERT INTO platform_modules (module_key, module_name, description, icon, color, route_prefix, status, sort_order)
         VALUES (${mod.moduleKey}, ${mod.moduleName}, ${mod.description}, ${mod.icon}, ${mod.color}, ${mod.routePrefix}, ${mod.status}, ${mod.sortOrder})
-        ON CONFLICT (module_key) DO NOTHING
+        ON CONFLICT (module_key) DO UPDATE SET
+          route_prefix = EXCLUDED.route_prefix,
+          sort_order = EXCLUDED.sort_order
       `);
     } catch (err) {
       // Ignore errors for individual modules
