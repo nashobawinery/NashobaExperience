@@ -1104,6 +1104,46 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/daily-reports',
       status: 'active',
       sortOrder: 12
+    },
+    {
+      moduleKey: 'reservations',
+      moduleName: 'Reservations',
+      description: 'Dining reservation system with experience booking, payments, and customer management',
+      icon: 'Calendar',
+      color: 'bg-rose-500',
+      routePrefix: '/resy',
+      status: 'active',
+      sortOrder: 13
+    },
+    {
+      moduleKey: 'apple_game',
+      moduleName: 'Apple Game',
+      description: 'Interactive apple picking game for guest engagement',
+      icon: 'Gamepad2',
+      color: 'bg-red-500',
+      routePrefix: '/apple-game',
+      status: 'active',
+      sortOrder: 14
+    },
+    {
+      moduleKey: 'procedures',
+      moduleName: 'Daily Procedures',
+      description: 'Staff procedure completion tracking and task management',
+      icon: 'CheckSquare',
+      color: 'bg-cyan-500',
+      routePrefix: '/procedures',
+      status: 'active',
+      sortOrder: 15
+    },
+    {
+      moduleKey: 'support',
+      moduleName: 'Customer Support',
+      description: 'Customer support ticketing and issue resolution',
+      icon: 'MessageCircle',
+      color: 'bg-violet-500',
+      routePrefix: '/support',
+      status: 'development',
+      sortOrder: 16
     }
   ];
 
@@ -1124,6 +1164,46 @@ export async function seedPlatformModules(): Promise<void> {
   const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM platform_modules`);
   const count = (countResult.rows[0] as any)?.count || 0;
   console.log(`[RBAC] Platform modules: ${count} total`);
+  
+  // Auto-grant Global Admin access to all modules
+  await syncGlobalAdminAccess();
+}
+
+/**
+ * Ensure Global Admin group has access to all platform modules
+ * This runs on every startup to catch newly added modules
+ */
+async function syncGlobalAdminAccess(): Promise<void> {
+  try {
+    // Get Global Admin group
+    const adminResult = await db.execute(sql`
+      SELECT id FROM user_groups WHERE name = 'Global Admin' AND active = true
+    `);
+    
+    if (adminResult.rows.length === 0) {
+      console.log('[RBAC] Global Admin group not found, skipping access sync');
+      return;
+    }
+    
+    const adminGroupId = (adminResult.rows[0] as any).id;
+    
+    // Get all modules
+    const modulesResult = await db.execute(sql`SELECT id FROM platform_modules`);
+    
+    // Upsert access for each module
+    for (const mod of modulesResult.rows) {
+      const moduleId = (mod as any).id;
+      await db.execute(sql`
+        INSERT INTO group_module_access (group_id, module_id, has_access)
+        VALUES (${adminGroupId}, ${moduleId}, true)
+        ON CONFLICT (group_id, module_id) DO UPDATE SET has_access = true
+      `);
+    }
+    
+    console.log(`[RBAC] Global Admin access synced for ${modulesResult.rows.length} modules`);
+  } catch (err) {
+    console.error('[RBAC] Error syncing Global Admin access:', err);
+  }
 }
 
 /**
