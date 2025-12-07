@@ -1522,6 +1522,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Diagnostic endpoint to check production database
+  app.get("/api/admin/sync/prod-check", async (req, res) => {
+    try {
+      const prodUrl = process.env.PROD_DATABASE_URL;
+      if (!prodUrl) {
+        return res.status(400).json({ error: "PROD_DATABASE_URL not configured" });
+      }
+      
+      const { neon } = await import('@neondatabase/serverless');
+      const prodSql = neon(prodUrl);
+      
+      const modules = await prodSql`SELECT module_key, module_name, status FROM platform_modules ORDER BY sort_order`;
+      const groups = await prodSql`SELECT id, name FROM user_groups WHERE active = true`;
+      const accessCount = await prodSql`SELECT COUNT(*) as count FROM group_module_access`;
+      const accessWithTrue = await prodSql`SELECT COUNT(*) as count FROM group_module_access WHERE has_access = true`;
+      
+      // Check Global Admin access specifically
+      const globalAdminGroup = await prodSql`SELECT id FROM user_groups WHERE name = 'Global Admin' LIMIT 1`;
+      let globalAdminAccess: any[] = [];
+      if (globalAdminGroup.length > 0) {
+        globalAdminAccess = await prodSql`
+          SELECT pm.module_key, gma.has_access 
+          FROM group_module_access gma
+          JOIN platform_modules pm ON pm.id = gma.module_id
+          WHERE gma.group_id = ${globalAdminGroup[0].id}
+          ORDER BY pm.sort_order
+        `;
+      }
+      
+      res.json({
+        moduleCount: modules.length,
+        modules: modules.map((m: any) => ({ key: m.module_key, name: m.module_name, status: m.status })),
+        groupCount: groups.length,
+        groups: groups.map((g: any) => g.name),
+        totalAccessEntries: accessCount[0]?.count || 0,
+        accessEntriesWithTrue: accessWithTrue[0]?.count || 0,
+        globalAdminAccess: globalAdminAccess.map((a: any) => ({ module: a.module_key, hasAccess: a.has_access }))
+      });
+    } catch (error: any) {
+      console.error("Error checking production:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Fix Global Admin access in production
+  app.post("/api/admin/sync/fix-admin-access", async (req, res) => {
+    try {
+      const prodUrl = process.env.PROD_DATABASE_URL;
+      if (!prodUrl) {
+        return res.status(400).json({ error: "PROD_DATABASE_URL not configured" });
+      }
+      
+      const { neon } = await import('@neondatabase/serverless');
+      const prodSql = neon(prodUrl);
+      
+      // Get Global Admin group
+      const globalAdminGroup = await prodSql`SELECT id FROM user_groups WHERE name = 'Global Admin' LIMIT 1`;
+      if (globalAdminGroup.length === 0) {
+        return res.status(404).json({ error: "Global Admin group not found" });
+      }
+      
+      // Update all module access entries to true for Global Admin
+      const result = await prodSql`
+        UPDATE group_module_access 
+        SET has_access = true 
+        WHERE group_id = ${globalAdminGroup[0].id}
+      `;
+      
+      res.json({
+        success: true,
+        message: `Updated Global Admin access for all modules`
+      });
+    } catch (error: any) {
+      console.error("Error fixing admin access:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Database Analysis Endpoint - Shows complete export analysis
   app.get("/api/admin/data/analyze", async (req, res) => {
     try {
