@@ -4956,6 +4956,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // =====================================================
+  // MODULE MANAGEMENT ROUTES (Admin)
+  // =====================================================
+
+  // Get all modules with full details for admin management
+  app.get('/api/admin/modules', isAdmin, async (req, res) => {
+    try {
+      const modules = await db.execute(sql`
+        SELECT 
+          id,
+          module_key,
+          module_name,
+          description,
+          icon,
+          color,
+          route_prefix,
+          status,
+          sort_order,
+          launch_date,
+          created_at,
+          updated_at
+        FROM platform_modules
+        ORDER BY sort_order ASC
+      `);
+      res.json(modules.rows);
+    } catch (error) {
+      console.error('Error fetching admin modules:', error);
+      res.status(500).json({ message: 'Failed to fetch modules' });
+    }
+  });
+
+  // Update a module's metadata
+  app.patch('/api/admin/modules/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { module_name, description, icon, color, status, sort_order } = req.body;
+      
+      // Validate status if provided
+      const validStatuses = ['active', 'development', 'planned', 'inactive'];
+      if (status !== undefined && !validStatuses.includes(status)) {
+        return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      }
+      
+      // Validate sort_order if provided
+      if (sort_order !== undefined && (typeof sort_order !== 'number' || sort_order < 0)) {
+        return res.status(400).json({ message: 'Sort order must be a non-negative number' });
+      }
+      
+      // Validate module_name if provided
+      if (module_name !== undefined && (typeof module_name !== 'string' || module_name.trim().length === 0)) {
+        return res.status(400).json({ message: 'Module name must be a non-empty string' });
+      }
+      
+      const result = await db.execute(sql`
+        UPDATE platform_modules
+        SET 
+          module_name = COALESCE(${module_name}, module_name),
+          description = COALESCE(${description}, description),
+          icon = COALESCE(${icon}, icon),
+          color = COALESCE(${color}, color),
+          status = COALESCE(${status}, status),
+          sort_order = COALESCE(${sort_order}, sort_order),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Module not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating module:', error);
+      res.status(500).json({ message: 'Failed to update module' });
+    }
+  });
+
+  // =====================================================
   // RBAC (ROLE-BASED ACCESS CONTROL) ROUTES
   // =====================================================
   

@@ -17,6 +17,7 @@ const AdminHub = lazy(() => import("@/pages/AdminHub"));
 const DatabaseSync = lazy(() => import("@/pages/DatabaseSync"));
 const ModuleDirectory = lazy(() => import("@/pages/ModuleDirectory"));
 const AccessControl = lazy(() => import("@/pages/AccessControl"));
+const ModuleManagement = lazy(() => import("@/pages/ModuleManagement"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
 const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
@@ -238,6 +239,24 @@ function AccessControlRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <AccessControl />
+    </Suspense>
+  );
+}
+
+function ModuleManagementRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ModuleManagement />
     </Suspense>
   );
 }
@@ -611,6 +630,7 @@ function Router() {
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/access-control" component={AccessControlRoute} />
+        <Route path="/module-management" component={ModuleManagementRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />

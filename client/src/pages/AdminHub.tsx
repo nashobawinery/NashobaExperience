@@ -182,6 +182,15 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
                   <Shield className="h-4 w-4 mr-2" />
                   Access Control
                 </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setLocation('/module-management')}
+                  data-testid="button-module-management"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Modules
+                </Button>
               </>
             )}
             <Button variant="ghost" size="icon" data-testid="button-notifications">
