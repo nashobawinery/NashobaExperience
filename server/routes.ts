@@ -1578,6 +1578,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add missing modules to the local database (call from production to fix production)
+  app.post("/api/admin/add-missing-modules", async (req, res) => {
+    try {
+      const missingModules = [
+        { key: 'reservations', name: 'Reservations', icon: 'Calendar', status: 'active', sortOrder: 7, description: 'Dining reservation system' },
+        { key: 'procedures', name: 'Daily Procedures', icon: 'ClipboardCheck', status: 'active', sortOrder: 9, description: 'Daily task procedures' },
+        { key: 'support', name: 'Customer Support', icon: 'Headphones', status: 'development', sortOrder: 10, description: 'Customer support ticketing' },
+        { key: 'apple_game', name: 'Apple Game', icon: 'Gamepad2', status: 'active', sortOrder: 14, description: 'Interactive apple picking game' },
+      ];
+      
+      const results = [];
+      for (const mod of missingModules) {
+        // Check if module exists
+        const existing = await db.execute(sql`
+          SELECT id FROM platform_modules WHERE module_key = ${mod.key}
+        `);
+        
+        if (existing.rows.length === 0) {
+          // Insert the module
+          const inserted = await db.execute(sql`
+            INSERT INTO platform_modules (module_key, module_name, icon, status, sort_order, description)
+            VALUES (${mod.key}, ${mod.name}, ${mod.icon}, ${mod.status}, ${mod.sortOrder}, ${mod.description})
+            RETURNING id, module_key
+          `);
+          results.push({ module: mod.key, action: 'inserted', id: (inserted.rows[0] as any)?.id });
+          
+          // Also add access entries for all groups
+          const groups = await db.execute(sql`SELECT id FROM user_groups WHERE active = true`);
+          const moduleId = (inserted.rows[0] as any)?.id;
+          
+          for (const group of groups.rows) {
+            const groupId = (group as any).id;
+            // Global Admin gets access, others don't by default
+            const hasAccess = (await db.execute(sql`
+              SELECT name FROM user_groups WHERE id = ${groupId}
+            `)).rows[0];
+            const isGlobalAdmin = (hasAccess as any)?.name === 'Global Admin';
+            
+            await db.execute(sql`
+              INSERT INTO group_module_access (group_id, module_id, has_access)
+              VALUES (${groupId}, ${moduleId}, ${isGlobalAdmin})
+              ON CONFLICT (group_id, module_id) DO NOTHING
+            `);
+          }
+        } else {
+          results.push({ module: mod.key, action: 'already exists' });
+        }
+      }
+      
+      // Get final count
+      const finalCount = await db.execute(sql`SELECT COUNT(*) as count FROM platform_modules`);
+      
+      res.json({
+        success: true,
+        results,
+        totalModules: (finalCount.rows[0] as any)?.count
+      });
+    } catch (error: any) {
+      console.error("Error adding missing modules:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Diagnostic endpoint that runs on ANY environment to show local db state
   // Call this on production site to see what production database contains
   app.get("/api/admin/db-diagnostic", async (req, res) => {
