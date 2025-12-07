@@ -22,44 +22,44 @@ import {
 import { format } from "date-fns";
 
 type MaintenanceStats = {
-  operational_assets: number;
-  assets_under_maintenance: number;
-  open_work_orders: number;
-  in_progress_work_orders: number;
-  completed_this_month: number;
-  critical_work_orders: number;
-  low_stock_parts: number;
-  upcoming_pm: number;
+  operationalAssets: number;
+  assetsUnderMaintenance: number;
+  openWorkOrders: number;
+  inProgressWorkOrders: number;
+  completedThisMonth: number;
+  criticalWorkOrders: number;
+  lowStockParts: number;
+  upcomingPm: number;
 };
 
 type WorkOrder = {
   id: string;
-  work_order_number: string;
+  workOrderNumber: string;
   title: string;
   description: string;
-  asset_id: string;
-  asset_name: string;
-  asset_number: string;
-  location_name: string;
-  work_order_type: string;
+  assetId: string;
+  assetName?: string;
+  assetNumber?: string;
+  locationName?: string;
+  workOrderType: string;
   priority: string;
   status: string;
-  due_date: string;
-  assignee_first_name: string;
-  assignee_last_name: string;
-  requester_first_name: string;
-  requester_last_name: string;
-  created_at: string;
+  dueDate: string;
+  assigneeFirstName?: string;
+  assigneeLastName?: string;
+  requesterFirstName?: string;
+  requesterLastName?: string;
+  createdAt: string;
 };
 
 type Asset = {
   id: string;
-  asset_number: string;
+  assetNumber: string;
   name: string;
   description: string;
-  category_name: string;
-  category_icon: string;
-  location_name: string;
+  categoryName?: string;
+  categoryIcon?: string;
+  locationName?: string;
   manufacturer: string;
   model: string;
   status: string;
@@ -68,29 +68,29 @@ type Asset = {
 
 type Part = {
   id: string;
-  part_number: string;
+  partNumber: string;
   name: string;
   description: string;
   category: string;
-  location_name: string;
-  bin_location: string;
-  quantity_on_hand: number;
-  minimum_stock: number;
-  reorder_point: number;
-  unit_cost: string;
-  preferred_vendor: string;
+  locationName?: string;
+  binLocation: string;
+  quantityOnHand: number;
+  minimumStock: number;
+  reorderPoint: number;
+  unitCost: string;
+  preferredVendor: string;
 };
 
 type PreventiveSchedule = {
   id: string;
   name: string;
-  asset_name: string;
-  asset_number: string;
+  assetName?: string;
+  assetNumber?: string;
   frequency: string;
-  next_due: string;
-  work_order_title: string;
-  assignee_first_name: string;
-  assignee_last_name: string;
+  nextDue: string;
+  workOrderTitle?: string;
+  assigneeFirstName?: string;
+  assigneeLastName?: string;
   active: boolean;
 };
 
@@ -150,11 +150,11 @@ export default function MaintenanceDashboard() {
     queryKey: ["/api/maintenance/categories"],
   });
 
-  const { data: locations = [] } = useQuery<Array<{ id: string; location_name: string }>>({
+  const { data: locations = [] } = useQuery<Array<{ id: string; locationName: string }>>({
     queryKey: ["/api/shared/locations"],
   });
 
-  const { data: users = [] } = useQuery<Array<{ id: string; first_name: string; last_name: string }>>({
+  const { data: users = [] } = useQuery<Array<{ id: string; firstName: string; lastName: string }>>({
     queryKey: ["/api/platform-users"],
   });
 
@@ -220,14 +220,14 @@ export default function MaintenanceDashboard() {
   const filteredWorkOrders = workOrders.filter((wo) => {
     const matchesSearch = searchQuery === "" || 
       wo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wo.work_order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wo.asset_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      wo.workOrderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      wo.assetName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || wo.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || wo.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  const lowStockParts = parts.filter(p => p.quantity_on_hand <= p.reorder_point);
+  const lowStockParts = parts.filter(p => p.quantityOnHand <= p.reorderPoint);
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
@@ -310,51 +310,51 @@ export default function MaintenanceDashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard
                 title="Operational Assets"
-                value={stats?.operational_assets || 0}
+                value={stats?.operationalAssets || 0}
                 icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
                 testId="stat-operational-assets"
               />
               <StatCard
                 title="Under Maintenance"
-                value={stats?.assets_under_maintenance || 0}
+                value={stats?.assetsUnderMaintenance || 0}
                 icon={<Wrench className="w-5 h-5 text-yellow-500" />}
                 testId="stat-under-maintenance"
               />
               <StatCard
                 title="Open Work Orders"
-                value={stats?.open_work_orders || 0}
+                value={stats?.openWorkOrders || 0}
                 icon={<ClipboardList className="w-5 h-5 text-blue-500" />}
                 testId="stat-open-wo"
               />
               <StatCard
                 title="Critical Issues"
-                value={stats?.critical_work_orders || 0}
+                value={stats?.criticalWorkOrders || 0}
                 icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
-                variant={stats?.critical_work_orders ? "destructive" : "default"}
+                variant={stats?.criticalWorkOrders ? "destructive" : "default"}
                 testId="stat-critical"
               />
               <StatCard
                 title="In Progress"
-                value={stats?.in_progress_work_orders || 0}
+                value={stats?.inProgressWorkOrders || 0}
                 icon={<Clock className="w-5 h-5 text-purple-500" />}
                 testId="stat-in-progress"
               />
               <StatCard
                 title="Completed This Month"
-                value={stats?.completed_this_month || 0}
+                value={stats?.completedThisMonth || 0}
                 icon={<TrendingUp className="w-5 h-5 text-green-500" />}
                 testId="stat-completed"
               />
               <StatCard
                 title="Low Stock Parts"
-                value={stats?.low_stock_parts || 0}
+                value={stats?.lowStockParts || 0}
                 icon={<Package className="w-5 h-5 text-orange-500" />}
-                variant={stats?.low_stock_parts ? "warning" : "default"}
+                variant={stats?.lowStockParts ? "warning" : "default"}
                 testId="stat-low-stock"
               />
               <StatCard
                 title="Upcoming PM"
-                value={stats?.upcoming_pm || 0}
+                value={stats?.upcomingPm || 0}
                 icon={<Calendar className="w-5 h-5 text-blue-500" />}
                 testId="stat-upcoming-pm"
               />
@@ -378,12 +378,12 @@ export default function MaintenanceDashboard() {
                           .map(wo => (
                             <div key={wo.id} className="p-3 rounded-lg border hover-elevate">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium text-sm">{wo.work_order_number}</span>
+                                <span className="font-medium text-sm">{wo.workOrderNumber}</span>
                                 <Badge className={statusColors[wo.status]}>{wo.status.replace('_', ' ')}</Badge>
                               </div>
                               <p className="text-sm mt-1">{wo.title}</p>
-                              {wo.asset_name && (
-                                <p className="text-xs text-muted-foreground mt-1">{wo.asset_name}</p>
+                              {wo.assetName && (
+                                <p className="text-xs text-muted-foreground mt-1">{wo.assetName}</p>
                               )}
                             </div>
                           ))}
@@ -407,14 +407,14 @@ export default function MaintenanceDashboard() {
                         {lowStockParts.slice(0, 5).map(part => (
                           <div key={part.id} className="p-3 rounded-lg border hover-elevate">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium text-sm">{part.part_number}</span>
+                              <span className="font-medium text-sm">{part.partNumber}</span>
                               <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                                {part.quantity_on_hand} left
+                                {part.quantityOnHand} left
                               </Badge>
                             </div>
                             <p className="text-sm mt-1">{part.name}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Reorder at: {part.reorder_point} | Vendor: {part.preferred_vendor || 'N/A'}
+                              Reorder at: {part.reorderPoint} | Vendor: {part.preferredVendor || 'N/A'}
                             </p>
                           </div>
                         ))}
@@ -501,14 +501,14 @@ export default function MaintenanceDashboard() {
                       ) : (
                         filteredWorkOrders.map((wo) => (
                           <TableRow key={wo.id} data-testid={`row-work-order-${wo.id}`}>
-                            <TableCell className="font-medium">{wo.work_order_number}</TableCell>
+                            <TableCell className="font-medium">{wo.workOrderNumber}</TableCell>
                             <TableCell>
                               <div>
                                 <p className="font-medium">{wo.title}</p>
-                                <p className="text-xs text-muted-foreground">{wo.work_order_type}</p>
+                                <p className="text-xs text-muted-foreground">{wo.workOrderType}</p>
                               </div>
                             </TableCell>
-                            <TableCell>{wo.asset_name || '-'}</TableCell>
+                            <TableCell>{wo.assetName || '-'}</TableCell>
                             <TableCell>
                               <Badge className={priorityColors[wo.priority]}>
                                 {wo.priority}
@@ -520,10 +520,10 @@ export default function MaintenanceDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {wo.assignee_first_name ? `${wo.assignee_first_name} ${wo.assignee_last_name}` : '-'}
+                              {wo.assigneeFirstName ? `${wo.assigneeFirstName} ${wo.assigneeLastName}` : '-'}
                             </TableCell>
                             <TableCell>
-                              {wo.due_date ? format(new Date(wo.due_date), 'MMM d, yyyy') : '-'}
+                              {wo.dueDate ? format(new Date(wo.dueDate), 'MMM d, yyyy') : '-'}
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
@@ -604,15 +604,15 @@ export default function MaintenanceDashboard() {
                       ) : (
                         assets.map((asset) => (
                           <TableRow key={asset.id} data-testid={`row-asset-${asset.id}`}>
-                            <TableCell className="font-medium">{asset.asset_number}</TableCell>
+                            <TableCell className="font-medium">{asset.assetNumber}</TableCell>
                             <TableCell>
                               <div>
                                 <p className="font-medium">{asset.name}</p>
                                 {asset.model && <p className="text-xs text-muted-foreground">{asset.model}</p>}
                               </div>
                             </TableCell>
-                            <TableCell>{asset.category_name || '-'}</TableCell>
-                            <TableCell>{asset.location_name || '-'}</TableCell>
+                            <TableCell>{asset.categoryName || '-'}</TableCell>
+                            <TableCell>{asset.locationName || '-'}</TableCell>
                             <TableCell>
                               <Badge className={assetStatusColors[asset.status]}>
                                 {asset.status}
@@ -692,23 +692,23 @@ export default function MaintenanceDashboard() {
                           <TableRow 
                             key={part.id} 
                             data-testid={`row-part-${part.id}`}
-                            className={part.quantity_on_hand <= part.reorder_point ? "bg-orange-50 dark:bg-orange-950/20" : ""}
+                            className={part.quantityOnHand <= part.reorderPoint ? "bg-orange-50 dark:bg-orange-950/20" : ""}
                           >
-                            <TableCell className="font-medium">{part.part_number}</TableCell>
+                            <TableCell className="font-medium">{part.partNumber}</TableCell>
                             <TableCell>{part.name}</TableCell>
                             <TableCell>{part.category || '-'}</TableCell>
                             <TableCell>
-                              {part.location_name || '-'}
-                              {part.bin_location && <span className="text-xs text-muted-foreground ml-1">({part.bin_location})</span>}
+                              {part.locationName || '-'}
+                              {part.binLocation && <span className="text-xs text-muted-foreground ml-1">({part.binLocation})</span>}
                             </TableCell>
                             <TableCell>
-                              <span className={part.quantity_on_hand <= part.reorder_point ? "text-orange-600 font-medium" : ""}>
-                                {part.quantity_on_hand}
+                              <span className={part.quantityOnHand <= part.reorderPoint ? "text-orange-600 font-medium" : ""}>
+                                {part.quantityOnHand}
                               </span>
                             </TableCell>
-                            <TableCell>{part.reorder_point}</TableCell>
-                            <TableCell>${Number(part.unit_cost || 0).toFixed(2)}</TableCell>
-                            <TableCell>{part.preferred_vendor || '-'}</TableCell>
+                            <TableCell>{part.reorderPoint}</TableCell>
+                            <TableCell>${Number(part.unitCost || 0).toFixed(2)}</TableCell>
+                            <TableCell>{part.preferredVendor || '-'}</TableCell>
                           </TableRow>
                         ))
                       )}
@@ -759,20 +759,20 @@ export default function MaintenanceDashboard() {
                           <TableRow key={pm.id} data-testid={`row-pm-${pm.id}`}>
                             <TableCell className="font-medium">{pm.name}</TableCell>
                             <TableCell>
-                              {pm.asset_name ? (
+                              {pm.assetName ? (
                                 <div>
-                                  <p>{pm.asset_name}</p>
-                                  <p className="text-xs text-muted-foreground">{pm.asset_number}</p>
+                                  <p>{pm.assetName}</p>
+                                  <p className="text-xs text-muted-foreground">{pm.assetNumber}</p>
                                 </div>
                               ) : '-'}
                             </TableCell>
-                            <TableCell>{pm.work_order_title}</TableCell>
+                            <TableCell>{pm.workOrderTitle}</TableCell>
                             <TableCell className="capitalize">{pm.frequency}</TableCell>
                             <TableCell>
-                              {pm.next_due ? format(new Date(pm.next_due), 'MMM d, yyyy') : '-'}
+                              {pm.nextDue ? format(new Date(pm.nextDue), 'MMM d, yyyy') : '-'}
                             </TableCell>
                             <TableCell>
-                              {pm.assignee_first_name ? `${pm.assignee_first_name} ${pm.assignee_last_name}` : '-'}
+                              {pm.assigneeFirstName ? `${pm.assigneeFirstName} ${pm.assigneeLastName}` : '-'}
                             </TableCell>
                             <TableCell>
                               <Badge variant={pm.active ? "default" : "secondary"}>
@@ -897,7 +897,7 @@ function NewWorkOrderForm({
             <SelectContent>
               {assets.map((asset) => (
                 <SelectItem key={asset.id} value={asset.id}>
-                  {asset.asset_number} - {asset.name}
+                  {asset.assetNumber} - {asset.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -912,7 +912,7 @@ function NewWorkOrderForm({
             <SelectContent>
               {locations.map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.location_name}
+                  {loc.locationName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -956,7 +956,7 @@ function NewWorkOrderForm({
             <SelectContent>
               {users.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
-                  {user.first_name} {user.last_name}
+                  {user.firstName} {user.lastName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1082,7 +1082,7 @@ function NewAssetForm({
             <SelectContent>
               {locations.map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.location_name}
+                  {loc.locationName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1245,7 +1245,7 @@ function NewPartForm({
             <SelectContent>
               {locations.map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.location_name}
+                  {loc.locationName}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -20,47 +20,47 @@ import { format } from "date-fns";
 
 type WorkOrder = {
   id: string;
-  work_order_number: string;
+  workOrderNumber: string;
   title: string;
   description: string;
-  asset_id: string;
-  asset_name: string;
-  asset_number: string;
-  asset_image: string;
-  location_name: string;
-  work_order_type: string;
+  assetId: string;
+  assetName?: string;
+  assetNumber?: string;
+  assetImage?: string;
+  locationName?: string;
+  workOrderType: string;
   priority: string;
   status: string;
-  due_date: string;
-  scheduled_start: string;
-  scheduled_end: string;
-  actual_start: string;
-  actual_end: string;
-  estimated_hours: string;
-  actual_hours: string;
-  instructions: string;
-  checklist_items: Array<{ item: string; checked: boolean; notes?: string }>;
-  completion_notes: string;
-  assignee_first_name: string;
-  assignee_last_name: string;
-  requester_first_name: string;
-  requester_last_name: string;
-  requester_email: string;
-  created_at: string;
-  comments: Array<{
+  dueDate: string;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  actualStart?: string;
+  actualEnd?: string;
+  estimatedHours?: string;
+  actualHours?: string;
+  instructions?: string;
+  checklistItems?: Array<{ item: string; checked: boolean; notes?: string }>;
+  completionNotes?: string;
+  assigneeFirstName?: string;
+  assigneeLastName?: string;
+  requesterFirstName?: string;
+  requesterLastName?: string;
+  requesterEmail?: string;
+  createdAt: string;
+  comments?: Array<{
     id: string;
     comment: string;
-    first_name: string;
-    last_name: string;
-    created_at: string;
-    is_system_generated: boolean;
+    firstName: string;
+    lastName: string;
+    createdAt: string;
+    isSystemGenerated: boolean;
   }>;
-  partsUsed: Array<{
+  partsUsed?: Array<{
     id: string;
-    part_name: string;
-    part_number: string;
+    partName: string;
+    partNumber: string;
     quantity: number;
-    total_cost: string;
+    totalCost: string;
   }>;
 };
 
@@ -250,24 +250,24 @@ function WorkOrderCard({
                 {workOrder.status.replace('_', ' ')}
               </Badge>
             </div>
-            <p className="font-medium text-sm mb-1">{workOrder.work_order_number}</p>
+            <p className="font-medium text-sm mb-1">{workOrder.workOrderNumber}</p>
             <p className="font-medium truncate">{workOrder.title}</p>
-            {workOrder.asset_name && (
+            {workOrder.assetName && (
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
                 <Wrench className="w-3 h-3" />
-                {workOrder.asset_name}
+                {workOrder.assetName}
               </p>
             )}
-            {workOrder.location_name && (
+            {workOrder.locationName && (
               <p className="text-sm text-muted-foreground flex items-center gap-1">
                 <MapPin className="w-3 h-3" />
-                {workOrder.location_name}
+                {workOrder.locationName}
               </p>
             )}
-            {workOrder.due_date && (
+            {workOrder.dueDate && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3" />
-                Due: {format(new Date(workOrder.due_date), 'MMM d, yyyy')}
+                Due: {format(new Date(workOrder.dueDate), 'MMM d, yyyy')}
               </p>
             )}
           </div>
@@ -296,7 +296,7 @@ function WorkOrderDetailView({
   isAddingComment: boolean;
 }) {
   const [completionNotes, setCompletionNotes] = useState("");
-  const [actualHours, setActualHours] = useState(workOrder.estimated_hours || "");
+  const [actualHours, setActualHours] = useState(workOrder.estimatedHours || "");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [newComment, setNewComment] = useState("");
 
@@ -314,7 +314,7 @@ function WorkOrderDetailView({
         </Button>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">{workOrder.work_order_number}</p>
+            <p className="text-sm text-muted-foreground">{workOrder.workOrderNumber}</p>
             <h1 className="text-lg font-bold">{workOrder.title}</h1>
           </div>
           <Badge className={priorityColors[workOrder.priority]}>
@@ -338,36 +338,36 @@ function WorkOrderDetailView({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Type</span>
-                <span className="text-sm capitalize">{workOrder.work_order_type}</span>
+                <span className="text-sm capitalize">{workOrder.workOrderType}</span>
               </div>
-              {workOrder.asset_name && (
+              {workOrder.assetName && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Asset</span>
-                  <span className="text-sm">{workOrder.asset_name}</span>
+                  <span className="text-sm">{workOrder.assetName}</span>
                 </div>
               )}
-              {workOrder.location_name && (
+              {workOrder.locationName && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Location</span>
-                  <span className="text-sm">{workOrder.location_name}</span>
+                  <span className="text-sm">{workOrder.locationName}</span>
                 </div>
               )}
-              {workOrder.due_date && (
+              {workOrder.dueDate && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Due Date</span>
-                  <span className="text-sm">{format(new Date(workOrder.due_date), 'MMM d, yyyy')}</span>
+                  <span className="text-sm">{format(new Date(workOrder.dueDate), 'MMM d, yyyy')}</span>
                 </div>
               )}
-              {workOrder.estimated_hours && (
+              {workOrder.estimatedHours && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Estimated Hours</span>
-                  <span className="text-sm">{workOrder.estimated_hours}h</span>
+                  <span className="text-sm">{workOrder.estimatedHours}h</span>
                 </div>
               )}
-              {workOrder.requester_first_name && (
+              {workOrder.requesterFirstName && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Requested By</span>
-                  <span className="text-sm">{workOrder.requester_first_name} {workOrder.requester_last_name}</span>
+                  <span className="text-sm">{workOrder.requesterFirstName} {workOrder.requesterLastName}</span>
                 </div>
               )}
             </CardContent>
@@ -398,14 +398,14 @@ function WorkOrderDetailView({
             </Card>
           )}
 
-          {workOrder.checklist_items && workOrder.checklist_items.length > 0 && (
+          {workOrder.checklistItems && workOrder.checklistItems.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Checklist</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {workOrder.checklist_items.map((item, idx) => (
+                  {workOrder.checklistItems.map((item, idx) => (
                     <div key={idx} className="flex items-start gap-2 p-2 rounded border">
                       <input 
                         type="checkbox" 
@@ -434,12 +434,12 @@ function WorkOrderDetailView({
                   {workOrder.partsUsed.map((part) => (
                     <div key={part.id} className="flex items-center justify-between p-2 rounded border">
                       <div>
-                        <p className="text-sm font-medium">{part.part_name}</p>
-                        <p className="text-xs text-muted-foreground">{part.part_number}</p>
+                        <p className="text-sm font-medium">{part.partName}</p>
+                        <p className="text-xs text-muted-foreground">{part.partNumber}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm">Qty: {part.quantity}</p>
-                        <p className="text-xs text-muted-foreground">${Number(part.total_cost || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">${Number(part.totalCost || 0).toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
@@ -464,10 +464,10 @@ function WorkOrderDetailView({
                   <div key={comment.id} className="p-3 rounded-lg bg-muted/50">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium">
-                        {comment.first_name} {comment.last_name}
+                        {comment.firstName} {comment.lastName}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(comment.created_at), 'MMM d, h:mm a')}
+                        {format(new Date(comment.createdAt), 'MMM d, h:mm a')}
                       </span>
                     </div>
                     <p className="text-sm">{comment.comment}</p>
