@@ -36,6 +36,10 @@ const ComplianceAdminDashboard = lazy(() => import("@/pages/compliance/Complianc
 const DailyReportsAdminDashboard = lazy(() => import("@/pages/daily-reports/DailyReportsAdminDashboard"));
 const PublicDailyReportForm = lazy(() => import("@/pages/daily-reports/PublicDailyReportForm"));
 
+// Lazy load Maintenance module
+const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
+const TechnicianWorkOrders = lazy(() => import("@/pages/maintenance/TechnicianWorkOrders"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -302,6 +306,42 @@ function ComplianceAdminRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ComplianceAdminDashboard />
+    </Suspense>
+  );
+}
+
+function MaintenanceAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <MaintenanceDashboard />
+    </Suspense>
+  );
+}
+
+function TechnicianWorkOrdersRoute() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <TechnicianWorkOrders />
     </Suspense>
   );
 }
@@ -669,6 +709,9 @@ function Router() {
         <Route path="/lms" component={LmsLearnerRoute} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
+        <Route path="/maintenance" component={MaintenanceAdminRoute} />
+        <Route path="/maintenance/admin" component={MaintenanceAdminRoute} />
+        <Route path="/maintenance/work-orders" component={TechnicianWorkOrdersRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}
