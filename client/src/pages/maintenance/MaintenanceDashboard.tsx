@@ -17,7 +17,8 @@ import { Separator } from "@/components/ui/separator";
 import { 
   Wrench, AlertTriangle, CheckCircle2, Clock, Package, 
   Plus, Settings, Calendar, BarChart3, Search, Filter,
-  ClipboardList, Cog, Box, Users, FileText, TrendingUp
+  ClipboardList, Cog, Box, Users, FileText, TrendingUp,
+  MapPin, Phone, Building2, UserCog, Trash2, Edit
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -94,6 +95,34 @@ type PreventiveSchedule = {
   active: boolean;
 };
 
+type Location = {
+  id: string;
+  locationName: string;
+  locationType: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  phoneNumber?: string;
+  managerUserId?: string;
+  managerFirstName?: string;
+  managerLastName?: string;
+  active: boolean;
+};
+
+type Technician = {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  specialties: string[];
+  certifications: string[];
+  locationName?: string;
+  phoneNumber?: string;
+  available: boolean;
+};
+
 const priorityColors: Record<string, string> = {
   critical: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   high: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
@@ -125,6 +154,10 @@ export default function MaintenanceDashboard() {
   const [showNewWorkOrderDialog, setShowNewWorkOrderDialog] = useState(false);
   const [showNewAssetDialog, setShowNewAssetDialog] = useState(false);
   const [showNewPartDialog, setShowNewPartDialog] = useState(false);
+  const [showNewLocationDialog, setShowNewLocationDialog] = useState(false);
+  const [showNewTechnicianDialog, setShowNewTechnicianDialog] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [editingTechnician, setEditingTechnician] = useState<Technician | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<MaintenanceStats>({
     queryKey: ["/api/maintenance/stats"],
@@ -150,12 +183,16 @@ export default function MaintenanceDashboard() {
     queryKey: ["/api/maintenance/categories"],
   });
 
-  const { data: locations = [] } = useQuery<Array<{ id: string; locationName: string }>>({
+  const { data: locations = [] } = useQuery<Location[]>({
     queryKey: ["/api/shared/locations"],
   });
 
   const { data: users = [] } = useQuery<Array<{ id: string; firstName: string; lastName: string }>>({
     queryKey: ["/api/platform-users"],
+  });
+
+  const { data: technicians = [] } = useQuery<Technician[]>({
+    queryKey: ["/api/maintenance/technicians"],
   });
 
   const createWorkOrderMutation = useMutation({
@@ -214,6 +251,90 @@ export default function MaintenanceDashboard() {
     },
     onError: () => {
       toast({ title: "Failed to update work order", variant: "destructive" });
+    },
+  });
+
+  // Location mutations
+  const createLocationMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      return apiRequest("POST", "/api/shared/locations", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      setShowNewLocationDialog(false);
+      toast({ title: "Location created successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create location", variant: "destructive" });
+    },
+  });
+
+  const updateLocationMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      return apiRequest("PUT", `/api/shared/locations/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      setEditingLocation(null);
+      toast({ title: "Location updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update location", variant: "destructive" });
+    },
+  });
+
+  const deleteLocationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/shared/locations/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      toast({ title: "Location deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete location", variant: "destructive" });
+    },
+  });
+
+  // Technician mutations
+  const createTechnicianMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      return apiRequest("POST", "/api/maintenance/technicians", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/technicians"] });
+      setShowNewTechnicianDialog(false);
+      toast({ title: "Technician added successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add technician", variant: "destructive" });
+    },
+  });
+
+  const updateTechnicianMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      return apiRequest("PUT", `/api/maintenance/technicians/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/technicians"] });
+      setEditingTechnician(null);
+      toast({ title: "Technician updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update technician", variant: "destructive" });
+    },
+  });
+
+  const deleteTechnicianMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/maintenance/technicians/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/technicians"] });
+      toast({ title: "Technician removed successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove technician", variant: "destructive" });
     },
   });
 
@@ -303,6 +424,10 @@ export default function MaintenanceDashboard() {
             <TabsTrigger value="pm" className="gap-2" data-testid="tab-pm">
               <Calendar className="w-4 h-4" />
               Preventive
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings">
+              <Settings className="w-4 h-4" />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -788,6 +913,215 @@ export default function MaintenanceDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="settings" className="mt-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Locations Management */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5" />
+                      Locations
+                    </CardTitle>
+                    <CardDescription>Manage facility locations for work orders and assets</CardDescription>
+                  </div>
+                  <Dialog open={showNewLocationDialog} onOpenChange={setShowNewLocationDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" data-testid="button-add-location">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Location</DialogTitle>
+                        <DialogDescription>Create a new facility location</DialogDescription>
+                      </DialogHeader>
+                      <LocationForm 
+                        users={users}
+                        onSubmit={(data) => createLocationMutation.mutate(data)}
+                        isPending={createLocationMutation.isPending}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    {locations.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No locations configured</p>
+                        <p className="text-sm">Add locations to assign to work orders</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {locations.map((loc) => (
+                          <div 
+                            key={loc.id} 
+                            className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                            data-testid={`location-${loc.id}`}
+                          >
+                            <div>
+                              <p className="font-medium">{loc.locationName}</p>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Badge variant="outline" className="capitalize">{loc.locationType}</Badge>
+                                {loc.city && <span>{loc.city}, {loc.state}</span>}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => setEditingLocation(loc)}
+                                data-testid={`edit-location-${loc.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => deleteLocationMutation.mutate(loc.id)}
+                                data-testid={`delete-location-${loc.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+              {/* Technicians Management */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserCog className="w-5 h-5" />
+                      Technicians
+                    </CardTitle>
+                    <CardDescription>Manage maintenance technicians and their specialties</CardDescription>
+                  </div>
+                  <Dialog open={showNewTechnicianDialog} onOpenChange={setShowNewTechnicianDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" data-testid="button-add-technician">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Technician</DialogTitle>
+                        <DialogDescription>Register a user as a maintenance technician</DialogDescription>
+                      </DialogHeader>
+                      <TechnicianForm 
+                        users={users}
+                        locations={locations}
+                        onSubmit={(data) => createTechnicianMutation.mutate(data)}
+                        isPending={createTechnicianMutation.isPending}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    {technicians.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No technicians configured</p>
+                        <p className="text-sm">Add technicians to assign work orders</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {technicians.map((tech) => (
+                          <div 
+                            key={tech.id} 
+                            className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                            data-testid={`technician-${tech.id}`}
+                          >
+                            <div>
+                              <p className="font-medium">{tech.firstName} {tech.lastName}</p>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Badge variant={tech.available ? "default" : "secondary"}>
+                                  {tech.available ? 'Available' : 'Unavailable'}
+                                </Badge>
+                                {tech.locationName && <span>{tech.locationName}</span>}
+                              </div>
+                              {tech.specialties?.length > 0 && (
+                                <div className="flex gap-1 mt-1 flex-wrap">
+                                  {tech.specialties.slice(0, 3).map((spec, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs">{spec}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => setEditingTechnician(tech)}
+                                data-testid={`edit-technician-${tech.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => deleteTechnicianMutation.mutate(tech.id)}
+                                data-testid={`delete-technician-${tech.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Edit Location Dialog */}
+            <Dialog open={!!editingLocation} onOpenChange={(open) => !open && setEditingLocation(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Location</DialogTitle>
+                  <DialogDescription>Update location details</DialogDescription>
+                </DialogHeader>
+                {editingLocation && (
+                  <LocationForm 
+                    users={users}
+                    initialData={editingLocation}
+                    onSubmit={(data) => updateLocationMutation.mutate({ id: editingLocation.id, ...data })}
+                    isPending={updateLocationMutation.isPending}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit Technician Dialog */}
+            <Dialog open={!!editingTechnician} onOpenChange={(open) => !open && setEditingTechnician(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Technician</DialogTitle>
+                  <DialogDescription>Update technician details</DialogDescription>
+                </DialogHeader>
+                {editingTechnician && (
+                  <TechnicianForm 
+                    users={users}
+                    locations={locations}
+                    initialData={editingTechnician}
+                    onSubmit={(data) => updateTechnicianMutation.mutate({ id: editingTechnician.id, ...data })}
+                    isPending={updateTechnicianMutation.isPending}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -836,8 +1170,8 @@ function NewWorkOrderForm({
   isPending 
 }: { 
   assets: Asset[];
-  locations: Array<{ id: string; location_name: string }>;
-  users: Array<{ id: string; first_name: string; last_name: string }>;
+  locations: Location[];
+  users: Array<{ id: string; firstName: string; lastName: string }>;
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
@@ -1010,7 +1344,7 @@ function NewAssetForm({
   isPending 
 }: { 
   categories: Array<{ id: string; name: string }>;
-  locations: Array<{ id: string; location_name: string }>;
+  locations: Location[];
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
@@ -1158,7 +1492,7 @@ function NewPartForm({
   onSubmit, 
   isPending 
 }: { 
-  locations: Array<{ id: string; location_name: string }>;
+  locations: Location[];
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
@@ -1314,6 +1648,252 @@ function NewPartForm({
       <div className="flex justify-end gap-2">
         <Button type="submit" disabled={isPending || !formData.partNumber || !formData.name} data-testid="button-submit-part">
           {isPending ? "Creating..." : "Add Part"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function LocationForm({ 
+  users,
+  initialData,
+  onSubmit, 
+  isPending 
+}: { 
+  users: Array<{ id: string; firstName: string; lastName: string }>;
+  initialData?: Location;
+  onSubmit: (data: Record<string, unknown>) => void;
+  isPending: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    locationName: initialData?.locationName || "",
+    locationType: initialData?.locationType || "winery",
+    address: initialData?.address || "",
+    city: initialData?.city || "",
+    state: initialData?.state || "",
+    zipCode: initialData?.zipCode || "",
+    phoneNumber: initialData?.phoneNumber || "",
+    managerUserId: initialData?.managerUserId || "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      ...formData,
+      managerUserId: formData.managerUserId || undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label htmlFor="locationName">Location Name *</Label>
+          <Input
+            id="locationName"
+            value={formData.locationName}
+            onChange={(e) => setFormData({ ...formData, locationName: e.target.value })}
+            required
+            data-testid="input-location-name"
+          />
+        </div>
+        <div>
+          <Label htmlFor="locationType">Type *</Label>
+          <Select value={formData.locationType} onValueChange={(v) => setFormData({ ...formData, locationType: v })}>
+            <SelectTrigger data-testid="select-location-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="winery">Winery</SelectItem>
+              <SelectItem value="tasting_room">Tasting Room</SelectItem>
+              <SelectItem value="warehouse">Warehouse</SelectItem>
+              <SelectItem value="office">Office</SelectItem>
+              <SelectItem value="production">Production</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="managerUserId">Manager</Label>
+          <Select value={formData.managerUserId} onValueChange={(v) => setFormData({ ...formData, managerUserId: v })}>
+            <SelectTrigger data-testid="select-location-manager">
+              <SelectValue placeholder="Select manager" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="address">Address</Label>
+          <Input
+            id="address"
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            data-testid="input-location-address"
+          />
+        </div>
+        <div>
+          <Label htmlFor="city">City</Label>
+          <Input
+            id="city"
+            value={formData.city}
+            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            data-testid="input-location-city"
+          />
+        </div>
+        <div>
+          <Label htmlFor="state">State</Label>
+          <Input
+            id="state"
+            value={formData.state}
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+            data-testid="input-location-state"
+          />
+        </div>
+        <div>
+          <Label htmlFor="zipCode">Zip Code</Label>
+          <Input
+            id="zipCode"
+            value={formData.zipCode}
+            onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+            data-testid="input-location-zip"
+          />
+        </div>
+        <div>
+          <Label htmlFor="phoneNumber">Phone</Label>
+          <Input
+            id="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+            data-testid="input-location-phone"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" disabled={isPending || !formData.locationName} data-testid="button-submit-location">
+          {isPending ? "Saving..." : initialData ? "Update Location" : "Add Location"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function TechnicianForm({ 
+  users,
+  locations,
+  initialData,
+  onSubmit, 
+  isPending 
+}: { 
+  users: Array<{ id: string; firstName: string; lastName: string }>;
+  locations: Location[];
+  initialData?: Technician;
+  onSubmit: (data: Record<string, unknown>) => void;
+  isPending: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    userId: initialData?.userId || "",
+    specialties: initialData?.specialties?.join(", ") || "",
+    certifications: initialData?.certifications?.join(", ") || "",
+    locationId: "",
+    phoneNumber: initialData?.phoneNumber || "",
+    available: initialData?.available ?? true,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      userId: formData.userId,
+      specialties: formData.specialties.split(",").map(s => s.trim()).filter(Boolean),
+      certifications: formData.certifications.split(",").map(s => s.trim()).filter(Boolean),
+      locationId: formData.locationId || undefined,
+      phoneNumber: formData.phoneNumber || undefined,
+      available: formData.available,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label htmlFor="userId">Platform User *</Label>
+          <Select value={formData.userId} onValueChange={(v) => setFormData({ ...formData, userId: v })}>
+            <SelectTrigger data-testid="select-tech-user">
+              <SelectValue placeholder="Select user" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="locationId">Primary Location</Label>
+          <Select value={formData.locationId} onValueChange={(v) => setFormData({ ...formData, locationId: v })}>
+            <SelectTrigger data-testid="select-tech-location">
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((loc) => (
+                <SelectItem key={loc.id} value={loc.id}>
+                  {loc.locationName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="phoneNumber">Phone</Label>
+          <Input
+            id="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+            data-testid="input-tech-phone"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="specialties">Specialties</Label>
+          <Input
+            id="specialties"
+            value={formData.specialties}
+            onChange={(e) => setFormData({ ...formData, specialties: e.target.value })}
+            placeholder="e.g., HVAC, Electrical, Plumbing (comma separated)"
+            data-testid="input-tech-specialties"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="certifications">Certifications</Label>
+          <Input
+            id="certifications"
+            value={formData.certifications}
+            onChange={(e) => setFormData({ ...formData, certifications: e.target.value })}
+            placeholder="e.g., EPA 608, OSHA 30 (comma separated)"
+            data-testid="input-tech-certifications"
+          />
+        </div>
+        <div className="col-span-2 flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="available"
+            checked={formData.available}
+            onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
+            className="w-4 h-4"
+            data-testid="checkbox-tech-available"
+          />
+          <Label htmlFor="available">Available for work orders</Label>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" disabled={isPending || !formData.userId} data-testid="button-submit-technician">
+          {isPending ? "Saving..." : initialData ? "Update Technician" : "Add Technician"}
         </Button>
       </div>
     </form>

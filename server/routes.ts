@@ -7070,6 +7070,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // SHARED LOCATIONS ROUTES
+  // Platform-wide location management
+  // ============================================
+
+  app.get('/api/shared/locations', isAuthenticated, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT l.*, m.first_name as manager_first_name, m.last_name as manager_last_name
+        FROM shared_locations l
+        LEFT JOIN platform_users m ON l.manager_user_id = m.id
+        WHERE l.active = true
+        ORDER BY l.location_name ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      res.status(500).json({ message: 'Failed to fetch locations' });
+    }
+  });
+
+  app.post('/api/shared/locations', isAdmin, async (req, res) => {
+    try {
+      const { locationName, locationType, address, city, state, zipCode, phoneNumber, managerUserId } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO shared_locations (location_name, location_type, address, city, state, zip_code, phone_number, manager_user_id)
+        VALUES (${locationName}, ${locationType}, ${address || null}, ${city || null}, ${state || null}, ${zipCode || null}, ${phoneNumber || null}, ${managerUserId || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating location:', error);
+      res.status(500).json({ message: 'Failed to create location' });
+    }
+  });
+
+  app.put('/api/shared/locations/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { locationName, locationType, address, city, state, zipCode, phoneNumber, managerUserId, active } = req.body;
+      const result = await db.execute(sql`
+        UPDATE shared_locations 
+        SET location_name = ${locationName}, location_type = ${locationType}, address = ${address || null},
+            city = ${city || null}, state = ${state || null}, zip_code = ${zipCode || null},
+            phone_number = ${phoneNumber || null}, manager_user_id = ${managerUserId || null},
+            active = ${active ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating location:', error);
+      res.status(500).json({ message: 'Failed to update location' });
+    }
+  });
+
+  app.delete('/api/shared/locations/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Soft delete by setting active = false
+      await db.execute(sql`UPDATE shared_locations SET active = false, updated_at = NOW() WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting location:', error);
+      res.status(500).json({ message: 'Failed to delete location' });
+    }
+  });
+
+  // ============================================
   // CMMS (MAINTENANCE) MODULE ROUTES
   // Work orders, assets, preventive maintenance
   // ============================================
@@ -7575,17 +7643,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/maintenance/technicians', isAdmin, async (req, res) => {
     try {
-      const { userId, employeeNumber, skills, certifications, hourlyRate, shiftSchedule, locationId, phoneNumber, notes } = req.body;
+      const { userId, employeeNumber, specialties, certifications, hourlyRate, shiftSchedule, locationId, phoneNumber, notes, available } = req.body;
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_technicians (user_id, employee_number, skills, certifications, hourly_rate, shift_schedule, location_id, phone_number, notes)
-        VALUES (${userId}, ${employeeNumber}, ${skills || null}, ${certifications ? JSON.stringify(certifications) : null}, ${hourlyRate}, ${shiftSchedule}, ${locationId || null}, ${phoneNumber}, ${notes})
+        INSERT INTO maintenance_technicians (user_id, employee_number, specialties, certifications, hourly_rate, shift_schedule, location_id, phone_number, notes, available)
+        VALUES (${userId}, ${employeeNumber || null}, ${specialties ? JSON.stringify(specialties) : null}, ${certifications ? JSON.stringify(certifications) : null}, ${hourlyRate || null}, ${shiftSchedule || null}, ${locationId || null}, ${phoneNumber || null}, ${notes || null}, ${available ?? true})
         RETURNING *
       `);
       res.json(result.rows[0]);
     } catch (error) {
       console.error('Error creating technician:', error);
       res.status(500).json({ message: 'Failed to create technician' });
+    }
+  });
+
+  app.put('/api/maintenance/technicians/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { specialties, certifications, locationId, phoneNumber, notes, available } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_technicians 
+        SET specialties = ${specialties ? JSON.stringify(specialties) : null},
+            certifications = ${certifications ? JSON.stringify(certifications) : null},
+            location_id = ${locationId || null},
+            phone_number = ${phoneNumber || null},
+            notes = ${notes || null},
+            available = ${available ?? true},
+            updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating technician:', error);
+      res.status(500).json({ message: 'Failed to update technician' });
+    }
+  });
+
+  app.delete('/api/maintenance/technicians/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM maintenance_technicians WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting technician:', error);
+      res.status(500).json({ message: 'Failed to delete technician' });
     }
   });
 
