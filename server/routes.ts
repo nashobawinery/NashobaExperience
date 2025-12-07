@@ -1472,13 +1472,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Now sync security entries - create module access for all groups
+      // First get all user groups from production
+      const prodGroups = await prodSql`SELECT id, name FROM user_groups WHERE active = true`;
+      
+      // Get all modules from production
+      const prodModules = await prodSql`SELECT id, module_key FROM platform_modules`;
+      
+      // Create missing module access entries
+      let accessCreated = 0;
+      for (const group of prodGroups) {
+        const groupName = group.name as string;
+        const isGlobalAdmin = groupName === 'Global Admin';
+        
+        for (const pMod of prodModules) {
+          // Check if access entry exists
+          const existing = await prodSql`
+            SELECT id FROM group_module_access 
+            WHERE group_id = ${group.id} AND module_id = ${pMod.id}
+          `;
+          
+          if (existing.length === 0) {
+            // Create entry - Global Admin gets access, others don't
+            await prodSql`
+              INSERT INTO group_module_access (group_id, module_id, has_access)
+              VALUES (${group.id}, ${pMod.id}, ${isGlobalAdmin})
+            `;
+            accessCreated++;
+          }
+        }
+      }
+      
       res.json({
         success: true,
-        message: `Synced ${devModules.length} modules to production. ${inserted} inserted, ${updated} updated.`,
+        message: `Synced ${devModules.length} modules to production. ${inserted} inserted, ${updated} updated. ${accessCreated} access entries created.`,
         details: {
           total: devModules.length,
           inserted,
-          updated
+          updated,
+          accessCreated
         }
       });
     } catch (error: any) {
