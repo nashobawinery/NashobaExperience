@@ -1578,6 +1578,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Diagnostic endpoint that runs on ANY environment to show local db state
+  // Call this on production site to see what production database contains
+  app.get("/api/admin/db-diagnostic", async (req, res) => {
+    try {
+      const modules = await db.execute(sql`
+        SELECT module_key, module_name, status FROM platform_modules ORDER BY sort_order
+      `);
+      const groups = await db.execute(sql`
+        SELECT id, name FROM user_groups WHERE active = true
+      `);
+      const accessCount = await db.execute(sql`
+        SELECT COUNT(*) as count FROM group_module_access
+      `);
+      const accessWithTrue = await db.execute(sql`
+        SELECT COUNT(*) as count FROM group_module_access WHERE has_access = true
+      `);
+      
+      res.json({
+        environment: process.env.NODE_ENV || 'unknown',
+        databaseHost: process.env.PGHOST || 'unknown',
+        moduleCount: modules.rows.length,
+        modules: modules.rows,
+        groupCount: groups.rows.length,
+        groups: groups.rows,
+        totalAccessEntries: (accessCount.rows[0] as any)?.count || 0,
+        accessEntriesWithTrue: (accessWithTrue.rows[0] as any)?.count || 0
+      });
+    } catch (error: any) {
+      console.error("Error in db diagnostic:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Fix Global Admin access in production
   app.post("/api/admin/sync/fix-admin-access", async (req, res) => {
     try {
