@@ -423,6 +423,7 @@ export default function DatabaseSync() {
   const [scanResult, setScanResult] = useState<SyncScanResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [expandedSyncTables, setExpandedSyncTables] = useState<Set<string>>(new Set());
+  const [showAllTables, setShowAllTables] = useState(false);
   
   // Sync selection state: key is "tableId:businessKeyString", value is sync direction
   const [syncSelections, setSyncSelections] = useState<Record<string, 'dev' | 'prod' | 'skip'>>({});
@@ -1736,15 +1737,30 @@ export default function DatabaseSync() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Table Comparison</CardTitle>
-                      <CardDescription>
-                        Click on a table to view and select record-level differences
-                      </CardDescription>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Table Comparison</CardTitle>
+                          <CardDescription>
+                            {scanResult.tables.filter(t => t.records.length > 0 || t.devCount !== t.prodCount).length} of {scanResult.tables.length} tables have differences
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="show-all-tables" className="text-sm text-muted-foreground">
+                            Show all {scanResult.tables.length} tables
+                          </Label>
+                          <Switch
+                            id="show-all-tables"
+                            checked={showAllTables}
+                            onCheckedChange={setShowAllTables}
+                            data-testid="switch-show-all-tables"
+                          />
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         {scanResult.tables
-                          .filter(t => t.records.length > 0 || t.devCount !== t.prodCount)
+                          .filter(t => showAllTables || t.records.length > 0 || t.devCount !== t.prodCount)
                           .map(table => {
                             const hasChanges = table.records.length > 0;
                             const isExpanded = expandedSyncTables.has(table.tableId);
