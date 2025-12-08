@@ -9354,7 +9354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         proceduresCompletedCount,
         proceduresTotalCount,
         proceduresCompleted: proceduresCompletedCount === proceduresTotalCount && proceduresTotalCount > 0,
-        submittedById: `access_code_${accessCode.id}`,
+        submittedById: null, // Public submissions don't have a logged-in user
         submittedByName: accessCode.staffName,
         submittedAt: new Date()
       });

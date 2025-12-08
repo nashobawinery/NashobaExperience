@@ -61,7 +61,7 @@ export default function PublicDailyReportForm() {
   const { toast } = useToast();
   
   const [enteredCode, setEnteredCode] = useState(urlCode || "");
-  const [validatedCode, setValidatedCode] = useState<string | null>(urlCode || null);
+  const [validatedCode, setValidatedCode] = useState<string | null>(null); // Don't pre-set - let validation set it
   const [isValidating, setIsValidating] = useState(false);
   
   // Multi-department support
