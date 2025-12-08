@@ -2659,6 +2659,70 @@ export default function DailyReportsAdminDashboard() {
                               </div>
                             )}
                           </div>
+
+                          <div className="border-t pt-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-medium flex items-center gap-2">
+                                <QrCode className="h-4 w-4 text-muted-foreground" />
+                                Staff Access Codes
+                                <span className="text-xs text-muted-foreground font-normal">
+                                  ({deptAccessCodes.length} code{deptAccessCodes.length !== 1 ? 's' : ''})
+                                </span>
+                              </h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingAccessCode(null);
+                                  resetAccessCodeForm();
+                                  setAccessCodeFormData(prev => ({ ...prev, department: template.department }));
+                                  setIsAccessCodeDialogOpen(true);
+                                }}
+                                data-testid={`button-add-access-code-${template.department}`}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Code
+                              </Button>
+                            </div>
+                            
+                            {deptAccessCodes.length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-4">
+                                No access codes. Add codes to allow staff to submit reports via QR code.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {deptAccessCodes.map(code => (
+                                  <div 
+                                    key={code.id} 
+                                    className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm group"
+                                    data-testid={`access-code-${code.id}`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-mono font-bold bg-background px-2 py-0.5 rounded border">{code.code}</span>
+                                      <span className={!code.isActive ? "text-muted-foreground line-through" : ""}>
+                                        {code.staffName}
+                                      </span>
+                                      {!code.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                                    </div>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleShowQrCode(code)} title="Show QR">
+                                        <QrCode className="h-3 w-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyCodeToClipboard(code.code)} title="Copy Code">
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditAccessCode(code)} title="Edit">
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteAccessCode(code.id)} title="Delete">
+                                        <Trash2 className="h-3 w-3 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     );
