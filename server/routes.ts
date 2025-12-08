@@ -8425,6 +8425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       customerServiceSummary: report.performanceSummary || null,
       operationalNotes: null,
       staffingNotes: null,
+      source: report.source || 'admin', // Default to admin for existing reports
     };
   };
 
@@ -8665,6 +8666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reportDate: reportDateValue,
         submittedById: null, // Staff members aren't platform users
         submittedByName: userName,
+        source: 'admin', // Created from admin dashboard
         metricsData: req.body.metrics || req.body.metricsData || null,
         performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || null,
         hasCustomerConcerns: req.body.hasCustomerConcerns || false,
@@ -9364,6 +9366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         department: accessCode.department,
         reportDate: reportDateValue,
         status: 'submitted',
+        source: 'qr_form', // Submitted via QR code/public form
         performanceSummary: performanceSummary || null,
         overallRating: overallRating || null,
         hasCustomerConcerns: hasCustomerConcerns || false,
@@ -9485,6 +9488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         department: accessCode.department,
         reportDate: reportDateValue,
         status: 'draft',
+        source: 'qr_form', // Saved via QR code/public form
         performanceSummary: performanceSummary || null,
         overallRating: overallRating || null,
         hasCustomerConcerns: hasCustomerConcerns || false,

@@ -104,6 +104,7 @@ interface DailyReport {
   department: string;
   reportDate: string;
   status: string;
+  source: 'qr_form' | 'admin' | 'api' | string;
   metrics: Record<string, number | string>;
   customerServiceSummary: string | null;
   operationalNotes: string | null;
@@ -1772,6 +1773,7 @@ export default function DailyReportsAdminDashboard() {
         'Department': template?.departmentLabel || report.department,
         'Date': format(new Date(report.reportDate), "yyyy-MM-dd"),
         'Status': report.status,
+        'Source': report.source === 'qr_form' ? 'QR Form' : 'Admin',
         'Incidents': report.incidentsCount || 0,
         'Procedures Completed': `${report.proceduresCompletedCount || 0}/${report.proceduresTotalCount || 0}`,
         'Submitted By': report.submittedByName || '-',
@@ -2179,13 +2181,19 @@ export default function DailyReportsAdminDashboard() {
                             <SortIcon field="submittedBy" />
                           </div>
                         </th>
+                        <th 
+                          className="text-left p-3 font-medium"
+                          data-testid="th-source"
+                        >
+                          Source
+                        </th>
                         <th className="text-right p-3 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredReports.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                          <td colSpan={8} className="text-center p-8 text-muted-foreground">
                             No reports found for the selected criteria
                           </td>
                         </tr>
@@ -2229,6 +2237,17 @@ export default function DailyReportsAdminDashboard() {
                               </td>
                               <td className="p-3 text-sm">
                                 {report.submittedByName || "-"}
+                              </td>
+                              <td className="p-3">
+                                <Badge 
+                                  variant="outline" 
+                                  className={report.source === 'qr_form' 
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'}
+                                  data-testid={`badge-source-${report.id}`}
+                                >
+                                  {report.source === 'qr_form' ? 'QR Form' : 'Admin'}
+                                </Badge>
                               </td>
                               <td className="p-3 text-right">
                                 <DropdownMenu>

@@ -1542,6 +1542,9 @@ export const dailyReports = pgTable("daily_reports", {
   submittedById: varchar("submitted_by_id").references(() => platformUsers.id),
   submittedByName: text("submitted_by_name"),
   
+  // Source tracking - where the report was submitted from
+  source: varchar("source").default("admin"), // 'qr_form', 'admin', 'api'
+  
   // Performance summary
   performanceSummary: text("performance_summary"),
   overallRating: integer("overall_rating"), // 1-5 scale
