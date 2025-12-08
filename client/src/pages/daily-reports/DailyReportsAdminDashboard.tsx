@@ -1563,9 +1563,11 @@ export default function DailyReportsAdminDashboard() {
 
   const handleEditReport = (report: DailyReport) => {
     setEditingReport(report);
+    // Format date as YYYY-MM-DD for HTML date input
+    const dateStr = report.reportDate ? format(new Date(report.reportDate), 'yyyy-MM-dd') : '';
     setReportFormData({
       department: report.department,
-      reportDate: report.reportDate,
+      reportDate: dateStr,
       staffName: report.submittedByName || "",
       metrics: (report.metrics || {}) as Record<string, string>,
       customerServiceSummary: report.customerServiceSummary || "",
@@ -2811,39 +2813,51 @@ export default function DailyReportsAdminDashboard() {
               </div>
             </div>
             
-            {/* Staff member dropdown - shows registered staff for the selected department */}
+            {/* Staff member - read-only when editing, dropdown when creating */}
             {reportFormData.department && (
               <div className="space-y-2">
                 <Label htmlFor="report-staff">Staff Member Filing Report</Label>
-                <Select 
-                  value={reportFormData.staffName || "_empty"} 
-                  onValueChange={(v) => setReportFormData({ ...reportFormData, staffName: v === "_empty" ? "" : v })}
-                >
-                  <SelectTrigger id="report-staff" data-testid="select-report-staff">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_empty">
-                      <span className="text-muted-foreground italic">None selected</span>
-                    </SelectItem>
-                    {accessCodes
-                      .filter(ac => ac.department === reportFormData.department && ac.isActive)
-                      .map(ac => (
-                        <SelectItem key={ac.id} value={ac.staffName}>
-                          {ac.staffName}
-                        </SelectItem>
-                      ))
-                    }
-                    {accessCodes.filter(ac => ac.department === reportFormData.department && ac.isActive).length === 0 && (
-                      <SelectItem value="_none" disabled>
-                        No staff registered for this department
+                {editingReport ? (
+                  <Input
+                    id="report-staff"
+                    value={reportFormData.staffName || ""}
+                    disabled
+                    className="bg-muted"
+                    data-testid="input-report-staff-readonly"
+                  />
+                ) : (
+                  <Select 
+                    value={reportFormData.staffName || "_empty"} 
+                    onValueChange={(v) => setReportFormData({ ...reportFormData, staffName: v === "_empty" ? "" : v })}
+                  >
+                    <SelectTrigger id="report-staff" data-testid="select-report-staff">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_empty">
+                        <span className="text-muted-foreground italic">None selected</span>
                       </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Select the staff member who is submitting this report. Add staff in the Departments tab.
-                </p>
+                      {accessCodes
+                        .filter(ac => ac.department === reportFormData.department && ac.isActive)
+                        .map(ac => (
+                          <SelectItem key={ac.id} value={ac.staffName}>
+                            {ac.staffName}
+                          </SelectItem>
+                        ))
+                      }
+                      {accessCodes.filter(ac => ac.department === reportFormData.department && ac.isActive).length === 0 && (
+                        <SelectItem value="_none" disabled>
+                          No staff registered for this department
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                {!editingReport && (
+                  <p className="text-xs text-muted-foreground">
+                    Select the staff member who is submitting this report. Add staff in the Departments tab.
+                  </p>
+                )}
               </div>
             )}
 
@@ -3049,6 +3063,43 @@ export default function DailyReportsAdminDashboard() {
                 </div>
               </div>
 
+              {/* Report metadata - submitted by, source, rating */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-b pb-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Submitted By</div>
+                  <div className="font-medium">{selectedReport.submittedByName || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Source</div>
+                  <div className="font-medium">
+                    {selectedReport.source === 'qr_form' ? (
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">QR Form</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Admin</Badge>
+                    )}
+                  </div>
+                </div>
+                {selectedReport.overallRating && (
+                  <div>
+                    <div className="text-sm text-muted-foreground">Overall Rating</div>
+                    <div className="font-medium flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span key={star} className={star <= selectedReport.overallRating! ? "text-yellow-500" : "text-gray-300"}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedReport.hasCustomerConcerns && (
+                  <div>
+                    <div className="text-sm text-muted-foreground">Customer Concerns</div>
+                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Yes</Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Metrics grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {(allFieldAssignments[selectedReport.templateId] || [])
                   .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
@@ -3060,31 +3111,44 @@ export default function DailyReportsAdminDashboard() {
                       <div key={metric.key} className="bg-muted rounded-lg p-3">
                         <div className="text-sm text-muted-foreground">{metric.label}</div>
                         <div className="text-2xl font-bold">
-                          {selectedReport.metrics ? (selectedReport.metrics as any)[metric.key] || 0 : 0}
+                          {selectedReport.metrics ? (selectedReport.metrics as any)[metric.key] || (metric.type === 'text' ? '—' : 0) : (metric.type === 'text' ? '—' : 0)}
                         </div>
                       </div>
                     );
                   })}
               </div>
 
-              {(selectedReport.customerServiceSummary || selectedReport.operationalNotes || selectedReport.staffingNotes) && (
+              {/* Summary sections - shows both admin fields and QR form fields */}
+              {(selectedReport.performanceSummary || selectedReport.customerServiceSummary || selectedReport.customerConcernsSummary || selectedReport.operationalNotes || selectedReport.staffingNotes) && (
                 <div className="space-y-4">
-                  {selectedReport.customerServiceSummary && (
+                  {selectedReport.performanceSummary && (
+                    <div>
+                      <Label className="text-sm font-medium">Performance Summary</Label>
+                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.performanceSummary}</p>
+                    </div>
+                  )}
+                  {selectedReport.customerConcernsSummary && (
+                    <div>
+                      <Label className="text-sm font-medium">Customer Concerns Details</Label>
+                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.customerConcernsSummary}</p>
+                    </div>
+                  )}
+                  {selectedReport.customerServiceSummary && selectedReport.customerServiceSummary !== selectedReport.performanceSummary && (
                     <div>
                       <Label className="text-sm font-medium">Customer Service Summary</Label>
-                      <p className="mt-1 text-sm text-muted-foreground">{selectedReport.customerServiceSummary}</p>
+                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.customerServiceSummary}</p>
                     </div>
                   )}
                   {selectedReport.operationalNotes && (
                     <div>
                       <Label className="text-sm font-medium">Operational Notes</Label>
-                      <p className="mt-1 text-sm text-muted-foreground">{selectedReport.operationalNotes}</p>
+                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.operationalNotes}</p>
                     </div>
                   )}
                   {selectedReport.staffingNotes && (
                     <div>
                       <Label className="text-sm font-medium">Staffing Notes</Label>
-                      <p className="mt-1 text-sm text-muted-foreground">{selectedReport.staffingNotes}</p>
+                      <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.staffingNotes}</p>
                     </div>
                   )}
                 </div>
