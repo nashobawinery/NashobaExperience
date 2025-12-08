@@ -1776,7 +1776,7 @@ export default function DailyReportsAdminDashboard() {
         'Source': report.source === 'qr_form' ? 'QR Form' : 'Admin',
         'Incidents': report.incidentsCount || 0,
         'Procedures Completed': `${report.proceduresCompletedCount || 0}/${report.proceduresTotalCount || 0}`,
-        'Submitted By': report.submittedByName || '-',
+        'Submitted By': report.submittedByName || '',
         'Submitted At': report.submittedAt ? format(new Date(report.submittedAt), "yyyy-MM-dd HH:mm") : '-',
         'Performance Summary': report.performanceSummary || '-',
         'Overall Rating': report.overallRating || '-',
@@ -2236,7 +2236,7 @@ export default function DailyReportsAdminDashboard() {
                                 </span>
                               </td>
                               <td className="p-3 text-sm">
-                                {report.submittedByName || "-"}
+                                {report.submittedByName || ""}
                               </td>
                               <td className="p-3">
                                 <Badge 
@@ -2816,13 +2816,16 @@ export default function DailyReportsAdminDashboard() {
               <div className="space-y-2">
                 <Label htmlFor="report-staff">Staff Member Filing Report</Label>
                 <Select 
-                  value={reportFormData.staffName} 
-                  onValueChange={(v) => setReportFormData({ ...reportFormData, staffName: v })}
+                  value={reportFormData.staffName || "_empty"} 
+                  onValueChange={(v) => setReportFormData({ ...reportFormData, staffName: v === "_empty" ? "" : v })}
                 >
                   <SelectTrigger id="report-staff" data-testid="select-report-staff">
-                    <SelectValue placeholder="Select staff member" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="_empty">
+                      <span className="text-muted-foreground italic">None selected</span>
+                    </SelectItem>
                     {accessCodes
                       .filter(ac => ac.department === reportFormData.department && ac.isActive)
                       .map(ac => (
