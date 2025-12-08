@@ -38,6 +38,15 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Scalability**: Utilizes serverless PostgreSQL (Neon) and cloud-based object storage.
 - **AI Integration**: OpenAI's GPT-4o-mini for sommelier-style product recommendations.
 
+### Database Naming Conventions
+- **Module-Prefixed Tables**: Module-specific tables use the module name as a prefix to avoid naming conflicts and clearly indicate ownership. Examples:
+  - Maintenance module: `maintenance_technicians`, `maintenance_locations`, `maintenance_work_order_notes`, `maintenance_preventive_schedules`
+  - Reservations module: `reservation_experiences`, `reservation_time_slots`, `reservation_customers`
+  - Compliance module: `compliance_tasks`, `compliance_portals`
+- **Shared Platform Tables**: Core platform tables without module prefix are shared across modules (e.g., `users`, `platform_modules`, `locations`, `assets`)
+- **Foreign Key References**: Module tables reference shared tables (like `assets`, `locations`) for cross-module data relationships
+- **Status Fields**: Use VARCHAR columns for status fields to allow flexible status values without enum migrations
+
 ## External Dependencies
 - **Core Technologies**: `react`, `react-dom`, `express`, `vite`, `typescript`, `drizzle-orm`, `@neondatabase/serverless`, `@tanstack/react-query`.
 - **UI/Styling**: `@radix-ui/*`, `tailwindcss`, `shadcn/ui`, `lucide-react`, `embla-carousel-react`, `framer-motion`.
