@@ -8416,6 +8416,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to transform backend report data to frontend format
+  const transformReportForFrontend = (report: any) => {
+    if (!report) return report;
+    return {
+      ...report,
+      metrics: report.metricsData || {},
+      customerServiceSummary: report.performanceSummary || null,
+      operationalNotes: null,
+      staffingNotes: null,
+    };
+  };
+
   // Get daily reports with filters
   app.get('/api/daily-reports', isAuthenticated, async (req: any, res) => {
     try {
@@ -8430,7 +8442,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (hasCustomerConcerns !== undefined) filters.hasCustomerConcerns = hasCustomerConcerns === 'true';
       
       const reports = await storage.getDailyReports(Object.keys(filters).length > 0 ? filters : undefined);
-      res.json(reports);
+      // Transform reports to include frontend-expected field names
+      const transformedReports = reports.map(transformReportForFrontend);
+      res.json(transformedReports);
     } catch (error) {
       console.error('Error fetching daily reports:', error);
       res.status(500).json({ message: 'Failed to fetch reports' });
@@ -8589,7 +8603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(report);
+      res.json(transformReportForFrontend(report));
     } catch (error) {
       console.error('Error fetching daily report:', error);
       res.status(500).json({ message: 'Failed to fetch report' });
@@ -8623,7 +8637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get full details
       const reportWithDetails = await storage.getDailyReportWithDetails(report.id);
-      res.json(reportWithDetails);
+      res.json(transformReportForFrontend(reportWithDetails));
     } catch (error) {
       console.error('Error fetching today\'s report:', error);
       res.status(500).json({ message: 'Failed to fetch today\'s report' });
@@ -8722,7 +8736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.json(report);
+      res.json(transformReportForFrontend(report));
     } catch (error: any) {
       console.error('Error creating daily report:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
@@ -8778,7 +8792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(report);
+      res.json(transformReportForFrontend(report));
     } catch (error) {
       console.error('Error updating daily report:', error);
       res.status(500).json({ message: 'Failed to update report' });
@@ -8858,7 +8872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the submission if email fails
       }
       
-      res.json(report);
+      res.json(transformReportForFrontend(report));
     } catch (error) {
       console.error('Error submitting daily report:', error);
       res.status(500).json({ message: 'Failed to submit report' });
@@ -8886,7 +8900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(report);
+      res.json(transformReportForFrontend(report));
     } catch (error) {
       console.error('Error reviewing daily report:', error);
       res.status(500).json({ message: 'Failed to review report' });
@@ -9370,7 +9384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reportId: report.id,
             procedureTemplateId: procedureId,
             completed: completed === true,
-            completedById: `access_code_${accessCode.id}`,
+            completedById: null, // Public submissions don't have a platform user
             completedByName: accessCode.staffName
           });
         }
@@ -9479,7 +9493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         proceduresCompletedCount,
         proceduresTotalCount,
         proceduresCompleted: proceduresCompletedCount === proceduresTotalCount && proceduresTotalCount > 0,
-        submittedById: `access_code_${accessCode.id}`,
+        submittedById: null, // Public submissions don't have a platform user
         submittedByName: accessCode.staffName
         // Note: No submittedAt for drafts
       });
@@ -9491,7 +9505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reportId: report.id,
             procedureTemplateId: procedureId,
             completed: completed === true,
-            completedById: `access_code_${accessCode.id}`,
+            completedById: null, // Public submissions don't have a platform user
             completedByName: accessCode.staffName
           });
         }
