@@ -2557,6 +2557,86 @@ export const insertMaintenanceAssetSchema = createInsertSchema(maintenanceAssets
 export type InsertMaintenanceAsset = z.infer<typeof insertMaintenanceAssetSchema>;
 export type MaintenanceAsset = typeof maintenanceAssets.$inferSelect;
 
+// Maintenance Locations - dedicated locations for maintenance work
+export const maintenanceLocations = pgTable("maintenance_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  locationType: varchar("location_type"), // building, room, area, floor, zone
+  building: varchar("building"),
+  floor: varchar("floor"),
+  room: varchar("room"),
+  address: text("address"),
+  contactName: varchar("contact_name"),
+  contactPhone: varchar("contact_phone"),
+  contactEmail: varchar("contact_email"),
+  parentLocationId: varchar("parent_location_id"), // For hierarchical locations
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_maint_loc_name").on(table.name),
+  index("idx_maint_loc_active").on(table.isActive),
+]);
+
+export const insertMaintenanceLocationSchema = createInsertSchema(maintenanceLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceLocation = z.infer<typeof insertMaintenanceLocationSchema>;
+export type MaintenanceLocation = typeof maintenanceLocations.$inferSelect;
+
+// Technicians - maintenance staff with skills (internal or external contractors)
+export const maintenanceTechnicians = pgTable("maintenance_technicians", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Internal employee link (optional for external contractors)
+  userId: varchar("user_id").references(() => platformUsers.id, { onDelete: 'set null' }),
+  
+  // Basic info (used for external or when not linked to platform user)
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  employeeNumber: varchar("employee_number"),
+  
+  // Is this an internal employee or external contractor?
+  isExternal: boolean("is_external").notNull().default(false),
+  
+  // Company info (for external contractors)
+  companyName: varchar("company_name"),
+  companyAddress: text("company_address"),
+  companyCity: varchar("company_city"),
+  companyState: varchar("company_state"),
+  companyZip: varchar("company_zip"),
+  companyPhone: varchar("company_phone"),
+  
+  // Contact information
+  email: varchar("email"),
+  cellPhone: varchar("cell_phone"),
+  workPhone: varchar("work_phone"),
+  
+  // Professional info
+  skills: text("skills").array(), // e.g., ['electrical', 'plumbing', 'hvac']
+  certifications: jsonb("certifications"), // Array of {name, issuedDate, expiresDate}
+  specialties: text("specialties"), // Free text for specialty areas
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
+  shiftSchedule: varchar("shift_schedule"), // day, night, rotating
+  primaryLocationId: varchar("primary_location_id").references(() => maintenanceLocations.id), // Primary location
+  
+  // Status
+  available: boolean("available").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_tech_user").on(table.userId),
+  index("idx_tech_location").on(table.primaryLocationId),
+  index("idx_tech_external").on(table.isExternal),
+  index("idx_tech_active").on(table.isActive),
+]);
+
+export const insertMaintenanceTechnicianSchema = createInsertSchema(maintenanceTechnicians).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceTechnician = z.infer<typeof insertMaintenanceTechnicianSchema>;
+export type MaintenanceTechnician = typeof maintenanceTechnicians.$inferSelect;
+
 // Work Orders - maintenance tasks and repairs
 export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2565,6 +2645,7 @@ export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
   description: text("description"),
   assetId: varchar("asset_id").references(() => maintenanceAssets.id),
   locationId: varchar("location_id").references(() => sharedLocations.id),
+  maintenanceLocationId: varchar("maintenance_location_id").references(() => maintenanceLocations.id),
   workOrderType: workOrderTypeEnum("work_order_type").notNull().default("corrective"),
   priority: workOrderPriorityEnum("priority").notNull().default("medium"),
   status: workOrderStatusEnum("status").notNull().default("open"),
@@ -2572,7 +2653,13 @@ export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
   // Assignment
   requestedById: varchar("requested_by_id").references(() => platformUsers.id),
   assignedToId: varchar("assigned_to_id").references(() => platformUsers.id),
+  maintenanceTechnicianId: varchar("maintenance_technician_id").references(() => maintenanceTechnicians.id),
   assignedTeam: varchar("assigned_team"), // For team assignments
+  
+  // Notification settings
+  notificationEmail: varchar("notification_email"), // Email to send work order notification
+  notificationSent: boolean("notification_sent").notNull().default(false),
+  notificationSentAt: timestamp("notification_sent_at"),
   
   // Scheduling
   dueDate: timestamp("due_date"),
@@ -2755,30 +2842,6 @@ export const maintenanceAssetParts = pgTable("maintenance_asset_parts", {
 export const insertMaintenanceAssetPartSchema = createInsertSchema(maintenanceAssetParts).omit({ id: true, createdAt: true });
 export type InsertMaintenanceAssetPart = z.infer<typeof insertMaintenanceAssetPartSchema>;
 export type MaintenanceAssetPart = typeof maintenanceAssetParts.$inferSelect;
-
-// Technicians - maintenance staff with skills
-export const maintenanceTechnicians = pgTable("maintenance_technicians", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }).unique(),
-  employeeNumber: varchar("employee_number"),
-  skills: text("skills").array(), // e.g., ['electrical', 'plumbing', 'hvac']
-  certifications: jsonb("certifications"), // Array of {name, issuedDate, expiresDate}
-  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
-  shiftSchedule: varchar("shift_schedule"), // day, night, rotating
-  locationId: varchar("location_id").references(() => sharedLocations.id), // Primary location
-  phoneNumber: varchar("phone_number"),
-  available: boolean("available").notNull().default(true),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  index("idx_tech_user").on(table.userId),
-  index("idx_tech_location").on(table.locationId),
-]);
-
-export const insertMaintenanceTechnicianSchema = createInsertSchema(maintenanceTechnicians).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertMaintenanceTechnician = z.infer<typeof insertMaintenanceTechnicianSchema>;
-export type MaintenanceTechnician = typeof maintenanceTechnicians.$inferSelect;
 
 // Maintenance Meters - for tracking usage-based maintenance (hours, miles, etc.)
 export const maintenanceMeters = pgTable("maintenance_meters", {
