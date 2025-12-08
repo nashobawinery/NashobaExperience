@@ -8614,12 +8614,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.claims?.sub;
       const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
       
-      // Convert reportDate string to Date object if needed
+      // Map frontend field names to schema field names
       const bodyData = {
-        ...req.body,
+        department: req.body.department,
+        reportDate: req.body.reportDate ? new Date(req.body.reportDate) : new Date(),
         submittedById: userId,
         submittedByName: userName,
-        reportDate: req.body.reportDate ? new Date(req.body.reportDate) : new Date()
+        metricsData: req.body.metrics || req.body.metricsData || null,
+        performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || null,
+        hasCustomerConcerns: req.body.hasCustomerConcerns || false,
+        customerConcernsSummary: req.body.customerConcernsSummary || null,
+        status: req.body.status || 'draft'
       };
       
       const data = insertDailyReportSchema.parse(bodyData);
@@ -8704,11 +8709,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Convert reportDate string to Date object if provided
-      const bodyData = { ...req.body };
-      if (bodyData.reportDate && typeof bodyData.reportDate === 'string') {
-        bodyData.reportDate = new Date(bodyData.reportDate);
+      // Map frontend field names to schema field names
+      const bodyData: Record<string, any> = {};
+      
+      if (req.body.department) bodyData.department = req.body.department;
+      if (req.body.reportDate) bodyData.reportDate = new Date(req.body.reportDate);
+      if (req.body.metrics || req.body.metricsData) bodyData.metricsData = req.body.metrics || req.body.metricsData;
+      if (req.body.customerServiceSummary !== undefined || req.body.performanceSummary !== undefined) {
+        bodyData.performanceSummary = req.body.customerServiceSummary || req.body.performanceSummary;
       }
+      if (req.body.hasCustomerConcerns !== undefined) bodyData.hasCustomerConcerns = req.body.hasCustomerConcerns;
+      if (req.body.customerConcernsSummary !== undefined) bodyData.customerConcernsSummary = req.body.customerConcernsSummary;
+      if (req.body.status !== undefined) bodyData.status = req.body.status;
       
       const data = insertDailyReportSchema.partial().parse(bodyData);
       
