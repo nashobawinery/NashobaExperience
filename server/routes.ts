@@ -8694,13 +8694,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(report);
     } catch (error: any) {
       console.error('Error creating daily report:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       // Check for duplicate key constraint (report already exists for department+date)
       if (error?.code === '23505' && error?.constraint === 'uq_daily_reports_dept_date') {
         return res.status(409).json({ 
           message: 'A report for this department on this date already exists. Please edit the existing report instead.' 
         });
       }
-      res.status(500).json({ message: 'Failed to create report' });
+      // Check for Zod validation errors
+      if (error?.name === 'ZodError') {
+        console.error('Zod validation errors:', JSON.stringify(error.errors, null, 2));
+        return res.status(400).json({ 
+          message: 'Validation error', 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: 'Failed to create report', error: error?.message || 'Unknown error' });
     }
   });
 
