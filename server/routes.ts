@@ -2001,6 +2001,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         b2bCommissions: [],
         b2bEmailTemplates: [],
         b2bEmailAutomationLogs: [],
+        // Reservation module
+        resyLocations: [],
+        resyExperiences: [],
+        resyClubs: [],
+        resyCustomers: [],
+        resyMealPeriods: [],
+        resyTimeSlots: [],
+        resyLocationTables: [],
+        resySiteSettings: [],
+        resyFooterLinks: [],
+        resyTicketedEventDefinitions: [],
+        resyTicketedEventTimeslots: [],
+        resySpecialDates: [],
+        resyOperatingHours: [],
       };
 
       // Base app tables
@@ -2095,6 +2109,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (tableSet.has('b2bEmailAutomationLogs')) {
         data.b2bEmailAutomationLogs = await storage.getEmailAutomationLogs(undefined, 10000);
+      }
+
+      // Reservation module tables - use direct DB queries
+      const { db } = await import('./db');
+      const { 
+        resyLocations, resyExperiences, resyClubs, resyCustomers, resyMealPeriods,
+        resyTimeSlots, resyLocationTables, resySiteSettings, resyFooterLinks,
+        resyTicketedEventDefinitions, resyTicketedEventTimeslots, resySpecialDates,
+        resyOperatingHours
+      } = await import('@shared/schema');
+      
+      if (tableSet.has('resyLocations')) {
+        data.resyLocations = await db.select().from(resyLocations);
+      }
+      if (tableSet.has('resyExperiences')) {
+        data.resyExperiences = await db.select().from(resyExperiences);
+      }
+      if (tableSet.has('resyClubs')) {
+        data.resyClubs = await db.select().from(resyClubs);
+      }
+      if (tableSet.has('resyCustomers')) {
+        data.resyCustomers = await db.select().from(resyCustomers);
+      }
+      if (tableSet.has('resyMealPeriods')) {
+        data.resyMealPeriods = await db.select().from(resyMealPeriods);
+      }
+      if (tableSet.has('resyTimeSlots')) {
+        data.resyTimeSlots = await db.select().from(resyTimeSlots);
+      }
+      if (tableSet.has('resyLocationTables')) {
+        data.resyLocationTables = await db.select().from(resyLocationTables);
+      }
+      if (tableSet.has('resySiteSettings')) {
+        data.resySiteSettings = await db.select().from(resySiteSettings);
+      }
+      if (tableSet.has('resyFooterLinks')) {
+        data.resyFooterLinks = await db.select().from(resyFooterLinks);
+      }
+      if (tableSet.has('resyTicketedEventDefinitions')) {
+        data.resyTicketedEventDefinitions = await db.select().from(resyTicketedEventDefinitions);
+      }
+      if (tableSet.has('resyTicketedEventTimeslots')) {
+        data.resyTicketedEventTimeslots = await db.select().from(resyTicketedEventTimeslots);
+      }
+      if (tableSet.has('resySpecialDates')) {
+        data.resySpecialDates = await db.select().from(resySpecialDates);
+      }
+      if (tableSet.has('resyOperatingHours')) {
+        data.resyOperatingHours = await db.select().from(resyOperatingHours);
       }
 
       // RBAC tables - need lookups for natural key resolution
