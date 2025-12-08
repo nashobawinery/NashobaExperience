@@ -1201,6 +1201,7 @@ function NewWorkOrderForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="max-h-[50vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label htmlFor="title">Title *</Label>
@@ -1328,7 +1329,8 @@ function NewWorkOrderForm({
           />
         </div>
       </div>
-      <div className="flex justify-end gap-2">
+      </div>
+      <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="submit" disabled={isPending || !formData.title} data-testid="button-submit-wo">
           {isPending ? "Creating..." : "Create Work Order"}
         </Button>
