@@ -1315,6 +1315,162 @@ Bolton, MA 01740
   return { subject, html, text };
 }
 
+// Work Order Notification Email
+interface WorkOrderEmailData {
+  workOrderNumber: string;
+  title: string;
+  description?: string;
+  assetName?: string;
+  locationName?: string;
+  priority: string;
+  status: string;
+  dueDate?: Date | string;
+  assigneeName?: string;
+  requestedByName?: string;
+  instructions?: string;
+}
+
+export function generateWorkOrderNotificationEmail(data: WorkOrderEmailData): { subject: string; html: string; text: string } {
+  const { workOrderNumber, title, description, assetName, locationName, priority, status, dueDate, assigneeName, requestedByName, instructions } = data;
+  
+  const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }) : 'Not specified';
+  
+  const priorityColors: Record<string, string> = {
+    critical: '#DC2626',
+    high: '#EA580C',
+    medium: '#CA8A04',
+    low: '#16A34A'
+  };
+  const priorityColor = priorityColors[priority.toLowerCase()] || '#6B7280';
+
+  const subject = `Work Order Assigned: ${workOrderNumber} - ${title}`;
+  
+  const text = `
+Work Order Notification - ${workOrderNumber}
+
+Title: ${title}
+${description ? `Description: ${description}` : ''}
+${assetName ? `Asset: ${assetName}` : ''}
+${locationName ? `Location: ${locationName}` : ''}
+Priority: ${priority.toUpperCase()}
+Status: ${status}
+Due Date: ${formattedDueDate}
+${assigneeName ? `Assigned To: ${assigneeName}` : ''}
+${requestedByName ? `Requested By: ${requestedByName}` : ''}
+${instructions ? `\nInstructions:\n${instructions}` : ''}
+
+Please review and complete this work order as scheduled.
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; background-color: #f5f5f5; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { background-color: #1e3a5f; color: #ffffff; padding: 24px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+    .header .wo-number { font-size: 14px; opacity: 0.9; margin-top: 8px; }
+    .content { padding: 24px; }
+    .title { font-size: 20px; font-weight: 600; color: #1e3a5f; margin-bottom: 16px; }
+    .detail-row { display: flex; margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; }
+    .detail-label { font-weight: 600; color: #6b7280; width: 120px; flex-shrink: 0; }
+    .detail-value { color: #1a1a1a; }
+    .priority-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; color: #ffffff; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; background-color: #e5e7eb; color: #374151; }
+    .instructions { background-color: #f8fafc; border-left: 4px solid #1e3a5f; padding: 16px; margin-top: 16px; border-radius: 0 8px 8px 0; }
+    .instructions-label { font-weight: 600; color: #1e3a5f; margin-bottom: 8px; }
+    .footer { background-color: #f8fafc; padding: 16px 24px; text-align: center; font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Work Order Notification</h1>
+      <div class="wo-number">${workOrderNumber}</div>
+    </div>
+    <div class="content">
+      <div class="title">${title}</div>
+      
+      ${description ? `
+        <div class="detail-row">
+          <span class="detail-label">Description</span>
+          <span class="detail-value">${description}</span>
+        </div>
+      ` : ''}
+      
+      <div class="detail-row">
+        <span class="detail-label">Priority</span>
+        <span class="detail-value">
+          <span class="priority-badge" style="background-color: ${priorityColor};">${priority.toUpperCase()}</span>
+        </span>
+      </div>
+      
+      <div class="detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">
+          <span class="status-badge">${status.replace('_', ' ').toUpperCase()}</span>
+        </span>
+      </div>
+      
+      ${assetName ? `
+        <div class="detail-row">
+          <span class="detail-label">Asset</span>
+          <span class="detail-value">${assetName}</span>
+        </div>
+      ` : ''}
+      
+      ${locationName ? `
+        <div class="detail-row">
+          <span class="detail-label">Location</span>
+          <span class="detail-value">${locationName}</span>
+        </div>
+      ` : ''}
+      
+      <div class="detail-row">
+        <span class="detail-label">Due Date</span>
+        <span class="detail-value">${formattedDueDate}</span>
+      </div>
+      
+      ${assigneeName ? `
+        <div class="detail-row">
+          <span class="detail-label">Assigned To</span>
+          <span class="detail-value">${assigneeName}</span>
+        </div>
+      ` : ''}
+      
+      ${requestedByName ? `
+        <div class="detail-row">
+          <span class="detail-label">Requested By</span>
+          <span class="detail-value">${requestedByName}</span>
+        </div>
+      ` : ''}
+      
+      ${instructions ? `
+        <div class="instructions">
+          <div class="instructions-label">Instructions</div>
+          <div>${instructions.replace(/\n/g, '<br>')}</div>
+        </div>
+      ` : ''}
+    </div>
+    <div class="footer">
+      <p>This is an automated notification from the Nashoba Valley Operations Platform.</p>
+      <p>Please log in to the platform to view full work order details and updates.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Initialize SendGrid
 const apiKey = process.env.SENDGRID_API_KEY;
 if (!apiKey) {

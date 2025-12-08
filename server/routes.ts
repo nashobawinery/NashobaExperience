@@ -65,6 +65,7 @@ import {
   insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
+import { generateWorkOrderNotificationEmail, sendEmail } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment verification (responds immediately)
@@ -7469,6 +7470,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error adding comment:', error);
       res.status(500).json({ message: 'Failed to add comment' });
+    }
+  });
+
+  // Send work order notification email
+  app.post('/api/maintenance/work-orders/:id/send-notification', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: 'Email address is required' });
+      }
+      
+      // Get work order with related data
+      const woResult = await db.execute(sql`
+        SELECT wo.*, 
+               a.name as asset_name, a.asset_number,
+               ml.name as maint_location_name,
+               sl.location_name as shared_location_name,
+               t.first_name as tech_first_name, t.last_name as tech_last_name,
+               r.first_name as requester_first_name, r.last_name as requester_last_name
+        FROM maintenance_work_orders wo
+        LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+        LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
+        LEFT JOIN shared_locations sl ON wo.location_id = sl.id
+        LEFT JOIN maintenance_technicians t ON wo.maintenance_technician_id = t.id
+        LEFT JOIN platform_users r ON wo.requested_by_id = r.id
+        WHERE wo.id = ${id}
+      `);
+      
+      if (woResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Work order not found' });
+      }
+      
+      const wo = woResult.rows[0] as any;
+      const locationName = wo.maint_location_name || wo.shared_location_name;
+      const assigneeName = wo.tech_first_name ? `${wo.tech_first_name} ${wo.tech_last_name}` : undefined;
+      const requestedByName = wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : undefined;
+      
+      // Generate email content
+      const emailContent = generateWorkOrderNotificationEmail({
+        workOrderNumber: wo.work_order_number,
+        title: wo.title,
+        description: wo.description,
+        assetName: wo.asset_name ? `${wo.asset_name} (${wo.asset_number})` : undefined,
+        locationName,
+        priority: wo.priority || 'medium',
+        status: wo.status || 'open',
+        dueDate: wo.due_date,
+        assigneeName,
+        requestedByName,
+        instructions: wo.instructions
+      });
+      
+      // Send email
+      await sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
+      
+      // Update work order with notification info
+      await db.execute(sql`
+        UPDATE maintenance_work_orders SET
+          notification_email = ${email},
+          notification_sent = true,
+          notification_sent_at = NOW()
+        WHERE id = ${id}
+      `);
+      
+      res.json({ success: true, message: `Notification sent to ${email}` });
+    } catch (error) {
+      console.error('Error sending work order notification:', error);
+      res.status(500).json({ message: 'Failed to send notification' });
     }
   });
 
