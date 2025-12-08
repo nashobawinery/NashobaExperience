@@ -8607,20 +8607,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!report) {
         // Create a new draft report for today
-        const userEmail = req.user?.claims?.email;
         const userName = req.user?.claims?.name || req.user?.claims?.first_name || req.user?.claims?.email || 'Unknown';
-        
-        // Try to find the platform user by email to get their actual ID
-        let platformUserId: string | null = null;
-        if (userEmail) {
-          const platformUser = await storage.getUserByEmail(userEmail);
-          platformUserId = platformUser?.id || null;
-        }
         
         report = await storage.createDailyReport({
           department: department as any,
           reportDate: today,
-          submittedById: platformUserId, // Use platform user ID if found, null otherwise
+          submittedById: null, // Staff members aren't platform users
           submittedByName: userName,
           status: 'draft'
         });
@@ -8641,15 +8633,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new daily report
   app.post('/api/daily-reports', isAuthenticated, async (req: any, res) => {
     try {
-      const userEmail = req.user?.claims?.email;
-      const userName = req.user?.claims?.name || req.user?.claims?.first_name || req.user?.claims?.email || 'Unknown';
+      // Use staff name from form if provided, otherwise fall back to logged-in user
+      const staffNameFromForm = req.body.staffName;
+      const userName = staffNameFromForm || req.user?.claims?.name || req.user?.claims?.first_name || req.user?.claims?.email || 'Unknown';
       
-      // Try to find the platform user by email to get their actual ID
-      let platformUserId: string | null = null;
-      if (userEmail) {
-        const platformUser = await storage.getUserByEmail(userEmail);
-        platformUserId = platformUser?.id || null;
-      }
+      // For admin-filed reports, we don't link to platform user since staff aren't platform users
+      // submittedById is null, but submittedByName captures who filed the report
       
       // Map frontend field names to schema field names
       // Parse date with noon UTC to avoid timezone edge cases (date showing as previous day)
@@ -8660,7 +8649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bodyData = {
         department: req.body.department,
         reportDate: reportDateValue,
-        submittedById: platformUserId, // Use platform user ID if found, null otherwise
+        submittedById: null, // Staff members aren't platform users
         submittedByName: userName,
         metricsData: req.body.metrics || req.body.metricsData || null,
         performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || null,
@@ -8800,19 +8789,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/daily-reports/:id/submit', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const userEmail = req.user?.claims?.email;
-      const userName = req.user?.claims?.name || req.user?.claims?.first_name || req.user?.claims?.email || 'Unknown';
-      
-      // Try to find the platform user by email to get their actual ID
-      let platformUserId: string | null = null;
-      if (userEmail) {
-        const platformUser = await storage.getUserByEmail(userEmail);
-        platformUserId = platformUser?.id || null;
-      }
+      // Use staff name from form if provided, otherwise fall back to logged-in user
+      const staffNameFromForm = req.body?.staffName;
+      const userName = staffNameFromForm || req.user?.claims?.name || req.user?.claims?.first_name || req.user?.claims?.email || 'Unknown';
       
       const report = await storage.updateDailyReport(id, { 
         status: 'submitted',
-        submittedById: platformUserId, // Use platform user ID if found, null otherwise
+        submittedById: null, // Staff members aren't platform users
         submittedByName: userName,
         submittedAt: new Date()
       });

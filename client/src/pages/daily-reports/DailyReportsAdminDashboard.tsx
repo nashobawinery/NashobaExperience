@@ -708,6 +708,7 @@ export default function DailyReportsAdminDashboard() {
   const [reportFormData, setReportFormData] = useState({
     department: "",
     reportDate: format(new Date(), "yyyy-MM-dd"),
+    staffName: "", // Staff member filing the report
     metrics: {} as Record<string, string>,
     customerServiceSummary: "",
     operationalNotes: "",
@@ -1176,6 +1177,7 @@ export default function DailyReportsAdminDashboard() {
     setReportFormData({
       department: "",
       reportDate: format(new Date(), "yyyy-MM-dd"),
+      staffName: "",
       metrics: {},
       customerServiceSummary: "",
       operationalNotes: "",
@@ -1563,6 +1565,7 @@ export default function DailyReportsAdminDashboard() {
     setReportFormData({
       department: report.department,
       reportDate: report.reportDate,
+      staffName: report.submittedByName || "",
       metrics: (report.metrics || {}) as Record<string, string>,
       customerServiceSummary: report.customerServiceSummary || "",
       operationalNotes: report.operationalNotes || "",
@@ -1602,6 +1605,7 @@ export default function DailyReportsAdminDashboard() {
       templateId: template.id,
       department: reportFormData.department,
       reportDate: reportFormData.reportDate,
+      staffName: reportFormData.staffName || null, // Staff member filing the report
       metrics: metricsToSave,
       customerServiceSummary: reportFormData.customerServiceSummary || null,
       operationalNotes: reportFormData.operationalNotes || null,
@@ -2760,7 +2764,7 @@ export default function DailyReportsAdminDashboard() {
                 <Label htmlFor="report-department">Department</Label>
                 <Select 
                   value={reportFormData.department} 
-                  onValueChange={(v) => setReportFormData({ ...reportFormData, department: v, metrics: {} })}
+                  onValueChange={(v) => setReportFormData({ ...reportFormData, department: v, staffName: "", metrics: {} })}
                   disabled={!!editingReport}
                 >
                   <SelectTrigger id="report-department" data-testid="select-report-department">
@@ -2787,6 +2791,39 @@ export default function DailyReportsAdminDashboard() {
                 />
               </div>
             </div>
+            
+            {/* Staff member dropdown - shows registered staff for the selected department */}
+            {reportFormData.department && (
+              <div className="space-y-2">
+                <Label htmlFor="report-staff">Staff Member Filing Report</Label>
+                <Select 
+                  value={reportFormData.staffName} 
+                  onValueChange={(v) => setReportFormData({ ...reportFormData, staffName: v })}
+                >
+                  <SelectTrigger id="report-staff" data-testid="select-report-staff">
+                    <SelectValue placeholder="Select staff member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessCodes
+                      .filter(ac => ac.department === reportFormData.department && ac.isActive)
+                      .map(ac => (
+                        <SelectItem key={ac.id} value={ac.staffName}>
+                          {ac.staffName}
+                        </SelectItem>
+                      ))
+                    }
+                    {accessCodes.filter(ac => ac.department === reportFormData.department && ac.isActive).length === 0 && (
+                      <SelectItem value="_none" disabled>
+                        No staff registered for this department
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select the staff member who is submitting this report. Add staff in the Departments tab.
+                </p>
+              </div>
+            )}
 
             {selectedTemplate && (
               <div className="space-y-4">
