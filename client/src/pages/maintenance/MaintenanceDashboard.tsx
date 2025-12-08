@@ -166,6 +166,26 @@ type MaintenanceLocation = {
   active: boolean;
 };
 
+type WorkOrderNote = {
+  id: string;
+  workOrderId: string;
+  userId?: string;
+  technicianId?: string;
+  noteType: string;
+  title?: string;
+  content: string;
+  previousStatus?: string;
+  newStatus?: string;
+  hoursWorked?: string;
+  attachmentUrls?: string[];
+  isSystemGenerated: boolean;
+  createdAt: string;
+  userFirstName?: string;
+  userLastName?: string;
+  techFirstName?: string;
+  techLastName?: string;
+};
+
 const priorityColors: Record<string, string> = {
   critical: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   high: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
@@ -174,8 +194,11 @@ const priorityColors: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
+  new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   open: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  waiting_parts: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  waiting_tech: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   on_hold: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
   completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -201,6 +224,8 @@ export default function MaintenanceDashboard() {
   const [showNewTechnicianDialog, setShowNewTechnicianDialog] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [editingTechnician, setEditingTechnician] = useState<MaintenanceTechnician | null>(null);
+  const [viewingWorkOrder, setViewingWorkOrder] = useState<WorkOrder | null>(null);
+  const [showPmScheduleDialog, setShowPmScheduleDialog] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<MaintenanceStats>({
     queryKey: ["/api/maintenance/stats"],
@@ -298,6 +323,49 @@ export default function MaintenanceDashboard() {
     },
     onError: () => {
       toast({ title: "Failed to update work order", variant: "destructive" });
+    },
+  });
+
+  // Work order notes - conditional query when viewing a work order
+  const { data: workOrderNotes = [] } = useQuery<WorkOrderNote[]>({
+    queryKey: ["/api/maintenance/work-orders", viewingWorkOrder?.id, "notes"],
+    queryFn: async () => {
+      if (!viewingWorkOrder?.id) return [];
+      const res = await fetch(`/api/maintenance/work-orders/${viewingWorkOrder.id}/notes`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch notes');
+      return res.json();
+    },
+    enabled: !!viewingWorkOrder?.id,
+  });
+
+  const createWorkOrderNoteMutation = useMutation({
+    mutationFn: async ({ workOrderId, ...data }: { workOrderId: string } & Record<string, unknown>) => {
+      return apiRequest("POST", `/api/maintenance/work-orders/${workOrderId}/notes`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/work-orders", viewingWorkOrder?.id, "notes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/stats"] });
+      toast({ title: "Note added successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add note", variant: "destructive" });
+    },
+  });
+
+  // PM Schedule mutations
+  const createPmScheduleMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      return apiRequest("POST", "/api/maintenance/pm-schedules", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/pm-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/stats"] });
+      setShowPmScheduleDialog(false);
+      toast({ title: "PM schedule created successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create PM schedule", variant: "destructive" });
     },
   });
 
@@ -620,15 +688,19 @@ export default function MaintenanceDashboard() {
                       />
                     </div>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-32" data-testid="select-status-filter">
+                      <SelectTrigger className="w-40" data-testid="select-status-filter">
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="new">New</SelectItem>
                         <SelectItem value="open">Open</SelectItem>
                         <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="waiting_parts">Waiting on Parts</SelectItem>
+                        <SelectItem value="waiting_tech">Waiting on Tech</SelectItem>
                         <SelectItem value="on_hold">On Hold</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -701,7 +773,15 @@ export default function MaintenanceDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                {wo.status === 'open' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setViewingWorkOrder(wo)}
+                                  data-testid={`button-view-wo-${wo.id}`}
+                                >
+                                  View
+                                </Button>
+                                {(wo.status === 'new' || wo.status === 'open') && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -901,6 +981,10 @@ export default function MaintenanceDashboard() {
                     <CardTitle>Preventive Maintenance Schedules</CardTitle>
                     <CardDescription>Recurring maintenance tasks</CardDescription>
                   </div>
+                  <Button onClick={() => setShowPmScheduleDialog(true)} data-testid="button-create-pm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Create Schedule
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1184,6 +1268,165 @@ export default function MaintenanceDashboard() {
             </Dialog>
           </TabsContent>
         </Tabs>
+
+        {/* Work Order Detail Dialog with Notes */}
+        <Dialog open={!!viewingWorkOrder} onOpenChange={(open) => !open && setViewingWorkOrder(null)}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                {viewingWorkOrder?.workOrderNumber} - {viewingWorkOrder?.title}
+              </DialogTitle>
+              <DialogDescription>
+                Work order details and activity log
+              </DialogDescription>
+            </DialogHeader>
+            {viewingWorkOrder && (
+              <div className="space-y-6">
+                {/* Work Order Info */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <div className="mt-1">
+                      <Badge className={statusColors[viewingWorkOrder.status] || ''}>
+                        {viewingWorkOrder.status.replace(/_/g, ' ')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Priority</Label>
+                    <div className="mt-1">
+                      <Badge className={priorityColors[viewingWorkOrder.priority] || ''}>
+                        {viewingWorkOrder.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <p className="text-sm font-medium">{viewingWorkOrder.workOrderType}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Due Date</Label>
+                    <p className="text-sm font-medium">
+                      {viewingWorkOrder.dueDate ? format(new Date(viewingWorkOrder.dueDate), 'MMM d, yyyy') : '-'}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Asset</Label>
+                    <p className="text-sm font-medium">{viewingWorkOrder.assetName || '-'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Assigned To</Label>
+                    <p className="text-sm font-medium">
+                      {viewingWorkOrder.assigneeFirstName ? `${viewingWorkOrder.assigneeFirstName} ${viewingWorkOrder.assigneeLastName}` : '-'}
+                    </p>
+                  </div>
+                </div>
+                
+                {viewingWorkOrder.description && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Description</Label>
+                    <p className="text-sm mt-1">{viewingWorkOrder.description}</p>
+                  </div>
+                )}
+                
+                <Separator />
+
+                {/* Status Change */}
+                <div>
+                  <Label className="text-sm font-medium">Update Status</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {['new', 'in_progress', 'waiting_parts', 'waiting_tech', 'on_hold', 'completed', 'cancelled'].map((status) => (
+                      <Button
+                        key={status}
+                        size="sm"
+                        variant={viewingWorkOrder.status === status ? 'default' : 'outline'}
+                        onClick={() => {
+                          updateWorkOrderMutation.mutate({
+                            ...viewingWorkOrder,
+                            id: viewingWorkOrder.id,
+                            status
+                          });
+                          setViewingWorkOrder({ ...viewingWorkOrder, status });
+                        }}
+                        disabled={viewingWorkOrder.status === status}
+                        data-testid={`button-status-${status}`}
+                      >
+                        {status.replace(/_/g, ' ')}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Add Note Form */}
+                <WorkOrderNoteForm 
+                  workOrderId={viewingWorkOrder.id}
+                  currentStatus={viewingWorkOrder.status}
+                  maintenanceTechnicians={maintenanceTechnicians}
+                  onSubmit={(data) => createWorkOrderNoteMutation.mutate({ workOrderId: viewingWorkOrder.id, ...data })}
+                  isPending={createWorkOrderNoteMutation.isPending}
+                />
+
+                {/* Notes/Activity Log */}
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Activity Log</Label>
+                  <ScrollArea className="h-[200px] border rounded-lg p-3">
+                    {workOrderNotes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No activity recorded yet</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {workOrderNotes.map((note) => (
+                          <div key={note.id} className="p-3 rounded-lg bg-muted/50 border" data-testid={`note-${note.id}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs capitalize">{note.noteType}</Badge>
+                                {note.newStatus && note.previousStatus && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {note.previousStatus.replace(/_/g, ' ')} → {note.newStatus.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(note.createdAt), 'MMM d, yyyy h:mm a')}
+                              </span>
+                            </div>
+                            {note.title && <p className="text-sm font-medium">{note.title}</p>}
+                            <p className="text-sm">{note.content}</p>
+                            {note.hoursWorked && (
+                              <p className="text-xs text-muted-foreground mt-1">Hours worked: {note.hoursWorked}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              By: {note.userFirstName || note.techFirstName || 'System'} {note.userLastName || note.techLastName || ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* PM Schedule Dialog */}
+        <Dialog open={showPmScheduleDialog} onOpenChange={setShowPmScheduleDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Create Preventive Maintenance Schedule</DialogTitle>
+              <DialogDescription>Set up a recurring maintenance task</DialogDescription>
+            </DialogHeader>
+            <PmScheduleForm 
+              assets={assets}
+              maintenanceTechnicians={maintenanceTechnicians}
+              maintenanceLocations={maintenanceLocations}
+              onSubmit={(data) => createPmScheduleMutation.mutate(data)}
+              isPending={createPmScheduleMutation.isPending}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -2338,6 +2581,324 @@ function TechnicianForm({
       <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="submit" disabled={isPending || !formData.firstName || !formData.lastName} data-testid="button-submit-technician">
           {isPending ? "Saving..." : initialData ? "Update Technician" : "Add Technician"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// Work Order Note Form
+function WorkOrderNoteForm({
+  workOrderId,
+  currentStatus,
+  maintenanceTechnicians,
+  onSubmit,
+  isPending
+}: {
+  workOrderId: string;
+  currentStatus: string;
+  maintenanceTechnicians: MaintenanceTechnician[];
+  onSubmit: (data: Record<string, unknown>) => void;
+  isPending: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    noteType: 'progress',
+    title: '',
+    content: '',
+    newStatus: '',
+    hoursWorked: '',
+    technicianId: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.content.trim()) return;
+    onSubmit({
+      ...formData,
+      previousStatus: formData.newStatus ? currentStatus : undefined,
+      hoursWorked: formData.hoursWorked ? parseFloat(formData.hoursWorked) : undefined
+    });
+    setFormData({ noteType: 'progress', title: '', content: '', newStatus: '', hoursWorked: '', technicianId: '' });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 p-3 border rounded-lg bg-muted/30">
+      <Label className="text-sm font-medium">Add Progress Note</Label>
+      <div className="grid grid-cols-2 gap-3">
+        <Select value={formData.noteType} onValueChange={(v) => setFormData({ ...formData, noteType: v })}>
+          <SelectTrigger data-testid="select-note-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="progress">Progress Update</SelectItem>
+            <SelectItem value="status_change">Status Change</SelectItem>
+            <SelectItem value="parts">Parts Used</SelectItem>
+            <SelectItem value="issue">Issue Found</SelectItem>
+            <SelectItem value="completion">Completion</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          placeholder="Hours worked (optional)"
+          type="number"
+          step="0.25"
+          value={formData.hoursWorked}
+          onChange={(e) => setFormData({ ...formData, hoursWorked: e.target.value })}
+          data-testid="input-note-hours"
+        />
+      </div>
+      {formData.noteType === 'status_change' && (
+        <Select value={formData.newStatus} onValueChange={(v) => setFormData({ ...formData, newStatus: v })}>
+          <SelectTrigger data-testid="select-new-status">
+            <SelectValue placeholder="Select new status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="waiting_parts">Waiting on Parts</SelectItem>
+            <SelectItem value="waiting_tech">Waiting on Tech</SelectItem>
+            <SelectItem value="on_hold">On Hold</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      <Input
+        placeholder="Note title (optional)"
+        value={formData.title}
+        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+        data-testid="input-note-title"
+      />
+      <Textarea
+        placeholder="Describe the work done, issues found, or next steps..."
+        value={formData.content}
+        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+        rows={2}
+        data-testid="input-note-content"
+      />
+      <div className="flex justify-end">
+        <Button type="submit" size="sm" disabled={isPending || !formData.content.trim()} data-testid="button-submit-note">
+          {isPending ? "Adding..." : "Add Note"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// PM Schedule Form
+function PmScheduleForm({
+  assets,
+  maintenanceTechnicians,
+  maintenanceLocations,
+  onSubmit,
+  isPending
+}: {
+  assets: Asset[];
+  maintenanceTechnicians: MaintenanceTechnician[];
+  maintenanceLocations: MaintenanceLocation[];
+  onSubmit: (data: Record<string, unknown>) => void;
+  isPending: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    assetId: '',
+    frequency: 'monthly',
+    customDays: '',
+    startDate: format(new Date(), 'yyyy-MM-dd'),
+    workOrderTitle: '',
+    workOrderDescription: '',
+    workOrderPriority: 'medium',
+    estimatedHours: '',
+    maintenanceTechnicianId: '',
+    maintenanceLocationId: '',
+    generateDaysAhead: '7',
+    instructions: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.workOrderTitle) return;
+    onSubmit({
+      ...formData,
+      customDays: formData.customDays ? parseInt(formData.customDays) : undefined,
+      estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : undefined,
+      generateDaysAhead: parseInt(formData.generateDaysAhead) || 7
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[60vh] overflow-y-auto">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label htmlFor="name">Schedule Name *</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g., Monthly HVAC Filter Replacement"
+            data-testid="input-pm-name"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            rows={2}
+            data-testid="input-pm-description"
+          />
+        </div>
+        <div>
+          <Label>Asset</Label>
+          <Select value={formData.assetId} onValueChange={(v) => setFormData({ ...formData, assetId: v })}>
+            <SelectTrigger data-testid="select-pm-asset">
+              <SelectValue placeholder="Select asset (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              {assets.map((asset) => (
+                <SelectItem key={asset.id} value={asset.id}>
+                  {asset.name} ({asset.assetNumber})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Frequency *</Label>
+          <Select value={formData.frequency} onValueChange={(v) => setFormData({ ...formData, frequency: v })}>
+            <SelectTrigger data-testid="select-pm-frequency">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="biweekly">Bi-Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="semiannual">Semi-Annual</SelectItem>
+              <SelectItem value="annual">Annual</SelectItem>
+              <SelectItem value="custom">Custom Days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {formData.frequency === 'custom' && (
+          <div>
+            <Label>Custom Days Interval</Label>
+            <Input
+              type="number"
+              value={formData.customDays}
+              onChange={(e) => setFormData({ ...formData, customDays: e.target.value })}
+              placeholder="e.g., 45"
+              data-testid="input-pm-custom-days"
+            />
+          </div>
+        )}
+        <div>
+          <Label>Start Date *</Label>
+          <Input
+            type="date"
+            value={formData.startDate}
+            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+            data-testid="input-pm-start-date"
+          />
+        </div>
+        <Separator className="col-span-2" />
+        <div className="col-span-2">
+          <Label>Work Order Title *</Label>
+          <Input
+            value={formData.workOrderTitle}
+            onChange={(e) => setFormData({ ...formData, workOrderTitle: e.target.value })}
+            placeholder="Title for generated work orders"
+            data-testid="input-pm-wo-title"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label>Work Order Description</Label>
+          <Textarea
+            value={formData.workOrderDescription}
+            onChange={(e) => setFormData({ ...formData, workOrderDescription: e.target.value })}
+            rows={2}
+            data-testid="input-pm-wo-description"
+          />
+        </div>
+        <div>
+          <Label>Priority</Label>
+          <Select value={formData.workOrderPriority} onValueChange={(v) => setFormData({ ...formData, workOrderPriority: v })}>
+            <SelectTrigger data-testid="select-pm-priority">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Estimated Hours</Label>
+          <Input
+            type="number"
+            step="0.25"
+            value={formData.estimatedHours}
+            onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+            placeholder="e.g., 2.5"
+            data-testid="input-pm-hours"
+          />
+        </div>
+        <div>
+          <Label>Assign to Technician</Label>
+          <Select value={formData.maintenanceTechnicianId} onValueChange={(v) => setFormData({ ...formData, maintenanceTechnicianId: v })}>
+            <SelectTrigger data-testid="select-pm-technician">
+              <SelectValue placeholder="Select technician" />
+            </SelectTrigger>
+            <SelectContent>
+              {maintenanceTechnicians.filter(t => t.isActive && t.available).map((tech) => (
+                <SelectItem key={tech.id} value={tech.id}>
+                  {tech.firstName} {tech.lastName} {tech.isExternal ? '(External)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Location</Label>
+          <Select value={formData.maintenanceLocationId} onValueChange={(v) => setFormData({ ...formData, maintenanceLocationId: v })}>
+            <SelectTrigger data-testid="select-pm-location">
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {maintenanceLocations.filter(l => l.active).map((loc) => (
+                <SelectItem key={loc.id} value={loc.id}>
+                  {loc.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Generate WO Days Ahead</Label>
+          <Input
+            type="number"
+            value={formData.generateDaysAhead}
+            onChange={(e) => setFormData({ ...formData, generateDaysAhead: e.target.value })}
+            placeholder="7"
+            data-testid="input-pm-days-ahead"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label>Instructions</Label>
+          <Textarea
+            value={formData.instructions}
+            onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+            placeholder="Step-by-step instructions for technicians"
+            rows={3}
+            data-testid="input-pm-instructions"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-4 border-t">
+        <Button type="submit" disabled={isPending || !formData.name || !formData.workOrderTitle} data-testid="button-submit-pm">
+          {isPending ? "Creating..." : "Create Schedule"}
         </Button>
       </div>
     </form>
