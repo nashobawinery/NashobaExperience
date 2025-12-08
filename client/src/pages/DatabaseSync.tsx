@@ -683,6 +683,36 @@ export default function DatabaseSync() {
     setSyncSelections({});
   };
 
+  // Select all conflicts to keep dev version
+  const selectAllConflictsKeepDev = () => {
+    if (!scanResult) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const table of scanResult.tables) {
+      for (const record of table.records) {
+        if (record.state === 'conflict') {
+          const key = getRecordKey(table.tableId, record.businessKey);
+          newSelections[key] = 'dev';
+        }
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  // Select all conflicts to keep prod version
+  const selectAllConflictsKeepProd = () => {
+    if (!scanResult) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const table of scanResult.tables) {
+      for (const record of table.records) {
+        if (record.state === 'conflict') {
+          const key = getRecordKey(table.tableId, record.businessKey);
+          newSelections[key] = 'prod';
+        }
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
   // Count selected records by direction
   const getSelectionCounts = () => {
     let devToProd = 0;
@@ -1673,6 +1703,18 @@ export default function DatabaseSync() {
                           <ArrowLeft className="h-4 w-4 mr-1" />
                           All Prod → Dev
                         </Button>
+                        {scanResult && scanResult.tables.some(t => t.records.some(r => r.state === 'conflict')) && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={selectAllConflictsKeepDev} data-testid="button-conflicts-keep-dev">
+                              <GitCompare className="h-4 w-4 mr-1" />
+                              Conflicts → Prod
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={selectAllConflictsKeepProd} data-testid="button-conflicts-keep-prod">
+                              <GitCompare className="h-4 w-4 mr-1" />
+                              Conflicts → Dev
+                            </Button>
+                          </>
+                        )}
                         <Button variant="outline" size="sm" onClick={clearAllSelections} data-testid="button-clear-selections">
                           <X className="h-4 w-4 mr-1" />
                           Clear All
