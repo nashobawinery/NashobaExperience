@@ -8107,6 +8107,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertDailyReportTemplateSchema.parse(req.body);
       const template = await storage.upsertDailyReportTemplate(data);
+      
+      // Auto-sync field assignments for the new template
+      const activeFields = await storage.getDailyReportFieldDefinitions(true);
+      const existingAssignments = await storage.getDepartmentFieldAssignments(template.id);
+      
+      for (const field of activeFields) {
+        const existing = existingAssignments.find(a => a.fieldDefinitionId === field.id);
+        if (!existing) {
+          await storage.createDepartmentFieldAssignment({
+            templateId: template.id,
+            fieldDefinitionId: field.id,
+            isEnabled: true,
+            sortOrder: field.sortOrder
+          });
+        }
+      }
+      
       res.json(template);
     } catch (error) {
       console.error('Error creating daily report template:', error);

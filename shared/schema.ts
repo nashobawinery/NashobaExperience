@@ -1488,19 +1488,8 @@ export type ComplianceTaskWithDetails = ComplianceTask & {
 // DAILY REPORTS MODULE
 // ============================================
 
-// Department enum for Daily Reports
-export const dailyReportDepartmentEnum = pgEnum("daily_report_department", [
-  "tasting_room",
-  "retail",
-  "the_knoll",
-  "pavilion",
-  "js_restaurant",
-  "production",
-  "events",
-  "maintenance",
-  "orchard",
-  "food_operations"
-]);
+// Department type for Daily Reports (using varchar for flexibility)
+// Previously was an enum, now allows dynamic department creation
 
 // Incident severity enum
 export const incidentSeverityEnum = pgEnum("incident_severity", [
@@ -1520,7 +1509,7 @@ export const procedureTypeEnum = pgEnum("procedure_type", [
 // Daily Report Templates - Defines department-specific metrics
 export const dailyReportTemplates = pgTable("daily_report_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  department: dailyReportDepartmentEnum("department").notNull().unique(),
+  department: varchar("department").notNull().unique(),
   departmentLabel: text("department_label").notNull(),
   metrics: jsonb("metrics").notNull(), // Array of { key, label, type: 'count'|'decimal'|'text', required, description }
   notificationEmails: jsonb("notification_emails").default([]), // Array of { email, name?, role? }
@@ -1532,7 +1521,7 @@ export const dailyReportTemplates = pgTable("daily_report_templates", {
 // Daily Procedure Templates - Checklist items per department
 export const dailyProcedureTemplates = pgTable("daily_procedure_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  department: dailyReportDepartmentEnum("department").notNull(),
+  department: varchar("department").notNull(),
   procedureName: text("procedure_name").notNull(),
   description: text("description"),
   procedureType: procedureTypeEnum("procedure_type").notNull().default("general"), // opening, closing, or general
@@ -1548,7 +1537,7 @@ export const dailyProcedureTemplates = pgTable("daily_procedure_templates", {
 // Daily Reports - Main report table (one per department per day)
 export const dailyReports = pgTable("daily_reports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  department: dailyReportDepartmentEnum("department").notNull(),
+  department: varchar("department").notNull(),
   reportDate: timestamp("report_date").notNull(),
   submittedById: varchar("submitted_by_id").references(() => platformUsers.id),
   submittedByName: text("submitted_by_name"),
@@ -1635,7 +1624,7 @@ export const dailyProcedureCompletions = pgTable("daily_procedure_completions", 
 // Daily Report Email Recipients - who receives notifications for each department
 export const dailyReportEmailRecipients = pgTable("daily_report_email_recipients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  department: dailyReportDepartmentEnum("department").notNull(),
+  department: varchar("department").notNull(),
   email: varchar("email").notNull(),
   recipientName: varchar("recipient_name"),
   role: varchar("role"), // e.g., 'Director', 'Manager', 'Owner'
@@ -1705,7 +1694,7 @@ export const dailyReportAccessCodes = pgTable("daily_report_access_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   code: varchar("code", { length: 4 }).notNull().unique(),
   staffName: varchar("staff_name").notNull(),
-  department: dailyReportDepartmentEnum("department").notNull(),
+  department: varchar("department").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdById: varchar("created_by_id"),
   createdByName: varchar("created_by_name"),

@@ -749,6 +749,12 @@ export default function DailyReportsAdminDashboard() {
     notificationEmailsText: ""
   });
   
+  const [isNewDepartmentDialogOpen, setIsNewDepartmentDialogOpen] = useState(false);
+  const [newDepartmentFormData, setNewDepartmentFormData] = useState({
+    departmentKey: "",
+    departmentLabel: ""
+  });
+  
   const [inlineEditingEmailsTemplateId, setInlineEditingEmailsTemplateId] = useState<string | null>(null);
   const [inlineEmailsText, setInlineEmailsText] = useState("");
   
@@ -911,6 +917,22 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to update department settings", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const createDepartmentMutation = useMutation({
+    mutationFn: async (data: { department: string; departmentLabel: string; metrics: any[] }) => {
+      return await apiRequest('POST', '/api/daily-reports/templates', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-assignments'] });
+      setIsNewDepartmentDialogOpen(false);
+      setNewDepartmentFormData({ departmentKey: "", departmentLabel: "" });
+      toast({ title: "Department created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create department", description: error.message, variant: "destructive" });
     }
   });
 
@@ -1388,6 +1410,35 @@ export default function DailyReportsAdminDashboard() {
       data: {
         notificationEmails: emailList
       }
+    });
+  };
+
+  const handleCreateDepartment = () => {
+    const { departmentKey, departmentLabel } = newDepartmentFormData;
+    
+    if (!departmentKey || !departmentLabel) {
+      toast({ title: "Please fill in all fields", variant: "destructive" });
+      return;
+    }
+    
+    // Create department key from input (lowercase, underscores for spaces)
+    const normalizedKey = departmentKey.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    
+    if (!normalizedKey) {
+      toast({ title: "Invalid department key", description: "Please use only letters, numbers, and underscores", variant: "destructive" });
+      return;
+    }
+    
+    // Check if department already exists
+    if (templates.some(t => t.department === normalizedKey)) {
+      toast({ title: "Department already exists", description: "A department with this key already exists", variant: "destructive" });
+      return;
+    }
+    
+    createDepartmentMutation.mutate({
+      department: normalizedKey,
+      departmentLabel: departmentLabel.trim(),
+      metrics: [] // Empty metrics - field assignments will be auto-synced
     });
   };
 
@@ -2291,11 +2342,17 @@ export default function DailyReportsAdminDashboard() {
 
           <TabsContent value="departments" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Department Templates</CardTitle>
-                <CardDescription>
-                  Configure metrics, email notifications, and procedures for each department
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Department Templates</CardTitle>
+                  <CardDescription>
+                    Configure metrics, email notifications, and procedures for each department
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setIsNewDepartmentDialogOpen(true)} data-testid="button-create-department">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Department
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -3682,6 +3739,63 @@ export default function DailyReportsAdminDashboard() {
               data-testid="button-save-department"
             >
               {updateDepartmentMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNewDepartmentDialogOpen} onOpenChange={setIsNewDepartmentDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5 text-amber-500" />
+              Create New Department
+            </DialogTitle>
+            <DialogDescription>
+              Add a new department to manage daily reports. The department will automatically get all existing field definitions.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="departmentKey">Department Key</Label>
+              <Input
+                id="departmentKey"
+                placeholder="e.g., bakery, warehouse"
+                value={newDepartmentFormData.departmentKey}
+                onChange={(e) => setNewDepartmentFormData({ ...newDepartmentFormData, departmentKey: e.target.value })}
+                data-testid="input-department-key"
+              />
+              <p className="text-xs text-muted-foreground">
+                A unique identifier for the department (letters, numbers, underscores only)
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="departmentLabel">Display Name</Label>
+              <Input
+                id="departmentLabel"
+                placeholder="e.g., Bakery, Warehouse"
+                value={newDepartmentFormData.departmentLabel}
+                onChange={(e) => setNewDepartmentFormData({ ...newDepartmentFormData, departmentLabel: e.target.value })}
+                data-testid="input-department-label"
+              />
+              <p className="text-xs text-muted-foreground">
+                The name that will be displayed in the interface
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewDepartmentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateDepartment}
+              disabled={!newDepartmentFormData.departmentKey || !newDepartmentFormData.departmentLabel || createDepartmentMutation.isPending}
+              data-testid="button-create-new-department"
+            >
+              {createDepartmentMutation.isPending ? "Creating..." : "Create Department"}
             </Button>
           </DialogFooter>
         </DialogContent>
