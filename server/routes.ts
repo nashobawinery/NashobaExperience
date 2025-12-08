@@ -7396,18 +7396,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/maintenance/work-orders', isAuthenticated, async (req: any, res) => {
     try {
-      const { title, description, assetId, locationId, workOrderType, priority, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, checklistItems, instructions, attachmentUrls } = req.body;
+      const { title, description, assetId, locationId, maintenanceLocationId, workOrderType, priority, assignedToId, maintenanceTechnicianId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, checklistItems, instructions, attachmentUrls, notificationEmail, sendNotification } = req.body;
       
       const workOrderNumber = await generateWorkOrderNumber();
       const requestedById = req.user?.claims?.email ? 
         (await db.execute(sql`SELECT id FROM platform_users WHERE email = ${req.user.claims.email}`)).rows[0]?.id : null;
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, work_order_type, priority, status, requested_by_id, assigned_to_id, assigned_team, due_date, scheduled_start, scheduled_end, estimated_hours, checklist_items, instructions, attachment_urls)
-        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${assignedTeam}, ${dueDate ? new Date(dueDate) : null}, ${scheduledStart ? new Date(scheduledStart) : null}, ${scheduledEnd ? new Date(scheduledEnd) : null}, ${estimatedHours}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${attachmentUrls || null})
+        INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, maintenance_location_id, work_order_type, priority, status, requested_by_id, assigned_to_id, maintenance_technician_id, assigned_team, due_date, scheduled_start, scheduled_end, estimated_hours, checklist_items, instructions, attachment_urls, notification_email)
+        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${maintenanceLocationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${maintenanceTechnicianId || null}, ${assignedTeam}, ${dueDate ? new Date(dueDate) : null}, ${scheduledStart ? new Date(scheduledStart) : null}, ${scheduledEnd ? new Date(scheduledEnd) : null}, ${estimatedHours}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${attachmentUrls || null}, ${notificationEmail || null})
         RETURNING *
       `);
-      res.json(result.rows[0]);
+      
+      const workOrder = result.rows[0] as any;
+      
+      // Send notification if requested
+      if (sendNotification && notificationEmail) {
+        try {
+          // Get related data for email
+          const woResult = await db.execute(sql`
+            SELECT wo.*, 
+                   a.name as asset_name, a.asset_number,
+                   ml.name as maint_location_name,
+                   sl.location_name as shared_location_name,
+                   t.first_name as tech_first_name, t.last_name as tech_last_name,
+                   r.first_name as requester_first_name, r.last_name as requester_last_name
+            FROM maintenance_work_orders wo
+            LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+            LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
+            LEFT JOIN shared_locations sl ON wo.location_id = sl.id
+            LEFT JOIN maintenance_technicians t ON wo.maintenance_technician_id = t.id
+            LEFT JOIN platform_users r ON wo.requested_by_id = r.id
+            WHERE wo.id = ${workOrder.id}
+          `);
+          
+          const wo = woResult.rows[0] as any;
+          const locationName = wo.maint_location_name || wo.shared_location_name;
+          const assigneeName = wo.tech_first_name ? `${wo.tech_first_name} ${wo.tech_last_name}` : undefined;
+          const requestedByName = wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : undefined;
+          
+          const emailContent = generateWorkOrderNotificationEmail({
+            workOrderNumber: wo.work_order_number,
+            title: wo.title,
+            description: wo.description,
+            assetName: wo.asset_name ? `${wo.asset_name} (${wo.asset_number})` : undefined,
+            locationName,
+            priority: wo.priority || 'medium',
+            status: wo.status || 'open',
+            dueDate: wo.due_date,
+            assigneeName,
+            requestedByName,
+            instructions: wo.instructions
+          });
+          
+          await sendEmail(notificationEmail, emailContent.subject, emailContent.html, emailContent.text);
+          
+          // Update notification status
+          await db.execute(sql`
+            UPDATE maintenance_work_orders SET
+              notification_sent = true,
+              notification_sent_at = NOW()
+            WHERE id = ${workOrder.id}
+          `);
+        } catch (emailError) {
+          console.error('Failed to send notification email:', emailError);
+          // Don't fail the work order creation if email fails
+        }
+      }
+      
+      res.json(workOrder);
     } catch (error) {
       console.error('Error creating work order:', error);
       res.status(500).json({ message: 'Failed to create work order' });

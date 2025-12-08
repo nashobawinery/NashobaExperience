@@ -123,6 +123,49 @@ type Technician = {
   available: boolean;
 };
 
+type MaintenanceTechnician = {
+  id: string;
+  userId?: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  cellPhone?: string;
+  workPhone?: string;
+  isExternal: boolean;
+  companyName?: string;
+  companyAddress?: string;
+  companyCity?: string;
+  companyState?: string;
+  companyZip?: string;
+  companyPhone?: string;
+  skills?: string[];
+  specialties?: string[];
+  certifications?: string[];
+  hourlyRate?: string;
+  primaryLocationId?: string;
+  locationName?: string;
+  available: boolean;
+  isActive: boolean;
+  notes?: string;
+};
+
+type MaintenanceLocation = {
+  id: string;
+  name: string;
+  description?: string;
+  locationType?: string;
+  parentLocationId?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  accessInstructions?: string;
+  active: boolean;
+};
+
 const priorityColors: Record<string, string> = {
   critical: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   high: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
@@ -157,7 +200,7 @@ export default function MaintenanceDashboard() {
   const [showNewLocationDialog, setShowNewLocationDialog] = useState(false);
   const [showNewTechnicianDialog, setShowNewTechnicianDialog] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-  const [editingTechnician, setEditingTechnician] = useState<Technician | null>(null);
+  const [editingTechnician, setEditingTechnician] = useState<MaintenanceTechnician | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<MaintenanceStats>({
     queryKey: ["/api/maintenance/stats"],
@@ -191,8 +234,12 @@ export default function MaintenanceDashboard() {
     queryKey: ["/api/platform-users"],
   });
 
-  const { data: technicians = [] } = useQuery<Technician[]>({
+  const { data: maintenanceTechnicians = [] } = useQuery<MaintenanceTechnician[]>({
     queryKey: ["/api/maintenance/technicians"],
+  });
+
+  const { data: maintenanceLocations = [] } = useQuery<MaintenanceLocation[]>({
+    queryKey: ["/api/maintenance/locations"],
   });
 
   const createWorkOrderMutation = useMutation({
@@ -374,7 +421,9 @@ export default function MaintenanceDashboard() {
                 <NewWorkOrderForm 
                   assets={assets}
                   locations={locations}
+                  maintenanceLocations={maintenanceLocations}
                   users={users}
+                  maintenanceTechnicians={maintenanceTechnicians}
                   onSubmit={(data) => createWorkOrderMutation.mutate(data)}
                   isPending={createWorkOrderMutation.isPending}
                 />
@@ -1019,7 +1068,7 @@ export default function MaintenanceDashboard() {
                       </DialogHeader>
                       <TechnicianForm 
                         users={users}
-                        locations={locations}
+                        maintenanceLocations={maintenanceLocations}
                         onSubmit={(data) => createTechnicianMutation.mutate(data)}
                         isPending={createTechnicianMutation.isPending}
                       />
@@ -1028,7 +1077,7 @@ export default function MaintenanceDashboard() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[300px]">
-                    {technicians.length === 0 ? (
+                    {maintenanceTechnicians.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p>No technicians configured</p>
@@ -1036,23 +1085,35 @@ export default function MaintenanceDashboard() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {technicians.map((tech) => (
+                        {maintenanceTechnicians.map((tech: MaintenanceTechnician) => (
                           <div 
                             key={tech.id} 
                             className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
                             data-testid={`technician-${tech.id}`}
                           >
                             <div>
-                              <p className="font-medium">{tech.firstName} {tech.lastName}</p>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Badge variant={tech.available ? "default" : "secondary"}>
-                                  {tech.available ? 'Available' : 'Unavailable'}
+                              <p className="font-medium">
+                                {tech.firstName} {tech.lastName}
+                                {tech.isExternal && tech.companyName && (
+                                  <span className="text-muted-foreground ml-1 text-sm">({tech.companyName})</span>
+                                )}
+                              </p>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                <Badge variant={tech.isActive ? "default" : "secondary"}>
+                                  {tech.isActive ? 'Active' : 'Inactive'}
                                 </Badge>
+                                <Badge variant="outline">
+                                  {tech.isExternal ? 'Contractor' : 'Internal'}
+                                </Badge>
+                                {tech.available && (
+                                  <Badge variant="outline" className="text-green-600">Available</Badge>
+                                )}
+                                {tech.email && <span>{tech.email}</span>}
                                 {tech.locationName && <span>{tech.locationName}</span>}
                               </div>
-                              {tech.specialties?.length > 0 && (
+                              {tech.specialties && tech.specialties.length > 0 && (
                                 <div className="flex gap-1 mt-1 flex-wrap">
-                                  {tech.specialties.slice(0, 3).map((spec, i) => (
+                                  {tech.specialties.slice(0, 3).map((spec: string, i: number) => (
                                     <Badge key={i} variant="outline" className="text-xs">{spec}</Badge>
                                   ))}
                                 </div>
@@ -1113,7 +1174,7 @@ export default function MaintenanceDashboard() {
                 {editingTechnician && (
                   <TechnicianForm 
                     users={users}
-                    locations={locations}
+                    maintenanceLocations={maintenanceLocations}
                     initialData={editingTechnician}
                     onSubmit={(data) => updateTechnicianMutation.mutate({ id: editingTechnician.id, ...data })}
                     isPending={updateTechnicianMutation.isPending}
@@ -1165,38 +1226,123 @@ function StatCard({
 function NewWorkOrderForm({ 
   assets, 
   locations, 
+  maintenanceLocations,
   users,
+  maintenanceTechnicians,
   onSubmit, 
   isPending 
 }: { 
   assets: Asset[];
   locations: Location[];
+  maintenanceLocations: MaintenanceLocation[];
   users: Array<{ id: string; firstName: string; lastName: string }>;
+  maintenanceTechnicians: MaintenanceTechnician[];
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     assetId: "",
     locationId: "",
+    maintenanceLocationId: "",
     workOrderType: "corrective",
     priority: "medium",
     assignedToId: "",
+    maintenanceTechnicianId: "",
     dueDate: "",
     estimatedHours: "",
     instructions: "",
+    notificationEmail: "",
+    sendNotification: false,
+  });
+
+  const [showInlineLocation, setShowInlineLocation] = useState(false);
+  const [showInlineTechnician, setShowInlineTechnician] = useState(false);
+  const [inlineLocationName, setInlineLocationName] = useState("");
+  const [inlineTechFirstName, setInlineTechFirstName] = useState("");
+  const [inlineTechLastName, setInlineTechLastName] = useState("");
+  const [inlineTechEmail, setInlineTechEmail] = useState("");
+  const [inlineTechType, setInlineTechType] = useState<"internal" | "contractor">("contractor");
+  const [inlineTechCompany, setInlineTechCompany] = useState("");
+
+  const createLocationMutation = useMutation({
+    mutationFn: async (data: { name: string }) => {
+      return apiRequest("POST", "/api/maintenance/locations", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/locations"] });
+      toast({ title: "Location added" });
+      setShowInlineLocation(false);
+      setInlineLocationName("");
+    },
+    onError: () => {
+      toast({ title: "Failed to add location", variant: "destructive" });
+    }
+  });
+
+  const createTechnicianMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      return apiRequest("POST", "/api/maintenance/technicians", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/technicians"] });
+      toast({ title: "Technician added" });
+      setShowInlineTechnician(false);
+      setInlineTechFirstName("");
+      setInlineTechLastName("");
+      setInlineTechEmail("");
+      setInlineTechCompany("");
+    },
+    onError: () => {
+      toast({ title: "Failed to add technician", variant: "destructive" });
+    }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Find technician email if sending notification
+    let notificationEmail = formData.notificationEmail;
+    if (formData.sendNotification && !notificationEmail && formData.maintenanceTechnicianId) {
+      const tech = maintenanceTechnicians.find(t => t.id === formData.maintenanceTechnicianId);
+      if (tech?.email) notificationEmail = tech.email;
+    }
+    
     onSubmit({
       ...formData,
       assetId: formData.assetId || undefined,
       locationId: formData.locationId || undefined,
+      maintenanceLocationId: formData.maintenanceLocationId || undefined,
       assignedToId: formData.assignedToId || undefined,
+      maintenanceTechnicianId: formData.maintenanceTechnicianId || undefined,
       estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : undefined,
+      notificationEmail: formData.sendNotification ? notificationEmail : undefined,
+      sendNotification: formData.sendNotification,
     });
+  };
+
+  const handleInlineLocationSave = () => {
+    if (inlineLocationName.trim()) {
+      createLocationMutation.mutate({ name: inlineLocationName.trim() });
+    }
+  };
+
+  const handleInlineTechnicianSave = () => {
+    if (inlineTechFirstName.trim() && inlineTechLastName.trim()) {
+      createTechnicianMutation.mutate({
+        firstName: inlineTechFirstName.trim(),
+        lastName: inlineTechLastName.trim(),
+        email: inlineTechEmail.trim() || undefined,
+        isExternal: inlineTechType === "contractor",
+        companyName: inlineTechType === "contractor" ? inlineTechCompany.trim() : undefined,
+        specialties: [],
+        certifications: [],
+        isActive: true,
+        available: true,
+      });
+    }
   };
 
   return (
@@ -1238,21 +1384,58 @@ function NewWorkOrderForm({
             </SelectContent>
           </Select>
         </div>
+        
+        {/* Maintenance Location with inline add */}
         <div>
-          <Label htmlFor="locationId">Location</Label>
-          <Select value={formData.locationId} onValueChange={(v) => setFormData({ ...formData, locationId: v })}>
-            <SelectTrigger data-testid="select-wo-location">
-              <SelectValue placeholder="Select location" />
-            </SelectTrigger>
-            <SelectContent>
-              {locations.map((loc) => (
-                <SelectItem key={loc.id} value={loc.id}>
-                  {loc.locationName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-between mb-1">
+            <Label htmlFor="maintenanceLocationId">Work Location</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setShowInlineLocation(!showInlineLocation)}
+              data-testid="button-add-inline-location"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add New
+            </Button>
+          </div>
+          {showInlineLocation ? (
+            <div className="flex gap-1">
+              <Input
+                placeholder="Location name"
+                value={inlineLocationName}
+                onChange={(e) => setInlineLocationName(e.target.value)}
+                className="flex-1"
+                data-testid="input-inline-location-name"
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleInlineLocationSave}
+                disabled={!inlineLocationName.trim() || createLocationMutation.isPending}
+                data-testid="button-save-inline-location"
+              >
+                {createLocationMutation.isPending ? "..." : "Save"}
+              </Button>
+            </div>
+          ) : (
+            <Select value={formData.maintenanceLocationId} onValueChange={(v) => setFormData({ ...formData, maintenanceLocationId: v })}>
+              <SelectTrigger data-testid="select-wo-maintenance-location">
+                <SelectValue placeholder="Select work location" />
+              </SelectTrigger>
+              <SelectContent>
+                {maintenanceLocations.filter(loc => loc.active).map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
+        
         <div>
           <Label htmlFor="workOrderType">Type</Label>
           <Select value={formData.workOrderType} onValueChange={(v) => setFormData({ ...formData, workOrderType: v })}>
@@ -1282,21 +1465,112 @@ function NewWorkOrderForm({
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label htmlFor="assignedToId">Assign To</Label>
-          <Select value={formData.assignedToId} onValueChange={(v) => setFormData({ ...formData, assignedToId: v })}>
-            <SelectTrigger data-testid="select-wo-assignee">
-              <SelectValue placeholder="Select technician" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        
+        {/* Maintenance Technician with inline add */}
+        <div className="col-span-2">
+          <div className="flex items-center justify-between mb-1">
+            <Label htmlFor="maintenanceTechnicianId">Assign To Technician</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setShowInlineTechnician(!showInlineTechnician)}
+              data-testid="button-add-inline-technician"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add New
+            </Button>
+          </div>
+          {showInlineTechnician ? (
+            <div className="space-y-2 p-3 border rounded-md bg-muted/20">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="First name *"
+                  value={inlineTechFirstName}
+                  onChange={(e) => setInlineTechFirstName(e.target.value)}
+                  data-testid="input-inline-tech-first-name"
+                />
+                <Input
+                  placeholder="Last name *"
+                  value={inlineTechLastName}
+                  onChange={(e) => setInlineTechLastName(e.target.value)}
+                  data-testid="input-inline-tech-last-name"
+                />
+              </div>
+              <Input
+                placeholder="Email"
+                type="email"
+                value={inlineTechEmail}
+                onChange={(e) => setInlineTechEmail(e.target.value)}
+                data-testid="input-inline-tech-email"
+              />
+              <div className="flex gap-2">
+                <Select value={inlineTechType} onValueChange={(v) => setInlineTechType(v as "internal" | "contractor")}>
+                  <SelectTrigger className="w-32" data-testid="select-inline-tech-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="internal">Internal</SelectItem>
+                    <SelectItem value="contractor">Contractor</SelectItem>
+                  </SelectContent>
+                </Select>
+                {inlineTechType === "contractor" && (
+                  <Input
+                    placeholder="Company name"
+                    value={inlineTechCompany}
+                    onChange={(e) => setInlineTechCompany(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-inline-tech-company"
+                  />
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowInlineTechnician(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleInlineTechnicianSave}
+                  disabled={!inlineTechFirstName.trim() || !inlineTechLastName.trim() || createTechnicianMutation.isPending}
+                  data-testid="button-save-inline-technician"
+                >
+                  {createTechnicianMutation.isPending ? "Saving..." : "Save Technician"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Select value={formData.maintenanceTechnicianId} onValueChange={(v) => {
+              const tech = maintenanceTechnicians.find(t => t.id === v);
+              setFormData({ 
+                ...formData, 
+                maintenanceTechnicianId: v,
+                notificationEmail: tech?.email || formData.notificationEmail
+              });
+            }}>
+              <SelectTrigger data-testid="select-wo-technician">
+                <SelectValue placeholder="Select technician" />
+              </SelectTrigger>
+              <SelectContent>
+                {maintenanceTechnicians.filter(t => t.isActive && t.available).map((tech) => (
+                  <SelectItem key={tech.id} value={tech.id}>
+                    {tech.firstName} {tech.lastName}
+                    {tech.isExternal && tech.companyName && (
+                      <span className="text-muted-foreground ml-1">({tech.companyName})</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
+        
         <div>
           <Label htmlFor="dueDate">Due Date</Label>
           <Input
@@ -1327,6 +1601,32 @@ function NewWorkOrderForm({
             rows={2}
             data-testid="input-wo-instructions"
           />
+        </div>
+        
+        {/* Email Notification Section */}
+        <div className="col-span-2 border rounded-md p-3 bg-muted/20">
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              id="sendNotification"
+              checked={formData.sendNotification}
+              onChange={(e) => setFormData({ ...formData, sendNotification: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300"
+              data-testid="checkbox-send-notification"
+            />
+            <Label htmlFor="sendNotification" className="font-normal cursor-pointer">
+              Send email notification to assigned technician
+            </Label>
+          </div>
+          {formData.sendNotification && (
+            <Input
+              type="email"
+              placeholder="Notification email (auto-filled from technician)"
+              value={formData.notificationEmail}
+              onChange={(e) => setFormData({ ...formData, notificationEmail: e.target.value })}
+              data-testid="input-notification-email"
+            />
+          )}
         </div>
       </div>
       </div>
@@ -1787,78 +2087,196 @@ function LocationForm({
 
 function TechnicianForm({ 
   users,
-  locations,
+  maintenanceLocations,
   initialData,
   onSubmit, 
   isPending 
 }: { 
   users: Array<{ id: string; firstName: string; lastName: string }>;
-  locations: Location[];
-  initialData?: Technician;
+  maintenanceLocations: MaintenanceLocation[];
+  initialData?: MaintenanceTechnician;
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
   const [formData, setFormData] = useState({
+    firstName: initialData?.firstName || "",
+    lastName: initialData?.lastName || "",
+    email: initialData?.email || "",
+    cellPhone: initialData?.cellPhone || "",
+    isExternal: initialData?.isExternal ?? false,
+    companyName: initialData?.companyName || "",
+    companyAddress: initialData?.companyAddress || "",
+    companyPhone: initialData?.companyPhone || "",
     userId: initialData?.userId || "",
     specialties: initialData?.specialties?.join(", ") || "",
     certifications: initialData?.certifications?.join(", ") || "",
-    locationId: "",
-    phoneNumber: initialData?.phoneNumber || "",
+    primaryLocationId: initialData?.primaryLocationId || "",
+    hourlyRate: initialData?.hourlyRate || "",
+    isActive: initialData?.isActive ?? true,
     available: initialData?.available ?? true,
+    notes: initialData?.notes || "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
-      userId: formData.userId,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email || undefined,
+      cellPhone: formData.cellPhone || undefined,
+      isExternal: formData.isExternal,
+      companyName: formData.isExternal ? formData.companyName : undefined,
+      companyAddress: formData.isExternal ? formData.companyAddress : undefined,
+      companyPhone: formData.isExternal ? formData.companyPhone : undefined,
+      userId: !formData.isExternal ? formData.userId : undefined,
       specialties: formData.specialties.split(",").map(s => s.trim()).filter(Boolean),
       certifications: formData.certifications.split(",").map(s => s.trim()).filter(Boolean),
-      locationId: formData.locationId || undefined,
-      phoneNumber: formData.phoneNumber || undefined,
+      primaryLocationId: formData.primaryLocationId || undefined,
+      hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
+      isActive: formData.isActive,
       available: formData.available,
+      notes: formData.notes || undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="max-h-[50vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <Label htmlFor="userId">Platform User *</Label>
-          <Select value={formData.userId} onValueChange={(v) => setFormData({ ...formData, userId: v })}>
-            <SelectTrigger data-testid="select-tech-user">
-              <SelectValue placeholder="Select user" />
+        <div>
+          <Label htmlFor="isExternal">Type *</Label>
+          <Select value={formData.isExternal ? "contractor" : "internal"} onValueChange={(v) => setFormData({ ...formData, isExternal: v === "contractor" })}>
+            <SelectTrigger data-testid="select-tech-type">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName}
-                </SelectItem>
-              ))}
+              <SelectItem value="internal">Internal Employee</SelectItem>
+              <SelectItem value="contractor">External Contractor</SelectItem>
             </SelectContent>
           </Select>
         </div>
+        {!formData.isExternal && (
+          <div>
+            <Label htmlFor="userId">Platform User</Label>
+            <Select value={formData.userId} onValueChange={(v) => {
+              const user = users.find(u => u.id === v);
+              setFormData({ 
+                ...formData, 
+                userId: v,
+                firstName: user?.firstName || formData.firstName,
+                lastName: user?.lastName || formData.lastName 
+              });
+            }}>
+              <SelectTrigger data-testid="select-tech-user">
+                <SelectValue placeholder="Select user" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.firstName} {user.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div>
-          <Label htmlFor="locationId">Primary Location</Label>
-          <Select value={formData.locationId} onValueChange={(v) => setFormData({ ...formData, locationId: v })}>
+          <Label htmlFor="firstName">First Name *</Label>
+          <Input
+            id="firstName"
+            value={formData.firstName}
+            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+            required
+            data-testid="input-tech-first-name"
+          />
+        </div>
+        <div>
+          <Label htmlFor="lastName">Last Name *</Label>
+          <Input
+            id="lastName"
+            value={formData.lastName}
+            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+            required
+            data-testid="input-tech-last-name"
+          />
+        </div>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            data-testid="input-tech-email"
+          />
+        </div>
+        <div>
+          <Label htmlFor="cellPhone">Phone</Label>
+          <Input
+            id="cellPhone"
+            value={formData.cellPhone}
+            onChange={(e) => setFormData({ ...formData, cellPhone: e.target.value })}
+            data-testid="input-tech-phone"
+          />
+        </div>
+        
+        {formData.isExternal && (
+          <>
+            <div className="col-span-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                value={formData.companyName}
+                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                data-testid="input-tech-company"
+              />
+            </div>
+            <div>
+              <Label htmlFor="companyAddress">Company Address</Label>
+              <Input
+                id="companyAddress"
+                value={formData.companyAddress}
+                onChange={(e) => setFormData({ ...formData, companyAddress: e.target.value })}
+                data-testid="input-tech-company-address"
+              />
+            </div>
+            <div>
+              <Label htmlFor="companyPhone">Company Phone</Label>
+              <Input
+                id="companyPhone"
+                value={formData.companyPhone}
+                onChange={(e) => setFormData({ ...formData, companyPhone: e.target.value })}
+                data-testid="input-tech-company-phone"
+              />
+            </div>
+          </>
+        )}
+        
+        <div>
+          <Label htmlFor="primaryLocationId">Primary Location</Label>
+          <Select value={formData.primaryLocationId} onValueChange={(v) => setFormData({ ...formData, primaryLocationId: v })}>
             <SelectTrigger data-testid="select-tech-location">
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              {locations.map((loc) => (
+              {maintenanceLocations.filter(loc => loc.active).map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.locationName}
+                  {loc.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label htmlFor="phoneNumber">Phone</Label>
+          <Label htmlFor="hourlyRate">Hourly Rate</Label>
           <Input
-            id="phoneNumber"
-            value={formData.phoneNumber}
-            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-            data-testid="input-tech-phone"
+            id="hourlyRate"
+            type="number"
+            step="0.01"
+            value={formData.hourlyRate}
+            onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+            placeholder="e.g., 75.00"
+            data-testid="input-tech-rate"
           />
         </div>
         <div className="col-span-2">
@@ -1881,20 +2299,44 @@ function TechnicianForm({
             data-testid="input-tech-certifications"
           />
         </div>
-        <div className="col-span-2 flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="available"
-            checked={formData.available}
-            onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
-            className="w-4 h-4"
-            data-testid="checkbox-tech-available"
+        <div className="col-span-2">
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            rows={2}
+            data-testid="input-tech-notes"
           />
-          <Label htmlFor="available">Available for work orders</Label>
+        </div>
+        <div className="col-span-2 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="w-4 h-4"
+              data-testid="checkbox-tech-active"
+            />
+            <Label htmlFor="isActive">Active</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="available"
+              checked={formData.available}
+              onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
+              className="w-4 h-4"
+              data-testid="checkbox-tech-available"
+            />
+            <Label htmlFor="available">Available for work orders</Label>
+          </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={isPending || !formData.userId} data-testid="button-submit-technician">
+      </div>
+      <div className="flex justify-end gap-2 pt-4 border-t">
+        <Button type="submit" disabled={isPending || !formData.firstName || !formData.lastName} data-testid="button-submit-technician">
           {isPending ? "Saving..." : initialData ? "Update Technician" : "Add Technician"}
         </Button>
       </div>
