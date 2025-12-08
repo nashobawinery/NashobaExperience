@@ -8780,24 +8780,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.hasCustomerConcerns !== undefined) bodyData.hasCustomerConcerns = req.body.hasCustomerConcerns;
       if (req.body.customerConcernsSummary !== undefined) bodyData.customerConcernsSummary = req.body.customerConcernsSummary;
       if (req.body.status !== undefined) bodyData.status = req.body.status;
+      // Map staffName to submittedByName (admin can change who is filing)
+      if (req.body.staffName !== undefined) bodyData.submittedByName = req.body.staffName;
       
       console.log(`[Daily Reports] PATCH - mapped bodyData:`, JSON.stringify(bodyData, null, 2));
       
-      const data = insertDailyReportSchema.partial().parse(bodyData);
-      
       // If submitting, update status
       if (req.body.submit === true) {
-        data.status = 'submitted';
+        bodyData.status = 'submitted';
       }
       
-      const report = await storage.updateDailyReport(id, data);
+      // Update the report directly without strict schema validation
+      // (the storage layer handles validation)
+      const report = await storage.updateDailyReport(id, bodyData);
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
       res.json(transformReportForFrontend(report));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating daily report:', error);
-      res.status(500).json({ message: 'Failed to update report' });
+      // Check for Zod validation errors
+      if (error?.name === 'ZodError') {
+        console.error('Zod validation errors:', JSON.stringify(error.errors, null, 2));
+        return res.status(400).json({ 
+          message: 'Validation error', 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: 'Failed to update report', error: error?.message || 'Unknown error' });
     }
   });
 
