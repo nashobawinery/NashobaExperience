@@ -2496,7 +2496,15 @@ export type LmsSkillVerification = typeof lmsSkillVerifications.$inferSelect;
 export const workOrderPriorityEnum = pgEnum("work_order_priority", ["low", "medium", "high", "critical"]);
 
 // Work order status enum  
-export const workOrderStatusEnum = pgEnum("work_order_status", ["open", "in_progress", "on_hold", "completed", "cancelled"]);
+export const workOrderStatusEnum = pgEnum("work_order_status", [
+  "new",           // Newly created, not yet started
+  "in_progress",   // Work is actively being done
+  "waiting_parts", // Work paused - waiting for parts
+  "waiting_tech",  // Work paused - waiting for technician availability
+  "on_hold",       // Work paused - other reason
+  "completed",     // Work finished successfully
+  "cancelled"      // Work order cancelled
+]);
 
 // Work order type enum
 export const workOrderTypeEnum = pgEnum("work_order_type", ["corrective", "preventive", "inspection", "emergency", "project"]);
@@ -2648,7 +2656,7 @@ export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
   maintenanceLocationId: varchar("maintenance_location_id").references(() => maintenanceLocations.id),
   workOrderType: workOrderTypeEnum("work_order_type").notNull().default("corrective"),
   priority: workOrderPriorityEnum("priority").notNull().default("medium"),
-  status: workOrderStatusEnum("status").notNull().default("open"),
+  status: workOrderStatusEnum("status").notNull().default("new"),
   
   // Assignment
   requestedById: varchar("requested_by_id").references(() => platformUsers.id),
@@ -2703,7 +2711,43 @@ export const insertMaintenanceWorkOrderSchema = createInsertSchema(maintenanceWo
 export type InsertMaintenanceWorkOrder = z.infer<typeof insertMaintenanceWorkOrderSchema>;
 export type MaintenanceWorkOrder = typeof maintenanceWorkOrders.$inferSelect;
 
-// Work Order Comments - activity log and communication
+// Work Order Progress Notes - detailed tracking of work progress and status changes
+export const maintenanceWorkOrderNotes = pgTable("maintenance_work_order_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workOrderId: varchar("work_order_id").notNull().references(() => maintenanceWorkOrders.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => platformUsers.id),
+  technicianId: varchar("technician_id").references(() => maintenanceTechnicians.id),
+  
+  // Note type for filtering/categorization
+  noteType: varchar("note_type").notNull().default("progress"), // progress, status_change, action_taken, parts_used, issue_found
+  
+  // Content
+  title: varchar("title"), // Brief summary
+  content: text("content").notNull(), // Detailed note
+  
+  // Status change tracking
+  previousStatus: workOrderStatusEnum("previous_status"),
+  newStatus: workOrderStatusEnum("new_status"),
+  
+  // Time tracking for this entry
+  hoursWorked: decimal("hours_worked", { precision: 6, scale: 2 }),
+  
+  // Attachments (photos of work, receipts, etc.)
+  attachmentUrls: text("attachment_urls").array(),
+  
+  isSystemGenerated: boolean("is_system_generated").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_wo_note_wo").on(table.workOrderId),
+  index("idx_wo_note_type").on(table.noteType),
+  index("idx_wo_note_tech").on(table.technicianId),
+]);
+
+export const insertMaintenanceWorkOrderNoteSchema = createInsertSchema(maintenanceWorkOrderNotes).omit({ id: true, createdAt: true });
+export type InsertMaintenanceWorkOrderNote = z.infer<typeof insertMaintenanceWorkOrderNoteSchema>;
+export type MaintenanceWorkOrderNote = typeof maintenanceWorkOrderNotes.$inferSelect;
+
+// Work Order Comments - activity log and communication (legacy, kept for compatibility)
 export const maintenanceWorkOrderComments = pgTable("maintenance_work_order_comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workOrderId: varchar("work_order_id").notNull().references(() => maintenanceWorkOrders.id, { onDelete: 'cascade' }),
@@ -2742,6 +2786,8 @@ export const maintenancePreventiveSchedules = pgTable("maintenance_preventive_sc
   workOrderPriority: workOrderPriorityEnum("work_order_priority").notNull().default("medium"),
   estimatedHours: decimal("estimated_hours", { precision: 6, scale: 2 }),
   assignedToId: varchar("assigned_to_id").references(() => platformUsers.id),
+  maintenanceTechnicianId: varchar("maintenance_technician_id").references(() => maintenanceTechnicians.id),
+  maintenanceLocationId: varchar("maintenance_location_id").references(() => maintenanceLocations.id),
   assignedTeam: varchar("assigned_team"),
   checklistItems: jsonb("checklist_items"),
   instructions: text("instructions"),
