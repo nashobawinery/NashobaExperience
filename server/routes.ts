@@ -7644,16 +7644,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Technicians ---
+  // --- Maintenance Locations ---
+  app.get('/api/maintenance/locations', isAuthenticated, async (req, res) => {
+    try {
+      const { activeOnly } = req.query;
+      const result = await db.execute(sql`
+        SELECT ml.*, pl.name as parent_location_name
+        FROM maintenance_locations ml
+        LEFT JOIN maintenance_locations pl ON ml.parent_location_id = pl.id
+        WHERE 1=1
+        ${activeOnly === 'true' ? sql` AND ml.is_active = true` : sql``}
+        ORDER BY ml.building, ml.floor, ml.name
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching maintenance locations:', error);
+      res.status(500).json({ message: 'Failed to fetch locations' });
+    }
+  });
+
+  app.get('/api/maintenance/locations/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        SELECT ml.*, pl.name as parent_location_name
+        FROM maintenance_locations ml
+        LEFT JOIN maintenance_locations pl ON ml.parent_location_id = pl.id
+        WHERE ml.id = ${id}
+      `);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Location not found' });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching maintenance location:', error);
+      res.status(500).json({ message: 'Failed to fetch location' });
+    }
+  });
+
+  app.post('/api/maintenance/locations', isAdmin, async (req, res) => {
+    try {
+      const { name, description, locationType, building, floor, room, address, contactName, contactPhone, contactEmail, parentLocationId, isActive, notes } = req.body;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_locations (name, description, location_type, building, floor, room, address, contact_name, contact_phone, contact_email, parent_location_id, is_active, notes)
+        VALUES (${name}, ${description || null}, ${locationType || null}, ${building || null}, ${floor || null}, ${room || null}, ${address || null}, ${contactName || null}, ${contactPhone || null}, ${contactEmail || null}, ${parentLocationId || null}, ${isActive ?? true}, ${notes || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating maintenance location:', error);
+      res.status(500).json({ message: 'Failed to create location' });
+    }
+  });
+
+  app.put('/api/maintenance/locations/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, locationType, building, floor, room, address, contactName, contactPhone, contactEmail, parentLocationId, isActive, notes } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE maintenance_locations SET
+          name = ${name}, description = ${description || null}, location_type = ${locationType || null},
+          building = ${building || null}, floor = ${floor || null}, room = ${room || null},
+          address = ${address || null}, contact_name = ${contactName || null}, contact_phone = ${contactPhone || null},
+          contact_email = ${contactEmail || null}, parent_location_id = ${parentLocationId || null},
+          is_active = ${isActive ?? true}, notes = ${notes || null}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating maintenance location:', error);
+      res.status(500).json({ message: 'Failed to update location' });
+    }
+  });
+
+  app.delete('/api/maintenance/locations/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM maintenance_locations WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting maintenance location:', error);
+      res.status(500).json({ message: 'Failed to delete location' });
+    }
+  });
+
+  // --- Technicians (supports internal employees and external contractors) ---
   app.get('/api/maintenance/technicians', isAuthenticated, async (req, res) => {
     try {
+      const { activeOnly, externalOnly } = req.query;
       const result = await db.execute(sql`
-        SELECT t.*, u.first_name, u.last_name, u.email, l.location_name
+        SELECT t.*, u.first_name as linked_first_name, u.last_name as linked_last_name, 
+               u.email as linked_email, ml.name as location_name
         FROM maintenance_technicians t
-        JOIN platform_users u ON t.user_id = u.id
-        LEFT JOIN shared_locations l ON t.location_id = l.id
-        WHERE u.active = true
-        ORDER BY u.first_name, u.last_name
+        LEFT JOIN platform_users u ON t.user_id = u.id
+        LEFT JOIN maintenance_locations ml ON t.primary_location_id = ml.id
+        WHERE 1=1
+        ${activeOnly === 'true' ? sql` AND t.is_active = true` : sql``}
+        ${externalOnly === 'true' ? sql` AND t.is_external = true` : sql``}
+        ORDER BY t.first_name, t.last_name
       `);
       res.json(result.rows);
     } catch (error) {
@@ -7662,13 +7753,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/maintenance/technicians/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        SELECT t.*, u.first_name as linked_first_name, u.last_name as linked_last_name, 
+               u.email as linked_email, ml.name as location_name
+        FROM maintenance_technicians t
+        LEFT JOIN platform_users u ON t.user_id = u.id
+        LEFT JOIN maintenance_locations ml ON t.primary_location_id = ml.id
+        WHERE t.id = ${id}
+      `);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Technician not found' });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching technician:', error);
+      res.status(500).json({ message: 'Failed to fetch technician' });
+    }
+  });
+
   app.post('/api/maintenance/technicians', isAdmin, async (req, res) => {
     try {
-      const { userId, employeeNumber, specialties, certifications, hourlyRate, shiftSchedule, locationId, phoneNumber, notes, available } = req.body;
+      const { 
+        userId, firstName, lastName, employeeNumber, isExternal,
+        companyName, companyAddress, companyCity, companyState, companyZip, companyPhone,
+        email, cellPhone, workPhone, skills, certifications, specialties,
+        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, notes 
+      } = req.body;
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_technicians (user_id, employee_number, specialties, certifications, hourly_rate, shift_schedule, location_id, phone_number, notes, available)
-        VALUES (${userId}, ${employeeNumber || null}, ${specialties ? JSON.stringify(specialties) : null}, ${certifications ? JSON.stringify(certifications) : null}, ${hourlyRate || null}, ${shiftSchedule || null}, ${locationId || null}, ${phoneNumber || null}, ${notes || null}, ${available ?? true})
+        INSERT INTO maintenance_technicians (
+          user_id, first_name, last_name, employee_number, is_external,
+          company_name, company_address, company_city, company_state, company_zip, company_phone,
+          email, cell_phone, work_phone, skills, certifications, specialties,
+          hourly_rate, shift_schedule, primary_location_id, available, is_active, notes
+        )
+        VALUES (
+          ${userId || null}, ${firstName}, ${lastName}, ${employeeNumber || null}, ${isExternal ?? false},
+          ${companyName || null}, ${companyAddress || null}, ${companyCity || null}, ${companyState || null}, ${companyZip || null}, ${companyPhone || null},
+          ${email || null}, ${cellPhone || null}, ${workPhone || null}, 
+          ${skills ? (Array.isArray(skills) ? skills : [skills]) : null}, 
+          ${certifications ? JSON.stringify(certifications) : null}, ${specialties || null},
+          ${hourlyRate || null}, ${shiftSchedule || null}, ${primaryLocationId || null}, ${available ?? true}, ${isActive ?? true}, ${notes || null}
+        )
         RETURNING *
       `);
       res.json(result.rows[0]);
@@ -7681,17 +7810,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/maintenance/technicians/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { specialties, certifications, locationId, phoneNumber, notes, available } = req.body;
+      const { 
+        userId, firstName, lastName, employeeNumber, isExternal,
+        companyName, companyAddress, companyCity, companyState, companyZip, companyPhone,
+        email, cellPhone, workPhone, skills, certifications, specialties,
+        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, notes 
+      } = req.body;
       
       const result = await db.execute(sql`
-        UPDATE maintenance_technicians 
-        SET specialties = ${specialties ? JSON.stringify(specialties) : null},
-            certifications = ${certifications ? JSON.stringify(certifications) : null},
-            location_id = ${locationId || null},
-            phone_number = ${phoneNumber || null},
-            notes = ${notes || null},
-            available = ${available ?? true},
-            updated_at = NOW()
+        UPDATE maintenance_technicians SET
+          user_id = ${userId || null}, first_name = ${firstName}, last_name = ${lastName},
+          employee_number = ${employeeNumber || null}, is_external = ${isExternal ?? false},
+          company_name = ${companyName || null}, company_address = ${companyAddress || null},
+          company_city = ${companyCity || null}, company_state = ${companyState || null},
+          company_zip = ${companyZip || null}, company_phone = ${companyPhone || null},
+          email = ${email || null}, cell_phone = ${cellPhone || null}, work_phone = ${workPhone || null},
+          skills = ${skills ? (Array.isArray(skills) ? skills : [skills]) : null},
+          certifications = ${certifications ? JSON.stringify(certifications) : null},
+          specialties = ${specialties || null}, hourly_rate = ${hourlyRate || null},
+          shift_schedule = ${shiftSchedule || null}, primary_location_id = ${primaryLocationId || null},
+          available = ${available ?? true}, is_active = ${isActive ?? true}, notes = ${notes || null},
+          updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
       `);
