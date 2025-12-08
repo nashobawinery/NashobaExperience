@@ -441,14 +441,27 @@ export default function DatabaseSync() {
   const environmentName = isProduction ? 'Production' : 'Development';
   const environmentColor = isProduction ? 'destructive' : 'default';
 
-  const { data: registryData, isLoading: isLoadingRegistry } = useQuery<RegistryMetadata>({
+  const { data: registryData, isLoading: isLoadingRegistry, isError: isRegistryError, error: registryError } = useQuery<RegistryMetadata>({
     queryKey: ['/api/admin/sync/registry'],
+    retry: 2,
   });
+
+  // Log registry status for debugging
+  useEffect(() => {
+    if (isRegistryError) {
+      console.error('[Sync] Registry fetch failed:', registryError);
+    } else if (registryData) {
+      console.log('[Sync] Registry loaded:', registryData.modules?.length, 'modules,', 
+        registryData.modules?.reduce((sum, m) => sum + m.tables.length, 0), 'tables');
+    }
+  }, [registryData, isRegistryError, registryError]);
 
   const modules = useMemo(() => {
     if (registryData?.modules) {
       return registryData.modules;
     }
+    // Fallback if registry fails - show warning
+    console.warn('[Sync] Using fallback tables - registry not loaded');
     return [
       {
         id: 'tasting',
@@ -1448,6 +1461,27 @@ export default function DatabaseSync() {
               </ol>
             </AlertDescription>
           </Alert>
+          
+          {isRegistryError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Registry Load Failed</AlertTitle>
+              <AlertDescription>
+                Could not load the full table registry. Only tasting and B2B tables are available. 
+                Please ensure you are logged in as an admin and refresh the page.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {!isRegistryError && registryData && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>Registry Loaded</AlertTitle>
+              <AlertDescription>
+                {modules.length} modules with {allSyncableTables.length} syncable tables available
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Schema Push Section */}
           <SchemaPushCard />
