@@ -1189,8 +1189,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (!prodDatabaseUrl) {
+        console.error('[Sync] Error: Production database URL is missing');
         return res.status(400).json({ message: "Production database URL is required" });
       }
+      
+      // Validate connection string format
+      if (!prodDatabaseUrl.startsWith('postgres://') && !prodDatabaseUrl.startsWith('postgresql://')) {
+        console.error('[Sync] Error: Invalid database URL format');
+        return res.status(400).json({ message: "Invalid database URL format. Must start with postgres:// or postgresql://" });
+      }
+      
+      console.log(`[Sync] Starting scan with prod URL (first 40 chars): ${prodDatabaseUrl.substring(0, 40)}...`);
       
       const { scanBidirectional } = await import("./bidirectionalSync");
       const result = await scanBidirectional({
@@ -1205,7 +1214,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error: any) {
-      console.error("Error scanning databases:", error);
+      console.error("[Sync] Error scanning databases:", error.message);
+      if (error.stack) {
+        console.error("[Sync] Stack trace:", error.stack);
+      }
       res.status(500).json({ message: error.message || "Bidirectional scan failed" });
     }
   });
