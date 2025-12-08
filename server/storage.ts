@@ -3734,50 +3734,86 @@ export class DatabaseStorage implements IStorage {
 
   // Daily Reports Stats
   async getDailyReportsStats(startDate?: Date, endDate?: Date): Promise<{
-    totalReports: number;
-    submittedToday: number;
-    unresolvedIncidents: number;
-    customerConcerns: number;
-    procedureCompletionRate: number;
+    total: number;
+    draft: number;
+    submitted: number;
+    reviewed: number;
+    todayCount: number;
+    incidentsToday: number;
+    criticalIncidents: number;
+    proceduresCompleted: number;
+    proceduresTotal: number;
   }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
+    // Total reports count
     const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(dailyReports);
     
+    // Count reports by status
+    const [draftResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReports)
+      .where(eq(dailyReports.status, 'draft'));
+    
+    const [submittedResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReports)
+      .where(eq(dailyReports.status, 'submitted'));
+    
+    const [reviewedResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReports)
+      .where(eq(dailyReports.status, 'reviewed'));
+    
+    // Reports created today (regardless of status)
     const [todayResult] = await db.select({ count: sql<number>`count(*)` })
       .from(dailyReports)
       .where(and(
         sql`${dailyReports.reportDate} >= ${today}`,
-        sql`${dailyReports.reportDate} < ${tomorrow}`,
-        eq(dailyReports.status, 'submitted')
+        sql`${dailyReports.reportDate} < ${tomorrow}`
       ));
     
-    const [unresolvedResult] = await db.select({ count: sql<number>`count(*)` })
+    // Incidents reported today
+    const [incidentsResult] = await db.select({ count: sql<number>`count(*)` })
       .from(dailyReportIncidents)
-      .where(eq(dailyReportIncidents.resolved, false));
+      .innerJoin(dailyReports, eq(dailyReportIncidents.reportId, dailyReports.id))
+      .where(and(
+        sql`${dailyReports.reportDate} >= ${today}`,
+        sql`${dailyReports.reportDate} < ${tomorrow}`
+      ));
     
-    const [customerConcernsResult] = await db.select({ count: sql<number>`count(*)` })
-      .from(dailyReports)
-      .where(eq(dailyReports.hasCustomerConcerns, true));
+    // Critical incidents today
+    const [criticalResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(dailyReportIncidents)
+      .innerJoin(dailyReports, eq(dailyReportIncidents.reportId, dailyReports.id))
+      .where(and(
+        sql`${dailyReports.reportDate} >= ${today}`,
+        sql`${dailyReports.reportDate} < ${tomorrow}`,
+        eq(dailyReportIncidents.severity, 'critical')
+      ));
     
-    const [completionResult] = await db.select({
-      completed: sql<number>`SUM(CASE WHEN ${dailyReports.proceduresCompleted} THEN 1 ELSE 0 END)`,
+    // Procedures completed today
+    const [proceduresResult] = await db.select({
+      completed: sql<number>`SUM(CASE WHEN ${dailyProcedureCompletions.completed} THEN 1 ELSE 0 END)`,
       total: sql<number>`COUNT(*)`
-    }).from(dailyReports);
-    
-    const completionRate = completionResult.total > 0 
-      ? (completionResult.completed / completionResult.total) * 100 
-      : 0;
+    })
+      .from(dailyProcedureCompletions)
+      .innerJoin(dailyReports, eq(dailyProcedureCompletions.reportId, dailyReports.id))
+      .where(and(
+        sql`${dailyReports.reportDate} >= ${today}`,
+        sql`${dailyReports.reportDate} < ${tomorrow}`
+      ));
     
     return {
-      totalReports: Number(totalResult.count) || 0,
-      submittedToday: Number(todayResult.count) || 0,
-      unresolvedIncidents: Number(unresolvedResult.count) || 0,
-      customerConcerns: Number(customerConcernsResult.count) || 0,
-      procedureCompletionRate: Math.round(completionRate)
+      total: Number(totalResult.count) || 0,
+      draft: Number(draftResult.count) || 0,
+      submitted: Number(submittedResult.count) || 0,
+      reviewed: Number(reviewedResult.count) || 0,
+      todayCount: Number(todayResult.count) || 0,
+      incidentsToday: Number(incidentsResult.count) || 0,
+      criticalIncidents: Number(criticalResult.count) || 0,
+      proceduresCompleted: Number(proceduresResult.completed) || 0,
+      proceduresTotal: Number(proceduresResult.total) || 0
     };
   }
 

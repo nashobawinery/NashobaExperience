@@ -8615,9 +8615,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
       
       // Map frontend field names to schema field names
+      // Parse date with noon UTC to avoid timezone edge cases (date showing as previous day)
+      const reportDateValue = req.body.reportDate 
+        ? new Date(req.body.reportDate + 'T12:00:00Z') 
+        : new Date();
+      
       const bodyData = {
         department: req.body.department,
-        reportDate: req.body.reportDate ? new Date(req.body.reportDate) : new Date(),
+        reportDate: reportDateValue,
         submittedById: userId,
         submittedByName: userName,
         metricsData: req.body.metrics || req.body.metricsData || null,
@@ -8718,11 +8723,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
+      console.log(`[Daily Reports] PATCH /api/daily-reports/${id} - body:`, JSON.stringify(req.body, null, 2));
+      
       // Map frontend field names to schema field names
       const bodyData: Record<string, any> = {};
       
       if (req.body.department) bodyData.department = req.body.department;
-      if (req.body.reportDate) bodyData.reportDate = new Date(req.body.reportDate);
+      // Parse date with noon UTC to avoid timezone edge cases (date showing as previous day)
+      if (req.body.reportDate) bodyData.reportDate = new Date(req.body.reportDate + 'T12:00:00Z');
       if (req.body.metrics || req.body.metricsData) bodyData.metricsData = req.body.metrics || req.body.metricsData;
       if (req.body.customerServiceSummary !== undefined || req.body.performanceSummary !== undefined) {
         bodyData.performanceSummary = req.body.customerServiceSummary || req.body.performanceSummary;
@@ -8730,6 +8738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body.hasCustomerConcerns !== undefined) bodyData.hasCustomerConcerns = req.body.hasCustomerConcerns;
       if (req.body.customerConcernsSummary !== undefined) bodyData.customerConcernsSummary = req.body.customerConcernsSummary;
       if (req.body.status !== undefined) bodyData.status = req.body.status;
+      
+      console.log(`[Daily Reports] PATCH - mapped bodyData:`, JSON.stringify(bodyData, null, 2));
       
       const data = insertDailyReportSchema.partial().parse(bodyData);
       
