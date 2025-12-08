@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { 
   ArrowLeft, 
   Plus, 
@@ -799,7 +800,7 @@ export default function DailyReportsAdminDashboard() {
 
   const { data: emailRecipients = [], isLoading: emailRecipientsLoading } = useQuery<DailyReportEmailRecipient[]>({
     queryKey: ['/api/daily-reports/email-recipients'],
-    enabled: activeTab === 'settings'
+    enabled: activeTab === 'departments'
   });
   
   const { data: allProcedureTemplates = [] } = useQuery<DailyProcedureTemplate[]>({
@@ -857,8 +858,7 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const { data: accessCodes = [], isLoading: accessCodesLoading } = useQuery<DailyReportAccessCode[]>({
-    queryKey: ['/api/daily-reports/access-codes'],
-    enabled: activeTab === 'settings'
+    queryKey: ['/api/daily-reports/access-codes']
   });
 
   const createAccessCodeMutation = useMutation({
@@ -1923,10 +1923,6 @@ export default function DailyReportsAdminDashboard() {
               <BookOpen className="h-4 w-4 mr-2" />
               Documentation
             </TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -2342,11 +2338,45 @@ export default function DailyReportsAdminDashboard() {
 
           <TabsContent value="departments" className="space-y-4">
             <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                <div className="flex items-center gap-3">
+                  <QrCode className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <CardTitle className="text-base">Global QR Code</CardTitle>
+                    <CardDescription>
+                      A single QR code for all staff - they enter their personal code to submit reports
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={copyGlobalUrlToClipboard}
+                    data-testid="button-copy-global-url"
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copy URL
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowGlobalQrCode(true)}
+                    data-testid="button-show-global-qr"
+                  >
+                    <QrCode className="h-4 w-4 mr-1" />
+                    View QR
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+
+            <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
                   <CardTitle>Department Templates</CardTitle>
                   <CardDescription>
-                    Configure metrics, email notifications, and procedures for each department
+                    Configure fields, email notifications, access codes, and procedures for each department
                   </CardDescription>
                 </div>
                 <Button onClick={() => setIsNewDepartmentDialogOpen(true)} data-testid="button-create-department">
@@ -2359,6 +2389,7 @@ export default function DailyReportsAdminDashboard() {
                   {templates.map(template => {
                     const Icon = departmentIcons[template.department] || Building;
                     const emailCount = template.notificationEmails?.length || 0;
+                    const deptAccessCodes = accessCodes.filter(c => c.department === template.department);
                     const procedures = getProceduresForDepartment(template.department);
                     const openingProcs = procedures.filter(p => p.procedureType === 'opening');
                     const closingProcs = procedures.filter(p => p.procedureType === 'closing');
@@ -2372,7 +2403,7 @@ export default function DailyReportsAdminDashboard() {
                             <div>
                               <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
                               <CardDescription>
-                                {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} of {(allFieldAssignments[template.id] || []).length} fields enabled, {procedures.length} procedures
+                                {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}
                               </CardDescription>
                             </div>
                           </div>
@@ -2645,223 +2676,6 @@ export default function DailyReportsAdminDashboard() {
             <Card>
               <CardContent className="p-6">
                 <ModuleDocumentation documentation={getModuleDocs("daily-reports")!} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Email Notifications
-                </CardTitle>
-                <CardDescription>
-                  Email notifications are now managed at the department level
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                  <Mail className="h-8 w-8 text-amber-500" />
-                  <div className="flex-1">
-                    <p className="font-medium">Configure email notifications in the Departments tab</p>
-                    <p className="text-sm text-muted-foreground">
-                      Click the edit button on any department card to add or remove notification email recipients.
-                    </p>
-                  </div>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setActiveTab('departments')}
-                    data-testid="button-go-to-departments"
-                  >
-                    Go to Departments
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <QrCode className="h-5 w-5" />
-                  Global QR Code
-                </CardTitle>
-                <CardDescription>
-                  A single QR code that works for all staff. When scanned, staff enter their personal access code to submit reports.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="flex justify-center">
-                    <div className="bg-white p-4 rounded-lg shadow-sm border">
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
-                        alt="Global QR Code"
-                        className="w-48 h-48"
-                        data-testid="img-global-qr-code"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium">How it works</h4>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                        <li>Print this QR code and post it in common areas</li>
-                        <li>Staff scan the code with their phone</li>
-                        <li>They enter their personal 4-digit access code</li>
-                        <li>The system shows the daily report form for their department</li>
-                      </ol>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button 
-                        variant="outline"
-                        onClick={copyGlobalUrlToClipboard}
-                        data-testid="button-copy-global-url"
-                      >
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copy URL
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        onClick={() => setShowGlobalQrCode(true)}
-                        data-testid="button-show-global-qr"
-                      >
-                        <QrCode className="h-4 w-4 mr-2" />
-                        View Full Size
-                      </Button>
-                      <a 
-                        href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
-                        download="daily-report-global-qr.png"
-                        className="inline-flex"
-                      >
-                        <Button variant="outline" data-testid="button-download-global-qr">
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
-                      </a>
-                    </div>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-xs text-muted-foreground">
-                        <strong>URL:</strong> {getGlobalPublicFormUrl()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <QrCode className="h-5 w-5" />
-                    Staff Access Codes
-                  </CardTitle>
-                  <CardDescription>
-                    Create access codes for staff to submit daily reports via QR code without logging in
-                  </CardDescription>
-                </div>
-                <Button onClick={handleAddAccessCode} data-testid="button-add-access-code">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Access Code
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {accessCodesLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-                ) : accessCodes.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No access codes created</p>
-                    <p className="text-sm">Create access codes to allow staff to submit reports without logging in</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {templates.map(template => {
-                      const deptCodes = accessCodes.filter(c => c.department === template.department);
-                      if (deptCodes.length === 0) return null;
-                      const Icon = departmentIcons[template.department] || Building;
-                      return (
-                        <div key={template.department} className="border rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Icon className="h-4 w-4 text-amber-500" />
-                            <span className="font-medium">{template.departmentLabel}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {deptCodes.length} code{deptCodes.length !== 1 ? 's' : ''}
-                            </Badge>
-                          </div>
-                          <div className="space-y-2">
-                            {deptCodes.map(code => (
-                              <div 
-                                key={code.id} 
-                                className="flex items-center justify-between p-3 bg-muted/50 rounded"
-                                data-testid={`access-code-${code.id}`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-lg font-bold">{code.code}</span>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-7 w-7"
-                                      onClick={() => copyCodeToClipboard(code.code)}
-                                      data-testid={`button-copy-code-${code.id}`}
-                                    >
-                                      <Copy className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                  <span className={!code.isActive ? "text-muted-foreground line-through" : ""}>
-                                    {code.staffName}
-                                  </span>
-                                  {!code.isActive && (
-                                    <Badge variant="outline" className="text-xs">Inactive</Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleShowQrCode(code)}
-                                    data-testid={`button-qr-${code.id}`}
-                                  >
-                                    <QrCode className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => copyUrlToClipboard(code.code)}
-                                    data-testid={`button-copy-url-${code.id}`}
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleEditAccessCode(code)}
-                                    data-testid={`button-edit-code-${code.id}`}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleDeleteAccessCode(code.id)}
-                                    data-testid={`button-delete-code-${code.id}`}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -3698,7 +3512,7 @@ export default function DailyReportsAdminDashboard() {
       </Dialog>
 
       <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingDepartment && (() => {
@@ -3708,37 +3522,147 @@ export default function DailyReportsAdminDashboard() {
               {editingDepartment?.departmentLabel || "Department"} Settings
             </DialogTitle>
             <DialogDescription>
-              Configure notification emails for this department. Recipients will receive emails when reports are submitted.
+              Configure notification emails and staff access codes for this department.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label htmlFor="notificationEmails">Notification Emails</Label>
+              <Label htmlFor="notificationEmails" className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Notification Emails
+              </Label>
               <Textarea
                 id="notificationEmails"
                 placeholder="Enter email addresses separated by commas&#10;e.g., manager@company.com, supervisor@company.com"
                 value={departmentFormData.notificationEmailsText}
                 onChange={(e) => setDepartmentFormData({ ...departmentFormData, notificationEmailsText: e.target.value })}
-                className="min-h-[100px] resize-none"
+                className="min-h-[80px] resize-none"
                 data-testid="input-notification-emails"
               />
               <p className="text-xs text-muted-foreground">
-                Enter multiple email addresses separated by commas. Recipients will receive notifications when reports are submitted for this department.
+                Recipients will receive notifications when reports are submitted for this department.
               </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Staff Access Codes
+                </Label>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    setEditingAccessCode(null);
+                    resetAccessCodeForm();
+                    if (editingDepartment) {
+                      setAccessCodeFormData(prev => ({ ...prev, department: editingDepartment.department }));
+                    }
+                    setIsAccessCodeDialogOpen(true);
+                  }}
+                  data-testid="button-add-dept-access-code"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Code
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Staff can scan QR codes or enter their code to submit reports without logging in.
+              </p>
+              
+              {(() => {
+                const deptCodes = accessCodes.filter(c => c.department === editingDepartment?.department);
+                if (deptCodes.length === 0) {
+                  return (
+                    <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/30">
+                      <QrCode className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No access codes for this department</p>
+                      <p className="text-xs">Add codes to allow staff to submit reports via QR code</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {deptCodes.map(code => (
+                      <div 
+                        key={code.id} 
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="font-mono text-lg font-bold bg-background px-2 py-1 rounded border">
+                            {code.code}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">{code.staffName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {code.isActive ? (
+                                <span className="text-green-600">Active</span>
+                              ) : (
+                                <span className="text-red-600">Inactive</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleShowQrCode(code)}
+                            title="Show QR Code"
+                            data-testid={`button-show-qr-${code.id}`}
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => copyCodeToClipboard(code.code)}
+                            title="Copy Code"
+                            data-testid={`button-copy-code-${code.id}`}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditAccessCode(code)}
+                            title="Edit"
+                            data-testid={`button-edit-code-${code.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteAccessCode(code.id)}
+                            title="Delete"
+                            data-testid={`button-delete-code-${code.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
-              Cancel
+              Close
             </Button>
             <Button 
               onClick={handleSaveDepartment}
               disabled={updateDepartmentMutation.isPending}
               data-testid="button-save-department"
             >
-              {updateDepartmentMutation.isPending ? "Saving..." : "Save Changes"}
+              {updateDepartmentMutation.isPending ? "Saving..." : "Save Email Settings"}
             </Button>
           </DialogFooter>
         </DialogContent>
