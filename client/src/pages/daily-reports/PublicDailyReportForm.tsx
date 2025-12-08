@@ -200,6 +200,7 @@ export default function PublicDailyReportForm() {
     const codeToSubmit = formData?.code || validatedCode;
     return {
       code: codeToSubmit,
+      department: formData?.department || selectedDepartment,
       performanceSummary: performanceSummary || null,
       overallRating,
       hasCustomerConcerns,

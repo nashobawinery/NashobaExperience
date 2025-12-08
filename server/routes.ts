@@ -9329,10 +9329,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submit a report via public form (no auth required)
   app.post('/api/public/daily-reports/submit', async (req, res) => {
     try {
-      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
+      const { code, department, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
 
-      // Validate access code
-      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      // Validate access code - use department-specific lookup if provided
+      let accessCode;
+      if (department) {
+        accessCode = await storage.getDailyReportAccessCodeByCodeAndDepartment(code, department);
+      } else {
+        accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      }
       if (!accessCode || !accessCode.isActive) {
         return res.status(403).json({ message: 'Invalid or inactive access code' });
       }
@@ -9461,10 +9466,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save a draft report from public form (without submitting)
   app.post('/api/public/daily-reports/save-draft', async (req, res) => {
     try {
-      const { code, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
+      const { code, department, reportDate, performanceSummary, overallRating, hasCustomerConcerns, customerConcernsSummary, metricsData, incidents, procedureCompletions } = req.body;
 
-      // Validate access code
-      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      // Validate access code - use department-specific lookup if provided
+      let accessCode;
+      if (department) {
+        accessCode = await storage.getDailyReportAccessCodeByCodeAndDepartment(code, department);
+      } else {
+        accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      }
       if (!accessCode || !accessCode.isActive) {
         return res.status(403).json({ message: 'Invalid or inactive access code' });
       }
