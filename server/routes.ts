@@ -7530,6 +7530,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Work Order Notes (Progress Tracking) ---
+  app.get('/api/maintenance/work-orders/:id/notes', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await db.execute(sql`
+        SELECT n.*, 
+               u.first_name as user_first_name, u.last_name as user_last_name,
+               t.first_name as tech_first_name, t.last_name as tech_last_name
+        FROM maintenance_work_order_notes n
+        LEFT JOIN platform_users u ON n.user_id = u.id
+        LEFT JOIN maintenance_technicians t ON n.technician_id = t.id
+        WHERE n.work_order_id = ${id}
+        ORDER BY n.created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching work order notes:', error);
+      res.status(500).json({ message: 'Failed to fetch notes' });
+    }
+  });
+
+  app.post('/api/maintenance/work-orders/:id/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { noteType, title, content, previousStatus, newStatus, hoursWorked, attachmentUrls, technicianId } = req.body;
+      const userEmail = req.user?.claims?.email;
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      const userId = userResult.rows[0]?.id;
+      
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_work_order_notes (work_order_id, user_id, technician_id, note_type, title, content, previous_status, new_status, hours_worked, attachment_urls, is_system_generated)
+        VALUES (${id}, ${userId}, ${technicianId || null}, ${noteType || 'progress'}, ${title || null}, ${content}, ${previousStatus || null}, ${newStatus || null}, ${hoursWorked || null}, ${attachmentUrls || null}, false)
+        RETURNING *
+      `);
+      
+      // If status changed, update the work order
+      if (newStatus && newStatus !== previousStatus) {
+        await db.execute(sql`
+          UPDATE maintenance_work_orders SET status = ${newStatus}, updated_at = NOW()
+          WHERE id = ${id}
+        `);
+      }
+      
+      // If hours worked, add to actual hours
+      if (hoursWorked) {
+        await db.execute(sql`
+          UPDATE maintenance_work_orders SET 
+            actual_hours = COALESCE(actual_hours, 0) + ${hoursWorked},
+            updated_at = NOW()
+          WHERE id = ${id}
+        `);
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating work order note:', error);
+      res.status(500).json({ message: 'Failed to create note' });
+    }
+  });
+
   // Send work order notification email
   app.post('/api/maintenance/work-orders/:id/send-notification', isAuthenticated, async (req: any, res) => {
     try {
@@ -7716,10 +7776,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { assetId, active } = req.query;
       const result = await db.execute(sql`
-        SELECT pm.*, a.name as asset_name, a.asset_number, u.first_name as assignee_first_name, u.last_name as assignee_last_name
+        SELECT pm.*, a.name as asset_name, a.asset_number, 
+               u.first_name as assignee_first_name, u.last_name as assignee_last_name,
+               t.first_name as tech_first_name, t.last_name as tech_last_name,
+               ml.name as location_name
         FROM maintenance_preventive_schedules pm
         LEFT JOIN maintenance_assets a ON pm.asset_id = a.id
         LEFT JOIN platform_users u ON pm.assigned_to_id = u.id
+        LEFT JOIN maintenance_technicians t ON pm.maintenance_technician_id = t.id
+        LEFT JOIN maintenance_locations ml ON pm.maintenance_location_id = ml.id
         WHERE 1=1
         ${assetId ? sql` AND pm.asset_id = ${assetId}` : sql``}
         ${active === 'true' ? sql` AND pm.active = true` : sql``}
@@ -7734,11 +7799,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/maintenance/pm-schedules', isAdmin, async (req, res) => {
     try {
-      const { name, description, assetId, categoryId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, assignedTeam, checklistItems, instructions, generateDaysAhead } = req.body;
+      const { name, description, assetId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, maintenanceTechnicianId, maintenanceLocationId, assignedTeam, checklistItems, instructions, generateDaysAhead } = req.body;
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_preventive_schedules (name, description, asset_id, category_id, frequency, custom_days, start_date, end_date, next_due, work_order_title, work_order_description, work_order_priority, estimated_hours, assigned_to_id, assigned_team, checklist_items, instructions, generate_days_ahead)
-        VALUES (${name}, ${description}, ${assetId || null}, ${categoryId || null}, ${frequency || 'monthly'}, ${customDays}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${workOrderTitle}, ${workOrderDescription}, ${workOrderPriority || 'medium'}, ${estimatedHours}, ${assignedToId || null}, ${assignedTeam}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${generateDaysAhead || 7})
+        INSERT INTO maintenance_preventive_schedules (name, description, asset_id, frequency, custom_days, start_date, end_date, next_due, work_order_title, work_order_description, work_order_priority, estimated_hours, assigned_to_id, maintenance_technician_id, maintenance_location_id, assigned_team, checklist_items, instructions, generate_days_ahead)
+        VALUES (${name}, ${description}, ${assetId || null}, ${frequency || 'monthly'}, ${customDays}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${workOrderTitle}, ${workOrderDescription}, ${workOrderPriority || 'medium'}, ${estimatedHours}, ${assignedToId || null}, ${maintenanceTechnicianId || null}, ${maintenanceLocationId || null}, ${assignedTeam}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${generateDaysAhead || 7})
         RETURNING *
       `);
       res.json(result.rows[0]);
@@ -7751,17 +7816,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/maintenance/pm-schedules/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, assetId, categoryId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, assignedTeam, checklistItems, instructions, generateDaysAhead, active } = req.body;
+      const { name, description, assetId, frequency, customDays, startDate, endDate, workOrderTitle, workOrderDescription, workOrderPriority, estimatedHours, assignedToId, maintenanceTechnicianId, maintenanceLocationId, assignedTeam, checklistItems, instructions, generateDaysAhead, active } = req.body;
       
       const result = await db.execute(sql`
         UPDATE maintenance_preventive_schedules SET
-          name = ${name}, description = ${description}, asset_id = ${assetId || null}, category_id = ${categoryId || null},
+          name = ${name}, description = ${description}, asset_id = ${assetId || null},
           frequency = ${frequency}, custom_days = ${customDays}, start_date = ${new Date(startDate)},
           end_date = ${endDate ? new Date(endDate) : null}, work_order_title = ${workOrderTitle},
           work_order_description = ${workOrderDescription}, work_order_priority = ${workOrderPriority},
-          estimated_hours = ${estimatedHours}, assigned_to_id = ${assignedToId || null}, assigned_team = ${assignedTeam},
-          checklist_items = ${checklistItems ? JSON.stringify(checklistItems) : null}, instructions = ${instructions},
-          generate_days_ahead = ${generateDaysAhead || 7}, active = ${active ?? true}, updated_at = NOW()
+          estimated_hours = ${estimatedHours}, assigned_to_id = ${assignedToId || null},
+          maintenance_technician_id = ${maintenanceTechnicianId || null}, maintenance_location_id = ${maintenanceLocationId || null},
+          assigned_team = ${assignedTeam}, checklist_items = ${checklistItems ? JSON.stringify(checklistItems) : null},
+          instructions = ${instructions}, generate_days_ahead = ${generateDaysAhead || 7}, active = ${active ?? true}, updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
       `);
