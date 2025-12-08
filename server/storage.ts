@@ -3879,10 +3879,34 @@ export class DatabaseStorage implements IStorage {
     return accessCode;
   }
 
+  // Get all access codes with a specific code (for multi-department support)
+  async getDailyReportAccessCodesByCode(code: string): Promise<DailyReportAccessCode[]> {
+    return await db.select().from(dailyReportAccessCodes)
+      .where(and(
+        eq(dailyReportAccessCodes.code, code),
+        eq(dailyReportAccessCodes.isActive, true)
+      ))
+      .orderBy(dailyReportAccessCodes.department);
+  }
+
+  // Check if a specific code+department combination exists
+  async getDailyReportAccessCodeByCodeAndDepartment(code: string, department: string): Promise<DailyReportAccessCode | undefined> {
+    const [accessCode] = await db.select().from(dailyReportAccessCodes)
+      .where(and(
+        eq(dailyReportAccessCodes.code, code),
+        eq(dailyReportAccessCodes.department, department as any)
+      ));
+    return accessCode;
+  }
+
   async getDailyReportAccessCodeById(id: string): Promise<DailyReportAccessCode | undefined> {
     const [accessCode] = await db.select().from(dailyReportAccessCodes)
       .where(eq(dailyReportAccessCodes.id, id));
     return accessCode;
+  }
+
+  async getDailyReportAccessCode(id: string): Promise<DailyReportAccessCode | undefined> {
+    return this.getDailyReportAccessCodeById(id);
   }
 
   async createDailyReportAccessCode(data: InsertDailyReportAccessCode): Promise<DailyReportAccessCode> {

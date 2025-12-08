@@ -8490,6 +8490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new access code (admin)
+  // Note: Same code can be used for multiple departments (staff managing multiple areas)
   app.post('/api/daily-reports/access-codes', isAdmin, async (req: any, res) => {
     try {
       const { staffName, department, code: customCode } = req.body;
@@ -8502,9 +8503,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!/^\d{4}$/.test(customCode)) {
           return res.status(400).json({ message: 'Code must be exactly 4 digits' });
         }
-        const existing = await storage.getDailyReportAccessCodeByCode(customCode);
+        // Check if this code+department combination already exists
+        const existing = await storage.getDailyReportAccessCodeByCodeAndDepartment(customCode, department);
         if (existing) {
-          return res.status(400).json({ message: 'This code is already in use' });
+          return res.status(400).json({ message: 'This code is already assigned to this department' });
         }
         code = customCode;
       } else {
@@ -8542,9 +8544,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!/^\d{4}$/.test(customCode)) {
           return res.status(400).json({ message: 'Code must be exactly 4 digits' });
         }
-        const existing = await storage.getDailyReportAccessCodeByCode(customCode);
-        if (existing && existing.id !== id) {
-          return res.status(400).json({ message: 'This code is already in use' });
+        // Check if this code+department combination exists for a different record
+        const targetDept = department || (await storage.getDailyReportAccessCode(id))?.department;
+        if (targetDept) {
+          const existing = await storage.getDailyReportAccessCodeByCodeAndDepartment(customCode, targetDept);
+          if (existing && existing.id !== id) {
+            return res.status(400).json({ message: 'This code is already assigned to this department' });
+          }
         }
         updateData.code = customCode;
       }
@@ -9134,18 +9140,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/public/daily-reports/validate/:code', async (req, res) => {
     try {
       const { code } = req.params;
-      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
-
-      if (!accessCode) {
+      
+      // Get all active access codes that match this code (supports same code for multiple departments)
+      const matchingCodes = await storage.getDailyReportAccessCodesByCode(code);
+      
+      if (matchingCodes.length === 0) {
         return res.status(404).json({ message: 'Invalid access code' });
       }
 
-      if (!accessCode.isActive) {
-        return res.status(403).json({ message: 'Access code is inactive' });
-      }
+      // Use the first matching code for staff name (they should all be the same staff if sharing a code)
+      const primaryCode = matchingCodes[0];
+      
+      if (matchingCodes.length > 1) {
+        // Same code assigned to multiple departments - return list for selection
+        const availableDepartments = await Promise.all(
+          matchingCodes.map(async (ac) => {
+            const template = await storage.getDailyReportTemplateByDepartment(ac.department);
+            return {
+              department: ac.department,
+              departmentLabel: template?.departmentLabel || ac.department,
+              code: ac.code
+            };
+          })
+        );
 
-      // Check if this staff member has access to multiple departments
-      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(accessCode.staffName);
+        // Update last used timestamp for all matching codes
+        await storage.updateDailyReportAccessCodeLastUsed(code);
+
+        return res.json({
+          staffName: primaryCode.staffName,
+          multipleDepartments: true,
+          availableDepartments
+        });
+      }
+      
+      // Also check if this staff member has other codes for different departments
+      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(primaryCode.staffName);
       
       if (allStaffCodes.length > 1) {
         // Staff has multiple departments - return list for selection
@@ -9164,11 +9194,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateDailyReportAccessCodeLastUsed(code);
 
         return res.json({
-          staffName: accessCode.staffName,
+          staffName: primaryCode.staffName,
           multipleDepartments: true,
           availableDepartments
         });
       }
+      
+      const accessCode = primaryCode;
 
       // Single department - return form data directly
       const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);

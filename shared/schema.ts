@@ -1690,9 +1690,10 @@ export type InsertDailyReportEmailRecipient = z.infer<typeof insertDailyReportEm
 export type DailyReportEmailRecipient = typeof dailyReportEmailRecipients.$inferSelect;
 
 // Daily Report Access Codes - for public form access via QR code
+// Note: Same code can be used for multiple departments (staff managing multiple areas)
 export const dailyReportAccessCodes = pgTable("daily_report_access_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code", { length: 4 }).notNull().unique(),
+  code: varchar("code", { length: 4 }).notNull(),
   staffName: varchar("staff_name").notNull(),
   department: varchar("department").notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -1705,6 +1706,7 @@ export const dailyReportAccessCodes = pgTable("daily_report_access_codes", {
   index("idx_access_codes_code").on(table.code),
   index("idx_access_codes_dept").on(table.department),
   index("idx_access_codes_active").on(table.isActive),
+  unique("uq_access_codes_code_dept").on(table.code, table.department),
 ]);
 
 export const insertDailyReportAccessCodeSchema = createInsertSchema(dailyReportAccessCodes).omit({ 
