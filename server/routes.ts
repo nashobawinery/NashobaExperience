@@ -8846,6 +8846,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
       const { reviewNotes, approved } = req.body;
       
+      console.log(`[Daily Reports] POST /api/daily-reports/${id}/review - approved: ${approved}, user: ${userName}`);
+      
       const report = await storage.updateDailyReport(id, {
         status: approved ? 'reviewed' : 'needs_revision',
         reviewedById: userId,
