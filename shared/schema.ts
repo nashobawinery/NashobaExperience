@@ -3098,6 +3098,117 @@ export type ProceduresTemplateWithItems = ProceduresTemplate & {
   assignedStaff?: ProceduresStaff[];
 };
 
+// ============================================
+// SPOT INVENTORY CHECK MODULE
+// ============================================
+
+// Spot Inventory Locations - Physical locations for inventory counts
+export const spotInventoryLocations = pgTable("spot_inventory_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  address: text("address"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_spot_inv_loc_active").on(table.isActive),
+]);
+
+export const insertSpotInventoryLocationSchema = createInsertSchema(spotInventoryLocations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpotInventoryLocation = z.infer<typeof insertSpotInventoryLocationSchema>;
+export type SpotInventoryLocation = typeof spotInventoryLocations.$inferSelect;
+
+// Spot Inventory Areas - Areas within locations (e.g., "Front Shelf", "Wine Wall")
+export const spotInventoryAreas = pgTable("spot_inventory_areas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  locationId: varchar("location_id").notNull().references(() => spotInventoryLocations.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  photoUrl: text("photo_url"), // Photo of the area for clarity
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_spot_inv_area_location").on(table.locationId),
+  index("idx_spot_inv_area_active").on(table.isActive),
+]);
+
+export const insertSpotInventoryAreaSchema = createInsertSchema(spotInventoryAreas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpotInventoryArea = z.infer<typeof insertSpotInventoryAreaSchema>;
+export type SpotInventoryArea = typeof spotInventoryAreas.$inferSelect;
+
+// Spot Inventory Sessions - Individual counting sessions by staff
+export const spotInventorySessions = pgTable("spot_inventory_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  areaId: varchar("area_id").notNull().references(() => spotInventoryAreas.id, { onDelete: 'cascade' }),
+  staffId: varchar("staff_id").notNull().references(() => proceduresStaff.id),
+  staffName: varchar("staff_name").notNull(),
+  status: varchar("status").notNull().default("in_progress"), // in_progress, completed, cancelled
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_spot_inv_session_area").on(table.areaId),
+  index("idx_spot_inv_session_staff").on(table.staffId),
+  index("idx_spot_inv_session_status").on(table.status),
+  index("idx_spot_inv_session_completed").on(table.completedAt),
+]);
+
+export const insertSpotInventorySessionSchema = createInsertSchema(spotInventorySessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpotInventorySession = z.infer<typeof insertSpotInventorySessionSchema>;
+export type SpotInventorySession = typeof spotInventorySessions.$inferSelect;
+
+// Spot Inventory Counts - Individual product counts within a session
+export const spotInventoryCounts = pgTable("spot_inventory_counts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => spotInventorySessions.id, { onDelete: 'cascade' }),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  productName: varchar("product_name").notNull(), // Denormalized for reporting
+  sku: varchar("sku"), // Denormalized for reporting
+  quantity: integer("quantity").notNull(),
+  scannedAt: timestamp("scanned_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_spot_inv_count_session").on(table.sessionId),
+  index("idx_spot_inv_count_product").on(table.productId),
+]);
+
+export const insertSpotInventoryCountSchema = createInsertSchema(spotInventoryCounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpotInventoryCount = z.infer<typeof insertSpotInventoryCountSchema>;
+export type SpotInventoryCount = typeof spotInventoryCounts.$inferSelect;
+
+// Type for session with counts
+export type SpotInventorySessionWithCounts = SpotInventorySession & {
+  counts: SpotInventoryCount[];
+  area?: SpotInventoryArea;
+};
+
+// Type for area with location
+export type SpotInventoryAreaWithLocation = SpotInventoryArea & {
+  location?: SpotInventoryLocation;
+};
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;

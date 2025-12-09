@@ -1067,12 +1067,12 @@ export async function seedPlatformModules(): Promise<void> {
     },
     {
       moduleKey: 'inventory',
-      moduleName: 'Inventory Management',
-      description: 'Stock tracking, receiving, and inventory control across locations',
+      moduleName: 'Spot Inventory Check',
+      description: 'Quick inventory counts by location and area with barcode scanning',
       icon: 'Package',
       color: 'bg-teal-500',
       routePrefix: '/inventory',
-      status: 'planned',
+      status: 'active',
       sortOrder: 9
     },
     {
