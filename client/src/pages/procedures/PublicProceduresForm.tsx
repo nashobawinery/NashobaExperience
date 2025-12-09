@@ -27,7 +27,10 @@ export default function PublicProceduresForm() {
   const [startTime] = useState(new Date());
 
   const loginMutation = useMutation({
-    mutationFn: (pinCode: string) => apiRequest("/api/procedures/login", "POST", { pin: pinCode }),
+    mutationFn: async (pinCode: string) => {
+      const response = await apiRequest("POST", "/api/procedures/login", { pin: pinCode });
+      return response.json();
+    },
     onSuccess: (data: ProceduresUser) => {
       setUser(data);
       setStage("select");
@@ -45,7 +48,8 @@ export default function PublicProceduresForm() {
 
   const submitMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("/api/procedures/submissions", "POST", data);
+      const response = await apiRequest("POST", "/api/procedures/submissions", data);
+      return response.json();
     },
     onSuccess: () => {
       setStage("success");

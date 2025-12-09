@@ -50,7 +50,7 @@ export default function ProcedureTemplateEditor() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const isNew = id === "new";
+  const isNew = !id || id === "new";
 
   const [procedureName, setProcedureName] = useState("");
   const [procedureCode, setProcedureCode] = useState("");
@@ -107,8 +107,8 @@ export default function ProcedureTemplateEditor() {
 
   const createTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("/api/procedures/templates", "POST", data);
-      return response;
+      const response = await apiRequest("POST", "/api/procedures/templates", data);
+      return response.json();
     },
     onSuccess: (data) => {
       toast({ title: "Procedure created successfully" });
@@ -122,8 +122,8 @@ export default function ProcedureTemplateEditor() {
 
   const updateTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest(`/api/procedures/templates/${id}`, "PATCH", data);
-      return response;
+      const response = await apiRequest("PATCH", `/api/procedures/templates/${id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       toast({ title: "Procedure updated successfully" });
@@ -136,7 +136,8 @@ export default function ProcedureTemplateEditor() {
 
   const createItemMutation = useMutation({
     mutationFn: async ({ templateId, data }: { templateId: string; data: any }) => {
-      return await apiRequest(`/api/procedures/templates/${templateId}/items`, "POST", data);
+      const response = await apiRequest("POST", `/api/procedures/templates/${templateId}/items`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates", id] });
@@ -145,7 +146,8 @@ export default function ProcedureTemplateEditor() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) => {
-      return await apiRequest(`/api/procedures/items/${itemId}`, "PATCH", data);
+      const response = await apiRequest("PATCH", `/api/procedures/items/${itemId}`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates", id] });
@@ -154,7 +156,7 @@ export default function ProcedureTemplateEditor() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      return await apiRequest(`/api/procedures/items/${itemId}`, "DELETE");
+      return await apiRequest("DELETE", `/api/procedures/items/${itemId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates", id] });

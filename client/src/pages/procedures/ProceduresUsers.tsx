@@ -37,7 +37,7 @@ export default function ProceduresUsers() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => apiRequest("/api/procedures/users", "POST", data),
+    mutationFn: (data: typeof formData) => apiRequest("POST", "/api/procedures/users", data),
     onSuccess: () => {
       toast({ title: "User created successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/users"] });
@@ -51,7 +51,7 @@ export default function ProceduresUsers() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<typeof formData> }) => 
-      apiRequest(`/api/procedures/users/${id}`, "PATCH", data),
+      apiRequest("PATCH", `/api/procedures/users/${id}`, data),
     onSuccess: () => {
       toast({ title: "User updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/users"] });
@@ -64,7 +64,7 @@ export default function ProceduresUsers() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/procedures/users/${id}`, "DELETE"),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/procedures/users/${id}`),
     onSuccess: () => {
       toast({ title: "User deleted successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/users"] });
