@@ -2186,6 +2186,8 @@ export const resyFlowControls = pgTable("resy_flow_controls", {
   intervalMinutes: integer("interval_minutes").notNull().default(15),
   maxCoversPerInterval: integer("max_covers_per_interval").notNull(),
   maxDailyCovers: integer("max_daily_covers"),
+  flowMode: varchar("flow_mode", { length: 20 }).notNull().default("global"), // 'global' or 'controlled'
+  intervalOverrides: jsonb("interval_overrides"), // Array of {time: string, maxCovers: number} for controlled mode
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
