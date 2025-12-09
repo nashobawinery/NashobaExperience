@@ -999,6 +999,7 @@ function ServicePeriodForm({
       startTime: "11:00",
       endTime: "14:00",
       lastReservationTime: undefined,
+      daysAvailable: [1, 2, 3, 4, 5], // Mon-Fri by default
       isActive: true,
     },
   });
@@ -1012,6 +1013,7 @@ function ServicePeriodForm({
         startTime: period.startTime,
         endTime: period.endTime,
         lastReservationTime: period.lastReservationTime || undefined,
+        daysAvailable: period.daysAvailable || [0, 1, 2, 3, 4, 5, 6],
         isActive: period.isActive,
       });
     } else {
@@ -1021,6 +1023,7 @@ function ServicePeriodForm({
         startTime: "11:00",
         endTime: "14:00",
         lastReservationTime: undefined,
+        daysAvailable: [1, 2, 3, 4, 5], // Mon-Fri by default
         isActive: true,
       });
     }
@@ -1155,6 +1158,42 @@ function ServicePeriodForm({
               <FormDescription>
                 Latest time guests can book (optional). Leave blank to allow reservations until end time.
               </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="daysAvailable"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Days Available *</FormLabel>
+              <FormDescription>
+                Select which days this service period is available
+              </FormDescription>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {DAYS_OF_WEEK.map((day, index) => (
+                  <label 
+                    key={day} 
+                    className="flex items-center gap-2 cursor-pointer"
+                    data-testid={`checkbox-day-${index}`}
+                  >
+                    <Checkbox
+                      checked={(field.value || []).includes(index)}
+                      onCheckedChange={(checked) => {
+                        const current = field.value || [];
+                        if (checked) {
+                          field.onChange([...current, index].sort((a, b) => a - b));
+                        } else {
+                          field.onChange(current.filter((d: number) => d !== index));
+                        }
+                      }}
+                    />
+                    <span className="text-sm">{day}</span>
+                  </label>
+                ))}
+              </div>
               <FormMessage />
             </FormItem>
           )}
