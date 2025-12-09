@@ -175,9 +175,12 @@ export default function AdminLocationDetail() {
         </div>
       </div>
 
-      {/* Ticketed Event Locations - show content directly without tabs */}
+      {/* Ticketed Event Locations - show events and settings */}
       {location.isTicketedEventLocation && (
-        <TicketedEventsTab locationId={locationId!} />
+        <div className="space-y-8">
+          <TicketedEventsTab locationId={locationId!} />
+          <LocationSettingsTab locationId={locationId!} location={location} />
+        </div>
       )}
 
       {/* Table Reservation Locations - show tabbed interface */}
