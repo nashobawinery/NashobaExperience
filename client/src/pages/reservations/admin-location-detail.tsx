@@ -975,7 +975,7 @@ function ServicePeriodForm({
   });
 
   // Reset form when period changes (for editing existing periods)
-  React.useEffect(() => {
+  useEffect(() => {
     if (period) {
       form.reset({
         locationId: period.locationId,
