@@ -212,6 +212,18 @@ export default function ProceduresSubmissions() {
                 </div>
               </div>
 
+              {viewingSubmission.lateReason && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-300 rounded-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300">
+                      Late Submission
+                    </Badge>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Reason provided:</span>
+                  <p className="mt-1 text-amber-800 dark:text-amber-300">{viewingSubmission.lateReason}</p>
+                </div>
+              )}
+
               {viewingSubmission.notes && (
                 <div>
                   <span className="text-sm text-muted-foreground">Notes:</span>

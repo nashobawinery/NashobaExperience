@@ -59,7 +59,7 @@ export default function PublicProceduresForm() {
   const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>>({});
   const [notes, setNotes] = useState("");
   const [lateReason, setLateReason] = useState("");
-  const [startTime] = useState(new Date());
+  const [startTime, setStartTime] = useState<Date>(new Date());
 
   // Check if the current time is past the procedure's completion time deadline
   const isLateSubmission = (): boolean => {
@@ -135,6 +135,7 @@ export default function PublicProceduresForm() {
     });
     setAnswers(initialAnswers);
     setLateReason("");
+    setStartTime(new Date()); // Capture when procedure actually starts
     setStage("complete");
   };
 
