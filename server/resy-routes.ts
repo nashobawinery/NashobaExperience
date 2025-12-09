@@ -788,11 +788,13 @@ router.get("/api/resy/debug/db-check", async (req, res) => {
   try {
     const [expCount] = await db.select({ count: sql`count(*)` }).from(resyExperiences);
     const [locCount] = await db.select({ count: sql`count(*)` }).from(resyLocations);
+    const [privateEvtCount] = await db.select({ count: sql`count(*)` }).from(resyPrivateEvents);
     const dbHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).host : 'not set';
     res.json({
       status: 'connected',
       experienceCount: Number(expCount.count),
       locationCount: Number(locCount.count),
+      privateEventCount: Number(privateEvtCount.count),
       dbHost: dbHost.substring(0, 20) + '...',
       nodeEnv: process.env.NODE_ENV
     });
