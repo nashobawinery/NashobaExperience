@@ -99,11 +99,20 @@ export default function SpotInventoryStaffApp() {
       if (!response.ok) throw new Error("Invalid code");
       return response.json();
     },
-    onSuccess: (data: { location: SpotInventoryLocation; areas: SpotInventoryArea[] }) => {
+    onSuccess: (data: { location: SpotInventoryLocation; areas: SpotInventoryArea[]; hasAreas: boolean }) => {
       setCurrentLocation(data.location);
       setAvailableAreas(data.areas);
+      
+      if (!data.hasAreas) {
+        toast({ 
+          title: `Access granted: ${data.location.name}`, 
+          description: "No active areas available for counting",
+          variant: "destructive" 
+        });
+      } else {
+        toast({ title: `Access granted: ${data.location.name}` });
+      }
       setStep("name");
-      toast({ title: `Access granted: ${data.location.name}` });
     },
     onError: () => {
       toast({ title: "Invalid location code", variant: "destructive" });

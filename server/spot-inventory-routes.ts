@@ -161,7 +161,12 @@ router.post("/locations/verify-code", async (req: Request, res: Response) => {
       ))
       .orderBy(spotInventoryAreas.sortOrder, spotInventoryAreas.name);
 
-    res.json({ location, areas });
+    // Return location with areas (could be empty if no active areas exist)
+    res.json({ 
+      location, 
+      areas,
+      hasAreas: areas.length > 0 
+    });
   } catch (error: any) {
     console.error("[Spot Inventory] Error verifying location code:", error);
     res.status(500).json({ error: error.message });
@@ -387,9 +392,18 @@ router.get("/sessions/:id", async (req: Request, res: Response) => {
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
     const parsed = insertSpotInventorySessionSchema.parse(req.body);
+    
+    // Additional validation: ensure staffName is not empty/whitespace
+    if (!parsed.staffName || parsed.staffName.trim().length === 0) {
+      return res.status(400).json({ error: "Staff name is required" });
+    }
+    
     const [session] = await db
       .insert(spotInventorySessions)
-      .values(parsed)
+      .values({
+        ...parsed,
+        staffName: parsed.staffName.trim(), // Normalize staffName
+      })
       .returning();
     res.status(201).json(session);
   } catch (error: any) {
