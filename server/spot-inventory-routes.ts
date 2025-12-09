@@ -27,6 +27,7 @@ const updateLocationSchema = insertSpotInventoryLocationSchema.partial().pick({
   name: true,
   description: true,
   address: true,
+  accessCode: true,
   isActive: true,
 });
 
@@ -125,6 +126,44 @@ router.delete("/locations/:id", async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (error: any) {
     console.error("[Spot Inventory] Error deleting location:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Location code verification for staff access
+router.post("/locations/verify-code", async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: "Access code is required" });
+    }
+
+    // Find location with matching access code
+    const [location] = await db
+      .select()
+      .from(spotInventoryLocations)
+      .where(and(
+        eq(spotInventoryLocations.accessCode, code),
+        eq(spotInventoryLocations.isActive, true)
+      ));
+
+    if (!location) {
+      return res.status(401).json({ error: "Invalid access code" });
+    }
+
+    // Get all active areas for this location
+    const areas = await db
+      .select()
+      .from(spotInventoryAreas)
+      .where(and(
+        eq(spotInventoryAreas.locationId, location.id),
+        eq(spotInventoryAreas.isActive, true)
+      ))
+      .orderBy(spotInventoryAreas.sortOrder, spotInventoryAreas.name);
+
+    res.json({ location, areas });
+  } catch (error: any) {
+    console.error("[Spot Inventory] Error verifying location code:", error);
     res.status(500).json({ error: error.message });
   }
 });
