@@ -325,7 +325,14 @@ router.get("/submissions/:id", async (req: Request, res: Response) => {
 
 router.post("/submissions", async (req: Request, res: Response) => {
   try {
-    const validated = insertProceduresSubmissionSchema.parse(req.body);
+    // Convert date strings to Date objects
+    const body = {
+      ...req.body,
+      submissionDate: req.body.submissionDate ? new Date(req.body.submissionDate) : new Date(),
+      dateTimeStarted: req.body.dateTimeStarted ? new Date(req.body.dateTimeStarted) : undefined,
+      dateTimeSubmitted: req.body.dateTimeSubmitted ? new Date(req.body.dateTimeSubmitted) : new Date(),
+    };
+    const validated = insertProceduresSubmissionSchema.parse(body);
     const submission = await storage.createProceduresSubmission(validated);
     res.status(201).json(submission);
   } catch (error) {
