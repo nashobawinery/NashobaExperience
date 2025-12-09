@@ -706,7 +706,7 @@ function TableForm({
                 />
               </FormControl>
               <FormDescription>
-                Tables with higher priority numbers are filled first when assigning reservations (0 = lowest priority)
+                Tables with lower priority numbers are filled first when assigning reservations (0 = highest priority, fill first)
               </FormDescription>
               <FormMessage />
             </FormItem>
