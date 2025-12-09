@@ -36,6 +36,13 @@ const ComplianceAdminDashboard = lazy(() => import("@/pages/compliance/Complianc
 const DailyReportsAdminDashboard = lazy(() => import("@/pages/daily-reports/DailyReportsAdminDashboard"));
 const PublicDailyReportForm = lazy(() => import("@/pages/daily-reports/PublicDailyReportForm"));
 
+// Lazy load Daily Procedures module
+const ProceduresAdminDashboard = lazy(() => import("@/pages/procedures/ProceduresAdminDashboard"));
+const ProcedureTemplateEditor = lazy(() => import("@/pages/procedures/ProcedureTemplateEditor"));
+const ProceduresUsers = lazy(() => import("@/pages/procedures/ProceduresUsers"));
+const ProceduresSubmissions = lazy(() => import("@/pages/procedures/ProceduresSubmissions"));
+const PublicProceduresForm = lazy(() => import("@/pages/procedures/PublicProceduresForm"));
+
 // Lazy load Maintenance module
 const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
 const TechnicianWorkOrders = lazy(() => import("@/pages/maintenance/TechnicianWorkOrders"));
@@ -272,6 +279,46 @@ function ProceduresComingSoonRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ProceduresComingSoon />
+    </Suspense>
+  );
+}
+
+function ProceduresAdminRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProceduresAdminDashboard />
+    </Suspense>
+  );
+}
+
+function ProcedureTemplateEditorRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProcedureTemplateEditor />
+    </Suspense>
+  );
+}
+
+function ProceduresUsersRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProceduresUsers />
+    </Suspense>
+  );
+}
+
+function ProceduresSubmissionsRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProceduresSubmissions />
+    </Suspense>
+  );
+}
+
+function PublicProceduresRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <PublicProceduresForm />
     </Suspense>
   );
 }
@@ -698,8 +745,13 @@ function Router() {
         <Route path="/modules" component={ModuleDirectoryRoute} />
         <Route path="/access-control" component={AccessControlRoute} />
         <Route path="/module-management" component={ModuleManagementRoute} />
-        <Route path="/procedures" component={ProceduresComingSoonRoute} />
-        <Route path="/procedures/admin" component={ProceduresComingSoonRoute} />
+        <Route path="/procedures" component={ProceduresAdminRoute} />
+        <Route path="/procedures/admin" component={ProceduresAdminRoute} />
+        <Route path="/procedures/templates/new" component={ProcedureTemplateEditorRoute} />
+        <Route path="/procedures/templates/:id" component={ProcedureTemplateEditorRoute} />
+        <Route path="/procedures/users" component={ProceduresUsersRoute} />
+        <Route path="/procedures/submissions" component={ProceduresSubmissionsRoute} />
+        <Route path="/procedures/public" component={PublicProceduresRoute} />
         <Route path="/support" component={SupportComingSoonRoute} />
         <Route path="/support/admin" component={SupportComingSoonRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />

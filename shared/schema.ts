@@ -2920,6 +2920,152 @@ export const insertMaintenanceMeterReadingSchema = createInsertSchema(maintenanc
 export type InsertMaintenanceMeterReading = z.infer<typeof insertMaintenanceMeterReadingSchema>;
 export type MaintenanceMeterReading = typeof maintenanceMeterReadings.$inferSelect;
 
+// ==========================================
+// DAILY PROCEDURES MODULE
+// ==========================================
+
+// Response types for procedure items
+export const procedureResponseTypeEnum = pgEnum("procedure_response_type", [
+  "checkbox",
+  "text",
+  "number",
+  "yes_no",
+  "dropdown"
+]);
+
+// Day of week flags for procedure scheduling
+export const procedureDayOfWeekType = z.object({
+  monday: z.boolean().default(true),
+  tuesday: z.boolean().default(true),
+  wednesday: z.boolean().default(true),
+  thursday: z.boolean().default(true),
+  friday: z.boolean().default(true),
+  saturday: z.boolean().default(true),
+  sunday: z.boolean().default(true),
+});
+
+// Procedure Templates - The main procedure definition
+export const proceduresTemplates = pgTable("procedures_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  procedureCode: varchar("procedure_code", { length: 50 }).notNull().unique(), // e.g., RET_OPEN, RET_CLOSE
+  procedureName: text("procedure_name").notNull(), // e.g., "Retail Opening"
+  department: varchar("department").notNull(), // Links to daily report departments
+  procedureType: varchar("procedure_type").notNull().default("general"), // opening, closing, general
+  description: text("description"),
+  daysOfWeek: jsonb("days_of_week").notNull().default({}), // { monday: true, tuesday: true, ... }
+  emailRecipientsTo: text("email_recipients_to").array(), // Array of email addresses
+  emailRecipientsCc: text("email_recipients_cc").array(), // Optional CC recipients
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: varchar("created_by_id").references(() => platformUsers.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_proc_templates_dept").on(table.department),
+  index("idx_proc_templates_type").on(table.procedureType),
+  index("idx_proc_templates_active").on(table.isActive),
+]);
+
+export const insertProceduresTemplateSchema = createInsertSchema(proceduresTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProceduresTemplate = z.infer<typeof insertProceduresTemplateSchema>;
+export type ProceduresTemplate = typeof proceduresTemplates.$inferSelect;
+
+// Procedure Items - Checklist tasks within a procedure template
+export const proceduresItems = pgTable("procedures_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => proceduresTemplates.id, { onDelete: 'cascade' }),
+  label: text("label").notNull(), // e.g., "Turn on lights"
+  description: text("description"), // Optional instructions
+  sortOrder: integer("sort_order").notNull().default(0),
+  isRequired: boolean("is_required").notNull().default(true),
+  requireInitials: boolean("require_initials").notNull().default(false),
+  requireComment: boolean("require_comment").notNull().default(false),
+  responseType: varchar("response_type").notNull().default("checkbox"), // checkbox, text, number, yes_no, dropdown
+  dropdownOptions: text("dropdown_options").array(), // Options if responseType is dropdown
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_proc_items_template").on(table.templateId),
+  index("idx_proc_items_order").on(table.sortOrder),
+]);
+
+export const insertProceduresItemSchema = createInsertSchema(proceduresItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProceduresItem = z.infer<typeof insertProceduresItemSchema>;
+export type ProceduresItem = typeof proceduresItems.$inferSelect;
+
+// Procedure Users - PIN-based user assignments
+export const proceduresUsers = pgTable("procedures_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  displayName: text("display_name").notNull(),
+  pinCode: varchar("pin_code", { length: 10 }).notNull(), // e.g., 1111
+  assignedProcedureCodes: text("assigned_procedure_codes").array(), // Array of procedure codes
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdById: varchar("created_by_id").references(() => platformUsers.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_proc_users_pin").on(table.pinCode),
+  index("idx_proc_users_active").on(table.isActive),
+  unique("uq_proc_users_pin").on(table.pinCode), // PIN must be unique
+]);
+
+export const insertProceduresUserSchema = createInsertSchema(proceduresUsers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLoginAt: true,
+});
+export type InsertProceduresUser = z.infer<typeof insertProceduresUserSchema>;
+export type ProceduresUser = typeof proceduresUsers.$inferSelect;
+
+// Procedure Submissions - Completed procedure records
+export const proceduresSubmissions = pgTable("procedures_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => proceduresTemplates.id),
+  procedureCode: varchar("procedure_code", { length: 50 }).notNull(), // Denormalized for reporting
+  department: varchar("department").notNull(), // Denormalized for reporting
+  submittedByUserId: varchar("submitted_by_user_id").references(() => proceduresUsers.id),
+  submittedByName: text("submitted_by_name").notNull(),
+  submissionDate: timestamp("submission_date").notNull().defaultNow(), // Date the procedure was for
+  dateTimeStarted: timestamp("datetime_started"),
+  dateTimeSubmitted: timestamp("datetime_submitted").notNull().defaultNow(),
+  status: varchar("status").notNull().default("submitted"), // draft, submitted
+  answers: jsonb("answers").notNull().default({}), // { itemId: { value, initials, comment } }
+  notes: text("notes"), // Optional overall notes
+  emailSentStatus: varchar("email_sent_status").default("pending"), // pending, success, failed
+  emailSentAt: timestamp("email_sent_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_proc_submissions_template").on(table.templateId),
+  index("idx_proc_submissions_dept").on(table.department),
+  index("idx_proc_submissions_date").on(table.submissionDate),
+  index("idx_proc_submissions_user").on(table.submittedByUserId),
+  index("idx_proc_submissions_status").on(table.status),
+]);
+
+export const insertProceduresSubmissionSchema = createInsertSchema(proceduresSubmissions).omit({
+  id: true,
+  createdAt: true,
+  emailSentAt: true,
+});
+export type InsertProceduresSubmission = z.infer<typeof insertProceduresSubmissionSchema>;
+export type ProceduresSubmission = typeof proceduresSubmissions.$inferSelect;
+
+// Type for procedure template with items
+export type ProceduresTemplateWithItems = ProceduresTemplate & {
+  items: ProceduresItem[];
+};
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;

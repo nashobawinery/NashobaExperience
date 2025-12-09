@@ -150,6 +150,20 @@ import {
   type InsertDepartmentFieldAssignment,
   type DepartmentFieldAssignment,
   type DepartmentFieldAssignmentWithDefinition,
+  // Daily Procedures Module
+  proceduresTemplates,
+  proceduresItems,
+  proceduresUsers,
+  proceduresSubmissions,
+  type InsertProceduresTemplate,
+  type ProceduresTemplate,
+  type InsertProceduresItem,
+  type ProceduresItem,
+  type InsertProceduresUser,
+  type ProceduresUser,
+  type InsertProceduresSubmission,
+  type ProceduresSubmission,
+  type ProceduresTemplateWithItems,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -435,6 +449,47 @@ export interface IStorage {
   updateImprovementNote(id: string, data: Partial<InsertImprovementNote>): Promise<ImprovementNote | undefined>;
   markNoteComplete(id: string): Promise<ImprovementNote | undefined>;
   deleteImprovementNote(id: string): Promise<boolean>;
+
+  // ==========================================
+  // DAILY PROCEDURES MODULE
+  // ==========================================
+  
+  // Procedure Templates
+  getProceduresTemplates(filters?: { department?: string; procedureType?: string; isActive?: boolean }): Promise<ProceduresTemplate[]>;
+  getProceduresTemplate(id: string): Promise<ProceduresTemplate | undefined>;
+  getProceduresTemplateByCode(code: string): Promise<ProceduresTemplate | undefined>;
+  getProceduresTemplateWithItems(id: string): Promise<ProceduresTemplateWithItems | undefined>;
+  createProceduresTemplate(data: InsertProceduresTemplate): Promise<ProceduresTemplate>;
+  updateProceduresTemplate(id: string, data: Partial<InsertProceduresTemplate>): Promise<ProceduresTemplate | undefined>;
+  deleteProceduresTemplate(id: string): Promise<boolean>;
+  
+  // Procedure Items
+  getProceduresItems(templateId: string): Promise<ProceduresItem[]>;
+  getProceduresItem(id: string): Promise<ProceduresItem | undefined>;
+  createProceduresItem(data: InsertProceduresItem): Promise<ProceduresItem>;
+  updateProceduresItem(id: string, data: Partial<InsertProceduresItem>): Promise<ProceduresItem | undefined>;
+  deleteProceduresItem(id: string): Promise<boolean>;
+  reorderProceduresItems(templateId: string, itemIds: string[]): Promise<void>;
+  
+  // Procedure Users
+  getProceduresUsers(filters?: { isActive?: boolean }): Promise<ProceduresUser[]>;
+  getProceduresUser(id: string): Promise<ProceduresUser | undefined>;
+  getProceduresUserByPin(pin: string): Promise<ProceduresUser | undefined>;
+  createProceduresUser(data: InsertProceduresUser): Promise<ProceduresUser>;
+  updateProceduresUser(id: string, data: Partial<InsertProceduresUser>): Promise<ProceduresUser | undefined>;
+  deleteProceduresUser(id: string): Promise<boolean>;
+  updateProceduresUserLastLogin(id: string): Promise<void>;
+  
+  // Procedure Submissions
+  getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string }): Promise<ProceduresSubmission[]>;
+  getProceduresSubmission(id: string): Promise<ProceduresSubmission | undefined>;
+  createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission>;
+  updateProceduresSubmission(id: string, data: Partial<InsertProceduresSubmission>): Promise<ProceduresSubmission | undefined>;
+  deleteProceduresSubmission(id: string): Promise<boolean>;
+  updateProceduresSubmissionEmailStatus(id: string, status: string): Promise<void>;
+  
+  // Procedures for user - get applicable procedures for today
+  getTodaysProceduresForUser(userId: string): Promise<ProceduresTemplateWithItems[]>;
 }
 
 export interface ProductFilters {
@@ -4101,6 +4156,237 @@ export class DatabaseStorage implements IStorage {
           eq(departmentFieldAssignments.fieldDefinitionId, update.fieldDefinitionId)
         ));
     }
+  }
+
+  // ==========================================
+  // DAILY PROCEDURES MODULE IMPLEMENTATIONS
+  // ==========================================
+
+  // Procedure Templates
+  async getProceduresTemplates(filters?: { department?: string; procedureType?: string; isActive?: boolean }): Promise<ProceduresTemplate[]> {
+    const conditions: SQL<unknown>[] = [];
+    if (filters?.department) {
+      conditions.push(eq(proceduresTemplates.department, filters.department));
+    }
+    if (filters?.procedureType) {
+      conditions.push(eq(proceduresTemplates.procedureType, filters.procedureType));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(proceduresTemplates.isActive, filters.isActive));
+    }
+    
+    const query = db.select().from(proceduresTemplates);
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions)).orderBy(proceduresTemplates.procedureName);
+    }
+    return await query.orderBy(proceduresTemplates.procedureName);
+  }
+
+  async getProceduresTemplate(id: string): Promise<ProceduresTemplate | undefined> {
+    const [template] = await db.select().from(proceduresTemplates).where(eq(proceduresTemplates.id, id));
+    return template;
+  }
+
+  async getProceduresTemplateByCode(code: string): Promise<ProceduresTemplate | undefined> {
+    const [template] = await db.select().from(proceduresTemplates).where(eq(proceduresTemplates.procedureCode, code));
+    return template;
+  }
+
+  async getProceduresTemplateWithItems(id: string): Promise<ProceduresTemplateWithItems | undefined> {
+    const template = await this.getProceduresTemplate(id);
+    if (!template) return undefined;
+    const items = await this.getProceduresItems(id);
+    return { ...template, items };
+  }
+
+  async createProceduresTemplate(data: InsertProceduresTemplate): Promise<ProceduresTemplate> {
+    const [template] = await db.insert(proceduresTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateProceduresTemplate(id: string, data: Partial<InsertProceduresTemplate>): Promise<ProceduresTemplate | undefined> {
+    const [updated] = await db.update(proceduresTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(proceduresTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProceduresTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(proceduresTemplates).where(eq(proceduresTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Procedure Items
+  async getProceduresItems(templateId: string): Promise<ProceduresItem[]> {
+    return await db.select().from(proceduresItems)
+      .where(eq(proceduresItems.templateId, templateId))
+      .orderBy(proceduresItems.sortOrder);
+  }
+
+  async getProceduresItem(id: string): Promise<ProceduresItem | undefined> {
+    const [item] = await db.select().from(proceduresItems).where(eq(proceduresItems.id, id));
+    return item;
+  }
+
+  async createProceduresItem(data: InsertProceduresItem): Promise<ProceduresItem> {
+    const [item] = await db.insert(proceduresItems).values(data).returning();
+    return item;
+  }
+
+  async updateProceduresItem(id: string, data: Partial<InsertProceduresItem>): Promise<ProceduresItem | undefined> {
+    const [updated] = await db.update(proceduresItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(proceduresItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProceduresItem(id: string): Promise<boolean> {
+    const result = await db.delete(proceduresItems).where(eq(proceduresItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async reorderProceduresItems(templateId: string, itemIds: string[]): Promise<void> {
+    for (let i = 0; i < itemIds.length; i++) {
+      await db.update(proceduresItems)
+        .set({ sortOrder: i })
+        .where(and(
+          eq(proceduresItems.id, itemIds[i]),
+          eq(proceduresItems.templateId, templateId)
+        ));
+    }
+  }
+
+  // Procedure Users
+  async getProceduresUsers(filters?: { isActive?: boolean }): Promise<ProceduresUser[]> {
+    if (filters?.isActive !== undefined) {
+      return await db.select().from(proceduresUsers)
+        .where(eq(proceduresUsers.isActive, filters.isActive))
+        .orderBy(proceduresUsers.displayName);
+    }
+    return await db.select().from(proceduresUsers).orderBy(proceduresUsers.displayName);
+  }
+
+  async getProceduresUser(id: string): Promise<ProceduresUser | undefined> {
+    const [user] = await db.select().from(proceduresUsers).where(eq(proceduresUsers.id, id));
+    return user;
+  }
+
+  async getProceduresUserByPin(pin: string): Promise<ProceduresUser | undefined> {
+    const [user] = await db.select().from(proceduresUsers)
+      .where(and(eq(proceduresUsers.pinCode, pin), eq(proceduresUsers.isActive, true)));
+    return user;
+  }
+
+  async createProceduresUser(data: InsertProceduresUser): Promise<ProceduresUser> {
+    const [user] = await db.insert(proceduresUsers).values(data).returning();
+    return user;
+  }
+
+  async updateProceduresUser(id: string, data: Partial<InsertProceduresUser>): Promise<ProceduresUser | undefined> {
+    const [updated] = await db.update(proceduresUsers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(proceduresUsers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProceduresUser(id: string): Promise<boolean> {
+    const result = await db.delete(proceduresUsers).where(eq(proceduresUsers.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateProceduresUserLastLogin(id: string): Promise<void> {
+    await db.update(proceduresUsers)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(proceduresUsers.id, id));
+  }
+
+  // Procedure Submissions
+  async getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string }): Promise<ProceduresSubmission[]> {
+    const conditions: SQL<unknown>[] = [];
+    if (filters?.department) {
+      conditions.push(eq(proceduresSubmissions.department, filters.department));
+    }
+    if (filters?.procedureCode) {
+      conditions.push(eq(proceduresSubmissions.procedureCode, filters.procedureCode));
+    }
+    if (filters?.userId) {
+      conditions.push(eq(proceduresSubmissions.submittedByUserId, filters.userId));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${proceduresSubmissions.submissionDate} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${proceduresSubmissions.submissionDate} <= ${filters.endDate}`);
+    }
+    
+    const query = db.select().from(proceduresSubmissions);
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions)).orderBy(desc(proceduresSubmissions.submissionDate));
+    }
+    return await query.orderBy(desc(proceduresSubmissions.submissionDate));
+  }
+
+  async getProceduresSubmission(id: string): Promise<ProceduresSubmission | undefined> {
+    const [submission] = await db.select().from(proceduresSubmissions).where(eq(proceduresSubmissions.id, id));
+    return submission;
+  }
+
+  async createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission> {
+    const [submission] = await db.insert(proceduresSubmissions).values(data).returning();
+    return submission;
+  }
+
+  async updateProceduresSubmission(id: string, data: Partial<InsertProceduresSubmission>): Promise<ProceduresSubmission | undefined> {
+    const [updated] = await db.update(proceduresSubmissions)
+      .set(data)
+      .where(eq(proceduresSubmissions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProceduresSubmission(id: string): Promise<boolean> {
+    const result = await db.delete(proceduresSubmissions).where(eq(proceduresSubmissions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateProceduresSubmissionEmailStatus(id: string, status: string): Promise<void> {
+    await db.update(proceduresSubmissions)
+      .set({ emailSentStatus: status, emailSentAt: new Date() })
+      .where(eq(proceduresSubmissions.id, id));
+  }
+
+  // Get today's procedures for a user based on day of week and assigned procedure codes
+  async getTodaysProceduresForUser(userId: string): Promise<ProceduresTemplateWithItems[]> {
+    const user = await this.getProceduresUser(userId);
+    if (!user || !user.assignedProcedureCodes || user.assignedProcedureCodes.length === 0) {
+      return [];
+    }
+
+    // Get day of week (lowercase)
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = days[new Date().getDay()];
+
+    // Get all templates the user is assigned to
+    const templates = await db.select().from(proceduresTemplates)
+      .where(and(
+        eq(proceduresTemplates.isActive, true),
+        inArray(proceduresTemplates.procedureCode, user.assignedProcedureCodes)
+      ));
+
+    // Filter by day of week and get items
+    const result: ProceduresTemplateWithItems[] = [];
+    for (const template of templates) {
+      const daysOfWeek = template.daysOfWeek as Record<string, boolean> | null;
+      if (daysOfWeek && daysOfWeek[today]) {
+        const items = await this.getProceduresItems(template.id);
+        result.push({ ...template, items });
+      }
+    }
+
+    return result;
   }
 }
 
