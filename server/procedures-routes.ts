@@ -219,7 +219,44 @@ router.delete("/users/:id", async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// STAFF ACCESS (Public - PIN-based)
+// STAFF ACCESS (Public - Code-based for procedures_staff)
+// ==========================================
+
+// Staff login by code (uses procedures_staff table)
+router.post("/staff-login", async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: "Access code is required" });
+    }
+    
+    const staff = await storage.getProceduresStaffByCode(code);
+    if (!staff) {
+      return res.status(401).json({ error: "Invalid access code" });
+    }
+    
+    // Update last used timestamp
+    await storage.updateProceduresStaff(staff.id, { lastUsedAt: new Date() } as any);
+    res.json(staff);
+  } catch (error) {
+    console.error("Error logging in staff:", error);
+    res.status(500).json({ error: "Failed to log in" });
+  }
+});
+
+// Get procedures assigned to a staff member
+router.get("/staff-procedures/:staffId", async (req: Request, res: Response) => {
+  try {
+    const procedures = await storage.getProceduresForStaff(req.params.staffId);
+    res.json(procedures);
+  } catch (error) {
+    console.error("Error fetching staff procedures:", error);
+    res.status(500).json({ error: "Failed to fetch procedures" });
+  }
+});
+
+// ==========================================
+// LEGACY STAFF ACCESS (PIN-based for proceduresUsers)
 // ==========================================
 
 router.post("/login", async (req: Request, res: Response) => {

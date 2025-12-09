@@ -501,6 +501,7 @@ export interface IStorage {
   createProceduresStaff(data: InsertProceduresStaff): Promise<ProceduresStaff>;
   updateProceduresStaff(id: string, data: Partial<InsertProceduresStaff>): Promise<ProceduresStaff | undefined>;
   deleteProceduresStaff(id: string): Promise<boolean>;
+  getProceduresForStaff(staffId: string): Promise<ProceduresTemplateWithItems[]>;
 }
 
 export interface ProductFilters {
@@ -4437,6 +4438,33 @@ export class DatabaseStorage implements IStorage {
   async deleteProceduresStaff(id: string): Promise<boolean> {
     const result = await db.delete(proceduresStaff).where(eq(proceduresStaff.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Get procedures assigned to a staff member (via assignedStaffIds on templates)
+  async getProceduresForStaff(staffId: string): Promise<ProceduresTemplateWithItems[]> {
+    // Get day of week (lowercase)
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const today = days[new Date().getDay()];
+
+    // Get all active templates that have this staff member assigned
+    const templates = await db.select().from(proceduresTemplates)
+      .where(eq(proceduresTemplates.isActive, true));
+
+    // Filter templates that have this staff member in their assignedStaffIds
+    const result: ProceduresTemplateWithItems[] = [];
+    for (const template of templates) {
+      const assignedStaffIds = template.assignedStaffIds as string[] | null;
+      if (assignedStaffIds && assignedStaffIds.includes(staffId)) {
+        // Check if today is a scheduled day
+        const daysOfWeek = template.daysOfWeek as Record<string, boolean> | null;
+        if (daysOfWeek && daysOfWeek[today]) {
+          const items = await this.getProceduresItems(template.id);
+          result.push({ ...template, items });
+        }
+      }
+    }
+
+    return result;
   }
 }
 

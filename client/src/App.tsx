@@ -42,6 +42,7 @@ const ProcedureTemplateEditor = lazy(() => import("@/pages/procedures/ProcedureT
 const ProceduresUsers = lazy(() => import("@/pages/procedures/ProceduresUsers"));
 const ProceduresSubmissions = lazy(() => import("@/pages/procedures/ProceduresSubmissions"));
 const PublicProceduresForm = lazy(() => import("@/pages/procedures/PublicProceduresForm"));
+const StaffProceduresForm = lazy(() => import("@/pages/procedures/StaffProceduresForm"));
 
 // Lazy load Maintenance module
 const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
@@ -319,6 +320,14 @@ function PublicProceduresRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <PublicProceduresForm />
+    </Suspense>
+  );
+}
+
+function StaffProceduresRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StaffProceduresForm />
     </Suspense>
   );
 }
@@ -752,6 +761,7 @@ function Router() {
         <Route path="/procedures/users" component={ProceduresUsersRoute} />
         <Route path="/procedures/submissions" component={ProceduresSubmissionsRoute} />
         <Route path="/procedures/public" component={PublicProceduresRoute} />
+        <Route path="/procedures/staff" component={StaffProceduresRoute} />
         <Route path="/support" component={SupportComingSoonRoute} />
         <Route path="/support/admin" component={SupportComingSoonRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
