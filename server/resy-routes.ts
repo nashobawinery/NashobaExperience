@@ -1445,11 +1445,16 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       }
     }
     
-    // Get operating hours for this day
-    const operatingHours = await resyStorage.getOperatingHoursByLocation(locationId);
-    const dayHours = operatingHours.filter(h => h.dayOfWeek === dayOfWeek && h.isOpen);
+    // Get service periods (meal periods) for this location and filter by day availability
+    const mealPeriods = await resyStorage.getMealPeriodsByLocation(locationId);
+    const activePeriods = mealPeriods.filter(p => {
+      if (!p.isActive) return false;
+      // Check if this day is in the daysAvailable array
+      const daysAvailable = p.daysAvailable || [0, 1, 2, 3, 4, 5, 6]; // Default to all days if not set
+      return daysAvailable.includes(dayOfWeek);
+    });
     
-    if (dayHours.length === 0) {
+    if (activePeriods.length === 0) {
       return res.json({ 
         availableTimes: [], 
         messages: { closed: "Location is closed on this day" } 
@@ -1462,15 +1467,16 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     // Get existing reservations for this date
     const reservations = await resyStorage.getReservationsByDate(date as string, locationId);
     
-    // Generate time slots based on operating hours
+    // Generate time slots based on service periods
     const availableTimes: Array<{time: string, available: boolean, capacity?: number, mealPeriod?: string}> = [];
     
-    for (const hours of dayHours) {
-      if (!hours.openTime || !hours.closeTime) continue;
+    for (const period of activePeriods) {
+      if (!period.startTime || !period.endTime) continue;
       
-      // Parse times
-      const [openHour, openMin] = hours.openTime.split(':').map(Number);
-      let [closeHour, closeMin] = hours.closeTime.split(':').map(Number);
+      // Parse times - use lastReservationTime if set, otherwise use endTime
+      const [openHour, openMin] = period.startTime.split(':').map(Number);
+      const effectiveEndTime = period.lastReservationTime || period.endTime;
+      let [closeHour, closeMin] = effectiveEndTime.split(':').map(Number);
       
       // Apply reservation close time if set - limits the latest slot time
       if (closeTimeHour !== null && closeTimeMin !== null) {
@@ -1484,7 +1490,7 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       }
       
       // Get flow control for this meal period (or default)
-      const flowControl = flowControls.find(fc => fc.mealPeriodId === hours.mealPeriodId && fc.isActive);
+      const flowControl = flowControls.find(fc => fc.mealPeriodId === period.id && fc.isActive);
       // Ensure interval is positive to prevent infinite loops
       const intervalMinutes = Math.max(flowControl?.intervalMinutes ?? 30, 1);
       const maxCovers = flowControl?.maxCoversPerInterval ?? 20;
