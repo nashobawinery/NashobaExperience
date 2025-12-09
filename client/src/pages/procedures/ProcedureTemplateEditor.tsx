@@ -62,6 +62,7 @@ export default function ProcedureTemplateEditor() {
     friday: true, saturday: true, sunday: true
   });
   const [isActive, setIsActive] = useState(true);
+  const [isMandatory, setIsMandatory] = useState(false);
   const [completionTime, setCompletionTime] = useState("");
   const [emailRecipientsTo, setEmailRecipientsTo] = useState<string[]>([]);
   const [emailRecipientsCc, setEmailRecipientsCc] = useState<string[]>([]);
@@ -95,6 +96,7 @@ export default function ProcedureTemplateEditor() {
         friday: true, saturday: true, sunday: true
       });
       setIsActive(template.isActive);
+      setIsMandatory(template.isMandatory ?? false);
       setCompletionTime(template.completionTime || "");
       setEmailRecipientsTo(template.emailRecipientsTo || []);
       setEmailRecipientsCc(template.emailRecipientsCc || []);
@@ -181,6 +183,7 @@ export default function ProcedureTemplateEditor() {
       description: description || null,
       daysOfWeek,
       isActive,
+      isMandatory,
       completionTime: completionTime || null,
       emailRecipientsTo,
       emailRecipientsCc,
@@ -448,6 +451,21 @@ export default function ProcedureTemplateEditor() {
                   data-testid="switch-active"
                 />
                 <Label htmlFor="isActive">Procedure is Active</Label>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="isMandatory"
+                    checked={isMandatory}
+                    onCheckedChange={setIsMandatory}
+                    data-testid="switch-mandatory"
+                  />
+                  <Label htmlFor="isMandatory">Mandatory Procedure</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If enabled, a "No Report Filed" entry will be created and email notification sent when this procedure is not submitted on a scheduled day
+                </p>
               </div>
             </CardContent>
           </Card>

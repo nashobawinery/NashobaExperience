@@ -2957,6 +2957,7 @@ export const proceduresTemplates = pgTable("procedures_templates", {
   emailRecipientsCc: text("email_recipients_cc").array(), // Optional CC recipients
   assignedStaffIds: text("assigned_staff_ids").array(), // Array of procedures_staff IDs
   completionTime: varchar("completion_time", { length: 5 }), // Optional deadline time in "HH:MM" format (e.g., "08:00")
+  isMandatory: boolean("is_mandatory").notNull().default(false), // If true, missing submissions trigger email alerts
   isActive: boolean("is_active").notNull().default(true),
   createdById: varchar("created_by_id").references(() => platformUsers.id),
   createdByName: text("created_by_name"),
