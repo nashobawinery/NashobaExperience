@@ -1,0 +1,131 @@
+1) Product goal (what we’re building)
+Build a Daily Procedures App for operations teams to complete Opening, Closing, and General task checklists by department.  While it is different from our Daily Reports modules where the staff is reporting on operations, the Procedures App is similar except that there are multiple procedures to be completed during the day such as Opening, Closing, or Daily Task
+Departments
+(Preferably pull the department list from the same source used by the Daily Reports system so we don’t duplicate lists.)
+The app must:
+Let admins define procedures (checklists) per department.
+Admin starts selecting the Department and then nams the Procedure being Developed like Opening Retail Procedures
+Admin Selects days of week that the procedure applies to.
+Admin starts to add tasks required to complete the procedure by pressing an add task button.  Each Task should present a text field to define the task that needs to be done.  There should fields that the admin can select to be presented for the task like are initials Required, Drop Down, Commnet  Admin can select on or all three which will then be presented to the staff person filing out the task,  In the Drop Down field the admin should be able to add what appears perhaps by listing in a field separate by a comer.
+Develop an end user page which procedures are presented based on the staff person entering his or her user code and the selects the proceedure (via a user code / PIN) identical from how we did
+Allow submitted procedures to email results to configured recipients (like Daily Reports)
+2) Core concepts / data model
+A) Department
+department_id
+name
+active
+B) Procedure Template (the “definition”)
+A reusable checklist definition.
+Fields:
+pro_procedure_id
+pro_procedure_name (e.g., “Retail Opening”)
+department_id
+pro_procedure_type (enum: OPENING, CLOSING, GENERAL)
+pro_day_of_week_rules (which days it applies: Mon–Sun; allow “All days”)
+pro_procedure_code (admin-defined short code; e.g., RET_OPEN, RET_CLOSE)
+pro_email_recipients_to (comma-separated or array)
+pro_email_recipients_cc (optional)
+pro_active
+C) Procedure Items (the checklist rows)
+Fields:
+pro_item_id
+pro_ pro_label (e.g., “Turn on lights”)
+pro_description (optional instructions)
+pro_sort_order
+pro_required (boolean)
+response_type (enum: checkbox / text / number / yes-no / dropdown)
+pro_pro_dropdown_options (if needed)
+D) User + Authorization
+We need a simple way to map “a person enters 1111” → show assigned procedures.
+Fields:
+pro_user_id
+d pro_isplay_name
+pro_pin_code (e.g., 1111) — must be unique
+pro_assigned_procedure_codes OR assigned_procedure_ids
+pro_active
+(Using procedure codes is nice because it stays readable even if templates get duplicated or migrated.)
+E) Submission (completed form)
+A stored record of a completed procedure.
+Fields:
+pro_procedure_id
+pro_procedure_code (redundant but helpful)
+department for daily reports
+pro_submitted_by_user_id
+pro_submitted_by_name (capture at submission time)
+pro_datetime_started
+pro_datetime_submitted
+answers (JSON of item responses)
+notes (optional)
+email_sent_status (success/fail + timestamp)
+3) Key workflows
+Workflow 1: Admin creates/edits a procedure
+Admin can:
+Select Department
+Name the procedure
+Select day(s) of the week it applies
+Assign a procedure code
+Add/edit checklist items (sortable)
+Configure email recipients
+Workflow 2: User login and “Today’s Procedures”
+User enters PIN (ex: 1111).
+System:
+Looks up the user
+Determines today’s day-of-week
+Finds procedures that match:
+procedure is active
+procedure day-of-week includes today
+procedure is assigned to that user (via code or ID)
+Displays a dashboard like:
+“Retail Opening”
+“Retail Closing”
+(and any general tasks)
+Workflow 3: Completing a procedure
+When user opens a procedure:
+Show checklist items
+Allow save-in-progress (optional but recommended)
+Require completion of required items
+Submit → store submission record
+Send email to configured recipients with:
+Procedure name, department, date/time
+Submitted by
+Item-by-item results
+Notes
+4) Rules and requirements (important behavior)
+Day-of-week variants: a procedure can apply to multiple days; admin can also clone a procedure to create a day-specific version (optional feature).
+Multiple procedures per user per day: user can see multiple procedures (opening + closing + general).
+Auditability: store submissions and who submitted them; keep a basic searchable history by:
+date range
+department
+procedure code
+submitted by
+Department source of truth: ideally use the same department list as “Daily Reports” to avoid mismatches.
+Email: configurable per procedure (like Daily Reports), not global-only.
+Security: PIN is minimal security; no need for full accounts if you want it lightweight, but admin area must be protected.
+5) Suggested UI screens
+Admin
+Departments (view/import from Daily Reports source if possible)
+Procedures list (filter by department/type/day)
+Procedure builder (fields + checklist item editor)
+Users (PIN + assigned procedure codes)
+Submissions (view/export)
+User
+PIN entry screen
+“Today’s Procedures” screen (cards)
+Procedure checklist screen
+Confirmation screen after submit
+6) Example scenario (your exact example)
+User:
+Name: “Jane”
+PIN: 1111
+Assigned procedure codes: RET_OPEN, RET_CLOSE
+On a Tuesday:
+System shows Jane:
+Retail Opening (if Tue is enabled)
+Retail Closing (if Tue is enabled)
+Jane completes each checklist and submits; emails go to the recipients configured inside each procedure template.
+7) enhancements
+Role-based admin vs user (instead of “everyone with a PIN can admin”)
+“Manager review” checkbox + escalation email if something is incomplete
+Photo upload for certain tasks (e.g., closing cleanliness verification)
+Time windows (Opening only appears before 12pm, Closing after 3pm, etc.)
+Recurring “General Tasks” that apply daily/weekly
