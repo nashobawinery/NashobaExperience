@@ -770,7 +770,6 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
       externalUrl: experience.externalUrl || "",
       reservationType: experience.reservationType || undefined,
       price: experience.price || undefined,
-      advanceBookingDays: experience.advanceBookingDays || undefined,
       displayOrder: experience.displayOrder,
       isActive: experience.isActive,
       showPrice: experience.showPrice ?? true,
@@ -785,7 +784,6 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
       externalUrl: "",
       reservationType: undefined,
       price: undefined,
-      advanceBookingDays: undefined,
       displayOrder: 0,
       isActive: true,
       showPrice: true,
@@ -1404,29 +1402,6 @@ function ExperienceForm({ experience, onSuccess }: { experience: Experience | nu
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="advanceBookingDays"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Advance Booking Window (Days)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="30"
-                      {...field}
-                      value={field.value || ""}
-                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                      data-testid="input-advance-booking-days"
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Maximum days in advance this experience can be booked (leave empty for no limit)
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {reservationType === 'ticketed' && (
               <>

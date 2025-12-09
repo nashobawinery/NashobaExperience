@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink } from "lucide-react";
+import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
@@ -208,6 +208,10 @@ export default function AdminLocationDetail() {
               <CalendarOff className="w-3 h-3 mr-2" />
               Special Dates
             </TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">
+              <Settings className="w-3 h-3 mr-2" />
+              Settings
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="tables">
@@ -232,6 +236,10 @@ export default function AdminLocationDetail() {
 
           <TabsContent value="special-dates">
             <SpecialDatesRedirectTab locationId={locationId!} />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <LocationSettingsTab locationId={locationId!} location={location} />
           </TabsContent>
         </Tabs>
       )}
@@ -3112,5 +3120,89 @@ function TicketedEventForm({
         </div>
       </form>
     </Form>
+  );
+}
+
+// Location Settings Tab - Booking policies and location-wide settings
+function LocationSettingsTab({ locationId, location }: { locationId: string; location: Location }) {
+  const { toast } = useToast();
+  const [advanceBookingDays, setAdvanceBookingDays] = useState<string>(
+    location.advanceBookingDays?.toString() || ""
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const value = advanceBookingDays ? parseInt(advanceBookingDays) : null;
+      await apiRequest("PATCH", `/api/resy/locations/${locationId}`, {
+        advanceBookingDays: value,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId] });
+      toast({
+        title: "Settings saved",
+        description: "Location settings have been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Location Settings</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="advance-booking-days">
+              Advance Booking Window
+            </label>
+            <p className="text-sm text-muted-foreground">
+              Maximum number of days in advance that guests can book. Leave empty for no limit.
+            </p>
+            <div className="flex items-center gap-3">
+              <Input
+                id="advance-booking-days"
+                type="number"
+                min={1}
+                max={365}
+                placeholder="e.g., 30"
+                value={advanceBookingDays}
+                onChange={(e) => setAdvanceBookingDays(e.target.value)}
+                className="w-32"
+                data-testid="input-advance-booking-days"
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4 border-t">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            data-testid="button-save-settings"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Settings"
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
