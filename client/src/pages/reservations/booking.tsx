@@ -44,7 +44,7 @@ import {
   X,
   Crown,
 } from "lucide-react";
-import type { Experience, TimeSlot, ResySpecialDate } from "@shared/schema";
+import type { Experience, TimeSlot, ResySpecialDate, ResyLocation } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
 
 function formatTo12Hour(timeStr: string): string {
@@ -131,6 +131,12 @@ export default function Booking() {
   // Fetch special dates (closed dates) for the experience's location
   const { data: specialDates } = useQuery<ResySpecialDate[]>({
     queryKey: ["/api/resy/special-dates", { locationId: experience?.locationId }],
+    enabled: !!experience?.locationId,
+  });
+
+  // Fetch location to get advance booking days setting
+  const { data: location } = useQuery<ResyLocation>({
+    queryKey: ["/api/resy/locations", experience?.locationId],
     enabled: !!experience?.locationId,
   });
 
@@ -650,11 +656,11 @@ export default function Booking() {
   };
   const imageUrl = getImageUrl();
 
-  // Calculate max bookable date for ticketed events with advance booking restrictions
-  const maxBookableDate =
-    isTicketed && experience.advanceBookingDays
-      ? addDays(startOfToday(), experience.advanceBookingDays)
-      : undefined;
+  // Calculate max bookable date using location's advance booking days setting
+  const advanceBookingDays = location?.advanceBookingDays;
+  const maxBookableDate = advanceBookingDays
+    ? addDays(startOfToday(), advanceBookingDays)
+    : undefined;
 
   // Get the set of days that have timeslots configured for ticketed events
   // If any slot has null dayOfWeek, it means "all days" are available within date range
@@ -788,12 +794,12 @@ export default function Booking() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {maxBookableDate && (
+              {maxBookableDate && advanceBookingDays && (
                 <div
                   className="rounded-md bg-muted p-3 text-sm text-muted-foreground"
                   data-testid="text-booking-window"
                 >
-                  Tickets available up to {experience.advanceBookingDays} days
+                  Reservations available up to {advanceBookingDays} days
                   in advance (through {format(maxBookableDate, "MMMM d, yyyy")})
                 </div>
               )}
