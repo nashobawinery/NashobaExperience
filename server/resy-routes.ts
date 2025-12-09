@@ -1350,6 +1350,15 @@ router.delete("/api/resy/flow-controls/:id", requireResyAdmin, async (req, res) 
   }
 });
 
+router.get("/api/resy/locations/:locationId/flow-controls", async (req, res) => {
+  try {
+    const controls = await resyStorage.getFlowControlsByLocation(req.params.locationId);
+    res.json(controls);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch flow controls: " + error.message });
+  }
+});
+
 router.get("/api/resy/locations/:locationId/turn-times", async (req, res) => {
   try {
     const settings = await resyStorage.getTurnTimeSettingsByLocation(req.params.locationId);
