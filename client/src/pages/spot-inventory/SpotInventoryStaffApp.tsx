@@ -60,20 +60,15 @@ interface CountItem {
   quantity: number;
 }
 
-interface StaffMember {
-  id: string;
-  name: string;
-  code: string;
-}
-
-type AppStep = "auth" | "location" | "area" | "counting" | "review";
+type AppStep = "auth" | "name" | "area" | "counting" | "review";
 
 export default function SpotInventoryStaffApp() {
   const { toast } = useToast();
   const [step, setStep] = useState<AppStep>("auth");
-  const [staffCode, setStaffCode] = useState("");
-  const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<SpotInventoryLocation | null>(null);
+  const [locationCode, setLocationCode] = useState("");
+  const [staffName, setStaffName] = useState("");
+  const [currentLocation, setCurrentLocation] = useState<SpotInventoryLocation | null>(null);
+  const [availableAreas, setAvailableAreas] = useState<SpotInventoryArea[]>([]);
   const [selectedArea, setSelectedArea] = useState<SpotInventoryArea | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [counts, setCounts] = useState<CountItem[]>([]);
@@ -82,21 +77,6 @@ export default function SpotInventoryStaffApp() {
   const [notes, setNotes] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  const { data: locations = [], isLoading: locationsLoading } = useQuery<SpotInventoryLocation[]>({
-    queryKey: ["/api/spot-inventory/locations"],
-    enabled: step === "location",
-  });
-
-  const { data: areas = [], isLoading: areasLoading } = useQuery<SpotInventoryArea[]>({
-    queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id],
-    queryFn: async () => {
-      const response = await fetch(`/api/spot-inventory/areas/by-location/${selectedLocation?.id}`);
-      if (!response.ok) throw new Error("Failed to fetch areas");
-      return response.json();
-    },
-    enabled: step === "area" && !!selectedLocation,
-  });
 
   const { data: searchResults = [], isLoading: searchLoading } = useQuery<Product[]>({
     queryKey: ["/api/spot-inventory/products/lookup", { search: searchQuery }],
@@ -109,9 +89,9 @@ export default function SpotInventoryStaffApp() {
     enabled: searchQuery.length >= 2,
   });
 
-  const verifyStaffMutation = useMutation({
+  const verifyLocationCodeMutation = useMutation({
     mutationFn: async (code: string) => {
-      const response = await fetch("/api/procedures/staff-login", {
+      const response = await fetch("/api/spot-inventory/locations/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
@@ -119,13 +99,14 @@ export default function SpotInventoryStaffApp() {
       if (!response.ok) throw new Error("Invalid code");
       return response.json();
     },
-    onSuccess: (staff: any) => {
-      setCurrentStaff({ id: staff.id, name: staff.staffName, code: staff.code });
-      setStep("location");
-      toast({ title: `Welcome, ${staff.staffName}!` });
+    onSuccess: (data: { location: SpotInventoryLocation; areas: SpotInventoryArea[] }) => {
+      setCurrentLocation(data.location);
+      setAvailableAreas(data.areas);
+      setStep("name");
+      toast({ title: `Access granted: ${data.location.name}` });
     },
     onError: () => {
-      toast({ title: "Invalid staff code", variant: "destructive" });
+      toast({ title: "Invalid location code", variant: "destructive" });
     },
   });
 
@@ -133,8 +114,8 @@ export default function SpotInventoryStaffApp() {
     mutationFn: async (areaId: string) => {
       const response = await apiRequest("POST", "/api/spot-inventory/sessions", {
         areaId,
-        staffId: currentStaff?.id,
-        staffName: currentStaff?.name,
+        locationId: currentLocation?.id,
+        staffName: staffName,
         status: "in_progress",
       });
       return await response.json();
@@ -185,8 +166,7 @@ export default function SpotInventoryStaffApp() {
   });
 
   const resetSession = () => {
-    setStep("location");
-    setSelectedLocation(null);
+    setStep("area");
     setSelectedArea(null);
     setSessionId(null);
     setCounts([]);
@@ -194,15 +174,16 @@ export default function SpotInventoryStaffApp() {
     setNotes("");
   };
 
-  const handleStaffLogin = () => {
-    if (staffCode.length >= 4) {
-      verifyStaffMutation.mutate(staffCode);
+  const handleLocationCodeSubmit = () => {
+    if (locationCode.length >= 3) {
+      verifyLocationCodeMutation.mutate(locationCode);
     }
   };
 
-  const handleSelectLocation = (location: SpotInventoryLocation) => {
-    setSelectedLocation(location);
-    setStep("area");
+  const handleNameSubmit = () => {
+    if (staffName.trim().length >= 2) {
+      setStep("area");
+    }
   };
 
   const handleSelectArea = (area: SpotInventoryArea) => {
@@ -289,21 +270,19 @@ export default function SpotInventoryStaffApp() {
     };
   }, []);
 
-  const activeLocations = locations.filter(l => l.isActive);
-  const activeAreas = areas.filter(a => a.isActive);
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="bg-card border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {step !== "auth" && step !== "location" && (
+              {step !== "auth" && (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    if (step === "area") setStep("location");
+                    if (step === "name") setStep("auth");
+                    else if (step === "area") setStep("name");
                     else if (step === "counting") {
                       if (counts.length > 0) {
                         if (confirm("You have unsaved counts. Are you sure you want to go back?")) {
@@ -322,8 +301,8 @@ export default function SpotInventoryStaffApp() {
               )}
               <div>
                 <h1 className="text-lg font-bold">Spot Inventory</h1>
-                {currentStaff && (
-                  <p className="text-xs text-muted-foreground">{currentStaff.name}</p>
+                {currentLocation && (
+                  <p className="text-xs text-muted-foreground">{currentLocation.name}{staffName ? ` - ${staffName}` : ''}</p>
                 )}
               </div>
             </div>
@@ -342,31 +321,30 @@ export default function SpotInventoryStaffApp() {
             <Card>
               <CardHeader className="text-center">
                 <ScanBarcode className="h-12 w-12 mx-auto mb-2 text-primary" />
-                <CardTitle>Staff Login</CardTitle>
-                <CardDescription>Enter your 4-digit code to start</CardDescription>
+                <CardTitle>Location Access</CardTitle>
+                <CardDescription>Enter the location access code</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="staffCode">Staff Code</Label>
+                  <Label htmlFor="locationCode">Access Code</Label>
                   <Input
-                    id="staffCode"
+                    id="locationCode"
                     type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={staffCode}
-                    onChange={(e) => setStaffCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Enter your code"
-                    className="text-center text-2xl tracking-widest"
-                    data-testid="input-staff-code"
+                    maxLength={20}
+                    value={locationCode}
+                    onChange={(e) => setLocationCode(e.target.value)}
+                    placeholder="Enter location code"
+                    className="text-center text-xl tracking-wider"
+                    data-testid="input-location-code"
                   />
                 </div>
                 <Button
                   className="w-full"
-                  onClick={handleStaffLogin}
-                  disabled={staffCode.length < 4 || verifyStaffMutation.isPending}
-                  data-testid="button-login"
+                  onClick={handleLocationCodeSubmit}
+                  disabled={locationCode.length < 3 || verifyLocationCodeMutation.isPending}
+                  data-testid="button-verify-code"
                 >
-                  {verifyStaffMutation.isPending ? (
+                  {verifyLocationCodeMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
                   Continue
@@ -376,73 +354,54 @@ export default function SpotInventoryStaffApp() {
           </div>
         )}
 
-        {step === "location" && (
-          <div className="space-y-4">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold">Select Location</h2>
-              <p className="text-muted-foreground">Choose where you're counting inventory</p>
-            </div>
-            {locationsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <Skeleton key={i} className="h-20 w-full" />
-                ))}
-              </div>
-            ) : activeLocations.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No locations available</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {activeLocations.map(location => (
-                  <Card
-                    key={location.id}
-                    className="cursor-pointer hover-elevate active-elevate-2"
-                    onClick={() => handleSelectLocation(location)}
-                    data-testid={`location-card-${location.id}`}
-                  >
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <MapPin className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">{location.name}</h3>
-                          {location.description && (
-                            <p className="text-sm text-muted-foreground">{location.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+        {step === "name" && (
+          <div className="max-w-sm mx-auto">
+            <Card>
+              <CardHeader className="text-center">
+                <Package className="h-12 w-12 mx-auto mb-2 text-primary" />
+                <CardTitle>Your Name</CardTitle>
+                <CardDescription>Enter your name for this count session</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="staffName">Your Name</Label>
+                  <Input
+                    id="staffName"
+                    type="text"
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="text-center"
+                    data-testid="input-staff-name"
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={handleNameSubmit}
+                  disabled={staffName.trim().length < 2}
+                  data-testid="button-continue-name"
+                >
+                  Continue
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {step === "area" && (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <h2 className="text-xl font-semibold">{selectedLocation?.name}</h2>
+              <h2 className="text-xl font-semibold">{currentLocation?.name}</h2>
               <p className="text-muted-foreground">Select an area to count</p>
             </div>
-            {areasLoading ? (
-              <div className="grid grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map(i => (
-                  <Skeleton key={i} className="h-40 w-full" />
-                ))}
-              </div>
-            ) : activeAreas.length === 0 ? (
+            {availableAreas.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Grid3X3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No areas configured for this location</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                {activeAreas.map(area => (
+                {availableAreas.map(area => (
                   <Card
                     key={area.id}
                     className="cursor-pointer hover-elevate active-elevate-2 overflow-visible"
@@ -474,7 +433,7 @@ export default function SpotInventoryStaffApp() {
           <div className="space-y-4">
             <div className="text-center mb-4">
               <Badge variant="outline" className="mb-2">
-                {selectedLocation?.name} - {selectedArea?.name}
+                {currentLocation?.name} - {selectedArea?.name}
               </Badge>
             </div>
 
@@ -641,7 +600,7 @@ export default function SpotInventoryStaffApp() {
             <div className="text-center mb-4">
               <h2 className="text-xl font-semibold">Review Count</h2>
               <Badge variant="outline" className="mt-2">
-                {selectedLocation?.name} - {selectedArea?.name}
+                {currentLocation?.name} - {selectedArea?.name}
               </Badge>
             </div>
 

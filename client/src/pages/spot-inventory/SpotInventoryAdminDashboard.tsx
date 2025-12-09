@@ -47,6 +47,7 @@ interface SpotInventoryLocation {
   name: string;
   description: string | null;
   address: string | null;
+  accessCode: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -67,7 +68,7 @@ interface SpotInventoryArea {
 interface SpotInventorySession {
   id: string;
   areaId: string;
-  staffId: string;
+  locationId: string;
   staffName: string;
   status: string;
   startedAt: string;
@@ -819,6 +820,7 @@ function LocationDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -827,11 +829,13 @@ function LocationDialog({
         setName(location.name);
         setDescription(location.description || "");
         setAddress(location.address || "");
+        setAccessCode(location.accessCode || "");
         setIsActive(location.isActive);
       } else {
         setName("");
         setDescription("");
         setAddress("");
+        setAccessCode("");
         setIsActive(true);
       }
     }
@@ -842,6 +846,7 @@ function LocationDialog({
       name,
       description: description || null,
       address: address || null,
+      accessCode: accessCode || null,
       isActive,
     });
   };
@@ -887,6 +892,19 @@ function LocationDialog({
               placeholder="Optional address"
               data-testid="input-location-address"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="accessCode">Staff Access Code</Label>
+            <Input
+              id="accessCode"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              placeholder="e.g., WAREHOUSE123"
+              data-testid="input-location-access-code"
+            />
+            <p className="text-xs text-muted-foreground">
+              Staff will enter this code to access this location for inventory counting
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <input
