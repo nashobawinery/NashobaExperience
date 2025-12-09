@@ -89,7 +89,12 @@ export default function SpotInventoryStaffApp() {
   });
 
   const { data: areas = [], isLoading: areasLoading } = useQuery<SpotInventoryArea[]>({
-    queryKey: ["/api/spot-inventory/areas", { locationId: selectedLocation?.id }],
+    queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/spot-inventory/areas/by-location/${selectedLocation?.id}`);
+      if (!response.ok) throw new Error("Failed to fetch areas");
+      return response.json();
+    },
     enabled: step === "area" && !!selectedLocation,
   });
 
@@ -106,14 +111,18 @@ export default function SpotInventoryStaffApp() {
 
   const verifyStaffMutation = useMutation({
     mutationFn: async (code: string) => {
-      const response = await fetch(`/api/procedures/staff/verify?code=${code}`);
+      const response = await fetch("/api/procedures/staff-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
       if (!response.ok) throw new Error("Invalid code");
       return response.json();
     },
-    onSuccess: (staff: StaffMember) => {
-      setCurrentStaff(staff);
+    onSuccess: (staff: any) => {
+      setCurrentStaff({ id: staff.id, name: staff.staffName, code: staff.code });
       setStep("location");
-      toast({ title: `Welcome, ${staff.name}!` });
+      toast({ title: `Welcome, ${staff.staffName}!` });
     },
     onError: () => {
       toast({ title: "Invalid staff code", variant: "destructive" });
