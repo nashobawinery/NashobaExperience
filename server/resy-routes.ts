@@ -775,9 +775,29 @@ router.post("/api/resy/locations/:id/clone", requireResyAdmin, async (req, res) 
 router.get("/api/resy/experiences", async (req, res) => {
   try {
     const experiences = await resyStorage.getExperiences();
+    console.log(`[Resy API] GET /api/resy/experiences returning ${experiences.length} experiences`);
     res.json(experiences);
   } catch (error: any) {
+    console.error(`[Resy API] GET /api/resy/experiences ERROR:`, error);
     res.status(500).json({ message: "Failed to fetch experiences: " + error.message });
+  }
+});
+
+// Diagnostic endpoint to check database connection
+router.get("/api/resy/debug/db-check", async (req, res) => {
+  try {
+    const [expCount] = await db.select({ count: sql`count(*)` }).from(resyExperiences);
+    const [locCount] = await db.select({ count: sql`count(*)` }).from(resyLocations);
+    const dbHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).host : 'not set';
+    res.json({
+      status: 'connected',
+      experienceCount: Number(expCount.count),
+      locationCount: Number(locCount.count),
+      dbHost: dbHost.substring(0, 20) + '...',
+      nodeEnv: process.env.NODE_ENV
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
