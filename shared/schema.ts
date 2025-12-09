@@ -2955,6 +2955,7 @@ export const proceduresTemplates = pgTable("procedures_templates", {
   daysOfWeek: jsonb("days_of_week").notNull().default({}), // { monday: true, tuesday: true, ... }
   emailRecipientsTo: text("email_recipients_to").array(), // Array of email addresses
   emailRecipientsCc: text("email_recipients_cc").array(), // Optional CC recipients
+  assignedStaffIds: text("assigned_staff_ids").array(), // Array of procedures_staff IDs
   isActive: boolean("is_active").notNull().default(true),
   createdById: varchar("created_by_id").references(() => platformUsers.id),
   createdByName: text("created_by_name"),
@@ -3061,9 +3062,37 @@ export const insertProceduresSubmissionSchema = createInsertSchema(proceduresSub
 export type InsertProceduresSubmission = z.infer<typeof insertProceduresSubmissionSchema>;
 export type ProceduresSubmission = typeof proceduresSubmissions.$inferSelect;
 
-// Type for procedure template with items
+// Procedures Staff - Staff members who can complete procedures (separate from Daily Reports staff)
+export const proceduresStaff = pgTable("procedures_staff", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffName: varchar("staff_name").notNull(),
+  code: varchar("code", { length: 10 }).notNull(), // Staff access code
+  department: varchar("department"), // Optional department association
+  isActive: boolean("is_active").notNull().default(true),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_proc_staff_code").on(table.code),
+  index("idx_proc_staff_active").on(table.isActive),
+  unique("uq_proc_staff_code").on(table.code),
+]);
+
+export const insertProceduresStaffSchema = createInsertSchema(proceduresStaff).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  lastUsedAt: true
+});
+export type InsertProceduresStaff = z.infer<typeof insertProceduresStaffSchema>;
+export type ProceduresStaff = typeof proceduresStaff.$inferSelect;
+
+// Type for procedure template with items and staff
 export type ProceduresTemplateWithItems = ProceduresTemplate & {
   items: ProceduresItem[];
+  assignedStaff?: ProceduresStaff[];
 };
 
 // Schema aliases for backward compatibility

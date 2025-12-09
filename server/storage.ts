@@ -155,6 +155,7 @@ import {
   proceduresItems,
   proceduresUsers,
   proceduresSubmissions,
+  proceduresStaff,
   type InsertProceduresTemplate,
   type ProceduresTemplate,
   type InsertProceduresItem,
@@ -164,6 +165,8 @@ import {
   type InsertProceduresSubmission,
   type ProceduresSubmission,
   type ProceduresTemplateWithItems,
+  type InsertProceduresStaff,
+  type ProceduresStaff,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -490,6 +493,14 @@ export interface IStorage {
   
   // Procedures for user - get applicable procedures for today
   getTodaysProceduresForUser(userId: string): Promise<ProceduresTemplateWithItems[]>;
+  
+  // Procedures Staff
+  getProceduresStaff(filters?: { isActive?: boolean }): Promise<ProceduresStaff[]>;
+  getProceduresStaffMember(id: string): Promise<ProceduresStaff | undefined>;
+  getProceduresStaffByCode(code: string): Promise<ProceduresStaff | undefined>;
+  createProceduresStaff(data: InsertProceduresStaff): Promise<ProceduresStaff>;
+  updateProceduresStaff(id: string, data: Partial<InsertProceduresStaff>): Promise<ProceduresStaff | undefined>;
+  deleteProceduresStaff(id: string): Promise<boolean>;
 }
 
 export interface ProductFilters {
@@ -4387,6 +4398,45 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+
+  // Procedures Staff
+  async getProceduresStaff(filters?: { isActive?: boolean }): Promise<ProceduresStaff[]> {
+    if (filters?.isActive !== undefined) {
+      return await db.select().from(proceduresStaff)
+        .where(eq(proceduresStaff.isActive, filters.isActive))
+        .orderBy(proceduresStaff.staffName);
+    }
+    return await db.select().from(proceduresStaff).orderBy(proceduresStaff.staffName);
+  }
+
+  async getProceduresStaffMember(id: string): Promise<ProceduresStaff | undefined> {
+    const [staff] = await db.select().from(proceduresStaff).where(eq(proceduresStaff.id, id));
+    return staff;
+  }
+
+  async getProceduresStaffByCode(code: string): Promise<ProceduresStaff | undefined> {
+    const [staff] = await db.select().from(proceduresStaff)
+      .where(and(eq(proceduresStaff.code, code), eq(proceduresStaff.isActive, true)));
+    return staff;
+  }
+
+  async createProceduresStaff(data: InsertProceduresStaff): Promise<ProceduresStaff> {
+    const [staff] = await db.insert(proceduresStaff).values(data).returning();
+    return staff;
+  }
+
+  async updateProceduresStaff(id: string, data: Partial<InsertProceduresStaff>): Promise<ProceduresStaff | undefined> {
+    const [updated] = await db.update(proceduresStaff)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(proceduresStaff.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProceduresStaff(id: string): Promise<boolean> {
+    const result = await db.delete(proceduresStaff).where(eq(proceduresStaff.id, id)).returning();
+    return result.length > 0;
   }
 }
 

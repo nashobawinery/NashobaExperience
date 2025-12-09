@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ProceduresTemplateWithItems, ProceduresItem } from "@shared/schema";
+import type { ProceduresTemplateWithItems, ProceduresItem, ProceduresStaff } from "@shared/schema";
 
 const DAYS_OF_WEEK = [
   { key: "monday", label: "Mon" },
@@ -64,6 +64,7 @@ export default function ProcedureTemplateEditor() {
   const [isActive, setIsActive] = useState(true);
   const [emailRecipientsTo, setEmailRecipientsTo] = useState<string[]>([]);
   const [emailRecipientsCc, setEmailRecipientsCc] = useState<string[]>([]);
+  const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
   const [items, setItems] = useState<ProcedureItemForm[]>([]);
   const [newEmailTo, setNewEmailTo] = useState("");
   const [newEmailCc, setNewEmailCc] = useState("");
@@ -75,6 +76,10 @@ export default function ProcedureTemplateEditor() {
 
   const { data: departments } = useQuery<{ department: string; departmentLabel: string }[]>({
     queryKey: ["/api/procedures/departments"],
+  });
+
+  const { data: allStaff } = useQuery<ProceduresStaff[]>({
+    queryKey: ["/api/procedures/staff"],
   });
 
   useEffect(() => {
@@ -91,6 +96,7 @@ export default function ProcedureTemplateEditor() {
       setIsActive(template.isActive);
       setEmailRecipientsTo(template.emailRecipientsTo || []);
       setEmailRecipientsCc(template.emailRecipientsCc || []);
+      setAssignedStaffIds((template as any).assignedStaffIds || []);
       setItems(template.items?.map(item => ({
         id: item.id,
         label: item.label,
@@ -110,10 +116,10 @@ export default function ProcedureTemplateEditor() {
       const response = await apiRequest("POST", "/api/procedures/templates", data);
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast({ title: "Procedure created successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
-      setLocation(`/procedures/templates/${data.id}`);
+      setLocation("/procedures");
     },
     onError: (error: any) => {
       toast({ title: "Error creating procedure", description: error.message, variant: "destructive" });
@@ -128,6 +134,7 @@ export default function ProcedureTemplateEditor() {
     onSuccess: () => {
       toast({ title: "Procedure updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
+      setLocation("/procedures");
     },
     onError: (error: any) => {
       toast({ title: "Error updating procedure", description: error.message, variant: "destructive" });
@@ -173,7 +180,8 @@ export default function ProcedureTemplateEditor() {
       daysOfWeek,
       isActive,
       emailRecipientsTo,
-      emailRecipientsCc
+      emailRecipientsCc,
+      assignedStaffIds
     };
 
     if (isNew) {
@@ -258,14 +266,26 @@ export default function ProcedureTemplateEditor() {
 
   const addEmailRecipient = (type: "to" | "cc") => {
     const email = type === "to" ? newEmailTo : newEmailCc;
-    if (email && email.includes("@")) {
-      if (type === "to") {
-        setEmailRecipientsTo([...emailRecipientsTo, email]);
-        setNewEmailTo("");
-      } else {
-        setEmailRecipientsCc([...emailRecipientsCc, email]);
-        setNewEmailCc("");
+    if (email) {
+      // Split by comma and filter valid emails
+      const newEmails = email.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+      if (newEmails.length > 0) {
+        if (type === "to") {
+          setEmailRecipientsTo([...emailRecipientsTo, ...newEmails]);
+          setNewEmailTo("");
+        } else {
+          setEmailRecipientsCc([...emailRecipientsCc, ...newEmails]);
+          setNewEmailCc("");
+        }
       }
+    }
+  };
+
+  const toggleStaffAssignment = (staffId: string) => {
+    if (assignedStaffIds.includes(staffId)) {
+      setAssignedStaffIds(assignedStaffIds.filter(id => id !== staffId));
+    } else {
+      setAssignedStaffIds([...assignedStaffIds, staffId]);
     }
   };
 
@@ -514,7 +534,7 @@ export default function ProcedureTemplateEditor() {
                   <Input
                     value={newEmailTo}
                     onChange={(e) => setNewEmailTo(e.target.value)}
-                    placeholder="email@example.com"
+                    placeholder="email@example.com, another@example.com"
                     onKeyDown={(e) => e.key === "Enter" && addEmailRecipient("to")}
                     data-testid="input-email-to"
                   />
@@ -522,6 +542,7 @@ export default function ProcedureTemplateEditor() {
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">Separate multiple emails with commas</p>
                 <div className="flex flex-wrap gap-1">
                   {emailRecipientsTo.map((email, i) => (
                     <Badge key={i} variant="secondary" className="cursor-pointer" onClick={() => setEmailRecipientsTo(emailRecipientsTo.filter((_, idx) => idx !== i))}>
@@ -539,7 +560,7 @@ export default function ProcedureTemplateEditor() {
                   <Input
                     value={newEmailCc}
                     onChange={(e) => setNewEmailCc(e.target.value)}
-                    placeholder="email@example.com"
+                    placeholder="email@example.com, another@example.com"
                     onKeyDown={(e) => e.key === "Enter" && addEmailRecipient("cc")}
                     data-testid="input-email-cc"
                   />
@@ -555,6 +576,41 @@ export default function ProcedureTemplateEditor() {
                   ))}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Staff Assignment</CardTitle>
+              <CardDescription>Assign staff members who can complete this procedure</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!allStaff || allStaff.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No staff members available. Add staff in the Users section first.</p>
+              ) : (
+                <div className="space-y-2">
+                  {allStaff.filter(s => s.isActive).map((staff) => (
+                    <div key={staff.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`staff-${staff.id}`}
+                        checked={assignedStaffIds.includes(staff.id)}
+                        onCheckedChange={() => toggleStaffAssignment(staff.id)}
+                        data-testid={`checkbox-staff-${staff.id}`}
+                      />
+                      <Label htmlFor={`staff-${staff.id}`} className="flex-1 cursor-pointer">
+                        {staff.staffName}
+                        {staff.department && (
+                          <span className="text-xs text-muted-foreground ml-2">({staff.department})</span>
+                        )}
+                      </Label>
+                      <Badge variant="outline" className="text-xs">{staff.code}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-3">
+                Selected: {assignedStaffIds.length} staff member{assignedStaffIds.length !== 1 ? "s" : ""}
+              </p>
             </CardContent>
           </Card>
         </div>

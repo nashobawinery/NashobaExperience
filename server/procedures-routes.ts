@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { storage } from "./storage";
-import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProceduresUserSchema, insertProceduresSubmissionSchema } from "@shared/schema";
+import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProceduresUserSchema, insertProceduresSubmissionSchema, insertProceduresStaffSchema } from "@shared/schema";
 import { z } from "zod";
 
 const router = Router();
@@ -338,6 +338,76 @@ router.get("/departments", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching departments:", error);
     res.status(500).json({ error: "Failed to fetch departments" });
+  }
+});
+
+// ==========================================
+// PROCEDURE STAFF
+// ==========================================
+
+router.get("/staff", async (req: Request, res: Response) => {
+  try {
+    const { isActive } = req.query;
+    const staff = await storage.getProceduresStaff({
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined
+    });
+    res.json(staff);
+  } catch (error) {
+    console.error("Error fetching procedure staff:", error);
+    res.status(500).json({ error: "Failed to fetch procedure staff" });
+  }
+});
+
+router.get("/staff/:id", async (req: Request, res: Response) => {
+  try {
+    const staff = await storage.getProceduresStaffMember(req.params.id);
+    if (!staff) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+    res.json(staff);
+  } catch (error) {
+    console.error("Error fetching staff member:", error);
+    res.status(500).json({ error: "Failed to fetch staff member" });
+  }
+});
+
+router.post("/staff", async (req: Request, res: Response) => {
+  try {
+    const validated = insertProceduresStaffSchema.parse(req.body);
+    const staff = await storage.createProceduresStaff(validated);
+    res.status(201).json(staff);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation failed", details: error.errors });
+    }
+    console.error("Error creating staff member:", error);
+    res.status(500).json({ error: "Failed to create staff member" });
+  }
+});
+
+router.patch("/staff/:id", async (req: Request, res: Response) => {
+  try {
+    const staff = await storage.updateProceduresStaff(req.params.id, req.body);
+    if (!staff) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+    res.json(staff);
+  } catch (error) {
+    console.error("Error updating staff member:", error);
+    res.status(500).json({ error: "Failed to update staff member" });
+  }
+});
+
+router.delete("/staff/:id", async (req: Request, res: Response) => {
+  try {
+    const deleted = await storage.deleteProceduresStaff(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting staff member:", error);
+    res.status(500).json({ error: "Failed to delete staff member" });
   }
 });
 
