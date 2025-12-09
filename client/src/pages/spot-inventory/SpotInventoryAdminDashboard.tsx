@@ -29,7 +29,9 @@ import {
   Check,
   X,
   Image as ImageIcon,
-  MoreVertical
+  MoreVertical,
+  QrCode,
+  Download
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -97,13 +99,22 @@ export default function SpotInventoryAdminDashboard() {
   const [editingArea, setEditingArea] = useState<SpotInventoryArea | null>(null);
   const [reportDate, setReportDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [reportLocationId, setReportLocationId] = useState<string>("");
+  const [qrCodeArea, setQrCodeArea] = useState<SpotInventoryArea | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<{ qrCode: string; url: string } | null>(null);
+  const [isQrCodeLoading, setIsQrCodeLoading] = useState(false);
 
   const { data: locations = [], isLoading: locationsLoading } = useQuery<SpotInventoryLocation[]>({
     queryKey: ["/api/spot-inventory/locations"],
   });
 
   const { data: areas = [], isLoading: areasLoading } = useQuery<SpotInventoryArea[]>({
-    queryKey: ["/api/spot-inventory/areas", selectedLocation?.id],
+    queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id],
+    queryFn: async () => {
+      if (!selectedLocation?.id) return [];
+      const response = await fetch(`/api/spot-inventory/areas/by-location/${selectedLocation.id}`);
+      if (!response.ok) throw new Error("Failed to fetch areas");
+      return response.json();
+    },
     enabled: activeTab === "areas" && !!selectedLocation,
   });
 
@@ -172,7 +183,7 @@ export default function SpotInventoryAdminDashboard() {
       return apiRequest("POST", "/api/spot-inventory/areas", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas", selectedLocation?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id] });
       setIsAreaDialogOpen(false);
       setEditingArea(null);
       toast({ title: "Area created successfully" });
@@ -187,7 +198,7 @@ export default function SpotInventoryAdminDashboard() {
       return apiRequest("PATCH", `/api/spot-inventory/areas/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas", selectedLocation?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id] });
       setIsAreaDialogOpen(false);
       setEditingArea(null);
       toast({ title: "Area updated successfully" });
@@ -202,7 +213,7 @@ export default function SpotInventoryAdminDashboard() {
       return apiRequest("DELETE", `/api/spot-inventory/areas/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas", selectedLocation?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/spot-inventory/areas/by-location", selectedLocation?.id] });
       toast({ title: "Area deleted successfully" });
     },
     onError: (error: any) => {
@@ -236,6 +247,32 @@ export default function SpotInventoryAdminDashboard() {
     link.download = `inventory-report-${reportDate}.csv`;
     link.click();
     toast({ title: "CSV exported successfully" });
+  };
+
+  const fetchQrCode = async (area: SpotInventoryArea) => {
+    setQrCodeArea(area);
+    setIsQrCodeLoading(true);
+    setQrCodeData(null);
+    try {
+      const response = await fetch(`/api/spot-inventory/areas/${area.id}/qr-code`);
+      if (!response.ok) throw new Error("Failed to fetch QR code");
+      const data = await response.json();
+      setQrCodeData(data);
+    } catch (error: any) {
+      toast({ title: "Error fetching QR code", description: error.message, variant: "destructive" });
+      setQrCodeArea(null);
+    } finally {
+      setIsQrCodeLoading(false);
+    }
+  };
+
+  const downloadQrCode = () => {
+    if (!qrCodeData || !qrCodeArea) return;
+    const link = document.createElement("a");
+    link.href = qrCodeData.qrCode;
+    link.download = `qr-code-${qrCodeArea.name.replace(/\s+/g, "-").toLowerCase()}.png`;
+    link.click();
+    toast({ title: "QR code downloaded" });
   };
 
   const handleExportXLSX = () => {
@@ -494,7 +531,16 @@ export default function SpotInventoryAdminDashboard() {
                             <CardDescription>{area.description}</CardDescription>
                           )}
                         </CardHeader>
-                        <CardFooter className="pt-0 gap-2">
+                        <CardFooter className="pt-0 gap-2 flex-wrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchQrCode(area)}
+                            data-testid={`button-qr-area-${area.id}`}
+                          >
+                            <QrCode className="h-4 w-4 mr-1" />
+                            QR Code
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -706,6 +752,53 @@ export default function SpotInventoryAdminDashboard() {
         }}
         isPending={createAreaMutation.isPending || updateAreaMutation.isPending}
       />
+
+      <Dialog open={!!qrCodeArea} onOpenChange={() => { setQrCodeArea(null); setQrCodeData(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>QR Code for {qrCodeArea?.name}</DialogTitle>
+            <DialogDescription>
+              Print and place this QR code at the area location. Staff can scan it to start an inventory count session.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center py-4">
+            {isQrCodeLoading ? (
+              <Skeleton className="w-64 h-64" />
+            ) : qrCodeData ? (
+              <>
+                <div className="bg-white p-4 rounded-lg border">
+                  <img 
+                    src={qrCodeData.qrCode} 
+                    alt={`QR Code for ${qrCodeArea?.name}`}
+                    className="w-56 h-56"
+                    data-testid="img-qr-code"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground mt-4 text-center">
+                  Scan to open inventory count for this area
+                </p>
+              </>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => { setQrCodeArea(null); setQrCodeData(null); }}
+              data-testid="button-close-qr"
+            >
+              Close
+            </Button>
+            <Button 
+              onClick={downloadQrCode} 
+              disabled={!qrCodeData}
+              data-testid="button-download-qr"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

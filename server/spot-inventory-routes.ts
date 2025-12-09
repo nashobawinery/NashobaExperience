@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
+import QRCode from "qrcode";
 import {
   spotInventoryLocations,
   spotInventoryAreas,
@@ -149,6 +150,64 @@ router.get("/areas", async (req: Request, res: Response) => {
     res.json(areas);
   } catch (error: any) {
     console.error("[Spot Inventory] Error fetching areas:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get areas by location ID (for admin dashboard)
+router.get("/areas/by-location/:locationId", async (req: Request, res: Response) => {
+  try {
+    const areas = await db
+      .select()
+      .from(spotInventoryAreas)
+      .where(eq(spotInventoryAreas.locationId, req.params.locationId))
+      .orderBy(spotInventoryAreas.sortOrder, spotInventoryAreas.name);
+    
+    res.json(areas);
+  } catch (error: any) {
+    console.error("[Spot Inventory] Error fetching areas by location:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get QR code for an area
+router.get("/areas/:id/qr-code", async (req: Request, res: Response) => {
+  try {
+    const [area] = await db
+      .select()
+      .from(spotInventoryAreas)
+      .where(eq(spotInventoryAreas.id, req.params.id));
+    
+    if (!area) {
+      return res.status(404).json({ error: "Area not found" });
+    }
+
+    // Generate QR code URL that links to the staff app with this area pre-selected
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+      : (process.env.REPLIT_DOMAINS?.split(",")[0] 
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` 
+        : "");
+    const qrUrl = `${baseUrl}/spot-inventory/staff?areaId=${area.id}`;
+    
+    // Generate QR code as data URL
+    const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF"
+      }
+    });
+    
+    res.json({ 
+      qrCode: qrCodeDataUrl, 
+      url: qrUrl,
+      areaId: area.id,
+      areaName: area.name
+    });
+  } catch (error: any) {
+    console.error("[Spot Inventory] Error generating QR code:", error);
     res.status(500).json({ error: error.message });
   }
 });
