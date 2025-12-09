@@ -16,6 +16,40 @@ import type { ProceduresUser, ProceduresTemplateWithItems, ProceduresItem } from
 
 type Stage = "pin" | "select" | "complete" | "success";
 
+function FormattedText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const elements: JSX.Element[] = [];
+  let currentList: string[] = [];
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={elements.length} className="list-disc list-inside space-y-0.5 ml-1">
+          {currentList.map((item, i) => (
+            <li key={i} className="text-sm text-muted-foreground">{item}</li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
+      currentList.push(trimmed.replace(/^[•\-*]\s*/, ''));
+    } else if (trimmed) {
+      flushList();
+      elements.push(
+        <p key={elements.length} className="text-sm text-muted-foreground">{trimmed}</p>
+      );
+    }
+  });
+  flushList();
+
+  return <div className="space-y-1 mt-1">{elements}</div>;
+}
+
 export default function PublicProceduresForm() {
   const { toast } = useToast();
   const [stage, setStage] = useState<Stage>("pin");
@@ -399,7 +433,7 @@ export default function PublicProceduresForm() {
                       {item.isRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
                     </div>
                     {item.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                      <FormattedText text={item.description} />
                     )}
                   </div>
                 </div>

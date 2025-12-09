@@ -500,6 +500,18 @@ export default function ProcedureTemplateEditor() {
                             </div>
                           </div>
 
+                          <div className="space-y-2">
+                            <Label className="text-xs">Additional Details (optional)</Label>
+                            <Textarea
+                              value={item.description || ""}
+                              onChange={(e) => updateItem(index, { description: e.target.value })}
+                              placeholder="Add instructions or details. Use bullet points like:&#10;• First step&#10;• Second step&#10;• Third step"
+                              className="min-h-[80px] text-sm"
+                              data-testid={`input-item-description-${index}`}
+                            />
+                            <p className="text-xs text-muted-foreground">Use • or - for bullet points. Each line will be shown as a separate item.</p>
+                          </div>
+
                           {item.responseType === "dropdown" && (
                             <div className="space-y-2">
                               <Label className="text-xs">Dropdown Options (comma-separated)</Label>

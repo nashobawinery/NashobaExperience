@@ -16,6 +16,40 @@ import type { ProceduresStaff, ProceduresTemplateWithItems, ProceduresItem } fro
 
 type Stage = "login" | "select" | "complete" | "success";
 
+function FormattedText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const elements: JSX.Element[] = [];
+  let currentList: string[] = [];
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={elements.length} className="list-disc list-inside space-y-0.5 ml-1">
+          {currentList.map((item, i) => (
+            <li key={i} className="text-sm text-muted-foreground">{item}</li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
+      currentList.push(trimmed.replace(/^[•\-*]\s*/, ''));
+    } else if (trimmed) {
+      flushList();
+      elements.push(
+        <p key={elements.length} className="text-sm text-muted-foreground">{trimmed}</p>
+      );
+    }
+  });
+  flushList();
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
 export default function StaffProceduresForm() {
   const { toast } = useToast();
   const [stage, setStage] = useState<Stage>("login");
@@ -362,10 +396,10 @@ export default function StaffProceduresForm() {
                     </div>
                     <div className="flex-1 space-y-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{item.label}</p>
                           {item.description && (
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
+                            <FormattedText text={item.description} />
                           )}
                         </div>
                         {item.isRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
