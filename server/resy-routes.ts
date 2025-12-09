@@ -1493,7 +1493,11 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       const flowControl = flowControls.find(fc => fc.mealPeriodId === period.id && fc.isActive);
       // Ensure interval is positive to prevent infinite loops
       const intervalMinutes = Math.max(flowControl?.intervalMinutes ?? 30, 1);
-      const maxCovers = flowControl?.maxCoversPerInterval ?? 20;
+      const defaultMaxCovers = flowControl?.maxCoversPerInterval ?? 20;
+      
+      // Parse interval overrides for controlled flow mode
+      const isControlledMode = flowControl?.flowMode === "controlled";
+      const intervalOverrides = (flowControl?.intervalOverrides as Array<{time: string, maxCovers: number}>) || [];
       
       // Calculate the effective close time in minutes for easier comparison
       const effectiveCloseMinutes = closeHour * 60 + closeMin;
@@ -1507,6 +1511,15 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
         const slotHour = Math.floor(currentMinutes / 60);
         const slotMin = currentMinutes % 60;
         const timeStr = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`;
+        
+        // Determine max covers for this specific time slot
+        let maxCovers = defaultMaxCovers;
+        if (isControlledMode && intervalOverrides.length > 0) {
+          const override = intervalOverrides.find(o => o.time === timeStr);
+          if (override) {
+            maxCovers = override.maxCovers;
+          }
+        }
         
         // Count existing reservations at this time
         const existingCovers = reservations

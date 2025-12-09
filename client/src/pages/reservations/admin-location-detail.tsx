@@ -1952,7 +1952,7 @@ function FlowControlForm({
       maxCoversPerInterval: control.maxCoversPerInterval,
       maxDailyCovers: control.maxDailyCovers,
       flowMode: control.flowMode || "global",
-      intervalOverrides: control.intervalOverrides,
+      intervalOverrides: (control.intervalOverrides || null) as any,
       isActive: control.isActive,
     } : {
       locationId: locationId,
@@ -1961,7 +1961,7 @@ function FlowControlForm({
       maxCoversPerInterval: 20,
       maxDailyCovers: null,
       flowMode: "global",
-      intervalOverrides: null,
+      intervalOverrides: null as any,
       isActive: true,
     },
   });
