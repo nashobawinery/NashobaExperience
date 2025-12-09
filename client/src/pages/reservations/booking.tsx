@@ -156,8 +156,9 @@ export default function Booking() {
       if (selectedDate && timeSlots) {
         setLoadingAvailability(true);
         const dayOfWeek = selectedDate.getDay();
+        // Filter timeslots: include if dayOfWeek matches OR if dayOfWeek is null (meaning "all days")
         const slotsForDay = timeSlots.filter(
-          (slot) => slot.dayOfWeek === dayOfWeek,
+          (slot) => slot.dayOfWeek === dayOfWeek || slot.dayOfWeek === null,
         );
 
         // Fetch availability for each slot
