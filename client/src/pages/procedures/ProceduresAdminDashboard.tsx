@@ -316,7 +316,13 @@ export default function ProceduresAdminDashboard() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        if (value === "submissions") {
+          setLocation("/procedures/submissions");
+        } else {
+          setActiveTab(value);
+        }
+      }} className="space-y-6">
         <TabsList>
           <TabsTrigger value="procedures" data-testid="tab-procedures">
             <ClipboardList className="w-4 h-4 mr-2" />
@@ -326,7 +332,7 @@ export default function ProceduresAdminDashboard() {
             <Users className="w-4 h-4 mr-2" />
             Staff
           </TabsTrigger>
-          <TabsTrigger value="submissions" data-testid="tab-submissions" onClick={() => setLocation("/procedures/submissions")}>
+          <TabsTrigger value="submissions" data-testid="tab-submissions">
             <FileText className="w-4 h-4 mr-2" />
             Submissions
           </TabsTrigger>
