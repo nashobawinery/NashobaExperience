@@ -32,6 +32,92 @@ function formatTime12Hour(time24: string | null | undefined): string {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
 }
 
+function TimeInput12Hour({ 
+  value, 
+  onChange,
+  "data-testid": testId 
+}: { 
+  value: string; 
+  onChange: (value: string) => void;
+  "data-testid"?: string;
+}) {
+  const parse24Hour = (time24: string) => {
+    if (!time24) return { hour: "", minute: "", period: "PM" as "AM" | "PM" };
+    const [h, m] = time24.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return { hour: "", minute: "", period: "PM" as "AM" | "PM" };
+    const period = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return { hour: hour12.toString(), minute: m.toString().padStart(2, "0"), period };
+  };
+
+  const { hour, minute, period } = parse24Hour(value);
+
+  const buildTime24 = (h: string, m: string, p: string) => {
+    if (!h || !m) return "";
+    let hour24 = parseInt(h);
+    if (p === "PM" && hour24 !== 12) hour24 += 12;
+    if (p === "AM" && hour24 === 12) hour24 = 0;
+    return `${hour24.toString().padStart(2, "0")}:${m.padStart(2, "0")}`;
+  };
+
+  const hours = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+  const minutes = ["00", "15", "30", "45"];
+
+  return (
+    <div className="flex items-center gap-2" data-testid={testId}>
+      <Select 
+        value={hour} 
+        onValueChange={(h) => onChange(buildTime24(h, minute || "00", period))}
+      >
+        <SelectTrigger className="w-20" data-testid={`${testId}-hour`}>
+          <SelectValue placeholder="Hour" />
+        </SelectTrigger>
+        <SelectContent>
+          {hours.map((h) => (
+            <SelectItem key={h} value={h}>{h}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground">:</span>
+      <Select 
+        value={minute} 
+        onValueChange={(m) => onChange(buildTime24(hour || "12", m, period))}
+      >
+        <SelectTrigger className="w-20" data-testid={`${testId}-minute`}>
+          <SelectValue placeholder="Min" />
+        </SelectTrigger>
+        <SelectContent>
+          {minutes.map((m) => (
+            <SelectItem key={m} value={m}>{m}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select 
+        value={period} 
+        onValueChange={(p) => onChange(buildTime24(hour || "12", minute || "00", p))}
+      >
+        <SelectTrigger className="w-20" data-testid={`${testId}-period`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="AM">AM</SelectItem>
+          <SelectItem value="PM">PM</SelectItem>
+        </SelectContent>
+      </Select>
+      {value && (
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => onChange("")}
+          className="text-muted-foreground"
+        >
+          Clear
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function AdminLocationDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -1164,15 +1250,14 @@ function OperatingHoursTab({ locationId, location }: { locationId: string; locat
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Close Time (HH:MM)</label>
-              <Input
-                placeholder="19:30"
+              <label className="text-sm font-medium">Close Time</label>
+              <TimeInput12Hour
                 value={reservationCloseTime}
-                onChange={(e) => setReservationCloseTime(e.target.value)}
+                onChange={setReservationCloseTime}
                 data-testid="input-reservation-close-time"
               />
               <p className="text-sm text-muted-foreground">
-                Example: "19:30" to stop taking reservations at 7:30 PM even if the location closes later.
+                Example: Set to 7:30 PM to stop taking reservations even if the location closes later.
               </p>
             </div>
             <div className="flex justify-end gap-3">
