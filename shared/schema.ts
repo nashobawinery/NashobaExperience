@@ -3108,6 +3108,7 @@ export const spotInventoryLocations = pgTable("spot_inventory_locations", {
   name: varchar("name").notNull(),
   description: text("description"),
   address: text("address"),
+  accessCode: varchar("access_code"), // Unique code for staff to access this location
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -3151,8 +3152,8 @@ export type SpotInventoryArea = typeof spotInventoryAreas.$inferSelect;
 export const spotInventorySessions = pgTable("spot_inventory_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   areaId: varchar("area_id").notNull().references(() => spotInventoryAreas.id, { onDelete: 'cascade' }),
-  staffId: varchar("staff_id").notNull().references(() => proceduresStaff.id),
-  staffName: varchar("staff_name").notNull(),
+  locationId: varchar("location_id").notNull().references(() => spotInventoryLocations.id),
+  staffName: varchar("staff_name").notNull(), // Name entered by staff (no foreign key, location-code based auth)
   status: varchar("status").notNull().default("in_progress"), // in_progress, completed, cancelled
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -3161,7 +3162,7 @@ export const spotInventorySessions = pgTable("spot_inventory_sessions", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_spot_inv_session_area").on(table.areaId),
-  index("idx_spot_inv_session_staff").on(table.staffId),
+  index("idx_spot_inv_session_location").on(table.locationId),
   index("idx_spot_inv_session_status").on(table.status),
   index("idx_spot_inv_session_completed").on(table.completedAt),
 ]);
