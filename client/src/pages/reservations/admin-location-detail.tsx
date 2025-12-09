@@ -998,6 +998,7 @@ function ServicePeriodForm({
       name: "lunch",
       startTime: "11:00",
       endTime: "14:00",
+      lastReservationTime: undefined,
       isActive: true,
     },
   });
@@ -1010,6 +1011,7 @@ function ServicePeriodForm({
         name: period.name,
         startTime: period.startTime,
         endTime: period.endTime,
+        lastReservationTime: period.lastReservationTime || undefined,
         isActive: period.isActive,
       });
     } else {
@@ -1018,6 +1020,7 @@ function ServicePeriodForm({
         name: "lunch",
         startTime: "11:00",
         endTime: "14:00",
+        lastReservationTime: undefined,
         isActive: true,
       });
     }
@@ -1134,6 +1137,28 @@ function ServicePeriodForm({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="lastReservationTime"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Last Reservation Time</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type="time"
+                  value={field.value || ""}
+                  data-testid="input-last-reservation-time"
+                />
+              </FormControl>
+              <FormDescription>
+                Latest time guests can book (optional). Leave blank to allow reservations until end time.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -1550,7 +1575,7 @@ function OperatingHoursForm({
   const saveMutation = useMutation({
     mutationFn: async (data: InsertOperatingHours) => {
       if (hours) {
-        await apiRequest("PATCH", `/api/operating-hours/${hours.id}`, data);
+        await apiRequest("PATCH", `/api/resy/operating-hours/${hours.id}`, data);
       } else {
         await apiRequest("POST", "/api/resy/operating-hours", data);
       }

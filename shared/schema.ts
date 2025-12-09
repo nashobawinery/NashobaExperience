@@ -2015,6 +2015,7 @@ export const resyMealPeriods = pgTable("resy_meal_periods", {
   name: text("name").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
+  lastReservationTime: text("last_reservation_time"), // Optional: latest time guests can book (if different from endTime)
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
