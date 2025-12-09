@@ -62,6 +62,7 @@ export default function ProcedureTemplateEditor() {
     friday: true, saturday: true, sunday: true
   });
   const [isActive, setIsActive] = useState(true);
+  const [completionTime, setCompletionTime] = useState("");
   const [emailRecipientsTo, setEmailRecipientsTo] = useState<string[]>([]);
   const [emailRecipientsCc, setEmailRecipientsCc] = useState<string[]>([]);
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
@@ -94,6 +95,7 @@ export default function ProcedureTemplateEditor() {
         friday: true, saturday: true, sunday: true
       });
       setIsActive(template.isActive);
+      setCompletionTime(template.completionTime || "");
       setEmailRecipientsTo(template.emailRecipientsTo || []);
       setEmailRecipientsCc(template.emailRecipientsCc || []);
       setAssignedStaffIds((template as any).assignedStaffIds || []);
@@ -179,6 +181,7 @@ export default function ProcedureTemplateEditor() {
       description: description || null,
       daysOfWeek,
       isActive,
+      completionTime: completionTime || null,
       emailRecipientsTo,
       emailRecipientsCc,
       assignedStaffIds
@@ -407,6 +410,34 @@ export default function ProcedureTemplateEditor() {
                     </Button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="completionTime">Completion Time (Optional)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="completionTime"
+                    type="time"
+                    value={completionTime}
+                    onChange={(e) => setCompletionTime(e.target.value)}
+                    className="w-40"
+                    data-testid="input-completion-time"
+                  />
+                  {completionTime && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCompletionTime("")}
+                      data-testid="button-clear-completion-time"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If set, staff starting the procedure after this time will be asked to explain why
+                </p>
               </div>
 
               <div className="flex items-center gap-2">
