@@ -238,25 +238,35 @@ export default function ProceduresSubmissions() {
                     const answers = viewingSubmission.answers as Record<string, any>;
                     const answer = answers[item.id];
                     return (
-                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-md">
-                        <div className="flex-1">
-                          <p className="font-medium">{item.label}</p>
-                          {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                      <div key={item.id} className="p-3 border rounded-md">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-medium">{item.label}</p>
+                            {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {renderAnswer(answer, item)}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          {renderAnswer(answer, item)}
-                          {answer?.completedAt && (
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {(() => {
-                                try {
-                                  const date = new Date(answer.completedAt);
-                                  return isNaN(date.getTime()) ? '' : format(date, "h:mm a");
-                                } catch {
-                                  return '';
-                                }
-                              })()}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-dashed">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Clock className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Completed:</span>
+                            {answer?.completedAt ? (
+                              <span className="font-medium">
+                                {(() => {
+                                  try {
+                                    const date = new Date(answer.completedAt);
+                                    return isNaN(date.getTime()) ? 'N/A' : format(date, "h:mm:ss a");
+                                  } catch {
+                                    return 'N/A';
+                                  }
+                                })()}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground italic">Not recorded</span>
+                            )}
+                          </div>
                           {answer?.initials && (
                             <Badge variant="outline" className="text-xs">
                               Initials: {answer.initials}
