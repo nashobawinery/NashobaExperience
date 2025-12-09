@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import * as XLSX from "xlsx";
 
 interface SpotInventoryLocation {
   id: string;
@@ -215,14 +216,16 @@ export default function SpotInventoryAdminDashboard() {
       return;
     }
 
-    const headers = ["Product Name", ...reportData.areas.map(a => a.name), "Total"];
+    const titleRow = [`${reportData.location_name} — Inventory Summary — ${format(new Date(reportDate), "MMM d, yyyy")}`];
+    const headers = ["Product", "Total", ...reportData.areas.map(a => a.name)];
     const rows = reportData.products.map(p => [
       p.name,
-      ...reportData.areas.map(a => String(p.by_area[a.id] || 0)),
-      String(p.total)
+      String(p.total),
+      ...reportData.areas.map(a => String(p.by_area[a.id] || 0))
     ]);
 
     const csvContent = [
+      titleRow.join(","),
       headers.join(","),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
     ].join("\n");
@@ -233,6 +236,37 @@ export default function SpotInventoryAdminDashboard() {
     link.download = `inventory-report-${reportDate}.csv`;
     link.click();
     toast({ title: "CSV exported successfully" });
+  };
+
+  const handleExportXLSX = () => {
+    if (!reportData || !reportData.products.length) {
+      toast({ title: "No data to export", variant: "destructive" });
+      return;
+    }
+
+    const titleRow = [`${reportData.location_name} — Inventory Summary — ${format(new Date(reportDate), "MMM d, yyyy")}`];
+    const headers = ["Product", "Total", ...reportData.areas.map(a => a.name)];
+    const rows = reportData.products.map(p => [
+      p.name,
+      p.total,
+      ...reportData.areas.map(a => p.by_area[a.id] || 0)
+    ]);
+
+    const worksheetData = [titleRow, headers, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    
+    // Set column widths
+    worksheet["!cols"] = [
+      { wch: 30 }, // Product name
+      { wch: 10 }, // Total
+      ...reportData.areas.map(() => ({ wch: 12 }))
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Report");
+    
+    XLSX.writeFile(workbook, `inventory-report-${reportDate}.xlsx`);
+    toast({ title: "Excel file exported successfully" });
   };
 
   return (
@@ -583,7 +617,11 @@ export default function SpotInventoryAdminDashboard() {
                   </Select>
                   <Button variant="outline" onClick={handleExportCSV} data-testid="button-export-csv">
                     <FileDown className="h-4 w-4 mr-2" />
-                    Export CSV
+                    CSV
+                  </Button>
+                  <Button variant="outline" onClick={handleExportXLSX} data-testid="button-export-xlsx">
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Excel
                   </Button>
                 </div>
               </CardHeader>
@@ -602,12 +640,12 @@ export default function SpotInventoryAdminDashboard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="sticky left-0 bg-background">Product</TableHead>
+                          <TableHead className="text-center font-bold min-w-20">Total</TableHead>
                           {reportData.areas.map(area => (
                             <TableHead key={area.id} className="text-center min-w-20">
                               {area.name}
                             </TableHead>
                           ))}
-                          <TableHead className="text-center font-bold">Total</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -616,12 +654,12 @@ export default function SpotInventoryAdminDashboard() {
                             <TableCell className="sticky left-0 bg-background font-medium">
                               {product.name}
                             </TableCell>
+                            <TableCell className="text-center font-bold">{product.total}</TableCell>
                             {reportData.areas.map(area => (
                               <TableCell key={area.id} className="text-center">
                                 {product.by_area[area.id] || 0}
                               </TableCell>
                             ))}
-                            <TableCell className="text-center font-bold">{product.total}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
