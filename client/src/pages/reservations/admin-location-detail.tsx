@@ -2722,15 +2722,15 @@ function TicketedEventForm({
   });
 
   // Initialize timeslots when data loads
-  useState(() => {
-    if (existingTimeslots) {
+  useEffect(() => {
+    if (existingTimeslots && existingTimeslots.length > 0) {
       setTimeslots(existingTimeslots.map(ts => ({
         dayOfWeek: ts.dayOfWeek,
         startTime: ts.startTime,
         capacity: ts.capacity,
       })));
     }
-  });
+  }, [existingTimeslots]);
 
   const form = useForm({
     defaultValues: {
@@ -2766,6 +2766,12 @@ function TicketedEventForm({
 
       // Save timeslots for recurring events
       if (eventType === "recurring" && savedEvent?.id) {
+        // First, delete all existing timeslots for this event
+        if (event?.id) {
+          await apiRequest("DELETE", `/api/resy/ticketed-events/${savedEvent.id}/timeslots`);
+        }
+        
+        // Then add the new timeslots
         for (const slot of timeslots) {
           await apiRequest("POST", `/api/resy/ticketed-events/${savedEvent.id}/timeslots`, {
             dayOfWeek: slot.dayOfWeek,

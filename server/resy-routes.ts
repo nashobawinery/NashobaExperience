@@ -1647,6 +1647,16 @@ router.post("/api/resy/ticketed-events/:definitionId/timeslots", requireResyAdmi
   }
 });
 
+// Delete all timeslots for a ticketed event definition
+router.delete("/api/resy/ticketed-events/:definitionId/timeslots", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteTicketedEventTimeslotsByDefinition(req.params.definitionId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete timeslots: " + error.message });
+  }
+});
+
 router.patch("/api/resy/ticketed-event-timeslots/:id", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyTicketedEventTimeslotSchema.partial().parse(req.body);
