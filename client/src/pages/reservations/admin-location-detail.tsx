@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -1919,6 +1919,11 @@ function FlowControlCard({ control, periodName, onEdit }: { control: FlowControl
   );
 }
 
+interface IntervalOverride {
+  time: string;
+  maxCovers: number;
+}
+
 function FlowControlForm({
   control,
   locationId,
@@ -1931,6 +1936,12 @@ function FlowControlForm({
   onSuccess: () => void;
 }) {
   const { toast } = useToast();
+  const [flowMode, setFlowMode] = useState<"global" | "controlled">(
+    (control?.flowMode as "global" | "controlled") || "global"
+  );
+  const [intervalOverrides, setIntervalOverrides] = useState<IntervalOverride[]>(
+    (control?.intervalOverrides as IntervalOverride[]) || []
+  );
 
   const form = useForm<InsertFlowControl>({
     resolver: zodResolver(insertFlowControlSchema),
@@ -1940,6 +1951,8 @@ function FlowControlForm({
       intervalMinutes: control.intervalMinutes,
       maxCoversPerInterval: control.maxCoversPerInterval,
       maxDailyCovers: control.maxDailyCovers,
+      flowMode: control.flowMode || "global",
+      intervalOverrides: control.intervalOverrides,
       isActive: control.isActive,
     } : {
       locationId: locationId,
@@ -1947,16 +1960,77 @@ function FlowControlForm({
       intervalMinutes: 15,
       maxCoversPerInterval: 20,
       maxDailyCovers: null,
+      flowMode: "global",
+      intervalOverrides: null,
       isActive: true,
     },
   });
 
+  const watchedMealPeriodId = form.watch("mealPeriodId");
+  const watchedIntervalMinutes = form.watch("intervalMinutes");
+  const watchedMaxCovers = form.watch("maxCoversPerInterval");
+
+  const selectedPeriod = periods.find(p => p.id === watchedMealPeriodId);
+
+  const generateIntervals = useCallback(() => {
+    if (!selectedPeriod || !watchedIntervalMinutes) return [];
+    
+    const startTime = selectedPeriod.startTime;
+    const endTime = selectedPeriod.lastReservationTime || selectedPeriod.endTime;
+    
+    if (!startTime || !endTime) return [];
+    
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    const intervals: string[] = [];
+    let current = startMinutes;
+    
+    while (current < endMinutes && current < 24 * 60) {
+      const hour = Math.floor(current / 60);
+      const min = current % 60;
+      intervals.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
+      current += watchedIntervalMinutes;
+    }
+    
+    return intervals;
+  }, [selectedPeriod, watchedIntervalMinutes]);
+
+  const generatedIntervals = generateIntervals();
+
+  useEffect(() => {
+    if (flowMode === "controlled" && generatedIntervals.length > 0) {
+      const existingOverrides = intervalOverrides || [];
+      const newOverrides: IntervalOverride[] = generatedIntervals.map(time => {
+        const existing = existingOverrides.find(o => o.time === time);
+        return existing || { time, maxCovers: watchedMaxCovers || 20 };
+      });
+      if (JSON.stringify(newOverrides) !== JSON.stringify(intervalOverrides)) {
+        setIntervalOverrides(newOverrides);
+      }
+    }
+  }, [flowMode, generatedIntervals, watchedMaxCovers]);
+
+  const handleOverrideChange = (time: string, maxCovers: number) => {
+    setIntervalOverrides(prev => 
+      prev.map(o => o.time === time ? { ...o, maxCovers } : o)
+    );
+  };
+
   const saveMutation = useMutation({
     mutationFn: async (data: InsertFlowControl) => {
+      const payload = {
+        ...data,
+        flowMode,
+        intervalOverrides: flowMode === "controlled" ? intervalOverrides : null,
+      };
       if (control) {
-        await apiRequest("PATCH", `/api/flow-controls/${control.id}`, data);
+        await apiRequest("PATCH", `/api/flow-controls/${control.id}`, payload);
       } else {
-        await apiRequest("POST", "/api/resy/flow-controls", data);
+        await apiRequest("POST", "/api/resy/flow-controls", payload);
       }
     },
     onSuccess: () => {
@@ -2046,55 +2120,138 @@ function FlowControlForm({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="maxCoversPerInterval"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Max Covers per Interval</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    type="number"
-                    min="0"
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
-                    data-testid="input-max-covers-per-interval"
-                  />
-                </FormControl>
-                <FormDescription>
-                  Optional limit
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="maxDailyCovers"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Max Daily Covers</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    type="number"
-                    min="0"
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
-                    data-testid="input-max-daily-covers"
-                  />
-                </FormControl>
-                <FormDescription>
-                  Optional daily limit
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <div className="space-y-3">
+          <FormLabel>Flow Mode</FormLabel>
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant={flowMode === "global" ? "default" : "outline"}
+              onClick={() => setFlowMode("global")}
+              data-testid="button-flow-mode-global"
+            >
+              Global
+            </Button>
+            <Button
+              type="button"
+              variant={flowMode === "controlled" ? "default" : "outline"}
+              onClick={() => setFlowMode("controlled")}
+              disabled={!selectedPeriod}
+              data-testid="button-flow-mode-controlled"
+            >
+              Controlled
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {flowMode === "global" 
+              ? "Same max covers for all intervals" 
+              : "Set custom max covers for each time slot"}
+          </p>
+          {!selectedPeriod && flowMode === "global" && (
+            <p className="text-sm text-amber-600">
+              Select a specific service period to enable Controlled mode
+            </p>
+          )}
         </div>
+
+        {flowMode === "global" && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="maxCoversPerInterval"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Covers per Interval</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min="0"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                      data-testid="input-max-covers-per-interval"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Applies to all intervals
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="maxDailyCovers"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Daily Covers</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min="0"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                      data-testid="input-max-daily-covers"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Optional daily limit
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {flowMode === "controlled" && selectedPeriod && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <FormLabel>Interval Settings</FormLabel>
+              <FormField
+                control={form.control}
+                name="maxDailyCovers"
+                render={({ field }) => (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Max Daily:</span>
+                    <Input
+                      {...field}
+                      type="number"
+                      min="0"
+                      className="w-20 h-8"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                      data-testid="input-max-daily-covers-controlled"
+                    />
+                  </div>
+                )}
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto border rounded-md p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {intervalOverrides.map((override) => (
+                  <div key={override.time} className="flex items-center gap-2 p-2 bg-muted/50 rounded">
+                    <span className="text-sm font-medium w-16">{formatTime12Hour(override.time)}</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={override.maxCovers}
+                      onChange={(e) => handleOverrideChange(override.time, parseInt(e.target.value) || 0)}
+                      className="w-16 h-7 text-center"
+                      data-testid={`input-interval-${override.time}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {intervalOverrides.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No intervals available for this service period
+              </p>
+            )}
+          </div>
+        )}
 
         <FormField
           control={form.control}
