@@ -3,8 +3,12 @@ import { storage } from "./storage";
 import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProceduresUserSchema, insertProceduresSubmissionSchema, insertProceduresStaffSchema, ProceduresItem, ProceduresTemplate } from "@shared/schema";
 import { z } from "zod";
 import { sendEmail } from "./email";
+import { scheduleMandatoryCheck } from "./proceduresMandatoryChecker";
 
 const router = Router();
+
+// Initialize the mandatory procedure checker scheduler
+scheduleMandatoryCheck();
 
 // Generate procedure submission notification email
 function generateProcedureSubmissionEmail(

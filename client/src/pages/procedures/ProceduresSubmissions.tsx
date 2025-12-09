@@ -52,6 +52,15 @@ export default function ProceduresSubmissions() {
     }
   };
 
+  const getSubmissionStatusBadge = (status: string) => {
+    switch (status) {
+      case "no_report": return <Badge variant="destructive">NO REPORT FILED</Badge>;
+      case "submitted": return <Badge variant="secondary" className="bg-green-100 text-green-800">Submitted</Badge>;
+      case "draft": return <Badge variant="outline">Draft</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   const renderAnswer = (answer: any, item: ProceduresItem) => {
     if (!answer) return <span className="text-muted-foreground">-</span>;
     
@@ -126,6 +135,7 @@ export default function ProceduresSubmissions() {
                   <TableRow>
                     <TableHead>Procedure</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Submitted By</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Email Status</TableHead>
@@ -136,19 +146,22 @@ export default function ProceduresSubmissions() {
                   {isLoading ? (
                     [...Array(5)].map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={6}>
+                        <TableCell colSpan={7}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : filteredSubmissions && filteredSubmissions.length > 0 ? (
                     filteredSubmissions.map((submission) => (
-                      <TableRow key={submission.id}>
+                      <TableRow key={submission.id} className={submission.status === "no_report" ? "bg-red-50 dark:bg-red-900/10" : ""}>
                         <TableCell>
                           <Badge variant="outline">{submission.procedureCode}</Badge>
                         </TableCell>
                         <TableCell>
                           {departments?.find(d => d.department === submission.department)?.departmentLabel || submission.department}
+                        </TableCell>
+                        <TableCell>
+                          {getSubmissionStatusBadge(submission.status)}
                         </TableCell>
                         <TableCell data-testid={`text-submitter-${submission.id}`}>{submission.submittedByName}</TableCell>
                         <TableCell>
@@ -171,7 +184,7 @@ export default function ProceduresSubmissions() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No submissions found
                       </TableCell>
                     </TableRow>
