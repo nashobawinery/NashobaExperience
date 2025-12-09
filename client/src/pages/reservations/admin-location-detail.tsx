@@ -303,7 +303,7 @@ function TablesTab({ locationId }: { locationId: string }) {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTable ? "Edit Table" : "Add New Table"}
@@ -523,15 +523,7 @@ function TableForm({
 
   const form = useForm<InsertLocationTable>({
     resolver: zodResolver(insertLocationTableSchema),
-    defaultValues: table ? {
-      locationId: table.locationId,
-      tableLabel: table.tableLabel,
-      minCapacity: table.minCapacity,
-      maxCapacity: table.maxCapacity,
-      combinableWith: table.combinableWith || [],
-      isCommunal: table.isCommunal ?? false,
-      isActive: table.isActive,
-    } : {
+    defaultValues: {
       locationId: locationId,
       tableLabel: "",
       minCapacity: 2,
@@ -542,10 +534,35 @@ function TableForm({
     },
   });
 
+  // Reset form when table changes (for editing existing tables)
+  useEffect(() => {
+    if (table) {
+      form.reset({
+        locationId: table.locationId,
+        tableLabel: table.tableLabel,
+        minCapacity: table.minCapacity,
+        maxCapacity: table.maxCapacity,
+        combinableWith: table.combinableWith || [],
+        isCommunal: table.isCommunal ?? false,
+        isActive: table.isActive,
+      });
+    } else {
+      form.reset({
+        locationId: locationId,
+        tableLabel: "",
+        minCapacity: 2,
+        maxCapacity: 4,
+        combinableWith: [],
+        isCommunal: false,
+        isActive: true,
+      });
+    }
+  }, [table, locationId, form]);
+
   const saveMutation = useMutation({
     mutationFn: async (data: InsertLocationTable) => {
       if (table) {
-        await apiRequest("PATCH", `/api/location-tables/${table.id}`, data);
+        await apiRequest("PATCH", `/api/resy/location-tables/${table.id}`, data);
       } else {
         await apiRequest("POST", "/api/resy/location-tables", data);
       }
