@@ -78,6 +78,8 @@ export default function StaffProceduresForm() {
   const { data: assignedProcedures, isLoading: proceduresLoading } = useQuery<ProceduresTemplateWithItems[]>({
     queryKey: ["/api/procedures/staff-procedures", staff?.id],
     enabled: !!staff?.id,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const submitMutation = useMutation({

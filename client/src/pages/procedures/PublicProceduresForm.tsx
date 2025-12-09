@@ -78,6 +78,8 @@ export default function PublicProceduresForm() {
   const { data: todaysProcedures, isLoading: proceduresLoading, refetch: refetchProcedures } = useQuery<ProceduresTemplateWithItems[]>({
     queryKey: ["/api/procedures/today", user?.id],
     enabled: !!user?.id,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const submitMutation = useMutation({
