@@ -195,10 +195,6 @@ export default function AdminLocationDetail() {
               <Clock className="w-3 h-3 mr-2" />
               Service Periods
             </TabsTrigger>
-            <TabsTrigger value="operating-hours" data-testid="tab-operating-hours">
-              <Calendar className="w-3 h-3 mr-2" />
-              Operating Hours
-            </TabsTrigger>
             <TabsTrigger value="flow-controls" data-testid="tab-flow-controls">
               <Gauge className="w-3 h-3 mr-2" />
               Flow Controls
@@ -223,10 +219,6 @@ export default function AdminLocationDetail() {
 
           <TabsContent value="service-periods">
             <ServicePeriodsTab locationId={locationId!} />
-          </TabsContent>
-
-          <TabsContent value="operating-hours">
-            <OperatingHoursTab locationId={locationId!} location={location} />
           </TabsContent>
 
           <TabsContent value="flow-controls">
