@@ -1827,6 +1827,7 @@ export const resyLocations = pgTable("resy_locations", {
   isReservationLocation: boolean("is_reservation_location").notNull().default(false),
   timezone: varchar("timezone").default("America/New_York"),
   reservationCloseTime: varchar("reservation_close_time", { length: 5 }),
+  advanceBookingDays: integer("advance_booking_days"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1854,7 +1855,6 @@ export const resyExperiences = pgTable("resy_experiences", {
   isActive: boolean("is_active").notNull().default(true),
   location: text("location"),
   locationId: varchar("location_id"),
-  advanceBookingDays: integer("advance_booking_days"),
   showWaitlist: boolean("show_waitlist").notNull().default(false),
   closedMessage: text("closed_message"),
   fullyBookedMessage: text("fully_booked_message"),
