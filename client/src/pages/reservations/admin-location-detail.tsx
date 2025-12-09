@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -965,13 +965,7 @@ function ServicePeriodForm({
 
   const form = useForm<InsertMealPeriod>({
     resolver: zodResolver(insertMealPeriodSchema),
-    defaultValues: period ? {
-      locationId: period.locationId,
-      name: period.name,
-      startTime: period.startTime,
-      endTime: period.endTime,
-      isActive: period.isActive,
-    } : {
+    defaultValues: {
       locationId: locationId,
       name: "lunch",
       startTime: "11:00",
@@ -980,10 +974,31 @@ function ServicePeriodForm({
     },
   });
 
+  // Reset form when period changes (for editing existing periods)
+  React.useEffect(() => {
+    if (period) {
+      form.reset({
+        locationId: period.locationId,
+        name: period.name,
+        startTime: period.startTime,
+        endTime: period.endTime,
+        isActive: period.isActive,
+      });
+    } else {
+      form.reset({
+        locationId: locationId,
+        name: "lunch",
+        startTime: "11:00",
+        endTime: "14:00",
+        isActive: true,
+      });
+    }
+  }, [period, locationId, form]);
+
   const saveMutation = useMutation({
     mutationFn: async (data: InsertMealPeriod) => {
       if (period) {
-        await apiRequest("PATCH", `/api/meal-periods/${period.id}`, data);
+        await apiRequest("PATCH", `/api/resy/meal-periods/${period.id}`, data);
       } else {
         await apiRequest("POST", "/api/resy/meal-periods", data);
       }
