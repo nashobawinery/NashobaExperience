@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -6,17 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar } from "lucide-react";
+import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar, QrCode, Download, Printer, ExternalLink, Copy, Check } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProceduresTemplate } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import QRCodeLib from "qrcode";
 
 export default function ProceduresAdminDashboard() {
   const [, setLocation] = useLocation();
   const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [selectedType, setSelectedType] = useState<string>("__all__");
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const staffLoginUrl = `${window.location.origin}/procedures/staff`;
 
   const { data: templates, isLoading: templatesLoading } = useQuery<ProceduresTemplate[]>({
     queryKey: ["/api/procedures/templates"],
@@ -25,6 +29,87 @@ export default function ProceduresAdminDashboard() {
   const { data: departments } = useQuery<{ department: string; departmentLabel: string }[]>({
     queryKey: ["/api/procedures/departments"],
   });
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      QRCodeLib.toCanvas(
+        canvasRef.current,
+        staffLoginUrl,
+        {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: "#7C2D3A",
+            light: "#FFFFFF",
+          },
+        },
+        (error) => {
+          if (error) console.error("QR Code generation error:", error);
+        }
+      );
+    }
+  }, [staffLoginUrl]);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(staffLoginUrl);
+      setCopied(true);
+      toast({ title: "Link copied", description: "Staff login link copied to clipboard" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({ title: "Failed to copy", description: "Please copy the link manually", variant: "destructive" });
+    }
+  };
+
+  const handleDownloadQR = () => {
+    if (canvasRef.current) {
+      const url = canvasRef.current.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = "staff-procedures-qr.png";
+      link.href = url;
+      link.click();
+    }
+  };
+
+  const handlePrintQR = () => {
+    const printWindow = window.open("", "_blank");
+    if (printWindow && canvasRef.current) {
+      const imageUrl = canvasRef.current.toDataURL("image/png");
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Staff Procedures - QR Code</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 40px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                font-family: system-ui, -apple-system, sans-serif;
+              }
+              h1 { font-size: 28px; margin-bottom: 10px; text-align: center; color: #7C2D3A; }
+              p { font-size: 16px; margin-bottom: 20px; text-align: center; color: #666; }
+              img { max-width: 300px; border: 2px solid #7C2D3A; border-radius: 8px; padding: 16px; background: white; }
+              .url { margin-top: 16px; font-size: 12px; color: #999; word-break: break-all; }
+            </style>
+          </head>
+          <body>
+            <h1>Daily Procedures</h1>
+            <p>Scan to access your assigned procedures</p>
+            <img src="${imageUrl}" alt="QR Code" />
+            <div class="url">${staffLoginUrl}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 250);
+    }
+  };
 
   const filteredTemplates = templates?.filter((t) => {
     if (selectedDepartment !== "__all__" && t.department !== selectedDepartment) return false;
@@ -74,6 +159,62 @@ export default function ProceduresAdminDashboard() {
           </Button>
         </Link>
       </div>
+
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex-shrink-0 flex justify-center p-4 bg-white rounded-lg">
+              <canvas ref={canvasRef} data-testid="canvas-staff-qr" />
+            </div>
+            <div className="flex-1 space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <QrCode className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Staff Access</h3>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Share this link or QR code with your staff to access their assigned procedures. 
+                  Staff will need their access code to log in.
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2 p-3 bg-background rounded-lg border">
+                <span className="flex-1 font-mono text-sm truncate" data-testid="text-staff-url">{staffLoginUrl}</span>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleCopyLink}
+                  data-testid="button-copy-link"
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                </Button>
+                <Link href="/procedures/staff" target="_blank">
+                  <Button variant="ghost" size="icon" data-testid="button-open-staff-login">
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={handleDownloadQR} data-testid="button-download-qr">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download QR
+                </Button>
+                <Button variant="outline" size="sm" onClick={handlePrintQR} data-testid="button-print-qr">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print QR
+                </Button>
+                <Link href="/procedures/staff" target="_blank">
+                  <Button size="sm" data-testid="button-go-to-staff-login">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Open Staff Login
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="procedures" className="space-y-6">
         <TabsList>
