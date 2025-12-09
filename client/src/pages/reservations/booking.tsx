@@ -44,7 +44,7 @@ import {
   X,
   Crown,
 } from "lucide-react";
-import type { Experience, TimeSlot } from "@shared/schema";
+import type { Experience, TimeSlot, ResySpecialDate } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
 
 function formatTo12Hour(timeStr: string): string {
@@ -126,6 +126,12 @@ export default function Booking() {
   const { data: timeSlots } = useQuery<(TimeSlot & { eventStartDate?: string | null; eventEndDate?: string | null })[]>({
     queryKey: ["/api/resy/experiences", id, "timeslots"],
     enabled: !!experience && experience.reservationType === "ticketed",
+  });
+
+  // Fetch special dates (closed dates) for the experience's location
+  const { data: specialDates } = useQuery<ResySpecialDate[]>({
+    queryKey: ["/api/resy/special-dates", { locationId: experience?.locationId }],
+    enabled: !!experience?.locationId,
   });
 
   const form = useForm<BookingFormValues>({
@@ -650,13 +656,13 @@ export default function Booking() {
       : undefined;
 
   // Get the set of days that have timeslots configured for ticketed events
-  // If any slot has null dayOfWeek, it means "all days" are available
+  // If any slot has null dayOfWeek, it means "all days" are available within date range
   const hasAllDaysAvailable = timeSlots?.some(slot => slot.isActive !== false && slot.dayOfWeek === null);
   const availableDaysOfWeek = timeSlots
     ? new Set(timeSlots.filter(slot => slot.isActive !== false && slot.dayOfWeek !== null).map(slot => slot.dayOfWeek))
     : new Set<number>();
 
-  // Get event date range from timeslots (if available)
+  // Get event date range from timeslots (if available) - this is an OUTER boundary
   const eventStartDate = timeSlots?.[0]?.eventStartDate 
     ? new Date(timeSlots[0].eventStartDate + 'T00:00:00') 
     : null;
@@ -664,18 +670,37 @@ export default function Booking() {
     ? new Date(timeSlots[0].eventEndDate + 'T23:59:59') 
     : null;
 
+  // Create a set of closed dates from special dates
+  const closedDatesSet = new Set<string>();
+  if (specialDates) {
+    specialDates.forEach(sd => {
+      if (sd.isClosed) {
+        closedDatesSet.add(sd.date);
+      }
+    });
+  }
+
   const isDateDisabled = (date: Date) => {
+    // 1. Basic validation - past dates
     if (date < startOfToday()) return true;
+    
+    // 2. Advance booking limit
     if (maxBookableDate && date > maxBookableDate) return true;
     
-    // For ticketed events, check event date range
+    // 3. Check special dates (location closures)
+    const dateStr = format(date, "yyyy-MM-dd");
+    if (closedDatesSet.has(dateStr)) return true;
+    
+    // 4. For ticketed events, check event date range (outer boundary)
     if (isTicketed && timeSlots && timeSlots.length > 0) {
       // Check if date is before event start date
       if (eventStartDate && date < eventStartDate) return true;
       // Check if date is after event end date
       if (eventEndDate && date > eventEndDate) return true;
       
-      // If not all days are available, check if this day of week has configured timeslots
+      // 5. Check timeslot day-of-week availability
+      // If dayOfWeek is null (all days), date is valid within the range
+      // Otherwise, check if this specific day of week has configured timeslots
       if (!hasAllDaysAvailable) {
         const dayOfWeek = date.getDay();
         if (!availableDaysOfWeek.has(dayOfWeek)) return true;

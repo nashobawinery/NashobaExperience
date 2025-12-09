@@ -510,6 +510,10 @@ class ResyStorage {
     return await db.select().from(resySpecialDates);
   }
 
+  async getSpecialDatesByLocation(locationId: string) {
+    return await db.select().from(resySpecialDates).where(eq(resySpecialDates.locationId, locationId));
+  }
+
   async getSpecialDatesByExperience(experienceId: string) {
     return await db.select().from(resySpecialDates);
   }
@@ -1712,8 +1716,14 @@ router.delete("/api/resy/ticketed-event-timeslots/:id", requireResyAdmin, async 
 
 router.get("/api/resy/special-dates", async (req, res) => {
   try {
-    const dates = await resyStorage.getAllSpecialDates();
-    res.json(dates);
+    const { locationId } = req.query;
+    if (locationId && typeof locationId === 'string') {
+      const dates = await resyStorage.getSpecialDatesByLocation(locationId);
+      res.json(dates);
+    } else {
+      const dates = await resyStorage.getAllSpecialDates();
+      res.json(dates);
+    }
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch special dates: " + error.message });
   }
