@@ -432,9 +432,16 @@ function TableCard({
               <Badge variant="secondary">Paused</Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="w-3 h-3" />
-            <span>{table.minCapacity}-{table.maxCapacity} people</span>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Users className="w-3 h-3" />
+              <span>{table.minCapacity}-{table.maxCapacity} people</span>
+            </div>
+            {(table.priority ?? 0) > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs">Priority: {table.priority}</span>
+              </div>
+            )}
           </div>
           {combinedWithTables.length > 0 && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -531,6 +538,7 @@ function TableForm({
       tableLabel: "",
       minCapacity: 2,
       maxCapacity: 4,
+      priority: 0,
       combinableWith: [],
       isCommunal: false,
       isActive: true,
@@ -545,6 +553,7 @@ function TableForm({
         tableLabel: table.tableLabel,
         minCapacity: table.minCapacity,
         maxCapacity: table.maxCapacity,
+        priority: table.priority ?? 0,
         combinableWith: table.combinableWith || [],
         isCommunal: table.isCommunal ?? false,
         isActive: table.isActive,
@@ -555,6 +564,7 @@ function TableForm({
         tableLabel: "",
         minCapacity: 2,
         maxCapacity: 4,
+        priority: 0,
         combinableWith: [],
         isCommunal: false,
         isActive: true,
@@ -678,6 +688,30 @@ function TableForm({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="priority"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Priority</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type="number"
+                  min={0}
+                  value={field.value ?? 0}
+                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  data-testid="input-priority"
+                />
+              </FormControl>
+              <FormDescription>
+                Tables with higher priority numbers are filled first when assigning reservations (0 = lowest priority)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {availableTablesForCombination.length > 0 && (
           <FormField
