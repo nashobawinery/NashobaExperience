@@ -48,6 +48,10 @@ const StaffProceduresForm = lazy(() => import("@/pages/procedures/StaffProcedure
 const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
 const TechnicianWorkOrders = lazy(() => import("@/pages/maintenance/TechnicianWorkOrders"));
 
+// Lazy load Spot Inventory module
+const SpotInventoryAdminDashboard = lazy(() => import("@/pages/spot-inventory/SpotInventoryAdminDashboard"));
+const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInventoryStaffApp"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -398,6 +402,32 @@ function TechnicianWorkOrdersRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <TechnicianWorkOrders />
+    </Suspense>
+  );
+}
+
+function SpotInventoryAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SpotInventoryAdminDashboard />
+    </Suspense>
+  );
+}
+
+function SpotInventoryStaffRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SpotInventoryStaffApp />
     </Suspense>
   );
 }
@@ -774,6 +804,9 @@ function Router() {
         <Route path="/maintenance" component={MaintenanceAdminRoute} />
         <Route path="/maintenance/admin" component={MaintenanceAdminRoute} />
         <Route path="/maintenance/work-orders" component={TechnicianWorkOrdersRoute} />
+        <Route path="/spot-inventory" component={SpotInventoryAdminRoute} />
+        <Route path="/spot-inventory/admin" component={SpotInventoryAdminRoute} />
+        <Route path="/spot-inventory/staff" component={SpotInventoryStaffRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}

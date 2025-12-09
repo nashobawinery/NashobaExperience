@@ -1071,7 +1071,7 @@ export async function seedPlatformModules(): Promise<void> {
       description: 'Quick inventory counts by location and area with barcode scanning',
       icon: 'Package',
       color: 'bg-teal-500',
-      routePrefix: '/inventory',
+      routePrefix: '/spot-inventory',
       status: 'active',
       sortOrder: 9
     },

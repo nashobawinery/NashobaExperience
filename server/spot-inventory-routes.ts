@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { z } from "zod";
 import {
   spotInventoryLocations,
   spotInventoryAreas,
@@ -19,6 +20,33 @@ import {
 } from "@shared/schema";
 
 const router = Router();
+
+// Update schemas for PATCH endpoints (partial, with only allowed fields)
+const updateLocationSchema = insertSpotInventoryLocationSchema.partial().pick({
+  name: true,
+  description: true,
+  address: true,
+  isActive: true,
+});
+
+const updateAreaSchema = insertSpotInventoryAreaSchema.partial().pick({
+  name: true,
+  description: true,
+  photoUrl: true,
+  sortOrder: true,
+  isActive: true,
+});
+
+const updateSessionSchema = z.object({
+  status: z.enum(["in_progress", "completed", "cancelled"]).optional(),
+  completedAt: z.coerce.date().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+const updateCountSchema = z.object({
+  quantity: z.number().int().min(0).optional(),
+  notes: z.string().optional().nullable(),
+});
 
 // ============================================
 // LOCATIONS
@@ -70,9 +98,11 @@ router.post("/locations", async (req: Request, res: Response) => {
 
 router.patch("/locations/:id", async (req: Request, res: Response) => {
   try {
+    const parsed = updateLocationSchema.parse(req.body);
+    
     const [location] = await db
       .update(spotInventoryLocations)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set({ ...parsed, updatedAt: new Date() })
       .where(eq(spotInventoryLocations.id, req.params.id))
       .returning();
     
@@ -156,9 +186,11 @@ router.post("/areas", async (req: Request, res: Response) => {
 
 router.patch("/areas/:id", async (req: Request, res: Response) => {
   try {
+    const parsed = updateAreaSchema.parse(req.body);
+    
     const [area] = await db
       .update(spotInventoryAreas)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set({ ...parsed, updatedAt: new Date() })
       .where(eq(spotInventoryAreas.id, req.params.id))
       .returning();
     
@@ -270,8 +302,13 @@ router.post("/sessions", async (req: Request, res: Response) => {
 
 router.patch("/sessions/:id", async (req: Request, res: Response) => {
   try {
-    const updateData: any = { ...req.body, updatedAt: new Date() };
-    if (req.body.status === "completed" && !req.body.completedAt) {
+    const parsed = updateSessionSchema.parse(req.body);
+    const updateData: typeof parsed & { updatedAt: Date; completedAt?: Date } = {
+      ...parsed,
+      updatedAt: new Date(),
+    };
+    
+    if (parsed.status === "completed" && !parsed.completedAt) {
       updateData.completedAt = new Date();
     }
     
@@ -311,9 +348,11 @@ router.post("/counts", async (req: Request, res: Response) => {
 
 router.patch("/counts/:id", async (req: Request, res: Response) => {
   try {
+    const parsed = updateCountSchema.parse(req.body);
+    
     const [count] = await db
       .update(spotInventoryCounts)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set({ ...parsed, updatedAt: new Date() })
       .where(eq(spotInventoryCounts.id, req.params.id))
       .returning();
     
