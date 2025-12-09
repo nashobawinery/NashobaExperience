@@ -101,12 +101,12 @@ export default function AdminPrivateEvents() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="w-full sm:w-64">
-            <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
+            <Select value={selectedLocationId || "__all__"} onValueChange={(v) => setSelectedLocationId(v === "__all__" ? "" : v)}>
               <SelectTrigger data-testid="select-location-filter">
                 <SelectValue placeholder="All Locations" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Locations</SelectItem>
+                <SelectItem value="__all__">All Locations</SelectItem>
                 {locations?.map((loc) => (
                   <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                 ))}
@@ -526,15 +526,15 @@ function PrivateEventDialog({
                   <FormLabel>Location</FormLabel>
                   <FormControl>
                     <Select
-                      value={field.value || ""}
-                      onValueChange={field.onChange}
+                      value={field.value || "__none__"}
+                      onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
                       disabled={isPending}
                     >
                       <SelectTrigger data-testid="select-location">
                         <SelectValue placeholder="Select location" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No specific location</SelectItem>
+                        <SelectItem value="__none__">No specific location</SelectItem>
                         {locations?.map((loc) => (
                           <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                         ))}
