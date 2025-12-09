@@ -2956,6 +2956,7 @@ export const proceduresTemplates = pgTable("procedures_templates", {
   emailRecipientsTo: text("email_recipients_to").array(), // Array of email addresses
   emailRecipientsCc: text("email_recipients_cc").array(), // Optional CC recipients
   assignedStaffIds: text("assigned_staff_ids").array(), // Array of procedures_staff IDs
+  completionTime: varchar("completion_time", { length: 5 }), // Optional deadline time in "HH:MM" format (e.g., "08:00")
   isActive: boolean("is_active").notNull().default(true),
   createdById: varchar("created_by_id").references(() => platformUsers.id),
   createdByName: text("created_by_name"),
@@ -3043,6 +3044,7 @@ export const proceduresSubmissions = pgTable("procedures_submissions", {
   status: varchar("status").notNull().default("submitted"), // draft, submitted
   answers: jsonb("answers").notNull().default({}), // { itemId: { value, initials, comment } }
   notes: text("notes"), // Optional overall notes
+  lateReason: text("late_reason"), // Explanation if submitted after completion time deadline
   emailSentStatus: varchar("email_sent_status").default("pending"), // pending, success, failed
   emailSentAt: timestamp("email_sent_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
