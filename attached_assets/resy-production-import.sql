@@ -1,0 +1,29 @@
+-- Resy Production Import
+-- Run these in order (dependencies matter)
+
+-- 1. EXPERIENCES (7 records)
+INSERT INTO resy_experiences (id, name, short_description, long_description, image_url, is_external, external_url, reservation_type, price, show_price, display_order, is_active, location_id, show_waitlist, points_earned, created_at, updated_at) VALUES ('9259bec6-b134-4b04-a5c2-f60c2c367956', 'Wine Tasting at the Winery Tasting Bar', 'Formal Tasting Room In our seated indoor tasting room, one of our Estate Hosts will guide you through an unforgettable experience.', 'Formal Tasting Room experience with 8 tokens and commemorative wine glass. Tastings $16 per person.', '/api/media-library/4b0e8a49-33bd-4fb3-8fdb-40891e3dcb1e/file', false, '', 'ticketed', '16.00', false, 0, true, '66fd6924-1bfb-426b-955d-168be80ddd63', false, 0, '2025-11-20T12:10:42.875Z', '2025-12-06T14:42:20.794Z');
+
+INSERT INTO resy_experiences (id, name, short_description, long_description, image_url, is_external, external_url, show_price, display_order, is_active, location, show_waitlist, points_earned, created_at, updated_at) VALUES ('0f28e907-08d0-439c-b384-949c7612f532', 'Js Restaurant', 'Award-winning farm-to-table dining experience in our elegant restaurant.', 'Js Restaurant offers an exceptional farm-to-table dining experience featuring seasonal ingredients from our orchards and local farms.', '/api/media-library/c693f47b-a12d-4d61-8026-321cb86f42d3/file', true, 'https://www.opentable.com/booking/restref/availability?rid=231097', true, 1, true, 'Bolton, MA', false, 0, '2025-11-18T18:31:43.954Z', '2025-12-06T03:06:55.685Z');
+
+INSERT INTO resy_experiences (id, name, short_description, long_description, is_external, reservation_type, show_price, display_order, is_active, location_id, show_waitlist, points_earned, created_at, updated_at) VALUES ('d9f6ddbe-3814-41e7-8fc0-cbe046d13ab9', 'Mothers Day 2026', 'Test for Mothers Day', 'Test for Mothers Day', false, 'table', true, 0, false, '7aa3de06-e490-4e17-be61-bb7420fb7d52', false, 0, '2025-11-20T11:09:04.383Z', '2025-12-06T03:07:14.144Z');
+
+INSERT INTO resy_experiences (id, name, description, short_description, is_external, reservation_type, show_price, display_order, is_active, show_waitlist, points_earned, created_at, updated_at) VALUES ('7b3dcc5f-3b47-4e6b-8244-4987293b8097', 'Pavilion Tastings', 'Outdoor tasting experience at our scenic pavilion overlooking the vineyard.', 'Pavilion Tasting', false, 'table', true, 4, false, false, 0, '2025-11-18T18:06:50.929Z', '2025-12-06T14:50:33.540Z');
+
+INSERT INTO resy_experiences (id, name, description, short_description, is_external, reservation_type, show_price, display_order, is_active, show_waitlist, points_earned, created_at, updated_at) VALUES ('fd589420-3c4f-4c93-b1e8-069c66db7516', 'The Knoll Restaurant', 'Casual dining with spectacular views and locally-sourced ingredients.', '', false, 'table', true, 5, false, false, 0, '2025-11-18T18:06:50.929Z', '2025-12-06T14:50:44.066Z');
+
+INSERT INTO resy_experiences (id, name, description, image_url, is_external, reservation_type, price, show_price, display_order, is_active, location_id, show_waitlist, points_earned, created_at, updated_at) VALUES ('dfec79db-db48-475d-8779-d6179ba37f57', 'Winery Tours', 'Behind-the-scenes tour of our winery, distillery and brewery with tastings included.', '/api/media-library/6270bf85-6a5b-47a7-96d5-59adb87a0d15/file', false, 'ticketed', '16.00', true, 3, true, '08b02d64-21f2-4df8-941d-af98dc51fc08', false, 0, '2025-11-18T18:06:50.929Z', '2025-12-06T14:59:39.117Z');
+
+INSERT INTO resy_experiences (id, name, description, short_description, long_description, is_external, reservation_type, show_price, display_order, is_active, location_id, show_waitlist, points_earned, created_at, updated_at) VALUES ('693ed83c-e010-496b-8cfd-f145c86da742', 'Pavilion Seating', 'Reserve a table at our outdoor pavilion for wine, beer, and light fare.', '', 'You are making a reservation for a Table at The Knoll which is an Outdoor Restaurant without any Indoor seating.', false, 'table', true, 1, false, 'a82604d4-0f32-43b4-ad04-28e2bf92456c', false, 0, '2025-11-18T18:06:50.929Z', '2025-12-06T14:50:02.672Z');
+
+-- 2. MEAL PERIODS (4 records)
+INSERT INTO resy_meal_periods (id, name, start_time, end_time, display_order, is_active, location_id, created_at, updated_at) VALUES ('997f65e4-00cf-4ed2-99d4-a4e9be8ca7a3', 'Dinner', '17:00', '20:00', 2, true, '66ff6d7e-3dc0-48bb-aadf-9d74680de755', '2025-11-19T01:54:34.694Z', '2025-12-05T13:54:50.109Z');
+
+INSERT INTO resy_meal_periods (id, name, start_time, end_time, display_order, is_active, location_id, created_at, updated_at) VALUES ('3f12a865-3b86-40f9-9158-6a0f60895d61', 'Brunch', '10:00', '14:00', 1, true, '66ff6d7e-3dc0-48bb-aadf-9d74680de755', '2025-11-19T01:54:34.694Z', '2025-12-05T13:54:50.406Z');
+
+INSERT INTO resy_meal_periods (id, name, start_time, end_time, display_order, is_active, location_id, created_at, updated_at) VALUES ('dffe363f-18a3-4848-b72a-14637ab50218', 'Lunch', '11:00', '15:00', 0, true, '66ff6d7e-3dc0-48bb-aadf-9d74680de755', '2025-11-19T01:54:34.694Z', '2025-12-05T13:54:50.589Z');
+
+INSERT INTO resy_meal_periods (id, name, start_time, end_time, display_order, is_active, location_id, created_at, updated_at) VALUES ('ffa5ab96-7f8e-4a48-8be2-7ad4c91db8dd', 'Special Brunch', '10:00', '14:00', 0, true, '7aa3de06-e490-4e17-be61-bb7420fb7d52', '2025-11-20T11:08:16.312Z', '2025-12-05T18:05:12.168Z');
+
+-- 3. SITE SETTINGS (1 record)
+INSERT INTO resy_site_settings (id, created_at, updated_at, header_title, header_subtitle, company_name, show_powered_by) VALUES ('692473c0-53c3-4dbd-a3ec-534407e62090', '2025-12-05T13:57:45.428Z', '2025-11-19T13:31:55.107Z', 'Nashoba Valley Winery, Distillery, Brewery and Restaurants Reservation Page', 'Born in Concord, Raised in Bolton', 'Nashoba Valley Winery', true);
