@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar, QrCode, Download, Printer, ExternalLink, Copy, Check } from "lucide-react";
+import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar, QrCode, Download, Printer, ExternalLink, Copy, Check, UserPlus, Trash2, Pencil } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import type { ProceduresStaff } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProceduresTemplate } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -18,6 +22,12 @@ export default function ProceduresAdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [selectedType, setSelectedType] = useState<string>("__all__");
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("procedures");
+  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<ProceduresStaff | null>(null);
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffCode, setNewStaffCode] = useState("");
+  const [newStaffDepartment, setNewStaffDepartment] = useState("");
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const staffLoginUrl = `${window.location.origin}/procedures/staff`;
@@ -29,6 +39,96 @@ export default function ProceduresAdminDashboard() {
   const { data: departments } = useQuery<{ department: string; departmentLabel: string }[]>({
     queryKey: ["/api/procedures/departments"],
   });
+
+  const { data: staffList, isLoading: staffLoading } = useQuery<ProceduresStaff[]>({
+    queryKey: ["/api/procedures/staff"],
+  });
+
+  const createStaffMutation = useMutation({
+    mutationFn: async (data: { staffName: string; code: string; department?: string }) => {
+      const response = await apiRequest("POST", "/api/procedures/staff", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/procedures/staff"] });
+      toast({ title: "Staff member added", description: "The staff member has been created successfully." });
+      resetStaffForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create staff member", variant: "destructive" });
+    }
+  });
+
+  const updateStaffMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<ProceduresStaff> }) => {
+      const response = await apiRequest("PATCH", `/api/procedures/staff/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/procedures/staff"] });
+      toast({ title: "Staff member updated", description: "The staff member has been updated successfully." });
+      resetStaffForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update staff member", variant: "destructive" });
+    }
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/procedures/staff/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/procedures/staff"] });
+      toast({ title: "Staff member removed", description: "The staff member has been removed." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete staff member", variant: "destructive" });
+    }
+  });
+
+  const resetStaffForm = () => {
+    setStaffDialogOpen(false);
+    setEditingStaff(null);
+    setNewStaffName("");
+    setNewStaffCode("");
+    setNewStaffDepartment("");
+  };
+
+  const handleAddStaff = () => {
+    setEditingStaff(null);
+    setNewStaffName("");
+    setNewStaffCode("");
+    setNewStaffDepartment("");
+    setStaffDialogOpen(true);
+  };
+
+  const handleEditStaff = (staff: ProceduresStaff) => {
+    setEditingStaff(staff);
+    setNewStaffName(staff.staffName);
+    setNewStaffCode(staff.code);
+    setNewStaffDepartment(staff.department || "");
+    setStaffDialogOpen(true);
+  };
+
+  const handleSaveStaff = () => {
+    if (!newStaffName.trim() || !newStaffCode.trim()) {
+      toast({ title: "Missing fields", description: "Please enter a name and access code.", variant: "destructive" });
+      return;
+    }
+    if (editingStaff) {
+      updateStaffMutation.mutate({
+        id: editingStaff.id,
+        data: { staffName: newStaffName, code: newStaffCode, department: newStaffDepartment || null }
+      });
+    } else {
+      createStaffMutation.mutate({
+        staffName: newStaffName,
+        code: newStaffCode,
+        department: newStaffDepartment || undefined
+      });
+    }
+  };
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -216,15 +316,15 @@ export default function ProceduresAdminDashboard() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="procedures" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="procedures" data-testid="tab-procedures">
             <ClipboardList className="w-4 h-4 mr-2" />
             Procedures
           </TabsTrigger>
-          <TabsTrigger value="users" data-testid="tab-users" onClick={() => setLocation("/procedures/users")}>
+          <TabsTrigger value="staff" data-testid="tab-staff">
             <Users className="w-4 h-4 mr-2" />
-            Users
+            Staff
           </TabsTrigger>
           <TabsTrigger value="submissions" data-testid="tab-submissions" onClick={() => setLocation("/procedures/submissions")}>
             <FileText className="w-4 h-4 mr-2" />
@@ -331,7 +431,147 @@ export default function ProceduresAdminDashboard() {
             </Card>
           )}
         </TabsContent>
+
+        <TabsContent value="staff" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Staff Members</h2>
+              <p className="text-sm text-muted-foreground">Manage staff who can access procedures via the Staff Login page</p>
+            </div>
+            <Button onClick={handleAddStaff} data-testid="button-add-staff">
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Staff
+            </Button>
+          </div>
+
+          {staffLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : staffList && staffList.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {staffList.map((staff) => (
+                <Card key={staff.id} data-testid={`card-staff-${staff.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate" data-testid={`text-staff-name-${staff.id}`}>{staff.staffName}</h3>
+                        <p className="text-sm text-muted-foreground font-mono" data-testid={`text-staff-code-${staff.id}`}>Code: {staff.code}</p>
+                        {staff.department && (
+                          <Badge variant="outline" className="mt-2">{departments?.find(d => d.department === staff.department)?.departmentLabel || staff.department}</Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditStaff(staff)} data-testid={`button-edit-staff-${staff.id}`}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => deleteStaffMutation.mutate(staff.id)}
+                          disabled={deleteStaffMutation.isPending}
+                          data-testid={`button-delete-staff-${staff.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                      <Badge variant={staff.isActive ? "default" : "secondary"} className="text-xs">
+                        {staff.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      {staff.lastUsedAt && (
+                        <span className="ml-2">Last used: {new Date(staff.lastUsedAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <Users className="w-12 h-12 text-muted-foreground" />
+                <div>
+                  <h3 className="text-lg font-semibold">No staff members</h3>
+                  <p className="text-muted-foreground mt-1">
+                    Add staff members so they can log in and complete assigned procedures
+                  </p>
+                </div>
+                <Button onClick={handleAddStaff} data-testid="button-add-first-staff">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add Staff Member
+                </Button>
+              </div>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingStaff ? "Edit Staff Member" : "Add Staff Member"}</DialogTitle>
+            <DialogDescription>
+              {editingStaff ? "Update the staff member's details" : "Add a new staff member who can access assigned procedures"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="staffName">Name</Label>
+              <Input
+                id="staffName"
+                value={newStaffName}
+                onChange={(e) => setNewStaffName(e.target.value)}
+                placeholder="Enter staff name"
+                data-testid="input-staff-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staffCode">Access Code</Label>
+              <Input
+                id="staffCode"
+                value={newStaffCode}
+                onChange={(e) => setNewStaffCode(e.target.value.toUpperCase())}
+                placeholder="Enter access code (e.g., 1234)"
+                data-testid="input-staff-access-code"
+              />
+              <p className="text-xs text-muted-foreground">Staff will use this code to log in at the Staff Access page</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staffDepartment">Department (Optional)</Label>
+              <Select value={newStaffDepartment || "__none__"} onValueChange={(v) => setNewStaffDepartment(v === "__none__" ? "" : v)}>
+                <SelectTrigger data-testid="select-staff-department">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No Department</SelectItem>
+                  {departments?.map((d) => (
+                    <SelectItem key={d.department} value={d.department}>{d.departmentLabel}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetStaffForm} data-testid="button-cancel-staff">Cancel</Button>
+            <Button 
+              onClick={handleSaveStaff} 
+              disabled={createStaffMutation.isPending || updateStaffMutation.isPending}
+              data-testid="button-save-staff"
+            >
+              {(createStaffMutation.isPending || updateStaffMutation.isPending) ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
