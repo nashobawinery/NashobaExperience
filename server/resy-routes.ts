@@ -944,8 +944,10 @@ router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => 
       // For ticketed experiences, get timeslots from the ticketed event definition
       const definitions = await resyStorage.getTicketedEventDefinitions(experience.locationId);
       if (definitions.length > 0) {
-        const timeslots = await resyStorage.getTicketedEventTimeslots(definitions[0].id);
+        const definition = definitions[0];
+        const timeslots = await resyStorage.getTicketedEventTimeslots(definition.id);
         // Transform to match expected format with id, time, dayOfWeek, capacity
+        // Also include the event date range from the definition
         const transformedSlots = timeslots.map(slot => ({
           id: slot.id,
           experienceId: req.params.experienceId,
@@ -954,6 +956,9 @@ router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => 
           startTime: slot.startTime,
           capacity: slot.capacity,
           isActive: slot.isActive,
+          // Include event definition dates for filtering
+          eventStartDate: definition.startDate,
+          eventEndDate: definition.endDate,
         }));
         return res.json(transformedSlots);
       }

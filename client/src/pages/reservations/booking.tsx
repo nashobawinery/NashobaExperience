@@ -74,6 +74,8 @@ type BookingFormValues = z.infer<typeof bookingFormSchema>;
 type TimeSlotWithAvailability = TimeSlot & {
   available?: number;
   booked?: number;
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
 };
 
 type AvailableTimeSlot = {
@@ -121,7 +123,7 @@ export default function Booking() {
       queryKey: ["/api/resy/experiences", id],
     });
 
-  const { data: timeSlots } = useQuery<TimeSlot[]>({
+  const { data: timeSlots } = useQuery<(TimeSlot & { eventStartDate?: string | null; eventEndDate?: string | null })[]>({
     queryKey: ["/api/resy/experiences", id, "timeslots"],
     enabled: !!experience && experience.reservationType === "ticketed",
   });
@@ -648,17 +650,36 @@ export default function Booking() {
       : undefined;
 
   // Get the set of days that have timeslots configured for ticketed events
+  // If any slot has null dayOfWeek, it means "all days" are available
+  const hasAllDaysAvailable = timeSlots?.some(slot => slot.isActive !== false && slot.dayOfWeek === null);
   const availableDaysOfWeek = timeSlots
-    ? new Set(timeSlots.filter(slot => slot.isActive !== false).map(slot => slot.dayOfWeek))
+    ? new Set(timeSlots.filter(slot => slot.isActive !== false && slot.dayOfWeek !== null).map(slot => slot.dayOfWeek))
     : new Set<number>();
+
+  // Get event date range from timeslots (if available)
+  const eventStartDate = timeSlots?.[0]?.eventStartDate 
+    ? new Date(timeSlots[0].eventStartDate + 'T00:00:00') 
+    : null;
+  const eventEndDate = timeSlots?.[0]?.eventEndDate 
+    ? new Date(timeSlots[0].eventEndDate + 'T23:59:59') 
+    : null;
 
   const isDateDisabled = (date: Date) => {
     if (date < startOfToday()) return true;
     if (maxBookableDate && date > maxBookableDate) return true;
-    // For ticketed events, disable days without configured timeslots
+    
+    // For ticketed events, check event date range
     if (isTicketed && timeSlots && timeSlots.length > 0) {
-      const dayOfWeek = date.getDay();
-      if (!availableDaysOfWeek.has(dayOfWeek)) return true;
+      // Check if date is before event start date
+      if (eventStartDate && date < eventStartDate) return true;
+      // Check if date is after event end date
+      if (eventEndDate && date > eventEndDate) return true;
+      
+      // If not all days are available, check if this day of week has configured timeslots
+      if (!hasAllDaysAvailable) {
+        const dayOfWeek = date.getDay();
+        if (!availableDaysOfWeek.has(dayOfWeek)) return true;
+      }
     }
     return false;
   };
