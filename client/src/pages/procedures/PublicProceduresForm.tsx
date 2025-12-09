@@ -56,7 +56,7 @@ export default function PublicProceduresForm() {
   const [pin, setPin] = useState("");
   const [user, setUser] = useState<ProceduresUser | null>(null);
   const [selectedProcedure, setSelectedProcedure] = useState<ProceduresTemplateWithItems | null>(null);
-  const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string }>>({});
+  const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>>({});
   const [notes, setNotes] = useState("");
   const [startTime] = useState(new Date());
 
@@ -172,10 +172,20 @@ export default function PublicProceduresForm() {
   };
 
   const updateAnswer = (itemId: string, field: string, value: any) => {
-    setAnswers(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], [field]: value }
-    }));
+    setAnswers(prev => {
+      const current = prev[itemId] || { value: "" };
+      const updated = { ...current, [field]: value };
+      
+      // Add completedAt timestamp when a task is completed for the first time
+      if (field === "value" && !current.completedAt) {
+        const isCompleted = typeof value === "boolean" ? value : (value !== "" && value !== null);
+        if (isCompleted) {
+          updated.completedAt = new Date().toISOString();
+        }
+      }
+      
+      return { ...prev, [itemId]: updated };
+    });
   };
 
   const completedCount = selectedProcedure?.items.filter(item => {

@@ -56,7 +56,7 @@ export default function StaffProceduresForm() {
   const [code, setCode] = useState("");
   const [staff, setStaff] = useState<ProceduresStaff | null>(null);
   const [selectedProcedure, setSelectedProcedure] = useState<ProceduresTemplateWithItems | null>(null);
-  const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string }>>({});
+  const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>>({});
   const [notes, setNotes] = useState("");
   const [startTime] = useState(new Date());
 
@@ -171,10 +171,20 @@ export default function StaffProceduresForm() {
   };
 
   const updateAnswer = (itemId: string, field: string, value: any) => {
-    setAnswers(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], [field]: value }
-    }));
+    setAnswers(prev => {
+      const current = prev[itemId] || { value: "" };
+      const updated = { ...current, [field]: value };
+      
+      // Add completedAt timestamp when a task is completed for the first time
+      if (field === "value" && !current.completedAt) {
+        const isCompleted = typeof value === "boolean" ? value : (value !== "" && value !== null);
+        if (isCompleted) {
+          updated.completedAt = new Date().toISOString();
+        }
+      }
+      
+      return { ...prev, [itemId]: updated };
+    });
   };
 
   const getCompletedCount = () => {
@@ -409,6 +419,18 @@ export default function StaffProceduresForm() {
                       
                       <div className="flex items-center gap-4">
                         {renderItemInput(item)}
+                        {answers[item.id]?.completedAt && (
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {(() => {
+                              try {
+                                const date = new Date(answers[item.id].completedAt!);
+                                return isNaN(date.getTime()) ? '' : date.toLocaleTimeString();
+                              } catch {
+                                return '';
+                              }
+                            })()}
+                          </span>
+                        )}
                       </div>
 
                       {(item.requireInitials || item.requireComment) && (

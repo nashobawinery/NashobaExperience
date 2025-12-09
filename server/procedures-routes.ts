@@ -1,9 +1,126 @@
 import { Router, Request, Response } from "express";
 import { storage } from "./storage";
-import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProceduresUserSchema, insertProceduresSubmissionSchema, insertProceduresStaffSchema } from "@shared/schema";
+import { insertProceduresTemplateSchema, insertProceduresItemSchema, insertProceduresUserSchema, insertProceduresSubmissionSchema, insertProceduresStaffSchema, ProceduresItem, ProceduresTemplate } from "@shared/schema";
 import { z } from "zod";
+import { sendEmail } from "./email";
 
 const router = Router();
+
+// Generate procedure submission notification email
+function generateProcedureSubmissionEmail(
+  template: ProceduresTemplate & { items: ProceduresItem[] },
+  submittedByName: string,
+  submissionDate: Date,
+  answers: Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
+): { subject: string; html: string; text: string } {
+  const dateStr = submissionDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const subject = `${template.procedureType.charAt(0).toUpperCase() + template.procedureType.slice(1)} Procedures Completed - ${template.procedureName}`;
+
+  // Build text version
+  let text = `${template.procedureType.toUpperCase()} PROCEDURES COMPLETED\n\n`;
+  text += `Template: ${template.procedureName}\n`;
+  text += `Department: ${template.department}\n`;
+  text += `Submitted By: ${submittedByName}\n`;
+  text += `Date: ${dateStr}\n\n`;
+  text += `COMPLETED TASKS:\n`;
+  text += `${'='.repeat(40)}\n`;
+
+  template.items.forEach((item, index) => {
+    const answer = answers[item.id];
+    const value = answer?.value ?? 'Not completed';
+    const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString() : '';
+    text += `\n${index + 1}. ${item.label}\n`;
+    text += `   Response: ${value}\n`;
+    if (completedTime) text += `   Completed at: ${completedTime}\n`;
+    if (answer?.initials) text += `   Initials: ${answer.initials}\n`;
+    if (answer?.comment) text += `   Comment: ${answer.comment}\n`;
+  });
+
+  // Build HTML version
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .header h1 { margin: 0; font-size: 20px; }
+    .header p { margin: 8px 0 0; opacity: 0.9; font-size: 14px; }
+    .content { padding: 20px; background-color: #f9f9f9; }
+    .meta { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e0e0e0; }
+    .meta-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-label { font-weight: bold; color: #666; }
+    .tasks { background: white; border-radius: 8px; border: 1px solid #e0e0e0; overflow: hidden; }
+    .task { padding: 15px; border-bottom: 1px solid #eee; }
+    .task:last-child { border-bottom: none; }
+    .task-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .task-label { font-weight: bold; color: #333; flex: 1; }
+    .task-time { font-size: 12px; color: #888; white-space: nowrap; margin-left: 10px; }
+    .task-value { margin-top: 8px; padding: 8px 12px; background: #f0f0f0; border-radius: 4px; }
+    .task-value.completed { background: #d4edda; color: #155724; }
+    .task-value.not-completed { background: #f8d7da; color: #721c24; }
+    .task-meta { font-size: 12px; color: #666; margin-top: 5px; }
+    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${template.procedureType.toUpperCase()} PROCEDURES COMPLETED</h1>
+    <p>${template.procedureName}</p>
+  </div>
+  <div class="content">
+    <div class="meta">
+      <div class="meta-row">
+        <span class="meta-label">Department</span>
+        <span>${template.department}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Submitted By</span>
+        <span>${submittedByName}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Date</span>
+        <span>${dateStr}</span>
+      </div>
+    </div>
+    <div class="tasks">
+      ${template.items.map((item, index) => {
+        const answer = answers[item.id];
+        const value = answer?.value;
+        const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString() : null;
+        const isCompleted = value !== undefined && value !== null && value !== '';
+        const displayValue = item.responseType === 'checkbox' 
+          ? (value ? 'Completed' : 'Not completed')
+          : (value ?? 'Not provided');
+        return `
+          <div class="task">
+            <div class="task-header">
+              <span class="task-label">${index + 1}. ${item.label}</span>
+              ${completedTime ? `<span class="task-time">${completedTime}</span>` : ''}
+            </div>
+            <div class="task-value ${isCompleted ? 'completed' : 'not-completed'}">${displayValue}</div>
+            ${answer?.initials || answer?.comment ? `
+              <div class="task-meta">
+                ${answer.initials ? `Initials: ${answer.initials}` : ''}
+                ${answer.initials && answer.comment ? ' | ' : ''}
+                ${answer.comment ? `Note: ${answer.comment}` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  </div>
+  <div class="footer">
+    <p>This is an automated notification from the Nashoba Valley Operations Platform.</p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
 
 // ==========================================
 // PROCEDURE TEMPLATES
@@ -334,6 +451,69 @@ router.post("/submissions", async (req: Request, res: Response) => {
     };
     const validated = insertProceduresSubmissionSchema.parse(body);
     const submission = await storage.createProceduresSubmission(validated);
+
+    // Send email notifications asynchronously (don't block the response)
+    (async () => {
+      try {
+        const template = await storage.getProceduresTemplateWithItems(submission.templateId);
+        if (!template) {
+          console.error(`[Procedures Email] Template not found: ${submission.templateId}`);
+          return;
+        }
+
+        const emailTo = template.emailRecipientsTo as string[] | null;
+        const emailCc = template.emailRecipientsCc as string[] | null;
+
+        if (!emailTo || emailTo.length === 0) {
+          console.log(`[Procedures Email] No email recipients configured for template: ${template.procedureName}`);
+          await storage.updateProceduresSubmissionEmailStatus(submission.id, 'no_recipients');
+          return;
+        }
+
+        const { subject, html, text } = generateProcedureSubmissionEmail(
+          template,
+          submission.submittedByName,
+          new Date(submission.submissionDate),
+          submission.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
+        );
+
+        // Send to each recipient
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const recipient of emailTo) {
+          try {
+            await sendEmail(recipient, subject, html, text);
+            successCount++;
+            console.log(`[Procedures Email] Sent to ${recipient}`);
+          } catch (err) {
+            failCount++;
+            console.error(`[Procedures Email] Failed to send to ${recipient}:`, err);
+          }
+        }
+
+        // Send CC copies
+        if (emailCc && emailCc.length > 0) {
+          for (const ccRecipient of emailCc) {
+            try {
+              await sendEmail(ccRecipient, subject, html, text);
+              console.log(`[Procedures Email] Sent CC to ${ccRecipient}`);
+            } catch (err) {
+              console.error(`[Procedures Email] Failed to send CC to ${ccRecipient}:`, err);
+            }
+          }
+        }
+
+        // Update email status
+        const status = failCount === 0 ? 'success' : (successCount > 0 ? 'partial' : 'failed');
+        await storage.updateProceduresSubmissionEmailStatus(submission.id, status);
+        console.log(`[Procedures Email] Status updated to: ${status}`);
+      } catch (emailError) {
+        console.error("[Procedures Email] Error sending notification:", emailError);
+        await storage.updateProceduresSubmissionEmailStatus(submission.id, 'failed');
+      }
+    })();
+
     res.status(201).json(submission);
   } catch (error) {
     if (error instanceof z.ZodError) {

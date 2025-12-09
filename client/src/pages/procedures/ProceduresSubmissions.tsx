@@ -233,6 +233,18 @@ export default function ProceduresSubmissions() {
                         </div>
                         <div className="flex items-center gap-4">
                           {renderAnswer(answer, item)}
+                          {answer?.completedAt && (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {(() => {
+                                try {
+                                  const date = new Date(answer.completedAt);
+                                  return isNaN(date.getTime()) ? '' : format(date, "h:mm a");
+                                } catch {
+                                  return '';
+                                }
+                              })()}
+                            </span>
+                          )}
                           {answer?.initials && (
                             <Badge variant="outline" className="text-xs">
                               Initials: {answer.initials}
