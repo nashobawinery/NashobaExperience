@@ -58,7 +58,17 @@ export default function PublicProceduresForm() {
   const [selectedProcedure, setSelectedProcedure] = useState<ProceduresTemplateWithItems | null>(null);
   const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>>({});
   const [notes, setNotes] = useState("");
+  const [lateReason, setLateReason] = useState("");
   const [startTime] = useState(new Date());
+
+  // Check if the current time is past the procedure's completion time deadline
+  const isLateSubmission = (): boolean => {
+    if (!selectedProcedure?.completionTime) return false;
+    const [hours, minutes] = selectedProcedure.completionTime.split(':').map(Number);
+    const deadline = new Date();
+    deadline.setHours(hours, minutes, 0, 0);
+    return startTime > deadline;
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (pinCode: string) => {
@@ -113,6 +123,7 @@ export default function PublicProceduresForm() {
     setSelectedProcedure(null);
     setAnswers({});
     setNotes("");
+    setLateReason("");
     setStage("pin");
   };
 
@@ -123,6 +134,7 @@ export default function PublicProceduresForm() {
       initialAnswers[item.id] = { value: item.responseType === "checkbox" ? false : "" };
     });
     setAnswers(initialAnswers);
+    setLateReason("");
     setStage("complete");
   };
 
@@ -148,6 +160,16 @@ export default function PublicProceduresForm() {
       return;
     }
 
+    // Validate late reason if submission is late
+    if (isLateSubmission() && !lateReason.trim()) {
+      toast({
+        title: "Late Submission Reason Required",
+        description: "Please provide an explanation for why this procedure is being started after the scheduled time.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     submitMutation.mutate({
       templateId: selectedProcedure.id,
       procedureCode: selectedProcedure.procedureCode,
@@ -159,7 +181,8 @@ export default function PublicProceduresForm() {
       dateTimeSubmitted: new Date().toISOString(),
       status: "submitted",
       answers,
-      notes: notes || null
+      notes: notes || null,
+      lateReason: isLateSubmission() ? lateReason : null
     });
   };
 
@@ -482,6 +505,31 @@ export default function PublicProceduresForm() {
             </Card>
           ))}
         </div>
+
+        {isLateSubmission() && (
+          <Card className="p-4 border-amber-500 bg-amber-50 dark:bg-amber-900/10">
+            <div className="flex items-start gap-2 mb-2">
+              <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300">
+                Late Submission
+              </Badge>
+              <span className="text-sm text-amber-700 dark:text-amber-400">
+                This procedure was scheduled to be completed by {selectedProcedure?.completionTime}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-amber-800 dark:text-amber-300">
+                Reason for Late Submission <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                value={lateReason}
+                onChange={(e) => setLateReason(e.target.value)}
+                placeholder="Please explain why this procedure is being started after the scheduled time..."
+                className="border-amber-300 focus:border-amber-500"
+                data-testid="textarea-late-reason"
+              />
+            </div>
+          </Card>
+        )}
 
         <Card className="p-4">
           <div className="space-y-2">

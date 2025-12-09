@@ -58,7 +58,17 @@ export default function StaffProceduresForm() {
   const [selectedProcedure, setSelectedProcedure] = useState<ProceduresTemplateWithItems | null>(null);
   const [answers, setAnswers] = useState<Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>>({});
   const [notes, setNotes] = useState("");
+  const [lateReason, setLateReason] = useState("");
   const [startTime] = useState(new Date());
+
+  // Check if the current time is past the procedure's completion time deadline
+  const isLateSubmission = (): boolean => {
+    if (!selectedProcedure?.completionTime) return false;
+    const [hours, minutes] = selectedProcedure.completionTime.split(':').map(Number);
+    const deadline = new Date();
+    deadline.setHours(hours, minutes, 0, 0);
+    return startTime > deadline;
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (accessCode: string) => {
@@ -107,6 +117,7 @@ export default function StaffProceduresForm() {
     setSelectedProcedure(null);
     setAnswers({});
     setNotes("");
+    setLateReason("");
     setStage("login");
   };
 
@@ -117,6 +128,7 @@ export default function StaffProceduresForm() {
       initialAnswers[item.id] = { value: item.responseType === "checkbox" ? false : "" };
     });
     setAnswers(initialAnswers);
+    setLateReason("");
     setStage("complete");
   };
 
@@ -142,6 +154,16 @@ export default function StaffProceduresForm() {
       return;
     }
 
+    // Validate late reason if submission is late
+    if (isLateSubmission() && !lateReason.trim()) {
+      toast({
+        title: "Late Submission Reason Required",
+        description: "Please provide an explanation for why this procedure is being started after the scheduled time.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     submitMutation.mutate({
       templateId: selectedProcedure.id,
       procedureCode: selectedProcedure.procedureCode,
@@ -152,7 +174,8 @@ export default function StaffProceduresForm() {
       submissionDate: new Date().toISOString(),
       status: "submitted",
       answers,
-      notes: notes || null
+      notes: notes || null,
+      lateReason: isLateSubmission() ? lateReason : null
     });
   };
 
@@ -160,6 +183,7 @@ export default function StaffProceduresForm() {
     setSelectedProcedure(null);
     setAnswers({});
     setNotes("");
+    setLateReason("");
     setStage("select");
   };
 
@@ -167,6 +191,7 @@ export default function StaffProceduresForm() {
     setSelectedProcedure(null);
     setAnswers({});
     setNotes("");
+    setLateReason("");
     setStage("select");
   };
 
@@ -461,6 +486,31 @@ export default function StaffProceduresForm() {
               </Card>
             ))}
           </div>
+
+          {isLateSubmission() && (
+            <Card className="mb-6 border-amber-500 bg-amber-50 dark:bg-amber-900/10">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-2 mb-2">
+                  <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300">
+                    Late Submission
+                  </Badge>
+                  <span className="text-sm text-amber-700 dark:text-amber-400">
+                    This procedure was scheduled to be completed by {selectedProcedure?.completionTime}
+                  </span>
+                </div>
+                <Label className="text-amber-800 dark:text-amber-300">
+                  Reason for Late Submission <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  value={lateReason}
+                  onChange={(e) => setLateReason(e.target.value)}
+                  placeholder="Please explain why this procedure is being started after the scheduled time..."
+                  className="mt-2 border-amber-300 focus:border-amber-500"
+                  data-testid="textarea-late-reason"
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="mb-6">
             <CardContent className="p-4">
