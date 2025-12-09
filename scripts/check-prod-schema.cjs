@@ -1,24 +1,26 @@
 const { Client } = require('pg');
 
+const PROD_URL = 'postgresql://neondb_owner:npg_ZwW7KqdEG6OA@ep-nameless-base-afdwzc1s.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require';
+
 async function check() {
-  const client = new Client({ connectionString: process.env.PROD_DATABASE_URL });
-  await client.connect();
+  const prodClient = new Client({ connectionString: PROD_URL });
+  await prodClient.connect();
   
-  // Check special_dates columns
-  const cols = await client.query(`
-    SELECT column_name, data_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'resy_special_dates' 
-    ORDER BY ordinal_position
+  // Check experiences columns
+  const expCols = await prodClient.query(`
+    SELECT column_name FROM information_schema.columns 
+    WHERE table_name = 'resy_experiences' ORDER BY ordinal_position
   `);
-  console.log('resy_special_dates columns:');
-  cols.rows.forEach(r => console.log(`  ${r.column_name}: ${r.data_type}`));
+  console.log('resy_experiences columns:', expCols.rows.map(r => r.column_name).join(', '));
   
-  // Check actual data
-  console.log('\nSpecial dates data:');
-  const data = await client.query('SELECT * FROM resy_special_dates');
-  console.log(JSON.stringify(data.rows, null, 2));
+  // Check site settings columns
+  const settingsCols = await prodClient.query(`
+    SELECT column_name FROM information_schema.columns 
+    WHERE table_name = 'resy_site_settings' ORDER BY ordinal_position
+  `);
+  console.log('\nresy_site_settings columns:', settingsCols.rows.map(r => r.column_name).join(', '));
   
-  await client.end();
+  await prodClient.end();
 }
+
 check().catch(console.error);
