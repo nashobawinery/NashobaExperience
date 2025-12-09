@@ -479,6 +479,11 @@ class ResyStorage {
     return await db.select().from(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.definitionId, definitionId));
   }
 
+  async getTicketedEventTimeslot(id: string): Promise<ResyTicketedEventTimeslot | undefined> {
+    const [timeslot] = await db.select().from(resyTicketedEventTimeslots).where(eq(resyTicketedEventTimeslots.id, id));
+    return timeslot;
+  }
+
   async createTicketedEventTimeslot(data: any): Promise<ResyTicketedEventTimeslot> {
     const [timeslot] = await db.insert(resyTicketedEventTimeslots).values(data).returning();
     return timeslot;
@@ -932,6 +937,29 @@ router.delete("/api/resy/discounts/:id", requireResyAdmin, async (req, res) => {
 // Experience timeslots
 router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => {
   try {
+    // First check if this is a ticketed experience
+    const experience = await resyStorage.getExperience(req.params.experienceId);
+    
+    if (experience?.reservationType === "ticketed" && experience.locationId) {
+      // For ticketed experiences, get timeslots from the ticketed event definition
+      const definitions = await resyStorage.getTicketedEventDefinitions(experience.locationId);
+      if (definitions.length > 0) {
+        const timeslots = await resyStorage.getTicketedEventTimeslots(definitions[0].id);
+        // Transform to match expected format with id, time, dayOfWeek, capacity
+        const transformedSlots = timeslots.map(slot => ({
+          id: slot.id,
+          experienceId: req.params.experienceId,
+          dayOfWeek: slot.dayOfWeek,
+          time: slot.startTime,
+          startTime: slot.startTime,
+          capacity: slot.capacity,
+          isActive: slot.isActive,
+        }));
+        return res.json(transformedSlots);
+      }
+    }
+    
+    // Fall back to legacy timeslots table
     const slots = await resyStorage.getTimeSlotsByExperience(req.params.experienceId);
     res.json(slots);
   } catch (error: any) {
@@ -1968,10 +1996,20 @@ router.get("/api/timeslots/:id/availability", async (req, res) => {
       return res.status(400).json({ message: "Date query parameter is required" });
     }
     
-    // Get the timeslot
-    const timeSlot = await resyStorage.getTimeSlot(id);
-    if (!timeSlot) {
-      return res.status(404).json({ message: "Timeslot not found" });
+    // Try to get the timeslot from ticketed events first, then fall back to legacy
+    let capacity = 20;
+    
+    // Check ticketed event timeslots first
+    const ticketedTimeslot = await resyStorage.getTicketedEventTimeslot(id);
+    if (ticketedTimeslot) {
+      capacity = ticketedTimeslot.capacity || 20;
+    } else {
+      // Fall back to legacy timeslots table
+      const timeSlot = await resyStorage.getTimeSlot(id);
+      if (!timeSlot) {
+        return res.status(404).json({ message: "Timeslot not found" });
+      }
+      capacity = timeSlot.capacity || 20;
     }
     
     // Count existing reservations for this slot on this date
@@ -1982,7 +2020,6 @@ router.get("/api/timeslots/:id/availability", async (req, res) => {
       r.status !== 'cancelled'
     ).reduce((sum, r) => sum + (r.ticketQuantity || 1), 0);
     
-    const capacity = timeSlot.capacity || 20;
     const available = Math.max(0, capacity - bookedCount);
     
     res.json({
