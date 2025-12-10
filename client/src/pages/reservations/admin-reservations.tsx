@@ -253,6 +253,13 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
             Confirmed
           </Badge>
         );
+      case 'booked':
+        return (
+          <Badge className="bg-blue-600 hover:bg-blue-700">
+            <Clock className="w-3 h-3 mr-1" />
+            Booked
+          </Badge>
+        );
       case 'cancelled':
         return (
           <Badge variant="destructive">
@@ -264,7 +271,7 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
         return (
           <Badge variant="secondary">
             <Clock className="w-3 h-3 mr-1" />
-            Pending
+            {status}
           </Badge>
         );
     }

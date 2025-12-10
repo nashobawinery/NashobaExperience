@@ -57,6 +57,7 @@ const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
 const ResyCheckout = lazy(() => import("@/pages/reservations/checkout"));
 const ResyConfirmation = lazy(() => import("@/pages/reservations/confirmation"));
+const ResyConfirmReservation = lazy(() => import("@/pages/reservations/confirm"));
 
 // Lazy load Reservations module - Admin
 const ResyAdminHome = lazy(() => import("@/pages/reservations/admin-home"));
@@ -535,6 +536,14 @@ function ResyConfirmationRoute() {
   );
 }
 
+function ResyConfirmReservationRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyConfirmReservation />
+    </Suspense>
+  );
+}
+
 // Reservation Routes - Admin (protected with sidebar layout)
 function ResyAdminHomeRoute() {
   return (
@@ -817,6 +826,8 @@ function Router() {
         <Route path="/confirmation/:id" component={ResyConfirmationRoute} />
         <Route path="/reservations/checkout" component={ResyCheckoutRoute} />
         <Route path="/reservations/confirmation" component={ResyConfirmationRoute} />
+        <Route path="/reservations/confirm/:token" component={ResyConfirmReservationRoute} />
+        <Route path="/reservations/cancel/:token" component={ResyConfirmReservationRoute} />
         {/* Reservation Routes - Admin */}
         <Route path="/reservations/admin" component={ResyAdminHomeRoute} />
         <Route path="/reservations/admin/calendar" component={ResyAdminCalendarRoute} />

@@ -3236,8 +3236,9 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
     const holdStart = time;
     const holdEnd = minutesToTime(timeToMinutes(time) + turnDuration);
     
-    // Step 6: Generate confirmation code
+    // Step 6: Generate confirmation code and token
     const confirmationCode = `RES-${Date.now().toString(36).toUpperCase()}`;
+    const confirmationToken = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
     
     // Step 7: Create the reservation
     const reservationData = {
@@ -3251,8 +3252,9 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
       customerPhone: customerPhone || null,
       notes: notes || null,
       specialRequests: specialRequests || null,
-      status: "confirmed",
+      status: "booked", // New reservations start as "booked", customer confirms via email link
       confirmationCode,
+      confirmationToken,
       assignedTableId: assignedTable.tableId,
       tableAssignment: assignedTable.tableLabel,
       holdStart,
@@ -3343,6 +3345,138 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
   } catch (error: any) {
     console.error("Booking error:", error);
     res.status(500).json({ message: "Failed to create reservation: " + error.message });
+  }
+});
+
+// ==========================================
+// PUBLIC CONFIRMATION ENDPOINTS
+// ==========================================
+
+// Get reservation details by confirmation token (public - no auth required)
+router.get("/api/resy/confirm/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const [reservation] = await db.select()
+      .from(resyReservations)
+      .where(eq(resyReservations.confirmationToken, token));
+    
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+    
+    // Get experience details
+    const experience = await resyStorage.getExperience(reservation.experienceId);
+    
+    res.json({
+      reservation: {
+        id: reservation.id,
+        customerName: reservation.customerName,
+        reservationDate: reservation.reservationDate,
+        reservationTime: reservation.reservationTime,
+        partySize: reservation.partySize,
+        status: reservation.status,
+        specialRequests: reservation.specialRequests,
+        confirmationCode: reservation.confirmationCode
+      },
+      experience: experience ? {
+        name: experience.name,
+        description: experience.description
+      } : null
+    });
+  } catch (error: any) {
+    console.error("Get reservation by token error:", error);
+    res.status(500).json({ message: "Failed to retrieve reservation" });
+  }
+});
+
+// Confirm reservation via token (public - no auth required)
+router.post("/api/resy/confirm/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const [reservation] = await db.select()
+      .from(resyReservations)
+      .where(eq(resyReservations.confirmationToken, token));
+    
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+    
+    if (reservation.status === "cancelled") {
+      return res.status(400).json({ message: "This reservation has been cancelled" });
+    }
+    
+    if (reservation.status === "confirmed") {
+      return res.json({ 
+        success: true, 
+        message: "Reservation is already confirmed",
+        reservation 
+      });
+    }
+    
+    // Update status to confirmed
+    const [updated] = await db.update(resyReservations)
+      .set({ 
+        status: "confirmed",
+        updatedAt: new Date()
+      })
+      .where(eq(resyReservations.id, reservation.id))
+      .returning();
+    
+    console.log(`[Reservation] Customer confirmed reservation ${reservation.id} via email link`);
+    
+    res.json({ 
+      success: true, 
+      message: "Thank you! Your reservation has been confirmed.",
+      reservation: updated 
+    });
+  } catch (error: any) {
+    console.error("Confirm reservation error:", error);
+    res.status(500).json({ message: "Failed to confirm reservation" });
+  }
+});
+
+// Cancel reservation via token (public - no auth required)
+router.post("/api/resy/cancel/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const [reservation] = await db.select()
+      .from(resyReservations)
+      .where(eq(resyReservations.confirmationToken, token));
+    
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+    
+    if (reservation.status === "cancelled") {
+      return res.json({ 
+        success: true, 
+        message: "This reservation has already been cancelled",
+        reservation 
+      });
+    }
+    
+    // Update status to cancelled
+    const [updated] = await db.update(resyReservations)
+      .set({ 
+        status: "cancelled",
+        updatedAt: new Date()
+      })
+      .where(eq(resyReservations.id, reservation.id))
+      .returning();
+    
+    console.log(`[Reservation] Customer cancelled reservation ${reservation.id} via email link`);
+    
+    res.json({ 
+      success: true, 
+      message: "Your reservation has been cancelled.",
+      reservation: updated 
+    });
+  } catch (error: any) {
+    console.error("Cancel reservation error:", error);
+    res.status(500).json({ message: "Failed to cancel reservation" });
   }
 });
 

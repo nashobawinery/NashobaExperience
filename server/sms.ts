@@ -111,12 +111,25 @@ export function generateReservationReminderSMS(data: {
   customerName: string;
   experienceName: string;
   reservationTime: string;
+  confirmationToken?: string;
+  status?: string;
 }): string {
-  const { customerName, experienceName, reservationTime } = data;
+  const { customerName, experienceName, reservationTime, confirmationToken, status } = data;
   
-  return `Hi ${customerName.split(' ')[0]}! Reminder: Your ${experienceName} at Nashoba Valley Winery is TODAY at ${reservationTime}.
-
-Please arrive 10-15 min early. We're excited to see you!
-
-Questions? (978) 779-5521`;
+  // Generate confirmation URL if needed
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+    : (process.env.PUBLIC_URL || 'https://nashobawinery.com');
+  const confirmUrl = confirmationToken ? `${baseUrl}/reservations/confirm/${confirmationToken}` : null;
+  const needsConfirmation = status === 'booked' && confirmationToken;
+  
+  let message = `Hi ${customerName.split(' ')[0]}! Reminder: Your ${experienceName} at Nashoba Valley Winery is TODAY at ${reservationTime}.`;
+  
+  if (needsConfirmation) {
+    message += `\n\nPlease confirm: ${confirmUrl}`;
+  }
+  
+  message += `\n\nPlease arrive 10-15 min early. We're excited to see you!\n\nQuestions? (978) 779-5521`;
+  
+  return message;
 }

@@ -1928,11 +1928,12 @@ export const resyReservations = pgTable("resy_reservations", {
   customerName: text("customer_name").notNull(),
   customerEmail: text("customer_email").notNull(),
   customerPhone: text("customer_phone"),
-  status: text("status").notNull().default("confirmed"),
+  status: text("status").notNull().default("booked"), // booked -> confirmed -> cancelled
   notes: text("notes"),
   specialRequests: text("special_requests"),
   tableAssignment: text("table_assignment"),
   confirmationCode: varchar("confirmation_code"),
+  confirmationToken: varchar("confirmation_token"), // Secure token for email confirm/cancel links
   paymentIntentId: text("payment_intent_id"),
   totalAmount: text("total_amount"),
   assignedTableId: varchar("assigned_table_id"), // The table assigned via availability algorithm

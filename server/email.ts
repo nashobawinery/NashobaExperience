@@ -1121,6 +1121,8 @@ export interface ReservationReminderData {
   ticketQuantity?: number;
   partySize?: number;
   specialRequests?: string;
+  confirmationToken?: string; // For confirm/cancel links
+  status?: string; // Current reservation status
 }
 
 export function generateReservationReminderEmail(data: ReservationReminderData): { subject: string; html: string; text: string } {
@@ -1130,12 +1132,22 @@ export function generateReservationReminderEmail(data: ReservationReminderData):
     reservationTime,
     ticketQuantity,
     partySize,
-    specialRequests
+    specialRequests,
+    confirmationToken,
+    status
   } = data;
 
   const isTicketed = ticketQuantity && ticketQuantity > 0;
   const guestCount = isTicketed ? ticketQuantity : (partySize || 1);
   const formattedTime = formatTo12Hour(reservationTime);
+  
+  // Generate confirmation/cancel URLs if token is provided
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+    : (process.env.PUBLIC_URL || 'https://nashobawinery.com');
+  const confirmUrl = confirmationToken ? `${baseUrl}/reservations/confirm/${confirmationToken}` : null;
+  const cancelUrl = confirmationToken ? `${baseUrl}/reservations/cancel/${confirmationToken}` : null;
+  const needsConfirmation = status === 'booked' && confirmationToken;
 
   const subject = `Today's the Day! Your ${experienceName} Awaits`;
   
@@ -1151,6 +1163,13 @@ Experience: ${experienceName}
 Time: ${formattedTime}
 ${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
 ${specialRequests ? `Special Requests: ${specialRequests}` : ''}
+
+${needsConfirmation ? `
+PLEASE CONFIRM YOUR RESERVATION
+Click this link to confirm you're coming: ${confirmUrl}
+
+Need to cancel? Click here: ${cancelUrl}
+` : ''}
 
 ARRIVAL TIPS
 - Please arrive 10-15 minutes before your scheduled time
@@ -1253,6 +1272,33 @@ Bolton, MA 01740
     .contact-box h3 { margin: 0 0 15px 0; color: #5C2535; }
     .contact-box p { margin: 5px 0; }
     .contact-box a { color: #5C2535; font-weight: bold; }
+    .action-buttons {
+      text-align: center;
+      margin: 30px 0;
+      padding: 25px;
+      background: linear-gradient(135deg, #f8f4e8 0%, #fff 100%);
+      border: 2px solid #C9A961;
+      border-radius: 12px;
+    }
+    .action-buttons h3 { margin: 0 0 15px 0; color: #5C2535; }
+    .action-buttons p { margin: 0 0 20px 0; color: #666; }
+    .btn {
+      display: inline-block;
+      padding: 14px 35px;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 16px;
+      margin: 0 8px;
+    }
+    .btn-confirm {
+      background-color: #16A34A;
+      color: white;
+    }
+    .btn-cancel {
+      background-color: #DC2626;
+      color: white;
+    }
     .footer { 
       background-color: #5C2535; 
       padding: 25px; 
@@ -1302,6 +1348,15 @@ Bolton, MA 01740
       <div class="special-requests">
         <h4>Your Special Requests</h4>
         <p>${specialRequests}</p>
+      </div>
+      ` : ''}
+      
+      ${needsConfirmation ? `
+      <div class="action-buttons">
+        <h3>Please Confirm Your Reservation</h3>
+        <p>Let us know you're still coming so we can prepare for your visit!</p>
+        <a href="${confirmUrl}" class="btn btn-confirm">Yes, I'm Coming!</a>
+        <a href="${cancelUrl}" class="btn btn-cancel">Cancel Reservation</a>
       </div>
       ` : ''}
       

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { resyReservations, resyExperiences, resyCustomers } from "@shared/schema";
 import { generateReservationReminderEmail, sendEmail } from "./email";
 import { sendSMS, generateReservationReminderSMS, isSmsConfigured } from "./sms";
@@ -11,13 +11,17 @@ async function sendDailyReminders() {
   console.log(`[Reservation Reminders] Starting daily reminder job for ${today}`);
   
   try {
+    // Get both "booked" and "confirmed" reservations - "booked" will get confirmation links
     const reservations = await db
       .select()
       .from(resyReservations)
       .where(
         and(
           eq(resyReservations.reservationDate, today),
-          eq(resyReservations.status, "confirmed")
+          or(
+            eq(resyReservations.status, "confirmed"),
+            eq(resyReservations.status, "booked")
+          )
         )
       );
     
@@ -64,11 +68,13 @@ async function sendDailyReminders() {
             ticketQuantity: reservation.ticketQuantity || undefined,
             partySize: reservation.partySize || undefined,
             specialRequests: reservation.specialRequests || undefined,
+            confirmationToken: reservation.confirmationToken || undefined,
+            status: reservation.status,
           };
           
           const { subject, html, text } = generateReservationReminderEmail(emailData);
           await sendEmail(reservation.customerEmail, subject, html, text);
-          console.log(`[Reservation Reminders] Sent email reminder to ${reservation.customerEmail} for ${experience.name}`);
+          console.log(`[Reservation Reminders] Sent email reminder to ${reservation.customerEmail} for ${experience.name} (status: ${reservation.status})`);
         }
         
         // Send SMS reminder
@@ -77,9 +83,11 @@ async function sendDailyReminders() {
             customerName: reservation.customerName,
             experienceName: experience.name,
             reservationTime: reservation.reservationTime || "TBD",
+            confirmationToken: reservation.confirmationToken || undefined,
+            status: reservation.status,
           });
           await sendSMS(reservation.customerPhone!, smsMessage);
-          console.log(`[Reservation Reminders] Sent SMS reminder to ${reservation.customerPhone} for ${experience.name}`);
+          console.log(`[Reservation Reminders] Sent SMS reminder to ${reservation.customerPhone} for ${experience.name} (status: ${reservation.status})`);
         }
         
         sentCount++;
