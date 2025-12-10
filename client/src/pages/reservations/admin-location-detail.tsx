@@ -914,7 +914,12 @@ function ServicePeriodCard({ period, onEdit }: { period: MealPeriod; onEdit: (pe
       await apiRequest("DELETE", `/api/resy/meal-periods/${period.id}`, {});
     },
     onSuccess: () => {
+      // Invalidate meal periods and related queries
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", period.locationId, "meal-periods"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", period.locationId, "flow-controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", period.locationId, "turn-times"] });
+      // Force refetch
+      queryClient.refetchQueries({ queryKey: ["/api/resy/locations", period.locationId, "meal-periods"] });
       toast({
         title: "Service Period Deleted",
         description: "The service period has been deleted successfully",
