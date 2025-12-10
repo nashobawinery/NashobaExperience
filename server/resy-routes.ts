@@ -1434,8 +1434,24 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
       return res.status(400).json({ message: "Date is required" });
     }
     
-    const requestedDate = new Date(date as string);
-    const dayOfWeek = requestedDate.getDay();
+    const requestedSize = parseInt(partySize as string) || 2;
+    
+    // Step 1: Use new utility to check schedule (special dates, holidays, service periods)
+    const schedule = await getNormalizedSchedule(locationId, date as string);
+    
+    if (schedule.isClosed) {
+      return res.json({ 
+        availableTimes: [], 
+        messages: { closedMessage: schedule.closureReason || "Location is closed on this day" } 
+      });
+    }
+    
+    if (schedule.servicePeriods.length === 0) {
+      return res.json({ 
+        availableTimes: [], 
+        messages: { closedMessage: "No service periods available for this day" } 
+      });
+    }
     
     // Get the location to check for reservationCloseTime
     const location = await resyStorage.getLocation(locationId);
@@ -1444,104 +1460,72 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     }
     
     // Parse reservation close time if set
-    let closeTimeHour: number | null = null;
-    let closeTimeMin: number | null = null;
+    let closeTimeMinutes: number | null = null;
     if (location.reservationCloseTime) {
-      const parts = location.reservationCloseTime.split(':').map(Number);
-      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        closeTimeHour = parts[0];
-        closeTimeMin = parts[1];
-      }
-    }
-    
-    // Get service periods (meal periods) for this location and filter by day availability
-    const mealPeriods = await resyStorage.getMealPeriodsByLocation(locationId);
-    const activePeriods = mealPeriods.filter(p => {
-      if (!p.isActive) return false;
-      // Check if this day is in the daysAvailable array
-      const daysAvailable = p.daysAvailable || [0, 1, 2, 3, 4, 5, 6]; // Default to all days if not set
-      return daysAvailable.includes(dayOfWeek);
-    });
-    
-    if (activePeriods.length === 0) {
-      return res.json({ 
-        availableTimes: [], 
-        messages: { closed: "Location is closed on this day" } 
-      });
+      closeTimeMinutes = timeToMinutes(location.reservationCloseTime);
     }
     
     // Get flow controls for capacity limits
     const flowControls = await resyStorage.getFlowControlsByLocation(locationId);
     
-    // Get existing reservations for this date
-    const reservations = await resyStorage.getReservationsByDate(date as string, locationId);
-    
     // Generate time slots based on service periods
-    const availableTimes: Array<{time: string, available: boolean, capacity?: number, mealPeriod?: string}> = [];
+    const availableTimes: Array<{
+      time: string;
+      available: boolean;
+      capacity?: number;
+      mealPeriod?: string;
+      tablesAvailable?: number;
+    }> = [];
     
-    for (const period of activePeriods) {
+    for (const period of schedule.servicePeriods) {
       if (!period.startTime || !period.endTime) continue;
       
       // Parse times - use lastReservationTime if set, otherwise use endTime
-      const [openHour, openMin] = period.startTime.split(':').map(Number);
-      const effectiveEndTime = period.lastReservationTime || period.endTime;
-      let [closeHour, closeMin] = effectiveEndTime.split(':').map(Number);
+      const openMinutes = timeToMinutes(period.startTime);
+      let effectiveCloseMinutes = timeToMinutes(period.lastReservationTime || period.endTime);
       
       // Apply reservation close time if set - limits the latest slot time
-      if (closeTimeHour !== null && closeTimeMin !== null) {
-        // Use the earlier of service period close or reservation close time
-        const serviceCloseMinutes = closeHour * 60 + closeMin;
-        const reservationCloseMinutes = closeTimeHour * 60 + closeTimeMin;
-        if (reservationCloseMinutes < serviceCloseMinutes) {
-          closeHour = closeTimeHour;
-          closeMin = closeTimeMin;
-        }
+      if (closeTimeMinutes !== null && closeTimeMinutes < effectiveCloseMinutes) {
+        effectiveCloseMinutes = closeTimeMinutes;
       }
       
       // Get flow control for this meal period (or default)
-      const flowControl = flowControls.find(fc => fc.mealPeriodId === period.id && fc.isActive);
-      // Ensure interval is positive to prevent infinite loops
+      const flowControl = flowControls.find(fc => fc.mealPeriodId === period.periodId && fc.isActive);
       const intervalMinutes = Math.max(flowControl?.intervalMinutes ?? 30, 1);
-      const defaultMaxCovers = flowControl?.maxCoversPerInterval ?? 20;
       
-      // Parse interval overrides for controlled flow mode
-      const isControlledMode = flowControl?.flowMode === "controlled";
-      const intervalOverrides = (flowControl?.intervalOverrides as Array<{time: string, maxCovers: number}>) || [];
-      
-      // Calculate the effective close time in minutes for easier comparison
-      const effectiveCloseMinutes = closeHour * 60 + closeMin;
-      const openMinutes = openHour * 60 + openMin;
-      
-      // Generate time slots - iterate through all possible slots from open to close
-      // Only generate slots that are strictly BEFORE the effective close time
+      // Generate time slots
       let currentMinutes = openMinutes;
       
       while (currentMinutes < effectiveCloseMinutes && currentMinutes < 24 * 60) {
-        const slotHour = Math.floor(currentMinutes / 60);
-        const slotMin = currentMinutes % 60;
-        const timeStr = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`;
+        const timeStr = minutesToTime(currentMinutes);
         
-        // Determine max covers for this specific time slot
-        let maxCovers = defaultMaxCovers;
-        if (isControlledMode && intervalOverrides.length > 0) {
-          const override = intervalOverrides.find(o => o.time === timeStr);
-          if (override) {
-            maxCovers = override.maxCovers;
-          }
-        }
+        // Step 2: Check flow capacity for this time slot
+        const flowResult = await getRemainingCovers(locationId, date as string, timeStr, period.periodId);
         
-        // Count existing reservations at this time
-        const existingCovers = reservations
-          .filter((r: ResyReservation) => r.reservationTime === timeStr)
-          .reduce((sum: number, r: ResyReservation) => sum + (r.partySize || 0), 0);
+        // Step 3: Get turn duration for party size
+        const turnDuration = await getTurnDuration(locationId, period.periodId, requestedSize);
         
-        const remaining = maxCovers - existingCovers;
-        const requestedSize = parseInt(partySize as string) || 2;
+        // Step 4: Check table availability
+        const availableTables = await getAvailableTables(
+          locationId,
+          date as string,
+          timeStr,
+          requestedSize,
+          turnDuration
+        );
+        
+        // A time is available if:
+        // 1. Flow capacity allows it (remaining covers >= party size)
+        // 2. At least one table is available
+        const hasFlowCapacity = flowResult.remainingCovers >= requestedSize;
+        const hasTableAvailable = availableTables.length > 0;
         
         availableTimes.push({
           time: timeStr,
-          available: remaining >= requestedSize,
-          capacity: remaining
+          available: hasFlowCapacity && hasTableAvailable,
+          capacity: flowResult.remainingCovers,
+          mealPeriod: period.periodName,
+          tablesAvailable: availableTables.length
         });
         
         // Advance by interval
