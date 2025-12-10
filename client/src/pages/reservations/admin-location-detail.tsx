@@ -3415,14 +3415,19 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
   const [advanceBookingDays, setAdvanceBookingDays] = useState<string>(
     location.advanceBookingDays?.toString() || ""
   );
+  const [maxReservationSize, setMaxReservationSize] = useState<string>(
+    (location as any).maxReservationSize?.toString() || "10"
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const value = advanceBookingDays ? parseInt(advanceBookingDays) : null;
+      const advanceValue = advanceBookingDays ? parseInt(advanceBookingDays) : null;
+      const maxSizeValue = maxReservationSize ? parseInt(maxReservationSize) : 10;
       await apiRequest("PATCH", `/api/resy/locations/${locationId}`, {
-        advanceBookingDays: value,
+        advanceBookingDays: advanceValue,
+        maxReservationSize: maxSizeValue,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/locations", locationId] });
@@ -3468,6 +3473,29 @@ function LocationSettingsTab({ locationId, location }: { locationId: string; loc
                 data-testid="input-advance-booking-days"
               />
               <span className="text-sm text-muted-foreground">days</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="max-reservation-size">
+              Maximum Reservation Size
+            </label>
+            <p className="text-sm text-muted-foreground">
+              Maximum party size allowed for reservations at this location.
+            </p>
+            <div className="flex items-center gap-3">
+              <Input
+                id="max-reservation-size"
+                type="number"
+                min={1}
+                max={50}
+                placeholder="e.g., 10"
+                value={maxReservationSize}
+                onChange={(e) => setMaxReservationSize(e.target.value)}
+                className="w-32"
+                data-testid="input-max-reservation-size"
+              />
+              <span className="text-sm text-muted-foreground">guests</span>
             </div>
           </div>
         </div>
