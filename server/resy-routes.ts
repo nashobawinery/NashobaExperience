@@ -196,7 +196,9 @@ class ResyStorage {
   }
 
   async getMealPeriodsByLocation(locationId: string): Promise<ResyMealPeriod[]> {
-    return await db.select().from(resyMealPeriods).orderBy(resyMealPeriods.displayOrder);
+    return await db.select().from(resyMealPeriods)
+      .where(eq(resyMealPeriods.locationId, locationId))
+      .orderBy(resyMealPeriods.displayOrder);
   }
 
   async getAllMealPeriods(): Promise<ResyMealPeriod[]> {
