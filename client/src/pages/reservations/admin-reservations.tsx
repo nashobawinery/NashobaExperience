@@ -16,8 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil } from "lucide-react";
+import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -165,10 +166,12 @@ export default function AdminReservations() {
 
 function ReservationRow({ reservation, experience, onEdit }: { reservation: Reservation; experience?: Experience; onEdit: (reservation: Reservation) => void }) {
   const { toast } = useToast();
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      await apiRequest("PUT", `/api/reservations/${reservation.id}`, { status });
+      await apiRequest("PUT", `/api/resy/reservations/${reservation.id}`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
@@ -191,6 +194,48 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
       }
       toast({
         title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/resy/reservations/${reservation.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
+      toast({
+        title: "Reservation Deleted",
+        description: "The reservation has been permanently deleted",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const refundMutation = useMutation({
+    mutationFn: async (data: { amount?: string }) => {
+      return await apiRequest("POST", `/api/resy/reservations/${reservation.id}/refund`, data);
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
+      setIsRefundDialogOpen(false);
+      setRefundAmount("");
+      toast({
+        title: "Refund Processed",
+        description: `$${data.refundedAmount.toFixed(2)} has been refunded${data.isFullRefund ? ' (full refund)' : ' (partial refund)'}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Refund Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -248,14 +293,14 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
       </TableCell>
       <TableCell>{getStatusBadge(reservation.status)}</TableCell>
       <TableCell>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
             onClick={() => onEdit(reservation)}
             data-testid={`button-edit-${reservation.id}`}
           >
-            <Pencil className="w-3 h-3 mr-2" />
+            <Pencil className="w-3 h-3 mr-1" />
             Edit
           </Button>
           {reservation.status !== 'confirmed' && (
@@ -272,7 +317,7 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
           {reservation.status !== 'cancelled' && (
             <Button
               size="sm"
-              variant="destructive"
+              variant="secondary"
               onClick={() => updateStatusMutation.mutate('cancelled')}
               disabled={updateStatusMutation.isPending}
               data-testid={`button-cancel-${reservation.id}`}
@@ -280,7 +325,90 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
               Cancel
             </Button>
           )}
+          {reservation.totalAmount && parseFloat(reservation.totalAmount) > 0 && reservation.paymentIntentId && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsRefundDialogOpen(true)}
+              data-testid={`button-refund-${reservation.id}`}
+            >
+              <DollarSign className="w-3 h-3 mr-1" />
+              Refund
+            </Button>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="destructive"
+                data-testid={`button-delete-${reservation.id}`}
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Reservation</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to permanently delete this reservation for {reservation.customerName}? 
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteMutation.mutate()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
+
+        {/* Refund Dialog */}
+        <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Process Refund</DialogTitle>
+              <DialogDescription>
+                Original payment: ${parseFloat(reservation.totalAmount || "0").toFixed(2)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Refund Amount (leave blank for full refund)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder={`Full refund: $${parseFloat(reservation.totalAmount || "0").toFixed(2)}`}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  data-testid="input-refund-amount"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRefundDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => refundMutation.mutate({ amount: refundAmount || undefined })}
+                disabled={refundMutation.isPending}
+              >
+                {refundMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  `Refund ${refundAmount ? `$${parseFloat(refundAmount).toFixed(2)}` : 'Full Amount'}`
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </TableCell>
     </TableRow>
   );
@@ -409,7 +537,7 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid="input-customer-phone" />
+                      <Input {...field} value={field.value || ""} data-testid="input-customer-phone" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -499,7 +627,7 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
                 <FormItem>
                   <FormLabel>Special Requests</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid="input-special-requests" />
+                    <Input {...field} value={field.value || ""} data-testid="input-special-requests" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

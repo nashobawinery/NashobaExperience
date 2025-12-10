@@ -195,6 +195,10 @@ class ResyStorage {
     return reservation;
   }
 
+  async deleteReservation(id: string): Promise<void> {
+    await db.delete(resyReservations).where(eq(resyReservations.id, id));
+  }
+
   async getMealPeriodsByLocation(locationId: string): Promise<ResyMealPeriod[]> {
     return await db.select().from(resyMealPeriods)
       .where(eq(resyMealPeriods.locationId, locationId))
@@ -1125,6 +1129,94 @@ router.put("/api/resy/reservations/:id", requireResyAdmin, async (req, res) => {
     res.json(reservation);
   } catch (error: any) {
     res.status(400).json({ message: "Failed to update reservation: " + error.message });
+  }
+});
+
+// Delete reservation
+router.delete("/api/resy/reservations/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const reservation = await resyStorage.getReservation(req.params.id);
+    if (!reservation) return res.status(404).json({ message: "Reservation not found" });
+    
+    await resyStorage.deleteReservation(req.params.id);
+    res.status(204).send();
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete reservation: " + error.message });
+  }
+});
+
+// Refund reservation payment
+router.post("/api/resy/reservations/:id/refund", requireResyAdmin, async (req, res) => {
+  try {
+    const reservation = await resyStorage.getReservation(req.params.id);
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+    
+    if (!reservation.paymentIntentId) {
+      return res.status(400).json({ message: "No payment found for this reservation" });
+    }
+    
+    if (!stripe) {
+      return res.status(500).json({ message: "Stripe is not configured" });
+    }
+    
+    const { amount, reason } = req.body;
+    
+    // Get the payment intent to check the amount
+    const paymentIntent = await stripe.paymentIntents.retrieve(reservation.paymentIntentId);
+    
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ message: "Payment was not successful, cannot refund" });
+    }
+    
+    // Calculate refund amount (in cents)
+    let refundAmountCents: number;
+    if (amount) {
+      refundAmountCents = Math.round(parseFloat(amount) * 100);
+      if (refundAmountCents > paymentIntent.amount) {
+        return res.status(400).json({ 
+          message: `Refund amount exceeds original payment of $${(paymentIntent.amount / 100).toFixed(2)}` 
+        });
+      }
+    } else {
+      // Full refund
+      refundAmountCents = paymentIntent.amount;
+    }
+    
+    // Create the refund
+    const refund = await stripe.refunds.create({
+      payment_intent: reservation.paymentIntentId,
+      amount: refundAmountCents,
+      reason: reason === 'duplicate' ? 'duplicate' : 
+              reason === 'fraudulent' ? 'fraudulent' : 'requested_by_customer'
+    });
+    
+    // Update reservation status if full refund
+    const isFullRefund = refundAmountCents === paymentIntent.amount;
+    if (isFullRefund) {
+      await resyStorage.updateReservation(req.params.id, { 
+        status: 'cancelled',
+        notes: `${reservation.notes || ''}\n[Refunded: $${(refundAmountCents / 100).toFixed(2)} on ${new Date().toISOString()}]`.trim()
+      });
+    } else {
+      // Partial refund - update the total amount
+      const newTotal = (paymentIntent.amount - refundAmountCents) / 100;
+      await resyStorage.updateReservation(req.params.id, { 
+        totalAmount: newTotal.toFixed(2),
+        notes: `${reservation.notes || ''}\n[Partial refund: $${(refundAmountCents / 100).toFixed(2)} on ${new Date().toISOString()}]`.trim()
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      refundId: refund.id,
+      refundedAmount: refundAmountCents / 100,
+      isFullRefund
+    });
+  } catch (error: any) {
+    console.error("Refund error:", error);
+    res.status(500).json({ message: "Failed to process refund: " + error.message });
   }
 });
 

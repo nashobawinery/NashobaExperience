@@ -22,32 +22,47 @@ if (accountSid && authToken) {
 }
 
 export function isSmsConfigured(): boolean {
-  return !!(twilioClient && fromPhone);
+  const configured = !!(twilioClient && fromPhone);
+  if (!configured) {
+    console.log("[SMS] isSmsConfigured check:", {
+      hasTwilioClient: !!twilioClient,
+      hasFromPhone: !!fromPhone,
+      fromPhonePrefix: fromPhone ? fromPhone.substring(0, 4) + '...' : 'none'
+    });
+  }
+  return configured;
 }
 
 export async function sendSMS(to: string, message: string): Promise<SMSResult> {
+  console.log("[SMS] Attempting to send SMS to:", to);
+  
   if (!twilioClient || !fromPhone) {
-    console.warn("[SMS] Twilio not configured - skipping SMS");
+    console.warn("[SMS] Twilio not configured - skipping SMS", {
+      hasTwilioClient: !!twilioClient,
+      hasFromPhone: !!fromPhone
+    });
     return { success: false, error: "SMS not configured" };
   }
 
   // Format phone number if needed
   const formattedPhone = formatPhoneNumber(to);
   if (!formattedPhone) {
+    console.warn("[SMS] Invalid phone number format:", to);
     return { success: false, error: "Invalid phone number format" };
   }
 
   try {
+    console.log("[SMS] Sending message from", fromPhone?.substring(0, 4) + '...', "to", formattedPhone);
     const result = await twilioClient.messages.create({
       body: message,
       from: fromPhone,
       to: formattedPhone,
     });
 
-    console.log(`[SMS] Message sent to ${formattedPhone}: ${result.sid}`);
+    console.log(`[SMS] Message sent successfully to ${formattedPhone}: ${result.sid}`);
     return { success: true, messageId: result.sid };
   } catch (error: any) {
-    console.error("[SMS] Failed to send message:", error.message);
+    console.error("[SMS] Failed to send message:", error.message, "Code:", error.code);
     return { success: false, error: error.message };
   }
 }
