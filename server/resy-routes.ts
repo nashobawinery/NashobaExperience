@@ -2476,7 +2476,7 @@ async function getAvailableTables(
   return availableTables;
 }
 
-// MAIN AVAILABILITY ENDPOINT
+// MAIN AVAILABILITY ENDPOINT - OPTIMIZED with batched queries
 router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
   try {
     const { locationId } = req.params;
@@ -2503,32 +2503,168 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
       });
     }
     
-    // Step 2: Generate time slots for each service period
+    // OPTIMIZATION: Batch all database queries upfront (4 parallel queries instead of 5 per slot)
+    const [allTables, allReservations, allFlowControls, allTurnTimes] = await Promise.all([
+      db.select()
+        .from(resyLocationTables)
+        .where(and(
+          eq(resyLocationTables.locationId, locationId),
+          eq(resyLocationTables.isActive, true),
+          eq(resyLocationTables.isPaused, false)
+        )),
+      db.select()
+        .from(resyReservations)
+        .where(and(
+          eq(resyReservations.locationId, locationId),
+          eq(resyReservations.reservationDate, date as string),
+          not(eq(resyReservations.status, "cancelled"))
+        )),
+      db.select()
+        .from(resyFlowControls)
+        .where(and(
+          eq(resyFlowControls.locationId, locationId),
+          eq(resyFlowControls.isActive, true)
+        )),
+      db.select()
+        .from(resyTurnTimeSettings)
+        .where(and(
+          eq(resyTurnTimeSettings.locationId, locationId),
+          eq(resyTurnTimeSettings.isActive, true)
+        ))
+    ]);
+    
+    // Pre-filter tables by party size capacity
+    const suitableTables = allTables.filter(t => 
+      party >= t.minCapacity && party <= t.maxCapacity
+    );
+    
+    // Helper: Get turn duration (in-memory)
+    const getTurnDurationFast = (mealPeriodId: string | null): number => {
+      let candidates = mealPeriodId 
+        ? allTurnTimes.filter(tt => tt.mealPeriodId === mealPeriodId)
+        : allTurnTimes;
+      
+      if (candidates.length === 0) {
+        candidates = allTurnTimes;
+      }
+      
+      const match = candidates.find(tt => 
+        party >= tt.minPartySize && party <= tt.maxPartySize
+      );
+      
+      return match ? match.durationMinutes : 90;
+    };
+    
+    // Helper: Get remaining covers (in-memory)
+    const getRemainingCoversFast = (time: string, mealPeriodId: string | null): {
+      maxCovers: number;
+      usedCovers: number;
+      remainingCovers: number;
+      flowMode: string;
+    } => {
+      let flowControl = allFlowControls.find(fc => fc.mealPeriodId === mealPeriodId);
+      if (!flowControl) {
+        flowControl = allFlowControls.find(fc => fc.mealPeriodId === null);
+      }
+      
+      if (!flowControl) {
+        return { maxCovers: 999, usedCovers: 0, remainingCovers: 999, flowMode: "none" };
+      }
+      
+      let maxCovers = flowControl.maxCoversPerInterval || 20;
+      
+      if (flowControl.flowMode === "controlled" && flowControl.intervalOverrides) {
+        const overrides = flowControl.intervalOverrides as Array<{time: string, maxCovers: number}>;
+        const override = overrides.find(o => o.time === time);
+        if (override) {
+          maxCovers = override.maxCovers;
+        }
+      }
+      
+      const intervalMinutes = flowControl.intervalMinutes || 15;
+      const timeMinutes = timeToMinutes(time);
+      const intervalStart = minutesToTime(Math.floor(timeMinutes / intervalMinutes) * intervalMinutes);
+      const intervalEnd = minutesToTime(Math.floor(timeMinutes / intervalMinutes) * intervalMinutes + intervalMinutes);
+      
+      const usedCovers = allReservations
+        .filter(r => {
+          const resTime = timeToMinutes(r.reservationTime);
+          const intStart = timeToMinutes(intervalStart);
+          const intEnd = timeToMinutes(intervalEnd);
+          return resTime >= intStart && resTime < intEnd;
+        })
+        .reduce((sum, r) => sum + r.partySize, 0);
+      
+      return {
+        maxCovers,
+        usedCovers,
+        remainingCovers: Math.max(0, maxCovers - usedCovers),
+        flowMode: flowControl.flowMode || "global"
+      };
+    };
+    
+    // Helper: Get available tables (in-memory)
+    const getAvailableTablesFast = (time: string, turnDuration: number): AvailableTable[] => {
+      const requestedWindow: TimeWindow = {
+        start: time,
+        end: minutesToTime(timeToMinutes(time) + turnDuration)
+      };
+      
+      const availableTables: AvailableTable[] = [];
+      
+      for (const table of suitableTables) {
+        const conflicts = allReservations.filter(r => {
+          if (r.assignedTableId !== table.id && r.tableId !== table.id) {
+            return false;
+          }
+          
+          const resStart = r.holdStart || r.reservationTime;
+          const resEnd = r.holdEnd || minutesToTime(
+            timeToMinutes(r.reservationTime) + (r.turnDuration || 90)
+          );
+          
+          const resWindow: TimeWindow = { start: resStart, end: resEnd };
+          return windowsOverlap(requestedWindow, resWindow);
+        });
+        
+        if (conflicts.length === 0) {
+          availableTables.push({
+            tableId: table.id,
+            tableLabel: table.tableLabel,
+            priority: table.priority,
+            minCapacity: table.minCapacity,
+            maxCapacity: table.maxCapacity,
+            isCommunal: table.isCommunal
+          });
+        }
+      }
+      
+      availableTables.sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return a.minCapacity - b.minCapacity;
+      });
+      
+      return availableTables;
+    };
+    
+    // Step 2: Generate time slots for each service period (all in-memory now)
     const slots: AvailabilitySlot[] = [];
-    const intervalMinutes = 15; // Default interval
+    const intervalMinutes = 15;
     
     for (const period of schedule.servicePeriods) {
       const startMinutes = timeToMinutes(period.startTime);
       const endTime = period.lastReservationTime || period.endTime;
       const endMinutes = timeToMinutes(endTime);
       
-      // Generate slots at interval increments
       let currentMinutes = startMinutes;
       while (currentMinutes < endMinutes) {
         const time = minutesToTime(currentMinutes);
         
-        // Get flow capacity for this slot
-        const flowResult = await getRemainingCovers(locationId, date, time, period.periodId);
+        // All these are now fast in-memory operations
+        const flowResult = getRemainingCoversFast(time, period.periodId);
+        const turnDuration = getTurnDurationFast(period.periodId);
+        const availableTables = getAvailableTablesFast(time, turnDuration);
         
-        // Get turn duration for this party size
-        const turnDuration = await getTurnDuration(locationId, period.periodId, party);
-        
-        // Get available tables
-        const availableTables = await getAvailableTables(
-          locationId, date, time, party, turnDuration
-        );
-        
-        // Determine slot status
         let status: "available" | "limited" | "full" | "closed" = "available";
         let reason: string | undefined;
         
