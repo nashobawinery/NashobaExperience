@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   Calendar as CalendarIcon,
@@ -43,9 +44,11 @@ import {
   Check,
   X,
   Crown,
+  ShoppingCart,
 } from "lucide-react";
 import type { Experience, TimeSlot, ResySpecialDate, ResyLocation, MealPeriod } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
+import { useReservationCart } from "@/contexts/reservation-cart-context";
 
 function formatTo12Hour(timeStr: string): string {
   // If already in 12-hour format (contains AM/PM), return as-is
@@ -88,6 +91,7 @@ export default function Booking() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { addToCart, isInCart, cartCount } = useReservationCart();
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string>();
   const [selectedTableTime, setSelectedTableTime] = useState<string>();
@@ -550,14 +554,14 @@ export default function Booking() {
     },
   });
 
-  const onSubmit = (data: BookingFormValues) => {
+  const validateForm = (data: BookingFormValues): boolean => {
     if (!selectedDate) {
       toast({
         title: "Please select a date",
         description: "A reservation date is required",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     if (experience?.reservationType === "ticketed" && !selectedTimeSlotId) {
@@ -566,7 +570,7 @@ export default function Booking() {
         description: "A time slot is required for ticketed events",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     if (experience?.reservationType === "table" && !selectedTableTime) {
@@ -575,9 +579,70 @@ export default function Booking() {
         description: "A reservation time is required",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
+    return true;
+  };
+
+  const handleAddToCart = (data: BookingFormValues) => {
+    if (!validateForm(data) || !experience || !selectedDate) return;
+
+    const [firstName, ...lastNameParts] = data.customerName.split(" ");
+    const lastName = lastNameParts.join(" ");
+
+    let reservationTime = "";
+    if (experience.reservationType === "ticketed") {
+      const selectedSlot = availableSlotsForDay.find(s => s.id === selectedTimeSlotId);
+      reservationTime = selectedSlot?.time || selectedSlot?.startTime || "";
+      if (!reservationTime) {
+        toast({
+          title: "Please select a time",
+          description: "A time slot is required for ticketed events",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      reservationTime = selectedTableTime || "";
+      if (!reservationTime) {
+        toast({
+          title: "Please select a time",
+          description: "A reservation time is required",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    addToCart({
+      experienceId: experience.id,
+      experienceName: experience.name,
+      date: format(selectedDate, "yyyy-MM-dd"),
+      time: reservationTime,
+      partySize: experience.reservationType === "table" ? (data.partySize || 1) : (data.ticketQuantity || 1),
+      price: experience.price || "0",
+      customerInfo: {
+        firstName,
+        lastName,
+        email: data.customerEmail,
+        phone: data.customerPhone || "",
+      },
+      specialRequests: data.specialRequests,
+      locationId: experience.locationId || undefined,
+      reservationType: experience.reservationType || "table",
+    });
+
+    toast({
+      title: "Added to Cart",
+      description: `${experience.name} has been added to your cart.`,
+    });
+
+    navigate("/reservations");
+  };
+
+  const onSubmit = (data: BookingFormValues) => {
+    if (!validateForm(data)) return;
     createReservationMutation.mutate(data);
   };
 
@@ -742,13 +807,24 @@ export default function Booking() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b sticky top-0 bg-background z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Button variant="ghost" asChild data-testid="button-back">
             <Link href="/reservations">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Link>
           </Button>
+          {cartCount > 0 && (
+            <Link href="/reservations/cart">
+              <Button variant="outline" className="relative" data-testid="button-view-cart">
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                View Cart
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {cartCount}
+                </Badge>
+              </Button>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -1411,25 +1487,38 @@ export default function Booking() {
                       </div>
                     )}
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={createReservationMutation.isPending}
-                    data-testid="button-submit"
-                  >
-                    {createReservationMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : experience.price &&
-                      parseFloat(experience.price) > 0 &&
-                      shouldShowPrice ? (
-                      "Continue to Payment"
-                    ) : (
-                      "Confirm Reservation"
-                    )}
-                  </Button>
+                  <div className="space-y-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={form.handleSubmit(handleAddToCart)}
+                      disabled={createReservationMutation.isPending}
+                      data-testid="button-add-to-cart"
+                    >
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to Cart & Continue Shopping
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={createReservationMutation.isPending}
+                      data-testid="button-submit"
+                    >
+                      {createReservationMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : experience.price &&
+                        parseFloat(experience.price) > 0 &&
+                        shouldShowPrice ? (
+                        "Continue to Payment"
+                      ) : (
+                        "Confirm Reservation"
+                      )}
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </CardContent>

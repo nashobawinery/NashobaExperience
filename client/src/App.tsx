@@ -56,6 +56,7 @@ const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInve
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
+const ResyCart = lazy(() => import("@/pages/reservations/cart"));
 const ResyCheckout = lazy(() => import("@/pages/reservations/checkout"));
 const ResyConfirmation = lazy(() => import("@/pages/reservations/confirmation"));
 const ResyConfirmReservation = lazy(() => import("@/pages/reservations/confirm"));
@@ -521,6 +522,14 @@ function ResyBookingRoute() {
   );
 }
 
+function ResyCartRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ResyCart />
+    </Suspense>
+  );
+}
+
 function ResyCheckoutRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -822,6 +831,7 @@ function Router() {
         {/* Reservation Routes - Customer facing */}
         <Route path="/reservations" component={ResyLandingRoute} />
         <Route path="/reservations/booking/:id" component={ResyBookingRoute} />
+        <Route path="/reservations/cart" component={ResyCartRoute} />
         <Route path="/book/:id" component={ResyBookingRoute} />
         <Route path="/checkout/:id" component={ResyCheckoutRoute} />
         <Route path="/confirmation/:id" component={ResyConfirmationRoute} />

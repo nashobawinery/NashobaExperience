@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 export interface CartReservation {
   experienceId: string;
@@ -30,18 +30,40 @@ interface ReservationCartContextType {
 
 const ReservationCartContext = createContext<ReservationCartContextType | undefined>(undefined);
 
-export function ReservationCartProvider({ children }: { children: ReactNode }) {
-  const [cartItems, setCartItems] = useState<CartReservation[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('reservationCart');
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+const CART_STORAGE_KEY = 'reservationCart';
 
-  const saveToStorage = useCallback((items: CartReservation[]) => {
-    localStorage.setItem('reservationCart', JSON.stringify(items));
+export function ReservationCartProvider({ children }: { children: ReactNode }) {
+  const [cartItems, setCartItems] = useState<CartReservation[]>([]);
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(CART_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setCartItems(parsed);
+          }
+        }
+      } catch {
+      }
+      setHasLoadedFromStorage(true);
+    }
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && hasLoadedFromStorage) {
+      try {
+        if (cartItems.length > 0) {
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+        } else {
+          localStorage.removeItem(CART_STORAGE_KEY);
+        }
+      } catch {
+      }
+    }
+  }, [cartItems, hasLoadedFromStorage]);
 
   const addToCart = useCallback((reservation: CartReservation) => {
     setCartItems(prev => {
@@ -53,22 +75,16 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
       } else {
         newItems = [...prev, reservation];
       }
-      saveToStorage(newItems);
       return newItems;
     });
-  }, [saveToStorage]);
+  }, []);
 
   const removeFromCart = useCallback((experienceId: string) => {
-    setCartItems(prev => {
-      const newItems = prev.filter(item => item.experienceId !== experienceId);
-      saveToStorage(newItems);
-      return newItems;
-    });
-  }, [saveToStorage]);
+    setCartItems(prev => prev.filter(item => item.experienceId !== experienceId));
+  }, []);
 
   const clearCart = useCallback(() => {
     setCartItems([]);
-    localStorage.removeItem('reservationCart');
   }, []);
 
   const isInCart = useCallback((experienceId: string) => {

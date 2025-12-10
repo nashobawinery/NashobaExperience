@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ExternalLink, Calendar, Wine, Users, Link2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check } from "lucide-react";
 import type { Experience, ResySiteSetting, FooterLink } from "@shared/schema";
 import heroImageDefault from "@assets/stock_images/winery_vineyard_land_9ae4eda8.jpg";
+import { useReservationCart } from "@/contexts/reservation-cart-context";
 
 export default function Landing() {
   const { data: experiences, isLoading: experiencesLoading } = useQuery<Experience[]>({
@@ -18,6 +20,8 @@ export default function Landing() {
   const { data: footerLinks = [] } = useQuery<FooterLink[]>({
     queryKey: ["/api/resy/footer-links"],
   });
+
+  const { isInCart, cartCount } = useReservationCart();
 
   const activeExperiences = experiences?.filter(exp => exp.isActive) || [];
   
@@ -50,6 +54,25 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Cart Banner */}
+      {cartCount > 0 && (
+        <div className="bg-primary/10 border-b border-primary/20">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-primary" />
+              <span className="text-sm font-medium">
+                You have {cartCount} reservation{cartCount > 1 ? 's' : ''} in your cart
+              </span>
+            </div>
+            <Link href="/reservations/cart">
+              <Button size="sm" data-testid="button-view-cart-banner">
+                View Cart & Checkout
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
         <div className="text-center mb-12">
@@ -78,7 +101,11 @@ export default function Landing() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeExperiences.map((experience) => (
-              <ExperienceCard key={experience.id} experience={experience} />
+              <ExperienceCard 
+                key={experience.id} 
+                experience={experience} 
+                inCart={isInCart(experience.id)}
+              />
             ))}
           </div>
         )}
@@ -142,10 +169,8 @@ export default function Landing() {
   );
 }
 
-function ExperienceCard({ experience }: { experience: Experience }) {
+function ExperienceCard({ experience, inCart }: { experience: Experience; inCart: boolean }) {
   const getImageUrl = (exp: Experience) => {
-    // Prefer imageUrl as it contains resolved media library URLs
-    // primaryImageKey contains object storage keys that need resolution
     if (exp.imageUrl && !exp.imageUrl.startsWith('/@fs/')) return exp.imageUrl;
     if (exp.primaryImageKey && exp.primaryImageKey.startsWith('/api/')) return exp.primaryImageKey;
     return "";
@@ -162,14 +187,22 @@ function ExperienceCard({ experience }: { experience: Experience }) {
   const shouldShowPrice = experience.showPrice !== false;
 
   return (
-    <Card className="overflow-hidden hover-elevate transition-all duration-200 group">
+    <Card className={`overflow-hidden transition-all duration-200 group ${inCart ? 'opacity-75' : 'hover-elevate'}`}>
       {imageUrl && (
-        <div className="aspect-[4/3] overflow-hidden">
+        <div className="aspect-[4/3] overflow-hidden relative">
           <img
             src={imageUrl}
             alt={experience.name}
-            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+            className={`w-full h-full object-cover transition-transform duration-200 ${inCart ? 'grayscale' : 'group-hover:scale-105'}`}
           />
+          {inCart && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+              <Badge className="bg-primary text-primary-foreground">
+                <Check className="w-3 h-3 mr-1" />
+                In Cart
+              </Badge>
+            </div>
+          )}
         </div>
       )}
       <CardContent className="p-6">
@@ -191,7 +224,22 @@ function ExperienceCard({ experience }: { experience: Experience }) {
             From ${parseFloat(experience.price).toFixed(2)} per person
           </p>
         )}
-        {experience.isExternal ? (
+        {inCart ? (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground text-center italic" data-testid="text-in-cart-message">
+              This Experience is limited to a single purchase per Customer
+            </p>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled
+              data-testid={`button-book-${experience.id}-disabled`}
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Already in Cart
+            </Button>
+          </div>
+        ) : experience.isExternal ? (
           <Button
             className="w-full"
             onClick={handleReservation}
