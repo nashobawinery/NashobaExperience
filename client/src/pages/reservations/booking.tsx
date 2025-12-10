@@ -834,6 +834,31 @@ export default function Booking() {
                 data-testid="calendar-date"
               />
 
+              {/* Party size selector for table reservations - positioned under calendar */}
+              {!isTicketed && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Party Size *</label>
+                  <p className="text-xs text-muted-foreground">
+                    Select your party size to see available times
+                  </p>
+                  <Select
+                    value={String(watchedPartySize || 2)}
+                    onValueChange={(val) => form.setValue("partySize", parseInt(val))}
+                  >
+                    <SelectTrigger data-testid="select-party-size" className="w-full">
+                      <SelectValue placeholder="Select party size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: (location as any)?.maxReservationSize || 10 }, (_, i) => i + 1).map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size} {size === 1 ? "guest" : "guests"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {isTicketed && selectedDate && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -968,7 +993,12 @@ export default function Booking() {
                         availabilityMessages.closedMessage ||
                         availabilityMessages.fullyBookedMessage;
 
-                      const hasAvailableTimes = availableTableTimes.length > 0;
+                      // Filter to only show available times (hide unavailable slots entirely)
+                      const onlyAvailableTimes = availableTableTimes.filter(slot => slot.available);
+                      const hasAvailableTimes = onlyAvailableTimes.length > 0;
+                      
+                      // Check if there were times returned but none available for party size
+                      const hasTimesButNoneAvailable = availableTableTimes.length > 0 && !hasAvailableTimes;
 
                       return (
                         <div className="space-y-4">
@@ -979,6 +1009,17 @@ export default function Booking() {
                               data-testid="text-availability-message"
                             >
                               {displayMessage}
+                            </div>
+                          )}
+                          
+                          {/* Show party size accommodation message when times exist but none fit party */}
+                          {hasTimesButNoneAvailable && !displayMessage && (
+                            <div
+                              className="rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm text-amber-700 dark:text-amber-300"
+                              data-testid="text-party-size-unavailable"
+                            >
+                              <strong>Unable to accommodate your party size.</strong>
+                              <p className="mt-1">Unfortunately, we don't have availability for a party of {watchedPartySize || 2} on this date. Please try a different date or adjust your party size.</p>
                             </div>
                           )}
 
@@ -1000,7 +1041,7 @@ export default function Booking() {
                                   string,
                                   AvailableTimeSlot[]
                                 >();
-                                availableTableTimes.forEach((slot) => {
+                                onlyAvailableTimes.forEach((slot) => {
                                   const normalized = normalizeMealPeriod(
                                     slot.mealPeriod,
                                   );
@@ -1060,7 +1101,6 @@ export default function Booking() {
                                                 ? "default"
                                                 : "outline"
                                             }
-                                            disabled={!slot.available}
                                             onClick={() =>
                                               setSelectedTableTime(slot.time)
                                             }
@@ -1192,31 +1232,6 @@ export default function Booking() {
                       </FormItem>
                     )}
                   />
-
-                  {/* Party size field only for table reservations - ticketed events use quantity selector in left column */}
-                  {!isTicketed && (
-                    <FormField
-                      control={form.control}
-                      name="partySize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Party Size *</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                              data-testid="input-party-size"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
 
                   {experience.price &&
                     parseFloat(experience.price) > 0 &&
