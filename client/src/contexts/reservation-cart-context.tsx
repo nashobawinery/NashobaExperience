@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
+export interface CustomerInfo {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
 export interface CartReservation {
   experienceId: string;
   experienceName: string;
@@ -7,12 +14,7 @@ export interface CartReservation {
   time: string;
   partySize: number;
   price: string;
-  customerInfo: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  };
+  customerInfo: CustomerInfo;
   specialRequests?: string;
   locationId?: string;
   reservationType?: string;
@@ -26,14 +28,30 @@ interface ReservationCartContextType {
   isInCart: (experienceId: string) => boolean;
   getCartItem: (experienceId: string) => CartReservation | undefined;
   cartCount: number;
+  customerInfo: CustomerInfo;
+  setCustomerInfo: (info: CustomerInfo) => void;
+  resetCustomerInfo: () => void;
 }
 
 const ReservationCartContext = createContext<ReservationCartContextType | undefined>(undefined);
 
 const CART_STORAGE_KEY = 'reservationCart';
 
+const DEFAULT_CUSTOMER_INFO: CustomerInfo = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+};
+
+interface CartStorage {
+  items: CartReservation[];
+  customerInfo: CustomerInfo;
+}
+
 export function ReservationCartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<CartReservation[]>([]);
+  const [customerInfo, setCustomerInfoState] = useState<CustomerInfo>(DEFAULT_CUSTOMER_INFO);
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   useEffect(() => {
@@ -44,6 +62,13 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
             setCartItems(parsed);
+          } else if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.items)) {
+              setCartItems(parsed.items);
+            }
+            if (parsed.customerInfo) {
+              setCustomerInfoState(parsed.customerInfo);
+            }
           }
         }
       } catch {
@@ -55,15 +80,19 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && hasLoadedFromStorage) {
       try {
-        if (cartItems.length > 0) {
-          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+        const hasItems = cartItems.length > 0;
+        const hasCustomerInfo = customerInfo.firstName || customerInfo.lastName || customerInfo.email || customerInfo.phone;
+        
+        if (hasItems || hasCustomerInfo) {
+          const storage: CartStorage = { items: cartItems, customerInfo };
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(storage));
         } else {
           localStorage.removeItem(CART_STORAGE_KEY);
         }
       } catch {
       }
     }
-  }, [cartItems, hasLoadedFromStorage]);
+  }, [cartItems, customerInfo, hasLoadedFromStorage]);
 
   const addToCart = useCallback((reservation: CartReservation) => {
     setCartItems(prev => {
@@ -85,6 +114,7 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => {
     setCartItems([]);
+    setCustomerInfoState(DEFAULT_CUSTOMER_INFO);
   }, []);
 
   const isInCart = useCallback((experienceId: string) => {
@@ -94,6 +124,14 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
   const getCartItem = useCallback((experienceId: string) => {
     return cartItems.find(item => item.experienceId === experienceId);
   }, [cartItems]);
+
+  const setCustomerInfo = useCallback((info: CustomerInfo) => {
+    setCustomerInfoState(info);
+  }, []);
+
+  const resetCustomerInfo = useCallback(() => {
+    setCustomerInfoState(DEFAULT_CUSTOMER_INFO);
+  }, []);
 
   return (
     <ReservationCartContext.Provider
@@ -105,6 +143,9 @@ export function ReservationCartProvider({ children }: { children: ReactNode }) {
         isInCart,
         getCartItem,
         cartCount: cartItems.length,
+        customerInfo,
+        setCustomerInfo,
+        resetCustomerInfo,
       }}
     >
       {children}

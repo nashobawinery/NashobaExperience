@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import type { Experience, TimeSlot, ResySpecialDate, ResyLocation, MealPeriod } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
-import { useReservationCart } from "@/contexts/reservation-cart-context";
+import { useReservationCart, type CustomerInfo } from "@/contexts/reservation-cart-context";
 
 function formatTo12Hour(timeStr: string): string {
   // If already in 12-hour format (contains AM/PM), return as-is
@@ -91,7 +91,7 @@ export default function Booking() {
   const { id } = useParams();
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { addToCart, isInCart, cartCount } = useReservationCart();
+  const { addToCart, isInCart, cartCount, customerInfo, setCustomerInfo } = useReservationCart();
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string>();
   const [selectedTableTime, setSelectedTableTime] = useState<string>();
@@ -150,18 +150,47 @@ export default function Booking() {
     enabled: !!experience?.locationId && experience?.reservationType !== "ticketed",
   });
 
+  const getDefaultName = () => {
+    if (customerInfo.firstName || customerInfo.lastName) {
+      return `${customerInfo.firstName} ${customerInfo.lastName}`.trim();
+    }
+    return "";
+  };
+
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
-      customerName: "",
-      customerEmail: "",
-      customerPhone: "",
+      customerName: getDefaultName(),
+      customerEmail: customerInfo.email || "",
+      customerPhone: customerInfo.phone || "",
       notificationPreference: "email",
       specialRequests: "",
       partySize: 2,
       ticketQuantity: 1,
     },
   });
+
+  // Update form values when customerInfo from context changes (e.g., after SSR hydration)
+  useEffect(() => {
+    if (customerInfo.firstName || customerInfo.lastName || customerInfo.email || customerInfo.phone) {
+      const currentName = form.getValues("customerName");
+      const currentEmail = form.getValues("customerEmail");
+      const currentPhone = form.getValues("customerPhone");
+      
+      const contextName = `${customerInfo.firstName} ${customerInfo.lastName}`.trim();
+      
+      // Only update if current values are empty and context has values
+      if (!currentName && contextName) {
+        form.setValue("customerName", contextName);
+      }
+      if (!currentEmail && customerInfo.email) {
+        form.setValue("customerEmail", customerInfo.email);
+      }
+      if (!currentPhone && customerInfo.phone) {
+        form.setValue("customerPhone", customerInfo.phone);
+      }
+    }
+  }, [customerInfo, form]);
 
   // Watch party size for table reservations
   const watchedPartySize = form.watch("partySize");
@@ -615,6 +644,15 @@ export default function Booking() {
       }
     }
 
+    // Update shared customer info in context for future bookings
+    const newCustomerInfo: CustomerInfo = {
+      firstName,
+      lastName,
+      email: data.customerEmail,
+      phone: data.customerPhone || "",
+    };
+    setCustomerInfo(newCustomerInfo);
+
     addToCart({
       experienceId: experience.id,
       experienceName: experience.name,
@@ -622,12 +660,7 @@ export default function Booking() {
       time: reservationTime,
       partySize: experience.reservationType === "table" ? (data.partySize || 1) : (data.ticketQuantity || 1),
       price: experience.price || "0",
-      customerInfo: {
-        firstName,
-        lastName,
-        email: data.customerEmail,
-        phone: data.customerPhone || "",
-      },
+      customerInfo: newCustomerInfo,
       specialRequests: data.specialRequests,
       locationId: experience.locationId || undefined,
       reservationType: experience.reservationType || "table",
