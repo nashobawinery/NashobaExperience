@@ -2109,4 +2109,627 @@ router.post("/api/resy/send-reminders", requireResyAdmin, async (req, res) => {
   }
 });
 
+// ============================================================================
+// RESERVATION AVAILABILITY SYSTEM
+// Comprehensive availability checking with flow control, turn times, and table assignment
+// ============================================================================
+
+interface TimeWindow {
+  start: string; // HH:MM format
+  end: string;   // HH:MM format
+}
+
+interface AvailableTable {
+  tableId: string;
+  tableLabel: string;
+  priority: number;
+  minCapacity: number;
+  maxCapacity: number;
+  isCommunal: boolean;
+}
+
+interface AvailabilitySlot {
+  time: string;
+  periodId: string | null;
+  periodName: string | null;
+  status: "available" | "limited" | "full" | "closed";
+  remainingCovers: number;
+  maxCovers: number;
+  turnDuration: number;
+  availableTables: AvailableTable[];
+  reason?: string;
+}
+
+// Convert time string to minutes since midnight
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+// Convert minutes since midnight to time string
+function minutesToTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60) % 24;
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+// Check if two time windows overlap (half-open intervals [start, end))
+function windowsOverlap(window1: TimeWindow, window2: TimeWindow): boolean {
+  const start1 = timeToMinutes(window1.start);
+  const end1 = timeToMinutes(window1.end);
+  const start2 = timeToMinutes(window2.start);
+  const end2 = timeToMinutes(window2.end);
+  return start1 < end2 && end1 > start2;
+}
+
+// UTILITY 1: Special Date & Period Normalizer
+async function getNormalizedSchedule(
+  locationId: string,
+  date: string // YYYY-MM-DD format
+): Promise<{
+  isClosed: boolean;
+  closureReason?: string;
+  servicePeriods: Array<{
+    periodId: string;
+    periodName: string;
+    startTime: string;
+    endTime: string;
+    lastReservationTime: string | null;
+    daysAvailable: number[];
+  }>;
+}> {
+  const dayOfWeek = new Date(date).getDay();
+  
+  // Check for special dates (closures or modified hours)
+  const specialDates = await db.select()
+    .from(resySpecialDates)
+    .where(and(
+      eq(resySpecialDates.locationId, locationId),
+      eq(resySpecialDates.date, date)
+    ));
+  
+  if (specialDates.length > 0) {
+    const specialDate = specialDates[0];
+    if (specialDate.isClosed) {
+      return {
+        isClosed: true,
+        closureReason: specialDate.description || specialDate.name || "Closed for special event",
+        servicePeriods: []
+      };
+    }
+  }
+  
+  // Check for location holidays - holidays use holidayKey, need to resolve to date
+  const locationHolidays = await db.select()
+    .from(resyLocationHolidays)
+    .where(eq(resyLocationHolidays.locationId, locationId));
+  
+  // Import RECURRING_HOLIDAYS to check if this date matches any holiday
+  const { RECURRING_HOLIDAYS } = await import("@shared/schema");
+  const year = new Date(date).getFullYear();
+  
+  for (const locHoliday of locationHolidays) {
+    if (locHoliday.isClosed) {
+      const holidayDef = RECURRING_HOLIDAYS.find(h => h.key === locHoliday.holidayKey);
+      if (holidayDef) {
+        const holidayDate = holidayDef.getDate(year);
+        if (holidayDate === date) {
+          return {
+            isClosed: true,
+            closureReason: `Closed for ${holidayDef.name}`,
+            servicePeriods: []
+          };
+        }
+      }
+    }
+  }
+  
+  // Check operating hours for this day to see if location is open
+  const operatingHours = await db.select()
+    .from(resyOperatingHours)
+    .where(and(
+      eq(resyOperatingHours.locationId, locationId),
+      eq(resyOperatingHours.dayOfWeek, dayOfWeek)
+    ));
+  
+  // If there are operating hours and they're all closed, location is closed
+  if (operatingHours.length > 0) {
+    const allClosed = operatingHours.every(oh => oh.isClosed || !oh.isOpen);
+    if (allClosed) {
+      return {
+        isClosed: true,
+        closureReason: "Location is closed on this day",
+        servicePeriods: []
+      };
+    }
+  }
+  
+  // Get meal periods for this location that are active on this day
+  const mealPeriods = await db.select()
+    .from(resyMealPeriods)
+    .where(and(
+      eq(resyMealPeriods.locationId, locationId),
+      eq(resyMealPeriods.isActive, true)
+    ));
+  
+  // Filter meal periods that include this day of week
+  const todaysPeriods = mealPeriods.filter(mp => {
+    const days = mp.daysAvailable as number[] | null;
+    return days && days.includes(dayOfWeek);
+  });
+  
+  if (todaysPeriods.length === 0) {
+    return {
+      isClosed: true,
+      closureReason: "No service periods available for this day",
+      servicePeriods: []
+    };
+  }
+  
+  const servicePeriods = todaysPeriods.map(mp => ({
+    periodId: mp.id,
+    periodName: mp.name,
+    startTime: mp.startTime,
+    endTime: mp.endTime,
+    lastReservationTime: mp.lastReservationTime || null,
+    daysAvailable: (mp.daysAvailable as number[]) || []
+  }));
+  
+  // Sort by start time
+  servicePeriods.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  
+  return {
+    isClosed: false,
+    servicePeriods
+  };
+}
+
+// UTILITY 2: Flow Capacity Evaluator
+async function getRemainingCovers(
+  locationId: string,
+  date: string,
+  time: string,
+  mealPeriodId: string | null
+): Promise<{
+  maxCovers: number;
+  usedCovers: number;
+  remainingCovers: number;
+  flowMode: string;
+}> {
+  // Get flow control for this location/period
+  const flowControls = await db.select()
+    .from(resyFlowControls)
+    .where(and(
+      eq(resyFlowControls.locationId, locationId),
+      eq(resyFlowControls.isActive, true)
+    ));
+  
+  // Find the most specific flow control (period-specific or global)
+  let flowControl = flowControls.find(fc => fc.mealPeriodId === mealPeriodId);
+  if (!flowControl) {
+    flowControl = flowControls.find(fc => fc.mealPeriodId === null);
+  }
+  
+  if (!flowControl) {
+    // No flow control configured - use defaults
+    return {
+      maxCovers: 999,
+      usedCovers: 0,
+      remainingCovers: 999,
+      flowMode: "none"
+    };
+  }
+  
+  // Determine max covers for this time slot
+  let maxCovers = flowControl.maxCoversPerInterval || 20;
+  
+  if (flowControl.flowMode === "controlled" && flowControl.intervalOverrides) {
+    const overrides = flowControl.intervalOverrides as Array<{time: string, maxCovers: number}>;
+    const override = overrides.find(o => o.time === time);
+    if (override) {
+      maxCovers = override.maxCovers;
+    }
+  }
+  
+  // Count existing reservations in this interval
+  const intervalMinutes = flowControl.intervalMinutes || 15;
+  const timeMinutes = timeToMinutes(time);
+  const intervalStart = minutesToTime(Math.floor(timeMinutes / intervalMinutes) * intervalMinutes);
+  const intervalEnd = minutesToTime(Math.floor(timeMinutes / intervalMinutes) * intervalMinutes + intervalMinutes);
+  
+  const reservations = await db.select()
+    .from(resyReservations)
+    .where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date),
+      not(eq(resyReservations.status, "cancelled"))
+    ));
+  
+  // Count covers in this interval
+  const usedCovers = reservations
+    .filter(r => {
+      const resTime = timeToMinutes(r.reservationTime);
+      const intStart = timeToMinutes(intervalStart);
+      const intEnd = timeToMinutes(intervalEnd);
+      return resTime >= intStart && resTime < intEnd;
+    })
+    .reduce((sum, r) => sum + r.partySize, 0);
+  
+  return {
+    maxCovers,
+    usedCovers,
+    remainingCovers: Math.max(0, maxCovers - usedCovers),
+    flowMode: flowControl.flowMode || "global"
+  };
+}
+
+// UTILITY 3: Turn Time Resolver
+async function getTurnDuration(
+  locationId: string,
+  mealPeriodId: string | null,
+  partySize: number
+): Promise<number> {
+  // Get turn time settings for this location
+  const turnTimeSettings = await db.select()
+    .from(resyTurnTimeSettings)
+    .where(and(
+      eq(resyTurnTimeSettings.locationId, locationId),
+      eq(resyTurnTimeSettings.isActive, true)
+    ));
+  
+  // Filter by meal period if specified
+  let candidates = mealPeriodId 
+    ? turnTimeSettings.filter(tt => tt.mealPeriodId === mealPeriodId)
+    : turnTimeSettings;
+  
+  // If no period-specific settings, use all
+  if (candidates.length === 0) {
+    candidates = turnTimeSettings;
+  }
+  
+  // Find the matching turn time for this party size
+  const match = candidates.find(tt => 
+    partySize >= tt.minPartySize && partySize <= tt.maxPartySize
+  );
+  
+  if (match) {
+    return match.durationMinutes;
+  }
+  
+  // Default turn time if no match found
+  return 90; // 90 minutes default
+}
+
+// UTILITY 4: Table Availability Engine
+async function getAvailableTables(
+  locationId: string,
+  date: string,
+  time: string,
+  partySize: number,
+  turnDuration: number
+): Promise<AvailableTable[]> {
+  // Get all active tables for this location
+  const tables = await db.select()
+    .from(resyLocationTables)
+    .where(and(
+      eq(resyLocationTables.locationId, locationId),
+      eq(resyLocationTables.isActive, true),
+      eq(resyLocationTables.isPaused, false)
+    ));
+  
+  // Filter by capacity
+  const suitableTables = tables.filter(t => 
+    partySize >= t.minCapacity && partySize <= t.maxCapacity
+  );
+  
+  // Get existing reservations for this date to check conflicts
+  const reservations = await db.select()
+    .from(resyReservations)
+    .where(and(
+      eq(resyReservations.locationId, locationId),
+      eq(resyReservations.reservationDate, date),
+      not(eq(resyReservations.status, "cancelled"))
+    ));
+  
+  // Calculate the requested time window
+  const requestedWindow: TimeWindow = {
+    start: time,
+    end: minutesToTime(timeToMinutes(time) + turnDuration)
+  };
+  
+  // Filter out tables that have conflicting reservations
+  const availableTables: AvailableTable[] = [];
+  
+  for (const table of suitableTables) {
+    // Check if this table has any conflicting reservations
+    const conflicts = reservations.filter(r => {
+      // Only check reservations assigned to this table
+      if (r.assignedTableId !== table.id && r.tableId !== table.id) {
+        return false;
+      }
+      
+      // Calculate reservation window
+      const resStart = r.holdStart || r.reservationTime;
+      const resEnd = r.holdEnd || minutesToTime(
+        timeToMinutes(r.reservationTime) + (r.turnDuration || 90)
+      );
+      
+      const resWindow: TimeWindow = { start: resStart, end: resEnd };
+      return windowsOverlap(requestedWindow, resWindow);
+    });
+    
+    if (conflicts.length === 0) {
+      availableTables.push({
+        tableId: table.id,
+        tableLabel: table.tableLabel,
+        priority: table.priority,
+        minCapacity: table.minCapacity,
+        maxCapacity: table.maxCapacity,
+        isCommunal: table.isCommunal
+      });
+    }
+  }
+  
+  // Sort by priority (0 = fill first), then by minCapacity (smaller tables first to save larger ones)
+  availableTables.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.minCapacity - b.minCapacity;
+  });
+  
+  return availableTables;
+}
+
+// MAIN AVAILABILITY ENDPOINT
+router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const { date, partySize } = req.query;
+    
+    if (!date || typeof date !== 'string') {
+      return res.status(400).json({ message: "Date query parameter is required (YYYY-MM-DD)" });
+    }
+    
+    const party = parseInt(partySize as string) || 2;
+    
+    // Step 1: Get normalized schedule (special dates + service periods)
+    const schedule = await getNormalizedSchedule(locationId, date);
+    
+    if (schedule.isClosed) {
+      return res.json({
+        date,
+        locationId,
+        partySize: party,
+        isClosed: true,
+        closureReason: schedule.closureReason,
+        servicePeriods: [],
+        slots: []
+      });
+    }
+    
+    // Step 2: Generate time slots for each service period
+    const slots: AvailabilitySlot[] = [];
+    const intervalMinutes = 15; // Default interval
+    
+    for (const period of schedule.servicePeriods) {
+      const startMinutes = timeToMinutes(period.startTime);
+      const endTime = period.lastReservationTime || period.endTime;
+      const endMinutes = timeToMinutes(endTime);
+      
+      // Generate slots at interval increments
+      let currentMinutes = startMinutes;
+      while (currentMinutes < endMinutes) {
+        const time = minutesToTime(currentMinutes);
+        
+        // Get flow capacity for this slot
+        const flowResult = await getRemainingCovers(locationId, date, time, period.periodId);
+        
+        // Get turn duration for this party size
+        const turnDuration = await getTurnDuration(locationId, period.periodId, party);
+        
+        // Get available tables
+        const availableTables = await getAvailableTables(
+          locationId, date, time, party, turnDuration
+        );
+        
+        // Determine slot status
+        let status: "available" | "limited" | "full" | "closed" = "available";
+        let reason: string | undefined;
+        
+        if (flowResult.remainingCovers <= 0) {
+          status = "full";
+          reason = "No covers available";
+        } else if (availableTables.length === 0) {
+          status = "full";
+          reason = "No tables available for party size";
+        } else if (flowResult.remainingCovers < party) {
+          status = "full";
+          reason = `Only ${flowResult.remainingCovers} covers available`;
+        } else if (flowResult.remainingCovers <= party * 2) {
+          status = "limited";
+        }
+        
+        slots.push({
+          time,
+          periodId: period.periodId,
+          periodName: period.periodName,
+          status,
+          remainingCovers: flowResult.remainingCovers,
+          maxCovers: flowResult.maxCovers,
+          turnDuration,
+          availableTables: status !== "full" ? availableTables : [],
+          reason
+        });
+        
+        currentMinutes += intervalMinutes;
+      }
+    }
+    
+    res.json({
+      date,
+      locationId,
+      partySize: party,
+      isClosed: false,
+      servicePeriods: schedule.servicePeriods.map(p => ({
+        id: p.periodId,
+        name: p.periodName,
+        startTime: p.startTime,
+        endTime: p.endTime,
+        lastReservationTime: p.lastReservationTime
+      })),
+      slots
+    });
+  } catch (error: any) {
+    console.error("Availability error:", error);
+    res.status(500).json({ message: "Failed to fetch availability: " + error.message });
+  }
+});
+
+// ASSIGN TABLE AND CREATE RESERVATION WITH HOLD
+router.post("/api/resy/locations/:locationId/book", async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const {
+      date,
+      time,
+      partySize,
+      experienceId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      notes,
+      specialRequests
+    } = req.body;
+    
+    if (!date || !time || !partySize || !experienceId || !customerName || !customerEmail) {
+      return res.status(400).json({ 
+        message: "Missing required fields: date, time, partySize, experienceId, customerName, customerEmail" 
+      });
+    }
+    
+    // Get experience details for confirmation messages
+    const experience = await resyStorage.getExperience(experienceId);
+    if (!experience) {
+      return res.status(400).json({ message: "Experience not found" });
+    }
+    
+    // Step 1: Check availability
+    const schedule = await getNormalizedSchedule(locationId, date);
+    if (schedule.isClosed) {
+      return res.status(400).json({ message: "Location is closed on this date" });
+    }
+    
+    // Find which service period this time falls in
+    const period = schedule.servicePeriods.find(p => {
+      const startMinutes = timeToMinutes(p.startTime);
+      const endMinutes = timeToMinutes(p.lastReservationTime || p.endTime);
+      const requestMinutes = timeToMinutes(time);
+      return requestMinutes >= startMinutes && requestMinutes < endMinutes;
+    });
+    
+    if (!period) {
+      return res.status(400).json({ message: "Requested time is outside service hours" });
+    }
+    
+    // Step 2: Check flow capacity
+    const flowResult = await getRemainingCovers(locationId, date, time, period.periodId);
+    if (flowResult.remainingCovers < partySize) {
+      return res.status(400).json({ 
+        message: `Not enough covers available. Only ${flowResult.remainingCovers} remaining.` 
+      });
+    }
+    
+    // Step 3: Get turn duration
+    const turnDuration = await getTurnDuration(locationId, period.periodId, partySize);
+    
+    // Step 4: Find available table
+    const availableTables = await getAvailableTables(locationId, date, time, partySize, turnDuration);
+    if (availableTables.length === 0) {
+      return res.status(400).json({ message: "No tables available for this party size at this time" });
+    }
+    
+    // Assign the first available table (highest priority)
+    const assignedTable = availableTables[0];
+    
+    // Step 5: Calculate hold window
+    const holdStart = time;
+    const holdEnd = minutesToTime(timeToMinutes(time) + turnDuration);
+    
+    // Step 6: Generate confirmation code
+    const confirmationCode = `RES-${Date.now().toString(36).toUpperCase()}`;
+    
+    // Step 7: Create the reservation
+    const reservationData = {
+      experienceId,
+      locationId,
+      reservationDate: date,
+      reservationTime: time,
+      partySize,
+      customerName,
+      customerEmail,
+      customerPhone: customerPhone || null,
+      notes: notes || null,
+      specialRequests: specialRequests || null,
+      status: "confirmed",
+      confirmationCode,
+      assignedTableId: assignedTable.tableId,
+      tableAssignment: assignedTable.tableLabel,
+      holdStart,
+      holdEnd,
+      turnDuration
+    };
+    
+    const reservation = await resyStorage.createReservation(reservationData);
+    
+    // Send confirmation email
+    try {
+      const emailContent = generateReservationConfirmationEmail({
+        customerName,
+        customerEmail,
+        experienceName: experience.name,
+        reservationDate: date,
+        reservationTime: time,
+        partySize,
+        confirmationCode,
+        specialRequests: specialRequests || undefined
+      });
+      await sendEmail(customerEmail, emailContent.subject, emailContent.html, emailContent.text);
+    } catch (emailError) {
+      console.error("Failed to send confirmation email:", emailError);
+    }
+    
+    // Send SMS if configured
+    if (customerPhone && isSmsConfigured()) {
+      try {
+        const smsContent = generateReservationConfirmationSMS({
+          customerName,
+          experienceName: experience.name,
+          reservationDate: date,
+          reservationTime: time,
+          partySize
+        });
+        await sendSMS(customerPhone, smsContent);
+      } catch (smsError) {
+        console.error("Failed to send confirmation SMS:", smsError);
+      }
+    }
+    
+    res.json({
+      success: true,
+      reservation,
+      assignedTable: {
+        id: assignedTable.tableId,
+        label: assignedTable.tableLabel
+      },
+      holdWindow: {
+        start: holdStart,
+        end: holdEnd,
+        duration: turnDuration
+      }
+    });
+  } catch (error: any) {
+    console.error("Booking error:", error);
+    res.status(500).json({ message: "Failed to create reservation: " + error.message });
+  }
+});
+
 export default router;

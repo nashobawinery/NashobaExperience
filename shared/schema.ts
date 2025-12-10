@@ -1934,12 +1934,17 @@ export const resyReservations = pgTable("resy_reservations", {
   confirmationCode: varchar("confirmation_code"),
   paymentIntentId: text("payment_intent_id"),
   totalAmount: text("total_amount"),
+  assignedTableId: varchar("assigned_table_id"), // The table assigned via availability algorithm
+  holdStart: varchar("hold_start", { length: 5 }), // Time when table hold starts (HH:MM)
+  holdEnd: varchar("hold_end", { length: 5 }), // Time when table hold ends (HH:MM based on turn time)
+  turnDuration: integer("turn_duration"), // Duration in minutes for this reservation
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("idx_resy_reservations_date").on(table.reservationDate),
   index("idx_resy_reservations_experience").on(table.experienceId),
   index("idx_resy_reservations_customer").on(table.customerId),
+  index("idx_resy_reservations_assigned_table").on(table.assignedTableId),
 ]);
 
 export const insertResyReservationSchema = createInsertSchema(resyReservations).omit({ id: true, createdAt: true, updatedAt: true });
