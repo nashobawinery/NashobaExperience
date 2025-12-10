@@ -1979,6 +1979,12 @@ function FlowControlForm({
     (control?.intervalOverrides as IntervalOverride[]) || []
   );
 
+  // Sync local state when control prop changes (e.g., opening a different record)
+  useEffect(() => {
+    setFlowMode((control?.flowMode as "global" | "controlled") || "global");
+    setIntervalOverrides((control?.intervalOverrides as IntervalOverride[]) || []);
+  }, [control?.id, control?.flowMode, control?.intervalOverrides]);
+
   const form = useForm<InsertFlowControl>({
     resolver: zodResolver(insertFlowControlSchema),
     defaultValues: control ? {
