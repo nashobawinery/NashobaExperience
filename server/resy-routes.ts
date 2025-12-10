@@ -1428,7 +1428,7 @@ router.get("/api/resy/locations/:locationId/tables", async (req, res) => {
 router.get("/api/resy/locations/:locationId/available-times", async (req, res) => {
   try {
     const { locationId } = req.params;
-    const { date, partySize } = req.query;
+    const { date, partySize, debug } = req.query;
     
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
@@ -1439,17 +1439,25 @@ router.get("/api/resy/locations/:locationId/available-times", async (req, res) =
     // Step 1: Use new utility to check schedule (special dates, holidays, service periods)
     const schedule = await getNormalizedSchedule(locationId, date as string);
     
+    // Debug logging
+    if (debug === "true") {
+      console.log(`[DEBUG available-times] locationId: ${locationId}, date: ${date}, partySize: ${requestedSize}`);
+      console.log(`[DEBUG available-times] schedule:`, JSON.stringify(schedule, null, 2));
+    }
+    
     if (schedule.isClosed) {
       return res.json({ 
         availableTimes: [], 
-        messages: { closedMessage: schedule.closureReason || "Location is closed on this day" } 
+        messages: { closedMessage: schedule.closureReason || "Location is closed on this day" },
+        debug: debug === "true" ? { schedule } : undefined
       });
     }
     
     if (schedule.servicePeriods.length === 0) {
       return res.json({ 
         availableTimes: [], 
-        messages: { closedMessage: "No service periods available for this day" } 
+        messages: { closedMessage: "No service periods available for this day" },
+        debug: debug === "true" ? { schedule } : undefined
       });
     }
     
