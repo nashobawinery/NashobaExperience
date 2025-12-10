@@ -1,9 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ExternalLink, Calendar, Wine, Users, Link2, ShoppingCart, Check, AlertTriangle } from "lucide-react";
 import type { Experience, ResySiteSetting, FooterLink } from "@shared/schema";
 import heroImageDefault from "@assets/stock_images/winery_vineyard_land_9ae4eda8.jpg";
 import { useReservationCart } from "@/contexts/reservation-cart-context";
@@ -105,6 +116,7 @@ export default function Landing() {
                 key={experience.id} 
                 experience={experience} 
                 inCart={isInCart(experience.id)}
+                cartCount={cartCount}
               />
             ))}
           </div>
@@ -169,7 +181,9 @@ export default function Landing() {
   );
 }
 
-function ExperienceCard({ experience, inCart }: { experience: Experience; inCart: boolean }) {
+function ExperienceCard({ experience, inCart, cartCount }: { experience: Experience; inCart: boolean; cartCount: number }) {
+  const [showExternalWarning, setShowExternalWarning] = useState(false);
+
   const getImageUrl = (exp: Experience) => {
     if (exp.imageUrl && !exp.imageUrl.startsWith('/@fs/')) return exp.imageUrl;
     if (exp.primaryImageKey && exp.primaryImageKey.startsWith('/api/')) return exp.primaryImageKey;
@@ -178,10 +192,24 @@ function ExperienceCard({ experience, inCart }: { experience: Experience; inCart
 
   const imageUrl = getImageUrl(experience);
 
-  const handleReservation = () => {
-    if (experience.isExternal && experience.externalUrl) {
+  const handleExternalClick = () => {
+    if (cartCount > 0) {
+      setShowExternalWarning(true);
+    } else {
+      proceedToExternal();
+    }
+  };
+
+  const proceedToExternal = () => {
+    if (experience.externalUrl) {
       window.open(experience.externalUrl, '_blank', 'noopener,noreferrer');
     }
+    setShowExternalWarning(false);
+  };
+
+  const handleReturnToCart = () => {
+    setShowExternalWarning(false);
+    window.location.href = '/reservations/cart';
   };
 
   const shouldShowPrice = experience.showPrice !== false;
@@ -240,14 +268,46 @@ function ExperienceCard({ experience, inCart }: { experience: Experience; inCart
             </Button>
           </div>
         ) : experience.isExternal ? (
-          <Button
-            className="w-full"
-            onClick={handleReservation}
-            data-testid={`button-book-${experience.id}`}
-          >
-            Reserve Now
-            <ExternalLink className="w-4 h-4 ml-2" />
-          </Button>
+          <>
+            <Button
+              className="w-full"
+              onClick={handleExternalClick}
+              data-testid={`button-book-${experience.id}`}
+            >
+              Reserve Now
+              <ExternalLink className="w-4 h-4 ml-2" />
+            </Button>
+            <AlertDialog open={showExternalWarning} onOpenChange={setShowExternalWarning}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    <AlertDialogTitle>External Reservation System</AlertDialogTitle>
+                  </div>
+                  <AlertDialogDescription className="text-left">
+                    You are being directed to a different reservation system for this experience. The items in your cart will not be transferred and may be lost if you don't complete your purchase first.
+                    <br /><br />
+                    We suggest that you press the Return button below and check out to purchase the items in your cart, then return to this reservation platform and book a reservation for this experience.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleReturnToCart}
+                    data-testid="button-external-return"
+                  >
+                    Return to Cart
+                  </Button>
+                  <AlertDialogAction 
+                    onClick={proceedToExternal}
+                    data-testid="button-external-proceed"
+                  >
+                    Continue Anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         ) : (
           <Button
             className="w-full"
