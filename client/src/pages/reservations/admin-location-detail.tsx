@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings } from "lucide-react";
+import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings, Check, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
@@ -2352,6 +2352,22 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
     return period ? period.name : "Unknown";
   };
 
+  const getPeriodSortOrder = (periodId: string | null) => {
+    if (!periodId) return -1;
+    const periodIndex = periods?.findIndex(p => p.id === periodId) ?? 0;
+    return periodIndex;
+  };
+
+  const sortedTurnTimes = useMemo(() => {
+    if (!turnTimes) return [];
+    return [...turnTimes].sort((a, b) => {
+      const periodOrderA = getPeriodSortOrder(a.mealPeriodId);
+      const periodOrderB = getPeriodSortOrder(b.mealPeriodId);
+      if (periodOrderA !== periodOrderB) return periodOrderA - periodOrderB;
+      return a.minPartySize - b.minPartySize;
+    });
+  }, [turnTimes, periods]);
+
   const handleEdit = (time: TurnTimeSettings) => {
     setEditingTurnTime(time);
     setIsDialogOpen(true);
@@ -2366,7 +2382,7 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle>Turn Times</CardTitle>
             <Button
               onClick={handleAdd}
@@ -2379,21 +2395,35 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
         </CardHeader>
         <CardContent>
           {timesLoading ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-24 bg-muted rounded animate-pulse" />
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
               ))}
             </div>
-          ) : turnTimes && turnTimes.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {turnTimes.map((time) => (
-                <TurnTimeCard
-                  key={time.id}
-                  turnTime={time}
-                  periodName={getPeriodName(time.mealPeriodId)}
-                  onEdit={handleEdit}
-                />
-              ))}
+          ) : sortedTurnTimes.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">Service Period</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground">Min</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground">Max</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground">Duration</th>
+                    <th className="text-center py-2 px-2 font-medium text-muted-foreground">Active</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTurnTimes.map((time) => (
+                    <TurnTimeRow
+                      key={time.id}
+                      turnTime={time}
+                      periodName={getPeriodName(time.mealPeriodId)}
+                      onEdit={handleEdit}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
@@ -2428,7 +2458,7 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
   );
 }
 
-function TurnTimeCard({ 
+function TurnTimeRow({ 
   turnTime, 
   periodName,
   onEdit 
@@ -2471,28 +2501,20 @@ function TurnTimeCard({
   });
 
   return (
-    <div className="border rounded-md p-4 space-y-3 hover-elevate">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline">
-              {turnTime.minPartySize === turnTime.maxPartySize 
-                ? `${turnTime.minPartySize} guest${turnTime.minPartySize > 1 ? 's' : ''}`
-                : `${turnTime.minPartySize}-${turnTime.maxPartySize} guests`
-              }
-            </Badge>
-            {!turnTime.isActive && (
-              <Badge variant="secondary">Inactive</Badge>
-            )}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Duration: {turnTime.durationMinutes} minutes
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Service Period: <span className="font-medium">{periodName}</span>
-          </div>
-        </div>
-        <div className="flex gap-1">
+    <tr className="border-b last:border-b-0 hover:bg-muted/50">
+      <td className="py-2 px-2">{periodName}</td>
+      <td className="py-2 px-2 text-center">{turnTime.minPartySize}</td>
+      <td className="py-2 px-2 text-center">{turnTime.maxPartySize}</td>
+      <td className="py-2 px-2 text-center">{turnTime.durationMinutes} min</td>
+      <td className="py-2 px-2 text-center">
+        {turnTime.isActive ? (
+          <Check className="w-4 h-4 text-green-600 mx-auto" />
+        ) : (
+          <X className="w-4 h-4 text-muted-foreground mx-auto" />
+        )}
+      </td>
+      <td className="py-2 px-2 text-right">
+        <div className="flex justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -2537,8 +2559,8 @@ function TurnTimeCard({
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
