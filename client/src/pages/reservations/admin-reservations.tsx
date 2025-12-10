@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign, CalendarIcon, RefreshCw } from "lucide-react";
+import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign, CalendarIcon, RefreshCw, Table2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -41,6 +41,10 @@ export default function AdminReservations() {
 
   const { data: experiences } = useQuery<Experience[]>({
     queryKey: ["/api/resy/experiences"],
+  });
+
+  const { data: locationTables } = useQuery<Array<{id: string; tableLabel: string; tableNumber: number; minCapacity: number; maxCapacity: number; locationId: string}>>({
+    queryKey: ["/api/resy/location-tables"],
   });
 
   const filteredReservations = reservations?.filter((reservation) => {
@@ -127,7 +131,8 @@ export default function AdminReservations() {
                     <TableHead>Experience</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
-                    <TableHead>Party/Tickets</TableHead>
+                    <TableHead>Party</TableHead>
+                    <TableHead>Table</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
@@ -141,6 +146,7 @@ export default function AdminReservations() {
                         key={reservation.id}
                         reservation={reservation}
                         experience={experience}
+                        locationTables={locationTables}
                         onEdit={handleEdit}
                       />
                     );
@@ -160,16 +166,75 @@ export default function AdminReservations() {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         reservation={editingReservation}
+        locationTables={locationTables}
       />
     </div>
   );
 }
 
-function ReservationRow({ reservation, experience, onEdit }: { reservation: Reservation; experience?: Experience; onEdit: (reservation: Reservation) => void }) {
+type LocationTable = {id: string; tableLabel: string; tableNumber: number; minCapacity: number; maxCapacity: number; locationId: string};
+
+function formatTimeRange(reservation: Reservation): string {
+  const startTime = reservation.holdStart || reservation.reservationTime;
+  if (!startTime) return "-";
+  
+  const [startHours, startMins] = startTime.split(':').map(Number);
+  const startTotalMins = startHours * 60 + startMins;
+  
+  let endTotalMins: number;
+  if (reservation.holdEnd) {
+    const [endH, endM] = reservation.holdEnd.split(':').map(Number);
+    endTotalMins = endH * 60 + endM;
+    if (endTotalMins < startTotalMins) {
+      endTotalMins += 1440;
+    }
+  } else {
+    endTotalMins = startTotalMins + (reservation.turnDuration || 90);
+  }
+  
+  const formatMins = (totalMins: number) => {
+    const normalizedMins = ((totalMins % 1440) + 1440) % 1440;
+    const h = Math.floor(normalizedMins / 60);
+    const m = normalizedMins % 60;
+    const period = h >= 12 ? 'pm' : 'am';
+    const hour = h % 12 || 12;
+    return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+  };
+  
+  const startFormatted = formatMins(startTotalMins);
+  const endFormatted = formatMins(endTotalMins);
+  
+  const spansNextDay = endTotalMins >= 1440;
+  
+  return spansNextDay 
+    ? `${startFormatted} - ${endFormatted}+` 
+    : `${startFormatted} - ${endFormatted}`;
+}
+
+function ReservationRow({ reservation, experience, locationTables, onEdit }: { reservation: Reservation; experience?: Experience; locationTables?: LocationTable[]; onEdit: (reservation: Reservation) => void }) {
   const { toast } = useToast();
   const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  
+  const getTableDisplay = () => {
+    const assignedIds = (reservation.assignedTableId || '').split(',').filter(Boolean);
+    if (assignedIds.length === 0) {
+      return <span className="text-muted-foreground">-</span>;
+    }
+    
+    const tableLabels = assignedIds.map(id => {
+      const table = locationTables?.find(t => t.id === id);
+      return table ? table.tableNumber.toString() : id.slice(0, 4);
+    });
+    
+    return (
+      <Badge variant="outline" className="font-mono">
+        <Table2 className="w-3 h-3 mr-1" />
+        {tableLabels.join(', ')}
+      </Badge>
+    );
+  };
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -292,11 +357,15 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
       <TableCell>
         {format(new Date(reservation.reservationDate), "MMM d, yyyy")}
       </TableCell>
-      <TableCell>{reservation.reservationTime || "-"}</TableCell>
+      <TableCell className="whitespace-nowrap">{formatTimeRange(reservation)}</TableCell>
       <TableCell>
-        {reservation.ticketQuantity ? `${reservation.ticketQuantity} tickets` : 
-         reservation.partySize ? `${reservation.partySize} guests` : "-"}
+        {reservation.partySize ? (
+          <Badge variant="secondary">{reservation.partySize}</Badge>
+        ) : reservation.ticketQuantity ? (
+          `${reservation.ticketQuantity} tickets`
+        ) : "-"}
       </TableCell>
+      <TableCell>{getTableDisplay()}</TableCell>
       <TableCell>
         {reservation.totalAmount ? `$${parseFloat(reservation.totalAmount).toFixed(2)}` : "-"}
       </TableCell>
@@ -444,10 +513,12 @@ interface EditReservationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reservation: Reservation | null;
+  locationTables?: LocationTable[];
 }
 
-function EditReservationDialog({ open, onOpenChange, reservation }: EditReservationDialogProps) {
+function EditReservationDialog({ open, onOpenChange, reservation, locationTables }: EditReservationDialogProps) {
   const { toast } = useToast();
+  const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
 
   const form = useForm<Partial<InsertReservation>>({
     resolver: zodResolver(insertReservationSchema.partial()),
@@ -477,12 +548,18 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
         specialRequests: reservation.specialRequests || "",
         status: reservation.status,
       });
+      const assignedIds = (reservation.assignedTableId || '').split(',').filter(Boolean);
+      setSelectedTableIds(assignedIds);
     }
   }, [reservation, form]);
 
+  const filteredTables = locationTables?.filter(
+    t => !reservation?.locationId || t.locationId === reservation.locationId
+  ) || [];
+
   const updateMutation = useMutation({
-    mutationFn: async (data: Partial<InsertReservation>) => {
-      return await apiRequest("PUT", `/api/reservations/${reservation!.id}`, data);
+    mutationFn: async (data: Partial<InsertReservation> & { assignedTableId?: string }) => {
+      return await apiRequest("PUT", `/api/resy/reservations/${reservation!.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
@@ -510,7 +587,19 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
   });
 
   const onSubmit = async (data: Partial<InsertReservation>) => {
-    updateMutation.mutate(data);
+    const dataWithTable = {
+      ...data,
+      assignedTableId: selectedTableIds.length > 0 ? selectedTableIds.join(',') : null,
+    };
+    updateMutation.mutate(dataWithTable);
+  };
+  
+  const toggleTableSelection = (tableId: string) => {
+    setSelectedTableIds(prev => 
+      prev.includes(tableId) 
+        ? prev.filter(id => id !== tableId)
+        : [...prev, tableId]
+    );
   };
 
   if (!reservation) return null;
@@ -659,6 +748,38 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
                 </FormItem>
               )}
             />
+
+            {filteredTables.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Assigned Table(s)</label>
+                <div className="flex flex-wrap gap-2">
+                  {filteredTables.map((table) => (
+                    <Button
+                      key={table.id}
+                      type="button"
+                      size="sm"
+                      variant={selectedTableIds.includes(table.id) ? "default" : "outline"}
+                      onClick={() => toggleTableSelection(table.id)}
+                      data-testid={`button-table-${table.tableNumber}`}
+                    >
+                      <Table2 className="w-3 h-3 mr-1" />
+                      {table.tableNumber}
+                      <span className="ml-1 text-xs opacity-70">
+                        ({table.minCapacity}-{table.maxCapacity})
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+                {selectedTableIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Selected: {selectedTableIds.map(id => {
+                      const table = filteredTables.find(t => t.id === id);
+                      return table ? `Table ${table.tableNumber}` : id;
+                    }).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
 
             <DialogFooter>
               <Button
