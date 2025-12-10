@@ -1828,6 +1828,7 @@ export const resyLocations = pgTable("resy_locations", {
   timezone: varchar("timezone").default("America/New_York"),
   reservationCloseTime: varchar("reservation_close_time", { length: 5 }),
   advanceBookingDays: integer("advance_booking_days"),
+  maxReservationSize: integer("max_reservation_size").default(10),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
