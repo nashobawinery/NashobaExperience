@@ -1237,6 +1237,136 @@ router.post("/api/resy/reservations/:id/refund", requireResyAdmin, async (req, r
   }
 });
 
+// Reschedule reservation with availability validation
+router.post("/api/resy/reservations/:id/reschedule", requireResyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, time, partySize } = req.body;
+    
+    if (!date || !time) {
+      return res.status(400).json({ message: "Date and time are required" });
+    }
+    
+    const reservation = await resyStorage.getReservation(id);
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+    
+    const experience = await resyStorage.getExperience(reservation.experienceId);
+    if (!experience) {
+      return res.status(404).json({ message: "Experience not found" });
+    }
+    
+    const locationId = reservation.locationId || experience.locationId;
+    const newPartySize = partySize || reservation.partySize || 2;
+    
+    // For table reservations, validate availability
+    if (experience.reservationType === "table" && locationId) {
+      // Check schedule for closures
+      const schedule = await getNormalizedSchedule(locationId, date);
+      if (schedule.isClosed) {
+        return res.status(400).json({ 
+          message: `Location is closed on ${date}: ${schedule.closureReason || 'Closed'}` 
+        });
+      }
+      
+      // Find matching meal period
+      const period = schedule.servicePeriods.find(p => {
+        const start = timeToMinutes(p.startTime);
+        const end = timeToMinutes(p.endTime);
+        const target = timeToMinutes(time);
+        return target >= start && target < end;
+      });
+      
+      if (!period) {
+        return res.status(400).json({ 
+          message: `No service available at ${time} on ${date}` 
+        });
+      }
+      
+      // Check flow capacity
+      const flowResult = await getRemainingCovers(locationId, date, time, period.periodId);
+      // Add back the current reservation's party size since we're rescheduling
+      const adjustedRemaining = (reservation.reservationDate === date && reservation.reservationTime === time) 
+        ? flowResult.remainingCovers 
+        : flowResult.remainingCovers;
+        
+      if (adjustedRemaining < newPartySize) {
+        return res.status(400).json({ 
+          message: `Not enough covers available at ${time}. Only ${adjustedRemaining} remaining.` 
+        });
+      }
+      
+      // Get turn duration
+      const turnDuration = await getTurnDuration(locationId, period.periodId, newPartySize);
+      
+      // Find available table (excluding current reservation's table from conflicts)
+      const availableTables = await getAvailableTables(
+        locationId, 
+        date, 
+        time, 
+        newPartySize, 
+        turnDuration,
+        id // Pass reservation ID to exclude from conflict check
+      );
+      
+      if (availableTables.length === 0) {
+        return res.status(400).json({ 
+          message: "No tables available for this party size at this time" 
+        });
+      }
+      
+      // Assign best available table
+      const assignedTable = availableTables[0];
+      const holdStart = time;
+      const holdEnd = minutesToTime(timeToMinutes(time) + turnDuration);
+      
+      // Update reservation
+      const updated = await resyStorage.updateReservation(id, {
+        reservationDate: date,
+        reservationTime: time,
+        partySize: newPartySize,
+        assignedTableId: assignedTable.tableId,
+        tableAssignment: assignedTable.tableLabel,
+        holdStart,
+        holdEnd,
+        turnDuration,
+        notes: `${reservation.notes || ''}\n[Rescheduled from ${reservation.reservationDate} ${reservation.reservationTime} on ${new Date().toISOString()}]`.trim()
+      });
+      
+      res.json({
+        success: true,
+        reservation: updated,
+        assignedTable: {
+          id: assignedTable.tableId,
+          label: assignedTable.tableLabel
+        },
+        holdWindow: {
+          start: holdStart,
+          end: holdEnd,
+          duration: turnDuration
+        }
+      });
+    } else {
+      // For ticketed events, just update date/time
+      const updated = await resyStorage.updateReservation(id, {
+        reservationDate: date,
+        reservationTime: time,
+        partySize: newPartySize,
+        notes: `${reservation.notes || ''}\n[Rescheduled from ${reservation.reservationDate} ${reservation.reservationTime} on ${new Date().toISOString()}]`.trim()
+      });
+      
+      res.json({
+        success: true,
+        reservation: updated
+      });
+    }
+  } catch (error: any) {
+    console.error("Reschedule error:", error);
+    res.status(500).json({ message: "Failed to reschedule reservation: " + error.message });
+  }
+});
+
 router.get("/api/resy/customers", requireResyAdmin, async (req, res) => {
   try {
     const customers = await resyStorage.getCustomers();
@@ -2524,7 +2654,8 @@ async function getAvailableTables(
   date: string,
   time: string,
   partySize: number,
-  turnDuration: number
+  turnDuration: number,
+  excludeReservationId?: string
 ): Promise<AvailableTable[]> {
   // Get all active tables for this location
   const tables = await db.select()
@@ -2536,13 +2667,19 @@ async function getAvailableTables(
     ));
   
   // Get existing reservations for this date to check conflicts
-  const reservations = await db.select()
+  // Optionally exclude a specific reservation (for reschedule scenarios)
+  let reservations = await db.select()
     .from(resyReservations)
     .where(and(
       eq(resyReservations.locationId, locationId),
       eq(resyReservations.reservationDate, date),
       not(eq(resyReservations.status, "cancelled"))
     ));
+  
+  // Exclude the reservation being rescheduled from conflict checks
+  if (excludeReservationId) {
+    reservations = reservations.filter(r => r.id !== excludeReservationId);
+  }
   
   // Calculate the requested time window
   const requestedWindow: TimeWindow = {
