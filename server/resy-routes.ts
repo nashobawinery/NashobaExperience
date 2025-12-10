@@ -1055,16 +1055,33 @@ router.post("/api/resy/reservations", async (req, res) => {
       const existingCustomer = await resyStorage.getCustomerByEmail(reservation.customerEmail);
       if (existingCustomer) {
         // Update existing customer preferences
+        const nameParts = reservation.customerName?.split(' ') || [];
+        const firstName = nameParts[0] || existingCustomer.firstName;
+        const lastName = nameParts.slice(1).join(' ') || existingCustomer.lastName;
         await db.update(resyCustomers)
           .set({
             notificationPreference,
             newsletterOptIn,
             phone: reservation.customerPhone || existingCustomer.phone,
+            firstName,
+            lastName,
           })
           .where(eq(resyCustomers.id, existingCustomer.id));
+      } else {
+        // Create new customer record
+        const nameParts = reservation.customerName?.split(' ') || [''];
+        await resyStorage.createCustomer({
+          firstName: nameParts[0] || 'Guest',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: reservation.customerEmail,
+          phone: reservation.customerPhone || null,
+          notificationPreference,
+          newsletterOptIn,
+        });
+        console.log(`Created new customer: ${reservation.customerEmail}`);
       }
     } catch (customerError) {
-      console.error("Failed to update customer preferences:", customerError);
+      console.error("Failed to create/update customer:", customerError);
     }
     
     // Send confirmation email if preference includes email
@@ -3107,6 +3124,38 @@ router.post("/api/resy/locations/:locationId/book", async (req, res) => {
     };
     
     const reservation = await resyStorage.createReservation(reservationData);
+    
+    // Create or update customer record
+    try {
+      const existingCustomer = await resyStorage.getCustomerByEmail(customerEmail);
+      if (existingCustomer) {
+        // Update existing customer
+        const nameParts = customerName?.split(' ') || [];
+        const firstName = nameParts[0] || existingCustomer.firstName;
+        const lastName = nameParts.slice(1).join(' ') || existingCustomer.lastName;
+        await db.update(resyCustomers)
+          .set({
+            phone: customerPhone || existingCustomer.phone,
+            firstName,
+            lastName,
+          })
+          .where(eq(resyCustomers.id, existingCustomer.id));
+      } else {
+        // Create new customer record
+        const nameParts = customerName?.split(' ') || [''];
+        await resyStorage.createCustomer({
+          firstName: nameParts[0] || 'Guest',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: customerEmail,
+          phone: customerPhone || null,
+          notificationPreference: customerPhone ? "both" : "email",
+          newsletterOptIn: false,
+        });
+        console.log(`Created new customer: ${customerEmail}`);
+      }
+    } catch (customerError) {
+      console.error("Failed to create/update customer:", customerError);
+    }
     
     // Send confirmation email
     try {
