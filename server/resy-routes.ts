@@ -2397,7 +2397,19 @@ async function getTurnDuration(
   return 90; // 90 minutes default
 }
 
-// UTILITY 4: Table Availability Engine
+// Helper: Generate combinations of size k from array (for table combinations)
+function generateTableCombinations<T>(arr: T[], k: number): T[][] {
+  if (k === 0) return [[]];
+  if (arr.length === 0) return [];
+  if (k > arr.length) return [];
+  
+  const [first, ...rest] = arr;
+  const withFirst = generateTableCombinations(rest, k - 1).map(c => [first, ...c]);
+  const withoutFirst = generateTableCombinations(rest, k);
+  return [...withFirst, ...withoutFirst];
+}
+
+// UTILITY 4: Table Availability Engine (with combination support)
 async function getAvailableTables(
   locationId: string,
   date: string,
@@ -2414,11 +2426,6 @@ async function getAvailableTables(
       eq(resyLocationTables.isPaused, false)
     ));
   
-  // Filter by capacity
-  const suitableTables = tables.filter(t => 
-    partySize >= t.minCapacity && partySize <= t.maxCapacity
-  );
-  
   // Get existing reservations for this date to check conflicts
   const reservations = await db.select()
     .from(resyReservations)
@@ -2434,18 +2441,14 @@ async function getAvailableTables(
     end: minutesToTime(timeToMinutes(time) + turnDuration)
   };
   
-  // Filter out tables that have conflicting reservations
-  const availableTables: AvailableTable[] = [];
-  
-  for (const table of suitableTables) {
-    // Check if this table has any conflicting reservations
-    const conflicts = reservations.filter(r => {
-      // Only check reservations assigned to this table
-      if (r.assignedTableId !== table.id && r.tableId !== table.id) {
-        return false;
-      }
+  // Helper to check if a table has conflicts
+  const tableHasConflict = (tableId: string): boolean => {
+    return reservations.some(r => {
+      // Check both assignedTableId and tableId, and also check comma-separated combined tables
+      const assignedIds = (r.assignedTableId || '').split(',');
+      const isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+      if (!isAssignedToTable) return false;
       
-      // Calculate reservation window
       const resStart = r.holdStart || r.reservationTime;
       const resEnd = r.holdEnd || minutesToTime(
         timeToMinutes(r.reservationTime) + (r.turnDuration || 90)
@@ -2454,26 +2457,117 @@ async function getAvailableTables(
       const resWindow: TimeWindow = { start: resStart, end: resEnd };
       return windowsOverlap(requestedWindow, resWindow);
     });
+  };
+  
+  // Get all available tables (no conflicts)
+  const availableTablesAtTime = tables.filter(t => !tableHasConflict(t.id));
+  
+  // First, try to find single tables that can accommodate the party
+  const singleTableMatches = availableTablesAtTime.filter(t => 
+    partySize >= t.minCapacity && partySize <= t.maxCapacity
+  );
+  
+  const result: AvailableTable[] = [];
+  
+  for (const table of singleTableMatches) {
+    result.push({
+      tableId: table.id,
+      tableLabel: table.tableLabel,
+      priority: table.priority,
+      minCapacity: table.minCapacity,
+      maxCapacity: table.maxCapacity,
+      isCommunal: table.isCommunal
+    });
+  }
+  
+  // If no single table fits, look for table combinations
+  if (result.length === 0) {
+    const availableTableIds = new Set(availableTablesAtTime.map(t => t.id));
+    const availableTableMap = new Map(availableTablesAtTime.map(t => [t.id, t]));
     
-    if (conflicts.length === 0) {
-      availableTables.push({
-        tableId: table.id,
-        tableLabel: table.tableLabel,
-        priority: table.priority,
-        minCapacity: table.minCapacity,
-        maxCapacity: table.maxCapacity,
-        isCommunal: table.isCommunal
+    const foundCombinations: Array<{
+      tables: typeof tables;
+      totalCapacity: number;
+      priority: number;
+    }> = [];
+    
+    // For each available table, check if it can be combined with others
+    for (const primaryTable of availableTablesAtTime) {
+      const combinableWith = (primaryTable.combinableWith as string[]) || [];
+      if (combinableWith.length === 0) continue;
+      
+      // Get all combinable tables that are also available
+      const availableCombinableTables = combinableWith
+        .filter(id => availableTableIds.has(id))
+        .map(id => availableTableMap.get(id)!)
+        .filter(Boolean);
+      
+      if (availableCombinableTables.length === 0) continue;
+      
+      // Generate all subsets that include primaryTable
+      for (let size = 2; size <= availableCombinableTables.length + 1; size++) {
+        const combinations = generateTableCombinations(availableCombinableTables, size - 1);
+        
+        for (const combo of combinations) {
+          const fullCombo = [primaryTable, ...combo];
+          const totalCapacity = fullCombo.reduce((sum, t) => sum + t.maxCapacity, 0);
+          const totalMinCapacity = fullCombo.reduce((sum, t) => sum + t.minCapacity, 0);
+          
+          // Check if this combination can fit the party
+          if (partySize <= totalCapacity && partySize >= totalMinCapacity) {
+            const avgPriority = Math.round(
+              fullCombo.reduce((sum, t) => sum + t.priority, 0) / fullCombo.length
+            );
+            
+            foundCombinations.push({
+              tables: fullCombo,
+              totalCapacity,
+              priority: avgPriority
+            });
+          }
+        }
+      }
+    }
+    
+    // Deduplicate combinations
+    const seenCombos = new Set<string>();
+    const uniqueCombinations = foundCombinations.filter(combo => {
+      const key = combo.tables.map(t => t.id).sort().join(',');
+      if (seenCombos.has(key)) return false;
+      seenCombos.add(key);
+      return true;
+    });
+    
+    // Sort by priority, then by total capacity
+    uniqueCombinations.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.totalCapacity - b.totalCapacity;
+    });
+    
+    // Add best combination as the available option
+    if (uniqueCombinations.length > 0) {
+      const best = uniqueCombinations[0];
+      const labels = best.tables.map(t => t.tableLabel).join('+');
+      const tableIds = best.tables.map(t => t.id).join(',');
+      
+      result.push({
+        tableId: tableIds,
+        tableLabel: labels,
+        priority: best.priority,
+        minCapacity: best.tables.reduce((sum, t) => sum + t.minCapacity, 0),
+        maxCapacity: best.totalCapacity,
+        isCommunal: false
       });
     }
   }
   
-  // Sort by priority (0 = fill first), then by minCapacity (smaller tables first to save larger ones)
-  availableTables.sort((a, b) => {
+  // Sort by priority, then by minCapacity
+  result.sort((a, b) => {
     if (a.priority !== b.priority) return a.priority - b.priority;
     return a.minCapacity - b.minCapacity;
   });
   
-  return availableTables;
+  return result;
 }
 
 // MAIN AVAILABILITY ENDPOINT - OPTIMIZED with batched queries
@@ -2533,10 +2627,23 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
         ))
     ]);
     
-    // Pre-filter tables by party size capacity
-    const suitableTables = allTables.filter(t => 
-      party >= t.minCapacity && party <= t.maxCapacity
-    );
+    // Helper: Check if a table has conflicts during a time window
+    const tableHasConflict = (tableId: string, requestedWindow: TimeWindow): boolean => {
+      return allReservations.some(r => {
+        // Check both assignedTableId and tableId, and also check comma-separated combined tables
+        const assignedIds = (r.assignedTableId || '').split(',');
+        const isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+        if (!isAssignedToTable) return false;
+        
+        const resStart = r.holdStart || r.reservationTime;
+        const resEnd = r.holdEnd || minutesToTime(
+          timeToMinutes(r.reservationTime) + (r.turnDuration || 90)
+        );
+        
+        const resWindow: TimeWindow = { start: resStart, end: resEnd };
+        return windowsOverlap(requestedWindow, resWindow);
+      });
+    };
     
     // Helper: Get turn duration (in-memory)
     const getTurnDurationFast = (mealPeriodId: string | null): number => {
@@ -2603,48 +2710,144 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
       };
     };
     
-    // Helper: Get available tables (in-memory)
+    // Helper: Get available tables with combination support (in-memory)
     const getAvailableTablesFast = (time: string, turnDuration: number): AvailableTable[] => {
       const requestedWindow: TimeWindow = {
         start: time,
         end: minutesToTime(timeToMinutes(time) + turnDuration)
       };
       
-      const availableTables: AvailableTable[] = [];
+      // Get all tables that are available (no conflicts) at this time
+      const availableTablesAtTime = allTables.filter(table => 
+        !tableHasConflict(table.id, requestedWindow)
+      );
       
-      for (const table of suitableTables) {
-        const conflicts = allReservations.filter(r => {
-          if (r.assignedTableId !== table.id && r.tableId !== table.id) {
-            return false;
+      const result: AvailableTable[] = [];
+      
+      // First, try to find single tables that can accommodate the party
+      const singleTableMatches = availableTablesAtTime.filter(t => 
+        party >= t.minCapacity && party <= t.maxCapacity
+      );
+      
+      for (const table of singleTableMatches) {
+        result.push({
+          tableId: table.id,
+          tableLabel: table.tableLabel,
+          priority: table.priority,
+          minCapacity: table.minCapacity,
+          maxCapacity: table.maxCapacity,
+          isCommunal: table.isCommunal
+        });
+      }
+      
+      // If no single table fits, look for table combinations
+      if (result.length === 0) {
+        // Build a map of available table IDs for quick lookup
+        const availableTableIds = new Set(availableTablesAtTime.map(t => t.id));
+        const availableTableMap = new Map(availableTablesAtTime.map(t => [t.id, t]));
+        
+        // Find valid combinations using combinableWith field
+        const foundCombinations: Array<{
+          tables: typeof allTables;
+          totalCapacity: number;
+          priority: number;
+        }> = [];
+        
+        // For each available table, check if it can be combined with others
+        for (const primaryTable of availableTablesAtTime) {
+          const combinableWith = (primaryTable.combinableWith as string[]) || [];
+          if (combinableWith.length === 0) continue;
+          
+          // Get all combinable tables that are also available
+          const availableCombinableTables = combinableWith
+            .filter(id => availableTableIds.has(id))
+            .map(id => availableTableMap.get(id)!)
+            .filter(Boolean);
+          
+          if (availableCombinableTables.length === 0) continue;
+          
+          // Try combinations starting with primaryTable
+          // Start with just primary + one other, then add more if needed
+          const tablesInGroup = [primaryTable, ...availableCombinableTables];
+          
+          // Generate all subsets that include primaryTable
+          for (let size = 2; size <= tablesInGroup.length; size++) {
+            // Generate combinations of 'size' tables that include primaryTable
+            const combinations = generateCombinations(availableCombinableTables, size - 1);
+            
+            for (const combo of combinations) {
+              const fullCombo = [primaryTable, ...combo];
+              const totalCapacity = fullCombo.reduce((sum, t) => sum + t.maxCapacity, 0);
+              const totalMinCapacity = fullCombo.reduce((sum, t) => sum + t.minCapacity, 0);
+              
+              // Check if this combination can fit the party
+              if (party <= totalCapacity && party >= totalMinCapacity) {
+                // Calculate combined priority (average)
+                const avgPriority = Math.round(
+                  fullCombo.reduce((sum, t) => sum + t.priority, 0) / fullCombo.length
+                );
+                
+                foundCombinations.push({
+                  tables: fullCombo,
+                  totalCapacity,
+                  priority: avgPriority
+                });
+              }
+            }
           }
-          
-          const resStart = r.holdStart || r.reservationTime;
-          const resEnd = r.holdEnd || minutesToTime(
-            timeToMinutes(r.reservationTime) + (r.turnDuration || 90)
-          );
-          
-          const resWindow: TimeWindow = { start: resStart, end: resEnd };
-          return windowsOverlap(requestedWindow, resWindow);
+        }
+        
+        // Deduplicate combinations (same set of table IDs)
+        const seenCombos = new Set<string>();
+        const uniqueCombinations = foundCombinations.filter(combo => {
+          const key = combo.tables.map(t => t.id).sort().join(',');
+          if (seenCombos.has(key)) return false;
+          seenCombos.add(key);
+          return true;
         });
         
-        if (conflicts.length === 0) {
-          availableTables.push({
-            tableId: table.id,
-            tableLabel: table.tableLabel,
-            priority: table.priority,
-            minCapacity: table.minCapacity,
-            maxCapacity: table.maxCapacity,
-            isCommunal: table.isCommunal
+        // Sort by priority, then by total capacity (prefer smaller combinations)
+        uniqueCombinations.sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return a.totalCapacity - b.totalCapacity;
+        });
+        
+        // Add best combination as the available option
+        if (uniqueCombinations.length > 0) {
+          const best = uniqueCombinations[0];
+          const labels = best.tables.map(t => t.tableLabel).join('+');
+          const tableIds = best.tables.map(t => t.id).join(',');
+          
+          result.push({
+            tableId: tableIds, // Comma-separated IDs for combined tables
+            tableLabel: labels,
+            priority: best.priority,
+            minCapacity: best.tables.reduce((sum, t) => sum + t.minCapacity, 0),
+            maxCapacity: best.totalCapacity,
+            isCommunal: false
           });
         }
       }
       
-      availableTables.sort((a, b) => {
+      // Sort by priority, then by minCapacity
+      result.sort((a, b) => {
         if (a.priority !== b.priority) return a.priority - b.priority;
         return a.minCapacity - b.minCapacity;
       });
       
-      return availableTables;
+      return result;
+    };
+    
+    // Helper: Generate combinations of size k from array
+    const generateCombinations = <T,>(arr: T[], k: number): T[][] => {
+      if (k === 0) return [[]];
+      if (arr.length === 0) return [];
+      if (k > arr.length) return [];
+      
+      const [first, ...rest] = arr;
+      const withFirst = generateCombinations(rest, k - 1).map(c => [first, ...c]);
+      const withoutFirst = generateCombinations(rest, k);
+      return [...withFirst, ...withoutFirst];
     };
     
     // Step 2: Generate time slots for each service period (all in-memory now)
