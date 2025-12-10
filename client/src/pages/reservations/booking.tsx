@@ -663,7 +663,7 @@ export default function Booking() {
               Experience not found
             </p>
             <Button asChild data-testid="button-back-home">
-              <Link href="/">Return Home</Link>
+              <Link href="/reservations">Return to Reservations</Link>
             </Button>
           </CardContent>
         </Card>
@@ -708,7 +708,7 @@ export default function Booking() {
                 </a>
               </Button>
               <Button variant="outline" asChild data-testid="button-back-home">
-                <Link href="/">Return Home</Link>
+                <Link href="/reservations">Return to Reservations</Link>
               </Button>
             </div>
           </CardContent>

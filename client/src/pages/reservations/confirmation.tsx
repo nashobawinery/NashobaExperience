@@ -64,7 +64,7 @@ export default function Confirmation() {
           <CardContent className="pt-6 text-center">
             <p className="text-lg text-muted-foreground mb-4">Reservation not found</p>
             <Button asChild data-testid="button-home">
-              <Link href="/">Return Home</Link>
+              <Link href="/reservations">Return to Reservations</Link>
             </Button>
           </CardContent>
         </Card>
@@ -191,7 +191,7 @@ export default function Confirmation() {
 
         <div className="flex flex-col sm:flex-row gap-4">
           <Button className="flex-1" asChild data-testid="button-home">
-            <Link href="/">Return to Home</Link>
+            <Link href="/reservations">Return to Reservations</Link>
           </Button>
           <Button variant="outline" className="flex-1" onClick={() => window.print()} data-testid="button-print">
             Print Confirmation

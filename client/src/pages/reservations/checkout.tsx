@@ -207,7 +207,7 @@ export default function Checkout() {
             <p className="text-lg text-muted-foreground mb-4">Payment processing is currently unavailable</p>
             <p className="text-sm text-muted-foreground mb-4">Please contact us to complete your reservation</p>
             <Button asChild data-testid="button-home">
-              <Link href="/">Return Home</Link>
+              <Link href="/reservations">Return to Reservations</Link>
             </Button>
           </CardContent>
         </Card>
@@ -230,7 +230,7 @@ export default function Checkout() {
           <CardContent className="pt-6 text-center">
             <p className="text-lg text-muted-foreground mb-4">Reservation not found</p>
             <Button asChild data-testid="button-home">
-              <Link href="/">Return Home</Link>
+              <Link href="/reservations">Return to Reservations</Link>
             </Button>
           </CardContent>
         </Card>
