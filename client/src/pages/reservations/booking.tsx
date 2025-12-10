@@ -44,7 +44,7 @@ import {
   X,
   Crown,
 } from "lucide-react";
-import type { Experience, TimeSlot, ResySpecialDate, ResyLocation } from "@shared/schema";
+import type { Experience, TimeSlot, ResySpecialDate, ResyLocation, MealPeriod } from "@shared/schema";
 import { format, addDays, startOfToday } from "date-fns";
 
 function formatTo12Hour(timeStr: string): string {
@@ -138,6 +138,12 @@ export default function Booking() {
   const { data: location } = useQuery<ResyLocation>({
     queryKey: ["/api/resy/locations", experience?.locationId],
     enabled: !!experience?.locationId,
+  });
+
+  // Fetch service periods (meal periods) to determine which days of the week have availability
+  const { data: mealPeriods } = useQuery<MealPeriod[]>({
+    queryKey: ["/api/resy/locations", experience?.locationId, "meal-periods"],
+    enabled: !!experience?.locationId && experience?.reservationType !== "ticketed",
   });
 
   const form = useForm<BookingFormValues>({
@@ -665,9 +671,18 @@ export default function Booking() {
   // Get the set of days that have timeslots configured for ticketed events
   // If any slot has null dayOfWeek, it means "all days" are available within date range
   const hasAllDaysAvailable = timeSlots?.some(slot => slot.isActive !== false && slot.dayOfWeek === null);
-  const availableDaysOfWeek = timeSlots
+  const ticketedAvailableDays = timeSlots
     ? new Set(timeSlots.filter(slot => slot.isActive !== false && slot.dayOfWeek !== null).map(slot => slot.dayOfWeek))
     : new Set<number>();
+
+  // Get days of week available from service periods (meal periods) for non-ticketed experiences
+  const servicePeriodDays = mealPeriods
+    ? new Set<number>(
+        mealPeriods
+          .filter(mp => mp.isActive)
+          .flatMap(mp => (mp.daysAvailable as number[] | null) || [])
+      )
+    : null;
 
   // Get event date range from timeslots (if available) - this is an OUTER boundary
   const eventStartDate = timeSlots?.[0]?.eventStartDate 
@@ -698,6 +713,8 @@ export default function Booking() {
     const dateStr = format(date, "yyyy-MM-dd");
     if (closedDatesSet.has(dateStr)) return true;
     
+    const dayOfWeek = date.getDay();
+    
     // 4. For ticketed events, check event date range (outer boundary)
     if (isTicketed && timeSlots && timeSlots.length > 0) {
       // Check if date is before event start date
@@ -709,10 +726,15 @@ export default function Booking() {
       // If dayOfWeek is null (all days), date is valid within the range
       // Otherwise, check if this specific day of week has configured timeslots
       if (!hasAllDaysAvailable) {
-        const dayOfWeek = date.getDay();
-        if (!availableDaysOfWeek.has(dayOfWeek)) return true;
+        if (!ticketedAvailableDays.has(dayOfWeek)) return true;
       }
     }
+    
+    // 6. For non-ticketed (table reservation) experiences, check service period days
+    if (!isTicketed && servicePeriodDays && servicePeriodDays.size > 0) {
+      if (!servicePeriodDays.has(dayOfWeek)) return true;
+    }
+    
     return false;
   };
 

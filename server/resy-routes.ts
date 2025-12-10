@@ -2162,7 +2162,10 @@ async function getNormalizedSchedule(
     daysAvailable: number[];
   }>;
 }> {
-  const dayOfWeek = new Date(date).getDay();
+  // Parse date components directly to avoid UTC timezone shift
+  // new Date('2025-12-13') is parsed as UTC midnight, which shifts day-of-week for US timezones
+  const [year, month, day] = date.split('-').map(Number);
+  const dayOfWeek = new Date(year, month - 1, day).getDay();
   
   // Check for special dates (closures or modified hours)
   const specialDates = await db.select()
@@ -2190,7 +2193,7 @@ async function getNormalizedSchedule(
   
   // Import RECURRING_HOLIDAYS to check if this date matches any holiday
   const { RECURRING_HOLIDAYS } = await import("@shared/schema");
-  const year = new Date(date).getFullYear();
+  // Reuse year from date parsing above (line 2167)
   
   for (const locHoliday of locationHolidays) {
     if (locHoliday.isClosed) {
