@@ -882,6 +882,30 @@ This is an automated notification from the Nashoba Valley Daily Reports system.
   return { subject, html, text };
 }
 
+// Helper to format 24-hour time to 12-hour AM/PM format
+function formatTo12Hour(timeStr: string): string {
+  // If already in 12-hour format (contains AM/PM), return as-is
+  if (timeStr.includes('AM') || timeStr.includes('PM') || timeStr.includes('am') || timeStr.includes('pm')) {
+    return timeStr;
+  }
+  
+  const [hourStr, minuteStr] = timeStr.split(':');
+  let hour = parseInt(hourStr, 10);
+  const minute = minuteStr || '00';
+  
+  if (isNaN(hour)) return timeStr;
+  
+  const period = hour >= 12 ? 'PM' : 'AM';
+  
+  if (hour === 0) {
+    hour = 12;
+  } else if (hour > 12) {
+    hour = hour - 12;
+  }
+  
+  return `${hour}:${minute} ${period}`;
+}
+
 // Reservation confirmation email for ticketed events and table reservations
 export interface ReservationConfirmationData {
   customerName: string;
@@ -917,6 +941,7 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
     month: 'long', 
     day: 'numeric' 
   });
+  const formattedTime = formatTo12Hour(reservationTime);
 
   const subject = `Reservation Confirmed: ${experienceName} - ${formattedDate}`;
   
@@ -930,7 +955,7 @@ Your reservation at Nashoba Valley Winery has been confirmed.
 RESERVATION DETAILS
 Experience: ${experienceName}
 Date: ${formattedDate}
-Time: ${reservationTime}
+Time: ${formattedTime}
 ${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
 ${totalAmount && parseFloat(totalAmount) > 0 ? `Amount: $${parseFloat(totalAmount).toFixed(2)}` : ''}
 ${confirmationCode ? `Confirmation #: ${confirmationCode}` : ''}
@@ -1036,7 +1061,7 @@ Bolton, MA 01740
         </div>
         <div class="detail-row">
           <span class="detail-label">Time</span>
-          <span class="detail-value">${reservationTime}</span>
+          <span class="detail-value">${formattedTime}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">${isTicketed ? 'Tickets' : 'Party Size'}</span>
@@ -1110,6 +1135,7 @@ export function generateReservationReminderEmail(data: ReservationReminderData):
 
   const isTicketed = ticketQuantity && ticketQuantity > 0;
   const guestCount = isTicketed ? ticketQuantity : (partySize || 1);
+  const formattedTime = formatTo12Hour(reservationTime);
 
   const subject = `Today's the Day! Your ${experienceName} Awaits`;
   
@@ -1122,7 +1148,7 @@ Today is the day! We're thrilled to welcome you to Nashoba Valley Winery for you
 
 YOUR RESERVATION
 Experience: ${experienceName}
-Time: ${reservationTime}
+Time: ${formattedTime}
 ${isTicketed ? `Tickets: ${ticketQuantity}` : `Party Size: ${partySize}`}
 ${specialRequests ? `Special Requests: ${specialRequests}` : ''}
 
@@ -1264,7 +1290,7 @@ Bolton, MA 01740
         </div>
         <div class="detail-row">
           <span class="detail-label">Time</span>
-          <span class="detail-value">${reservationTime}</span>
+          <span class="detail-value">${formattedTime}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">${isTicketed ? 'Tickets' : 'Party Size'}</span>
