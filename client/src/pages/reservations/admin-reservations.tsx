@@ -225,7 +225,7 @@ function ReservationRow({ reservation, experience, locationTables, onEdit }: { r
     
     const tableLabels = assignedIds.map(id => {
       const table = locationTables?.find(t => t.id === id);
-      return table ? table.tableNumber.toString() : id.slice(0, 4);
+      return table ? table.tableNumber.toString() : (id ? String(id).slice(0, 4) : '?');
     });
     
     return (
@@ -589,7 +589,7 @@ function EditReservationDialog({ open, onOpenChange, reservation, locationTables
   const onSubmit = async (data: Partial<InsertReservation>) => {
     const dataWithTable = {
       ...data,
-      assignedTableId: selectedTableIds.length > 0 ? selectedTableIds.join(',') : null,
+      assignedTableId: selectedTableIds.length > 0 ? selectedTableIds.join(',') : undefined,
     };
     updateMutation.mutate(dataWithTable);
   };
