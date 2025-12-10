@@ -2687,12 +2687,52 @@ async function getAvailableTables(
     end: minutesToTime(timeToMinutes(time) + turnDuration)
   };
   
+  // Helper to infer which tables a reservation would use based on party size
+  // Returns list of table IDs that would be needed
+  const inferTablesForReservation = (resPartySize: number): string[] => {
+    // First try to find a single table that fits
+    const singleTableMatch = tables.find(t => 
+      resPartySize >= t.minCapacity && resPartySize <= t.maxCapacity
+    );
+    if (singleTableMatch) {
+      return [singleTableMatch.id];
+    }
+    
+    // If no single table, look for the smallest combination that fits
+    const sortedTables = [...tables].sort((a, b) => b.maxCapacity - a.maxCapacity);
+    for (const primaryTable of sortedTables) {
+      const combinableWith = (primaryTable.combinableWith as string[]) || [];
+      if (combinableWith.length === 0) continue;
+      
+      for (const comboId of combinableWith) {
+        const comboTable = tables.find(t => t.id === comboId);
+        if (comboTable) {
+          const totalCapacity = primaryTable.maxCapacity + comboTable.maxCapacity;
+          const totalMinCapacity = primaryTable.minCapacity + comboTable.minCapacity;
+          if (resPartySize <= totalCapacity && resPartySize >= totalMinCapacity) {
+            return [primaryTable.id, comboTable.id];
+          }
+        }
+      }
+    }
+    
+    return [];
+  };
+  
   // Helper to check if a table has conflicts
   const tableHasConflict = (tableId: string): boolean => {
     return reservations.some(r => {
       // Check both assignedTableId and tableId, and also check comma-separated combined tables
-      const assignedIds = (r.assignedTableId || '').split(',');
-      const isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+      const assignedIds = (r.assignedTableId || '').split(',').filter(Boolean);
+      let isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+      
+      // If reservation has no assigned table, infer which table(s) it would need
+      // This handles legacy reservations created before table assignment was implemented
+      if (!r.assignedTableId && !r.tableId && r.partySize) {
+        const inferredTables = inferTablesForReservation(r.partySize);
+        isAssignedToTable = inferredTables.includes(tableId);
+      }
+      
       if (!isAssignedToTable) return false;
       
       const resStart = r.holdStart || r.reservationTime;
@@ -2873,12 +2913,51 @@ router.get("/api/resy/locations/:locationId/availability", async (req, res) => {
         ))
     ]);
     
+    // Helper to infer which tables a reservation would use based on party size
+    const inferTablesForReservation = (resPartySize: number): string[] => {
+      // First try to find a single table that fits
+      const singleTableMatch = allTables.find(t => 
+        resPartySize >= t.minCapacity && resPartySize <= t.maxCapacity
+      );
+      if (singleTableMatch) {
+        return [singleTableMatch.id];
+      }
+      
+      // If no single table, look for the smallest combination that fits
+      const sortedTables = [...allTables].sort((a, b) => b.maxCapacity - a.maxCapacity);
+      for (const primaryTable of sortedTables) {
+        const combinableWith = (primaryTable.combinableWith as string[]) || [];
+        if (combinableWith.length === 0) continue;
+        
+        for (const comboId of combinableWith) {
+          const comboTable = allTables.find(t => t.id === comboId);
+          if (comboTable) {
+            const totalCapacity = primaryTable.maxCapacity + comboTable.maxCapacity;
+            const totalMinCapacity = primaryTable.minCapacity + comboTable.minCapacity;
+            if (resPartySize <= totalCapacity && resPartySize >= totalMinCapacity) {
+              return [primaryTable.id, comboTable.id];
+            }
+          }
+        }
+      }
+      
+      return [];
+    };
+    
     // Helper: Check if a table has conflicts during a time window
     const tableHasConflict = (tableId: string, requestedWindow: TimeWindow): boolean => {
       return allReservations.some(r => {
         // Check both assignedTableId and tableId, and also check comma-separated combined tables
-        const assignedIds = (r.assignedTableId || '').split(',');
-        const isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+        const assignedIds = (r.assignedTableId || '').split(',').filter(Boolean);
+        let isAssignedToTable = assignedIds.includes(tableId) || r.tableId === tableId;
+        
+        // If reservation has no assigned table, infer which table(s) it would need
+        // This handles legacy reservations created before table assignment was implemented
+        if (!r.assignedTableId && !r.tableId && r.partySize) {
+          const inferredTables = inferTablesForReservation(r.partySize);
+          isAssignedToTable = inferredTables.includes(tableId);
+        }
+        
         if (!isAssignedToTable) return false;
         
         const resStart = r.holdStart || r.reservationTime;
