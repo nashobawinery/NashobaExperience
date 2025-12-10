@@ -16,7 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign } from "lucide-react";
+import { Loader2, Search, CheckCircle, XCircle, Clock, Pencil, Trash2, DollarSign, CalendarIcon, RefreshCw } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -168,6 +169,7 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
   const { toast } = useToast();
   const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -303,6 +305,15 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
             <Pencil className="w-3 h-3 mr-1" />
             Edit
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsRescheduleDialogOpen(true)}
+            data-testid={`button-reschedule-${reservation.id}`}
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            Reschedule
+          </Button>
           {reservation.status !== 'confirmed' && (
             <Button
               size="sm"
@@ -409,6 +420,14 @@ function ReservationRow({ reservation, experience, onEdit }: { reservation: Rese
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Reschedule Dialog */}
+        <RescheduleDialog
+          open={isRescheduleDialogOpen}
+          onOpenChange={setIsRescheduleDialogOpen}
+          reservation={reservation}
+          experience={experience}
+        />
       </TableCell>
     </TableRow>
   );
@@ -661,6 +680,245 @@ function EditReservationDialog({ open, onOpenChange, reservation }: EditReservat
             </DialogFooter>
           </form>
         </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface AvailabilitySlot {
+  time: string;
+  available: boolean;
+  mealPeriod: string;
+  remainingCovers?: number;
+}
+
+interface RescheduleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reservation: Reservation;
+  experience?: Experience;
+}
+
+function RescheduleDialog({ open, onOpenChange, reservation, experience }: RescheduleDialogProps) {
+  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date(reservation.reservationDate)
+  );
+  const [selectedTime, setSelectedTime] = useState<string>(reservation.reservationTime || "");
+  const [partySize, setPartySize] = useState<number>(reservation.partySize || 2);
+  const [availableSlots, setAvailableSlots] = useState<AvailabilitySlot[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
+  const locationId = reservation.locationId || experience?.locationId;
+
+  // Fetch availability when date or party size changes
+  useEffect(() => {
+    if (!open || !selectedDate || !locationId) return;
+    
+    const fetchAvailability = async () => {
+      setLoadingAvailability(true);
+      setAvailabilityError(null);
+      setAvailableSlots([]);
+      
+      try {
+        const dateStr = format(selectedDate, "yyyy-MM-dd");
+        const response = await fetch(
+          `/api/resy/locations/${locationId}/availability?date=${dateStr}&partySize=${partySize}`
+        );
+        const data = await response.json();
+        
+        if (data.isClosed) {
+          setAvailabilityError(data.closureReason || "Location is closed on this day");
+          return;
+        }
+        
+        if (data.slots && data.slots.length > 0) {
+          const slots: AvailabilitySlot[] = data.slots
+            .filter((s: any) => s.available)
+            .map((s: any) => ({
+              time: s.time,
+              available: s.available,
+              mealPeriod: s.mealPeriod || "",
+              remainingCovers: s.remainingCovers
+            }));
+          setAvailableSlots(slots);
+          
+          if (slots.length === 0) {
+            setAvailabilityError("No available times for this party size on this date");
+          }
+        } else {
+          setAvailabilityError("No service times available for this date");
+        }
+      } catch (error) {
+        console.error("Failed to fetch availability:", error);
+        setAvailabilityError("Failed to check availability");
+      } finally {
+        setLoadingAvailability(false);
+      }
+    };
+    
+    fetchAvailability();
+  }, [open, selectedDate, partySize, locationId]);
+
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedDate(new Date(reservation.reservationDate));
+      setSelectedTime(reservation.reservationTime || "");
+      setPartySize(reservation.partySize || 2);
+    }
+  }, [open, reservation]);
+
+  const rescheduleMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedDate || !selectedTime) {
+        throw new Error("Please select a date and time");
+      }
+      return await apiRequest("POST", `/api/resy/reservations/${reservation.id}/reschedule`, {
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time: selectedTime,
+        partySize
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/reservations"] });
+      onOpenChange(false);
+      toast({
+        title: "Reservation Rescheduled",
+        description: `Moved to ${format(selectedDate!, "MMM d, yyyy")} at ${selectedTime}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Reschedule Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatTo12Hour = (timeStr: string): string => {
+    if (timeStr.includes("AM") || timeStr.includes("PM")) {
+      return timeStr;
+    }
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const period = hours >= 12 ? "PM" : "AM";
+    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Reschedule Reservation</DialogTitle>
+          <DialogDescription>
+            Current: {format(new Date(reservation.reservationDate), "MMM d, yyyy")} at {reservation.reservationTime}
+            {reservation.partySize && ` for ${reservation.partySize} guests`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Party Size</label>
+              <Select
+                value={partySize.toString()}
+                onValueChange={(v) => setPartySize(parseInt(v))}
+              >
+                <SelectTrigger data-testid="select-party-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                    <SelectItem key={n} value={n.toString()}>
+                      {n} {n === 1 ? "guest" : "guests"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Select Date</label>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                disabled={(date) => date < new Date()}
+                className="rounded-md border"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="text-sm font-medium block">Available Times</label>
+            
+            {loadingAvailability && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {availabilityError && !loadingAvailability && (
+              <div className="text-center py-8 text-muted-foreground">
+                <XCircle className="w-8 h-8 mx-auto mb-2 text-destructive" />
+                <p>{availabilityError}</p>
+              </div>
+            )}
+
+            {!loadingAvailability && !availabilityError && availableSlots.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+                {availableSlots.map((slot) => (
+                  <Button
+                    key={slot.time}
+                    variant={selectedTime === slot.time ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedTime(slot.time)}
+                    className="justify-start"
+                    data-testid={`button-time-${slot.time}`}
+                  >
+                    <Clock className="w-3 h-3 mr-2" />
+                    {formatTo12Hour(slot.time)}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {selectedTime && (
+              <div className="mt-4 p-3 bg-muted rounded-md">
+                <p className="text-sm font-medium">New Schedule:</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")} at {formatTo12Hour(selectedTime)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Party of {partySize}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => rescheduleMutation.mutate()}
+            disabled={!selectedDate || !selectedTime || rescheduleMutation.isPending}
+            data-testid="button-confirm-reschedule"
+          >
+            {rescheduleMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Rescheduling...
+              </>
+            ) : (
+              "Confirm Reschedule"
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
