@@ -880,7 +880,7 @@ function ServicePeriodsTab({ locationId }: { locationId: string }) {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingPeriod ? "Edit Service Period" : "Add New Service Period"}
@@ -892,6 +892,7 @@ function ServicePeriodsTab({ locationId }: { locationId: string }) {
             </DialogDescription>
           </DialogHeader>
           <ServicePeriodForm
+            key={editingPeriod?.id || "new"}
             period={editingPeriod}
             locationId={locationId}
             onSuccess={() => {
@@ -1831,6 +1832,7 @@ function FlowControlsTab({ locationId }: { locationId: string }) {
             </DialogDescription>
           </DialogHeader>
           <FlowControlForm
+            key={editingControl?.id || "new"}
             control={editingControl}
             locationId={locationId}
             periods={periods || []}
@@ -2402,7 +2404,7 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTurnTime ? "Edit Turn Time" : "Add New Turn Time"}
@@ -2412,6 +2414,7 @@ function TurnTimesTab({ locationId }: { locationId: string }) {
             </DialogDescription>
           </DialogHeader>
           <TurnTimeForm
+            key={editingTurnTime?.id || "new"}
             turnTime={editingTurnTime}
             locationId={locationId}
             onSuccess={() => {
