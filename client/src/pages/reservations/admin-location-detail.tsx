@@ -2075,7 +2075,7 @@ function FlowControlForm({
         intervalOverrides: flowMode === "controlled" ? intervalOverrides : null,
       };
       if (control) {
-        await apiRequest("PATCH", `/api/flow-controls/${control.id}`, payload);
+        await apiRequest("PATCH", `/api/resy/flow-controls/${control.id}`, payload);
       } else {
         await apiRequest("POST", "/api/resy/flow-controls", payload);
       }
