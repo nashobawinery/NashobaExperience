@@ -10,6 +10,7 @@ import Landing from "@/pages/Landing";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { ReservationCartProvider } from "@/contexts/reservation-cart-context";
 
 // Lazy load heavy admin/module pages for better initial load performance
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
@@ -854,8 +855,10 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <ReservationCartProvider>
+          <Toaster />
+          <Router />
+        </ReservationCartProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

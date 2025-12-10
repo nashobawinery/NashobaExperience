@@ -744,7 +744,7 @@ export default function Booking() {
       <header className="border-b sticky top-0 bg-background z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
           <Button variant="ghost" asChild data-testid="button-back">
-            <Link href="/">
+            <Link href="/reservations">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Link>
