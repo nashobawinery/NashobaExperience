@@ -58,10 +58,12 @@ export interface SyncApplyResult {
 }
 
 function computeContentHash(data: Record<string, any>, fields: string[]): string {
+  // Normalize record keys to camelCase for consistent hashing
+  const normalizedData = normalizeRecordKeys(data);
   const sortedData: Record<string, any> = {};
   for (const field of fields.sort()) {
-    if (data[field] !== undefined) {
-      sortedData[field] = data[field];
+    if (normalizedData[field] !== undefined) {
+      sortedData[field] = normalizedData[field];
     }
   }
   const json = JSON.stringify(sortedData, (_, v) => {
@@ -72,10 +74,32 @@ function computeContentHash(data: Record<string, any>, fields: string[]): string
   return crypto.createHash('md5').update(json).digest('hex');
 }
 
+// Convert snake_case to camelCase
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// Convert camelCase to snake_case
+function camelToSnake(str: string): string {
+  return str.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
+// Normalize record keys to camelCase for consistent comparison
+function normalizeRecordKeys(record: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(record)) {
+    const camelKey = snakeToCamel(key);
+    normalized[camelKey] = value;
+  }
+  return normalized;
+}
+
 function getBusinessKeyValue(record: Record<string, any>, businessKeys: string[]): Record<string, any> {
+  // First normalize the record keys to camelCase
+  const normalizedRecord = normalizeRecordKeys(record);
   const keyValue: Record<string, any> = {};
   for (const key of businessKeys) {
-    keyValue[key] = record[key];
+    keyValue[key] = normalizedRecord[key];
   }
   return keyValue;
 }
