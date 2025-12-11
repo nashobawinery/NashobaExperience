@@ -4751,9 +4751,18 @@ export default function AdminDashboard() {
                           </p>
                         </div>
                       </div>
-                      {agreement.signatureName !== 'PENDING' && (
-                        <div className="text-right text-xs text-muted-foreground">
-                          <p>{agreement.signatureTitle}</p>
+                      {agreement.signatureName !== 'PENDING' && agreement.signatureName && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`/b2b/admin/agreements/${agreement.id}`, '_blank')}
+                            data-testid={`button-view-agreement-${agreement.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
                         </div>
                       )}
                     </div>

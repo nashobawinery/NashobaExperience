@@ -2980,6 +2980,35 @@ router.get('/api/b2b/admin/customers/:id/tier-agreements', requireB2bAdminOrSale
   }
 });
 
+// Admin: Get single tier agreement by ID (for viewing signed agreements)
+router.get('/api/b2b/admin/tier-agreements/:agreementId', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { agreementId } = req.params;
+    
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.id, agreementId))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.status(404).json({ error: 'Agreement not found' });
+    }
+    
+    const agreement = agreements[0];
+    
+    // Get tier info
+    let tier = null;
+    if (agreement.tierId) {
+      tier = await storage.getTierPricing(agreement.tierId);
+    }
+    
+    res.json({ ...agreement, tier });
+  } catch (error) {
+    console.error('Error fetching tier agreement:', error);
+    res.status(500).json({ error: 'Failed to fetch tier agreement' });
+  }
+});
+
 // PUBLIC: Get tier agreement form data by token (no auth required)
 router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response) => {
   try {

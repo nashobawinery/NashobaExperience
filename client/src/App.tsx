@@ -103,6 +103,7 @@ const B2bWhereToBuyPage = lazy(() => import("@/pages/b2b/WhereToBuyPage"));
 const B2bSalesRepDashboard = lazy(() => import("@/pages/b2b/SalesRepDashboard"));
 const B2bCustomerDataPage = lazy(() => import("@/pages/b2b/CustomerDataPage"));
 const B2bTierAgreementPage = lazy(() => import("@/pages/b2b/TierAgreementPage"));
+const B2bViewSignedAgreementPage = lazy(() => import("@/pages/b2b/ViewSignedAgreementPage"));
 
 // Import B2B ProtectedRoute synchronously since it's a wrapper component
 import { ProtectedRoute } from "@/components/b2b/ProtectedRoute";
@@ -761,6 +762,11 @@ function B2bRoutes() {
             <Route path="/b2b/admin">
               <ProtectedRoute requireAdmin>
                 <Suspense fallback={<PageLoader />}><B2bAdminDashboard /></Suspense>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/b2b/admin/agreements/:agreementId">
+              <ProtectedRoute requireAdmin>
+                <Suspense fallback={<PageLoader />}><B2bViewSignedAgreementPage /></Suspense>
               </ProtectedRoute>
             </Route>
 

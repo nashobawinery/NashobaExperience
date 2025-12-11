@@ -86,6 +86,7 @@ import {
   b2bRolePermissions,
   b2bSlideshowSlides,
   b2bEmailTemplates,
+  b2bTierAgreements,
   b2bEmailAutomationLogs,
   productMedia,
   improvementNotes,
@@ -2960,6 +2961,7 @@ export class DatabaseStorage implements IStorage {
 
   // B2B - Tier Commitment tracking
   async getTierCommitmentReport(): Promise<any[]> {
+    // Get all active customers with Tier 3 or Tier 4 (commitment tiers)
     const customers = await db
       .select({
         id: b2bCustomers.id,
@@ -2973,25 +2975,58 @@ export class DatabaseStorage implements IStorage {
         commitmentCases: tierPricing.commitmentCases,
       })
       .from(b2bCustomers)
-      .leftJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
-      .where(eq(b2bCustomers.accountStatus, 'active'));
+      .innerJoin(tierPricing, eq(b2bCustomers.pricingTierId, tierPricing.id))
+      .where(
+        and(
+          eq(b2bCustomers.accountStatus, 'active'),
+          sql`${tierPricing.commitmentCases} > 0`
+        )
+      );
+    
+    // Also check for customers with active tier agreements that have commitment
+    const activeAgreements = await db
+      .select({
+        customerId: b2bTierAgreements.customerId,
+        fiscalYearStart: b2bTierAgreements.fiscalYearStart,
+        fiscalYearEnd: b2bTierAgreements.fiscalYearEnd,
+      })
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.status, 'active'));
+    
+    const agreementMap = new Map(activeAgreements.map(a => [a.customerId, a]));
 
     const report = await Promise.all(
       customers.map(async (customer) => {
-        if (!customer.commitmentStartDate || !customer.commitmentCases || customer.commitmentCases === 0) {
+        // Get commitment dates from agreement if available, otherwise from customer
+        const agreement = agreementMap.get(customer.id);
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
+        
+        if (agreement?.fiscalYearStart) {
+          startDate = new Date(agreement.fiscalYearStart);
+          endDate = agreement.fiscalYearEnd ? new Date(agreement.fiscalYearEnd) : null;
+        } else if (customer.commitmentStartDate) {
+          startDate = new Date(customer.commitmentStartDate);
+        }
+        
+        // If no start date yet, still include in report but with limited data
+        if (!startDate) {
           return {
             ...customer,
             casesPurchased: 0,
-            casesRemaining: 0,
-            monthsLeft: null,
+            casesRemaining: customer.commitmentCases || 0,
+            monthsLeft: 12, // Full year ahead
             commitmentEndDate: null,
             percentComplete: 0,
+            needsStartDate: true,
           };
         }
-
-        const startDate = new Date(customer.commitmentStartDate);
-        const endDate = new Date(startDate);
-        endDate.setFullYear(endDate.getFullYear() + 1);
+        
+        // Calculate end date if not set (1 year from start)
+        if (!endDate) {
+          endDate = new Date(startDate);
+          endDate.setFullYear(endDate.getFullYear() + 1);
+        }
 
         const now = new Date();
         const monthsLeft = Math.max(
@@ -3020,9 +3055,10 @@ export class DatabaseStorage implements IStorage {
           return total + item.quantity;
         }, 0);
 
-        const casesRemaining = Math.max(0, customer.commitmentCases - casesPurchased);
-        const percentComplete = customer.commitmentCases > 0 
-          ? Math.round((casesPurchased / customer.commitmentCases) * 100) 
+        const commitmentCases = customer.commitmentCases || 0;
+        const casesRemaining = Math.max(0, commitmentCases - casesPurchased);
+        const percentComplete = commitmentCases > 0 
+          ? Math.round((casesPurchased / commitmentCases) * 100) 
           : 0;
 
         return {
@@ -3030,8 +3066,10 @@ export class DatabaseStorage implements IStorage {
           casesPurchased,
           casesRemaining,
           monthsLeft,
+          commitmentStartDate: startDate,
           commitmentEndDate: endDate,
           percentComplete,
+          needsStartDate: false,
         };
       })
     );
