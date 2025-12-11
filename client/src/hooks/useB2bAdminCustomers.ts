@@ -94,32 +94,44 @@ export function useCreateB2bCustomer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: {
-      accountName: string;
-      primaryContactName: string;
-      emailAddress: string;
-      phoneNumber: string;
-      licenseNumber?: string;
-      taxId?: string;
-      billingAddress?: string;
-      billingCity?: string;
-      billingState?: string;
-      billingZipCode?: string;
-      shippingAddress?: string;
-      shippingCity?: string;
-      shippingState?: string;
-      shippingZipCode?: string;
-      tierId?: string;
-      salesRepId?: string;
-      autoApprove?: boolean;
-      autoGeneratePassword?: boolean;
-      customPassword?: string;
-      notes?: string;
+    mutationFn: async ({
+      data,
+      userType = "admin",
+    }: {
+      data: {
+        accountName: string;
+        primaryContactName: string;
+        emailAddress: string;
+        phoneNumber: string;
+        customerType?: string;
+        licenseNumber?: string;
+        taxId?: string;
+        billingAddress?: string;
+        billingCity?: string;
+        billingState?: string;
+        billingZipCode?: string;
+        shippingAddress?: string;
+        shippingCity?: string;
+        shippingState?: string;
+        shippingZipCode?: string;
+        tierId?: string;
+        salesRepId?: string;
+        autoApprove?: boolean;
+        autoGeneratePassword?: boolean;
+        customPassword?: string;
+        notes?: string;
+      };
+      userType?: "admin" | "sales_rep";
     }) => {
-      return apiRequest("POST", "/api/b2b/admin/customers", data);
+      // Use the appropriate endpoint based on user type
+      const endpoint = userType === "sales_rep" 
+        ? "/api/b2b/sales-rep/customers"
+        : "/api/b2b/admin/customers";
+      return apiRequest("POST", endpoint, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+      queryClient.invalidateQueries({ queryKey: ["b2b", "sales-rep", "customers"] });
     },
   });
 }

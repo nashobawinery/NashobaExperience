@@ -1436,24 +1436,8 @@ export default function AdminDashboard() {
     try {
       // Use different endpoint for sales rep (auto-assigns them as sales rep)
       if (currentUser?.type === 'sales_rep') {
-        const endpoint = '/api/b2b/sales-rep/customers';
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            ...data,
-            // Sales rep doesn't specify their own salesRepId - it's auto-assigned
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create customer');
-        }
-
-        // Invalidate queries to refresh data - use the correct query key format that matches the hook
-        queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+        // Use the hook with sales_rep userType for proper endpoint routing
+        await createCustomer({ data, userType: 'sales_rep' });
 
         toast({
           title: "Customer Created Successfully",
@@ -1462,8 +1446,8 @@ export default function AdminDashboard() {
             : `${data.accountName} has been created and is pending approval. You are assigned as the Sales Representative.`,
         });
       } else {
-        // Admin flow
-        const result = await createCustomer(data);
+        // Admin flow - use the hook with proper data wrapper
+        const result = await createCustomer({ data, userType: 'admin' });
         
         toast({
           title: "Customer Created Successfully",
