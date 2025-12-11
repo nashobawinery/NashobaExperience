@@ -360,6 +360,146 @@ export async function connectToProductionDatabase(prodDatabaseUrl: string): Prom
   }
 }
 
+// Helper to scan a single table with a fresh connection (prevents Neon timeouts)
+async function scanSingleTable(
+  tableConfig: typeof SYNC_TABLES[0],
+  prodDatabaseUrl: string
+): Promise<TableSyncSummary | null> {
+  const { Pool } = await import('pg');
+  
+  try {
+    const devRecords = await fetchTableData(
+      tableConfig.id,
+      tableConfig.exportFields,
+      tableConfig.businessKey
+    );
+    
+    const tableNameSnake = tableConfig.id.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+    
+    let prodRecords: Record<string, any>[] = [];
+    
+    // Use a fresh short-lived connection for each table to prevent Neon timeouts
+    const pool = new Pool({ 
+      connectionString: prodDatabaseUrl,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 5000,
+      max: 1
+    });
+    
+    // Handle pool errors gracefully (prevents server crash)
+    pool.on('error', (err) => {
+      console.warn(`[Sync] Pool error for ${tableConfig.id}:`, err.message);
+    });
+    
+    try {
+      const client = await pool.connect();
+      try {
+        const result = await client.query(`SELECT * FROM "${tableNameSnake}" LIMIT 10000`);
+        prodRecords = result.rows;
+      } finally {
+        client.release(true); // Force destroy connection
+      }
+    } catch (error: any) {
+      if (!error.message?.includes('does not exist')) {
+        console.warn(`[Sync] Warning: Could not read production table ${tableNameSnake}:`, error.message);
+      }
+    } finally {
+      try { await pool.end(); } catch {} // Ignore end errors
+    }
+    
+    const devByKey = new Map<string, Record<string, any>>();
+    for (const record of devRecords) {
+      const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
+      const keyString = businessKeyToString(keyValue);
+      devByKey.set(keyString, record);
+    }
+    
+    const prodByKey = new Map<string, Record<string, any>>();
+    for (const record of prodRecords) {
+      const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
+      const keyString = businessKeyToString(keyValue);
+      prodByKey.set(keyString, record);
+    }
+    
+    const allKeysSet = new Set([...Array.from(devByKey.keys()), ...Array.from(prodByKey.keys())]);
+    const allKeys = Array.from(allKeysSet);
+    const records: SyncRecord[] = [];
+    let devNewer = 0, prodNewer = 0, conflicts = 0, identical = 0, devOnly = 0, prodOnly = 0;
+    
+    for (const keyString of allKeys) {
+      const devRecord = devByKey.get(keyString) || null;
+      const prodRecord = prodByKey.get(keyString) || null;
+      
+      const keyValue = devRecord 
+        ? getBusinessKeyValue(devRecord, tableConfig.businessKey)
+        : getBusinessKeyValue(prodRecord!, tableConfig.businessKey);
+      
+      const devHash = devRecord ? computeContentHash(devRecord, tableConfig.exportFields) : null;
+      const prodHash = prodRecord ? computeContentHash(prodRecord, tableConfig.exportFields) : null;
+      
+      const devUpdatedAt = devRecord?.updatedAt ? new Date(devRecord.updatedAt) : 
+                           devRecord?.createdAt ? new Date(devRecord.createdAt) : null;
+      const prodUpdatedAt = prodRecord?.updated_at ? new Date(prodRecord.updated_at) : 
+                            prodRecord?.created_at ? new Date(prodRecord.created_at) : null;
+      
+      const state = determineRecordState(devRecord, prodRecord, devHash, prodHash, devUpdatedAt, prodUpdatedAt);
+      
+      switch (state) {
+        case 'dev_newer': devNewer++; break;
+        case 'prod_newer': prodNewer++; break;
+        case 'conflict': conflicts++; break;
+        case 'identical': identical++; break;
+        case 'dev_only': devOnly++; break;
+        case 'prod_only': prodOnly++; break;
+      }
+      
+      const recommendation = getRecommendation(state, tableConfig.dataType);
+      const selected = recommendation === 'keep_dev' ? 'dev' : 
+                       recommendation === 'keep_prod' ? 'prod' : 'skip';
+      
+      records.push({
+        tableId: tableConfig.id,
+        businessKey: keyValue,
+        state,
+        recommendation,
+        devUpdatedAt,
+        prodUpdatedAt,
+        devHash,
+        prodHash,
+        devData: devRecord,
+        prodData: prodRecord,
+        selected,
+      });
+    }
+    
+    // Log summary for tables with differences
+    const hasDiff = devNewer > 0 || prodNewer > 0 || conflicts > 0 || devOnly > 0 || prodOnly > 0;
+    if (hasDiff) {
+      console.log(`[Sync] ${tableConfig.id}: dev=${devRecords.length}, prod=${prodRecords.length}, devNewer=${devNewer}, prodNewer=${prodNewer}, conflicts=${conflicts}, identical=${identical}, devOnly=${devOnly}, prodOnly=${prodOnly}`);
+    }
+    
+    return {
+      tableId: tableConfig.id,
+      tableName: tableConfig.name,
+      module: tableConfig.module,
+      dataType: tableConfig.dataType,
+      devCount: devRecords.length,
+      prodCount: prodRecords.length,
+      devNewer,
+      prodNewer,
+      conflicts,
+      identical,
+      devOnly,
+      prodOnly,
+      records: records.filter(r => r.state !== 'identical'),
+    };
+    
+  } catch (error: any) {
+    console.error(`[Sync] Error scanning table ${tableConfig.id}:`, error.message);
+    return null;
+  }
+}
+
 export async function scanBidirectional(
   config: BidirectionalSyncConfig
 ): Promise<SyncScanResult> {
@@ -371,166 +511,35 @@ export async function scanBidirectional(
   let totalConflicts = 0;
   let totalIdentical = 0;
   
-  // Use connection pool with better timeout settings for Neon serverless
-  const prodPool = new Pool({ 
-    connectionString: config.prodDatabaseUrl,
-    connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 30000,
-    max: 3,
-    allowExitOnIdle: true
-  });
+  const tablesToScan = config.tableIds 
+    ? SYNC_TABLES.filter(t => config.tableIds!.includes(t.id) && !t.excludeFromSync)
+    : SYNC_TABLES.filter(t => !t.excludeFromSync);
   
-  try {
-    const tablesToScan = config.tableIds 
-      ? SYNC_TABLES.filter(t => config.tableIds!.includes(t.id) && !t.excludeFromSync)
-      : SYNC_TABLES.filter(t => !t.excludeFromSync);
+  console.log(`[Sync] Scanning ${tablesToScan.length} tables in batches`);
+  
+  // Process tables in batches to prevent Neon connection timeouts
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < tablesToScan.length; i += BATCH_SIZE) {
+    const batch = tablesToScan.slice(i, i + BATCH_SIZE);
+    console.log(`[Sync] Batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(tablesToScan.length/BATCH_SIZE)}: ${batch.map(t => t.id).join(', ')}`);
     
-    console.log(`[Sync] Scanning ${tablesToScan.length} tables`);
-    const resyTables = tablesToScan.filter(t => t.id.startsWith('resy'));
-    console.log(`[Sync] Resy tables to scan: ${resyTables.length} - ${resyTables.map(t => t.id).join(', ')}`);
+    // Process batch in parallel for speed
+    const batchResults = await Promise.all(
+      batch.map(tableConfig => scanSingleTable(tableConfig, config.prodDatabaseUrl))
+    );
     
-    // Log ALL tables being scanned (first 20)
-    console.log(`[Sync] All tables: ${tablesToScan.slice(0, 20).map(t => t.id).join(', ')}${tablesToScan.length > 20 ? ` ... and ${tablesToScan.length - 20} more` : ''}`);
-    
-    for (const tableConfig of tablesToScan) {
-      try {
-        const devRecords = await fetchTableData(
-          tableConfig.id,
-          tableConfig.exportFields,
-          tableConfig.businessKey
-        );
-        
-        const tableNameSnake = tableConfig.id.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
-        
-        // Log resy tables for debugging
-        if (tableConfig.id.startsWith('resy')) {
-          console.log(`[Sync] ${tableConfig.id} -> ${tableNameSnake}: dev=${devRecords.length} rows`);
-        }
-        
-        // Special debug for ExperienceDiscounts
-        if (tableConfig.id === 'resyExperienceDiscounts') {
-          console.log(`[Sync DEBUG] resyExperienceDiscounts: devRecords=${JSON.stringify(devRecords.slice(0, 3))}`);
-        }
-        
-        let prodRecords: Record<string, any>[] = [];
-        
-        try {
-          const prodClient = await prodPool.connect();
-          const result = await prodClient.query(`SELECT * FROM "${tableNameSnake}" LIMIT 10000`);
-          prodRecords = result.rows;
-          prodClient.release();
-          
-          // Special debug for ExperienceDiscounts
-          if (tableConfig.id === 'resyExperienceDiscounts') {
-            console.log(`[Sync DEBUG] resyExperienceDiscounts: prodRecords=${JSON.stringify(prodRecords.slice(0, 3))}`);
-          }
-        } catch (error: any) {
-          if (!error.message?.includes('does not exist')) {
-            console.warn(`Warning: Could not read production table ${tableNameSnake}:`, error.message);
-          } else if (tableConfig.id === 'resyExperienceDiscounts') {
-            console.log(`[Sync DEBUG] resyExperienceDiscounts: prod table does not exist`);
-          }
-        }
-        
-        const devByKey = new Map<string, Record<string, any>>();
-        for (const record of devRecords) {
-          const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
-          const keyString = businessKeyToString(keyValue);
-          devByKey.set(keyString, record);
-        }
-        
-        const prodByKey = new Map<string, Record<string, any>>();
-        for (const record of prodRecords) {
-          const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
-          const keyString = businessKeyToString(keyValue);
-          prodByKey.set(keyString, record);
-        }
-        
-        const allKeysSet = new Set([...Array.from(devByKey.keys()), ...Array.from(prodByKey.keys())]);
-        const allKeys = Array.from(allKeysSet);
-        const records: SyncRecord[] = [];
-        let devNewer = 0, prodNewer = 0, conflicts = 0, identical = 0, devOnly = 0, prodOnly = 0;
-        
-        for (const keyString of allKeys) {
-          const devRecord = devByKey.get(keyString) || null;
-          const prodRecord = prodByKey.get(keyString) || null;
-          
-          const keyValue = devRecord 
-            ? getBusinessKeyValue(devRecord, tableConfig.businessKey)
-            : getBusinessKeyValue(prodRecord!, tableConfig.businessKey);
-          
-          const devHash = devRecord ? computeContentHash(devRecord, tableConfig.exportFields) : null;
-          const prodHash = prodRecord ? computeContentHash(prodRecord, tableConfig.exportFields) : null;
-          
-          const devUpdatedAt = devRecord?.updatedAt ? new Date(devRecord.updatedAt) : 
-                               devRecord?.createdAt ? new Date(devRecord.createdAt) : null;
-          const prodUpdatedAt = prodRecord?.updated_at ? new Date(prodRecord.updated_at) : 
-                                prodRecord?.created_at ? new Date(prodRecord.created_at) : null;
-          
-          const state = determineRecordState(devRecord, prodRecord, devHash, prodHash, devUpdatedAt, prodUpdatedAt);
-          
-          switch (state) {
-            case 'dev_newer': devNewer++; break;
-            case 'prod_newer': prodNewer++; break;
-            case 'conflict': conflicts++; break;
-            case 'identical': identical++; break;
-            case 'dev_only': devOnly++; break;
-            case 'prod_only': prodOnly++; break;
-          }
-          
-          const recommendation = getRecommendation(state, tableConfig.dataType);
-          const selected = getDefaultSelection(state, recommendation);
-          
-          records.push({
-            tableId: tableConfig.id,
-            businessKey: keyValue,
-            devData: devRecord,
-            prodData: prodRecord,
-            devUpdatedAt,
-            prodUpdatedAt,
-            devHash,
-            prodHash,
-            state,
-            recommendation,
-            selected,
-          });
-        }
-        
-        // Log summary for each table
-        const hasDiff = devNewer > 0 || prodNewer > 0 || conflicts > 0 || devOnly > 0 || prodOnly > 0;
-        if (hasDiff || tableConfig.id.includes('Flow') || tableConfig.id.includes('platform')) {
-          console.log(`[Sync] ${tableConfig.id}: dev=${devRecords.length}, prod=${prodRecords.length}, devNewer=${devNewer}, prodNewer=${prodNewer}, conflicts=${conflicts}, identical=${identical}, devOnly=${devOnly}, prodOnly=${prodOnly}`);
-        }
-        
-        tables.push({
-          tableId: tableConfig.id,
-          tableName: tableConfig.name,
-          module: tableConfig.module,
-          dataType: tableConfig.dataType,
-          devCount: devRecords.length,
-          prodCount: prodRecords.length,
-          devNewer,
-          prodNewer,
-          conflicts,
-          identical,
-          devOnly,
-          prodOnly,
-          records: records.filter(r => r.state !== 'identical'),
-        });
-        
-        totalDevNewer += devNewer;
-        totalProdNewer += prodNewer;
-        totalConflicts += conflicts;
-        totalIdentical += identical;
-        
-      } catch (error: any) {
-        console.error(`Error scanning table ${tableConfig.id}:`, error.message);
+    for (const result of batchResults) {
+      if (result) {
+        tables.push(result);
+        totalDevNewer += result.devNewer;
+        totalProdNewer += result.prodNewer;
+        totalConflicts += result.conflicts;
+        totalIdentical += result.identical;
       }
     }
-    
-  } finally {
-    await prodPool.end();
   }
+  
+  console.log(`[Sync] Scan complete: ${tables.length} tables scanned, ${totalDevNewer} dev newer, ${totalProdNewer} prod newer, ${totalConflicts} conflicts`);
   
   return {
     scanId,
