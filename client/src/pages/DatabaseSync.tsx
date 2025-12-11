@@ -505,11 +505,19 @@ export default function DatabaseSync() {
 
   const allTableIds = useMemo(() => allSyncableTables.map(t => t.id), [allSyncableTables]);
 
+  // Track if we've initialized with the real registry data (not fallback)
+  const [hasInitializedWithRegistry, setHasInitializedWithRegistry] = useState(false);
+  
   useEffect(() => {
-    if (allTableIds.length > 0 && selectedTables.length === 0) {
+    // Only auto-select tables when:
+    // 1. We have the real registry data (not fallback)
+    // 2. We haven't already initialized with real data
+    if (registryData?.modules && !hasInitializedWithRegistry) {
       setSelectedTables(allTableIds);
+      setHasInitializedWithRegistry(true);
+      console.log('[Sync] Initialized table selection with registry:', allTableIds.length, 'tables');
     }
-  }, [allTableIds]);
+  }, [registryData, allTableIds, hasInitializedWithRegistry]);
 
   // Object Storage sync status query
   const { data: mediaSyncStatus, isLoading: isLoadingStatus, refetch: refetchStatus } = useQuery<MediaSyncStatus>({
