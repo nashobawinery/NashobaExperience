@@ -2880,6 +2880,7 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       fiscalYearEnd,
       sentByAdminId,
       sentBySalesRepId,
+      sentAt: new Date(),
     });
     
     // Build agreement URL
