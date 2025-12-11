@@ -1091,7 +1091,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     sheetName: 'ResySiteSettings',
     businessKey: ['id'],
     schema: insertResySiteSettingSchema,
-    exportFields: ['siteName', 'siteDescription', 'logoUrl', 'primaryColor', 'accentColor', 'contactEmail', 'contactPhone', 'address', 'timezone'],
+    exportFields: ['headerTitle', 'headerSubtitle', 'logoUrl', 'primaryColor', 'secondaryColor', 'accentColor', 'backgroundImageUrl', 'headerImageUrl', 'companyName', 'companyAddress', 'companyPhone', 'companyEmail', 'companyCity', 'companyState', 'companyZip', 'companyZipCode', 'companyWebsite', 'showPoweredBy'],
     dataType: 'configuration',
     supportsBackup: true,
   },
