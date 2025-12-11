@@ -53,6 +53,10 @@ const TechnicianWorkOrders = lazy(() => import("@/pages/maintenance/TechnicianWo
 const SpotInventoryAdminDashboard = lazy(() => import("@/pages/spot-inventory/SpotInventoryAdminDashboard"));
 const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInventoryStaffApp"));
 
+// Lazy load Staff Dashboard
+const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
+const StaffDashboardAdmin = lazy(() => import("@/pages/StaffDashboardAdmin"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -431,6 +435,32 @@ function SpotInventoryStaffRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <SpotInventoryStaffApp />
+    </Suspense>
+  );
+}
+
+function StaffDashboardRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StaffDashboard />
+    </Suspense>
+  );
+}
+
+function StaffDashboardAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StaffDashboardAdmin />
     </Suspense>
   );
 }
@@ -826,6 +856,8 @@ function Router() {
         <Route path="/spot-inventory" component={SpotInventoryAdminRoute} />
         <Route path="/spot-inventory/admin" component={SpotInventoryAdminRoute} />
         <Route path="/spot-inventory/staff" component={SpotInventoryStaffRoute} />
+        <Route path="/staff-dashboard" component={StaffDashboardRoute} />
+        <Route path="/staff-dashboard/admin" component={StaffDashboardAdminRoute} />
         <Route path="/daily-reports" component={DailyReportsAdminRoute} />
         <Route path="/daily-reports/admin" component={DailyReportsAdminRoute} />
         {/* Reservation Routes - Customer facing */}

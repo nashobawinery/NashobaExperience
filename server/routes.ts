@@ -9630,6 +9630,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===============================
+  // Staff Dashboard Configuration
+  // ===============================
+  
+  // Admin: Get all staff dashboard modules (with enable/disable status)
+  app.get('/api/admin/staff-dashboard', isAdmin, async (req, res) => {
+    try {
+      const modules = await storage.getAllStaffDashboardModules();
+      res.json(modules);
+    } catch (error) {
+      console.error('Error fetching staff dashboard modules:', error);
+      res.status(500).json({ message: 'Failed to fetch staff dashboard modules' });
+    }
+  });
+
+  // Admin: Update staff dashboard module configuration
+  app.patch('/api/admin/staff-dashboard/:moduleId', isAdmin, async (req, res) => {
+    try {
+      const { moduleId } = req.params;
+      const { isEnabled, linkUrl, customLabel, customDescription, sortOrder } = req.body;
+      
+      // Check if entry exists
+      let existing = await storage.getStaffDashboardModule(moduleId);
+      
+      if (existing) {
+        // Update existing entry
+        const updated = await storage.updateStaffDashboardModule(existing.id, {
+          isEnabled,
+          linkUrl,
+          customLabel,
+          customDescription,
+          sortOrder
+        });
+        res.json(updated);
+      } else {
+        // Create new entry (upsert)
+        const created = await storage.upsertStaffDashboardModule({
+          moduleId,
+          isEnabled: isEnabled ?? false,
+          linkUrl: linkUrl ?? '/',
+          customLabel,
+          customDescription,
+          sortOrder: sortOrder ?? 0
+        });
+        res.json(created);
+      }
+    } catch (error) {
+      console.error('Error updating staff dashboard module:', error);
+      res.status(500).json({ message: 'Failed to update staff dashboard module' });
+    }
+  });
+
+  // Admin: Bulk update staff dashboard modules
+  app.post('/api/admin/staff-dashboard/bulk', isAdmin, async (req, res) => {
+    try {
+      const { modules } = req.body;
+      
+      if (!Array.isArray(modules)) {
+        return res.status(400).json({ message: 'modules must be an array' });
+      }
+      
+      const results = [];
+      for (const moduleData of modules) {
+        const result = await storage.upsertStaffDashboardModule({
+          moduleId: moduleData.moduleId,
+          isEnabled: moduleData.isEnabled ?? false,
+          linkUrl: moduleData.linkUrl ?? '/',
+          customLabel: moduleData.customLabel,
+          customDescription: moduleData.customDescription,
+          sortOrder: moduleData.sortOrder ?? 0
+        });
+        results.push(result);
+      }
+      
+      res.json({ success: true, modules: results });
+    } catch (error) {
+      console.error('Error bulk updating staff dashboard modules:', error);
+      res.status(500).json({ message: 'Failed to bulk update staff dashboard modules' });
+    }
+  });
+
+  // Admin: Initialize staff dashboard modules from platform modules
+  app.post('/api/admin/staff-dashboard/initialize', isAdmin, async (req, res) => {
+    try {
+      await storage.initializeStaffDashboardModules();
+      const modules = await storage.getAllStaffDashboardModules();
+      res.json({ success: true, modules });
+    } catch (error) {
+      console.error('Error initializing staff dashboard modules:', error);
+      res.status(500).json({ message: 'Failed to initialize staff dashboard modules' });
+    }
+  });
+
+  // Public/Staff: Get enabled staff dashboard modules
+  app.get('/api/staff-dashboard', async (req, res) => {
+    try {
+      const modules = await storage.getEnabledStaffDashboardModules();
+      res.json(modules);
+    } catch (error) {
+      console.error('Error fetching enabled staff dashboard modules:', error);
+      res.status(500).json({ message: 'Failed to fetch staff dashboard modules' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
