@@ -3009,6 +3009,107 @@ router.get('/api/b2b/admin/tier-agreements/:agreementId', requireB2bAdminOrSales
   }
 });
 
+// Admin: Cancel/terminate a tier agreement
+router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { agreementId } = req.params;
+    const { reason } = req.body;
+    
+    // Find the agreement
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.id, agreementId))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.status(404).json({ error: 'Agreement not found' });
+    }
+    
+    const agreement = agreements[0];
+    
+    if (agreement.status !== 'active') {
+      return res.status(400).json({ error: 'Only active agreements can be cancelled' });
+    }
+    
+    // Update agreement status to cancelled
+    await db.update(b2bTierAgreements)
+      .set({
+        status: 'cancelled',
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bTierAgreements.id, agreementId));
+    
+    // Reset customer's tier to Tier 1 (default) and clear commitment start date
+    const tier1 = await db.select().from(tierPricing).where(eq(tierPricing.tierName, 'Tier 1')).limit(1);
+    if (tier1.length > 0) {
+      await storage.updateB2bCustomer(agreement.customerId, {
+        pricingTierId: tier1[0].id,
+        commitmentStartDate: null,
+      });
+    }
+    
+    // Send cancellation notification email to customer
+    if (process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
+      const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
+            .content { padding: 30px 20px; }
+            .info-box { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 20px 0; }
+            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Tier Agreement Cancelled</h1>
+            <p>Nashoba Valley Winery</p>
+          </div>
+          <div class="content">
+            <p>Dear ${agreement.contactName},</p>
+            
+            <div class="info-box">
+              <p><strong>Your tier agreement has been cancelled.</strong></p>
+              <p>Your pricing has been reset to standard Tier 1 rates.</p>
+              ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+            </div>
+            
+            <p>If you would like to discuss new tier options or have any questions, please contact your sales representative.</p>
+            
+            <p>Thank you for your business.</p>
+          </div>
+          <div class="footer">
+            <p>Nashoba Valley Winery | Bolton, MA</p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      try {
+        const sgMail = require('@sendgrid/mail');
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        await sgMail.send({
+          to: agreement.email,
+          from: fromEmail,
+          subject: 'Tier Agreement Cancelled - Nashoba Valley Winery',
+          html: emailHtml,
+        });
+        console.log('[Tier Agreement] Cancellation email sent to:', agreement.email);
+      } catch (emailError) {
+        console.error('[Tier Agreement] Failed to send cancellation email:', emailError);
+      }
+    }
+    
+    res.json({ success: true, message: 'Agreement cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling tier agreement:', error);
+    res.status(500).json({ error: 'Failed to cancel agreement' });
+  }
+});
+
 // PUBLIC: Get tier agreement form data by token (no auth required)
 router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response) => {
   try {

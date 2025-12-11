@@ -2961,6 +2961,31 @@ export class DatabaseStorage implements IStorage {
 
   // B2B - Tier Commitment tracking
   async getTierCommitmentReport(): Promise<any[]> {
+    // Get all signed tier agreements with their customer and tier info
+    const signedAgreements = await db
+      .select({
+        agreementId: b2bTierAgreements.id,
+        customerId: b2bTierAgreements.customerId,
+        businessName: b2bTierAgreements.businessName,
+        email: b2bTierAgreements.email,
+        tierId: b2bTierAgreements.tierId,
+        signatureName: b2bTierAgreements.signatureName,
+        signedAt: b2bTierAgreements.signedAt,
+        fiscalYearStart: b2bTierAgreements.fiscalYearStart,
+        fiscalYearEnd: b2bTierAgreements.fiscalYearEnd,
+        status: b2bTierAgreements.status,
+      })
+      .from(b2bTierAgreements)
+      .where(
+        and(
+          eq(b2bTierAgreements.status, 'active'),
+          sql`${b2bTierAgreements.signedAt} IS NOT NULL`
+        )
+      );
+    
+    // Create a map of signed agreements by customer ID
+    const signedAgreementMap = new Map(signedAgreements.map(a => [a.customerId, a]));
+    
     // Get all active customers with Tier 3 or Tier 4 (commitment tiers)
     const customers = await db
       .select({
@@ -2983,17 +3008,38 @@ export class DatabaseStorage implements IStorage {
         )
       );
     
-    // Also check for customers with active tier agreements that have commitment
-    const activeAgreements = await db
-      .select({
-        customerId: b2bTierAgreements.customerId,
-        fiscalYearStart: b2bTierAgreements.fiscalYearStart,
-        fiscalYearEnd: b2bTierAgreements.fiscalYearEnd,
-      })
-      .from(b2bTierAgreements)
-      .where(eq(b2bTierAgreements.status, 'active'));
+    // Combine customers from tier pricing and signed agreements
+    const customerIds = new Set(customers.map(c => c.id));
     
-    const agreementMap = new Map(activeAgreements.map(a => [a.customerId, a]));
+    // Add customers from signed agreements that aren't already in the list
+    for (const agreement of signedAgreements) {
+      if (!customerIds.has(agreement.customerId)) {
+        // Get tier info for this agreement
+        if (agreement.tierId) {
+          const tier = await this.getTierPricing(agreement.tierId);
+          if (tier && tier.commitmentCases && tier.commitmentCases > 0) {
+            const customer = await this.getB2bCustomer(agreement.customerId);
+            if (customer && customer.accountStatus === 'active') {
+              customers.push({
+                id: customer.id,
+                accountName: customer.accountName,
+                emailAddress: customer.emailAddress,
+                accountStatus: customer.accountStatus,
+                commitmentStartDate: customer.commitmentStartDate,
+                pricingTierId: tier.id,
+                tierName: tier.tierName,
+                discountPercentage: tier.discountPercentage,
+                commitmentCases: tier.commitmentCases,
+              });
+              customerIds.add(customer.id);
+            }
+          }
+        }
+      }
+    }
+    
+    // Create agreement map for date lookups
+    const agreementMap = signedAgreementMap;
 
     const report = await Promise.all(
       customers.map(async (customer) => {
