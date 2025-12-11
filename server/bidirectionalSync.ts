@@ -365,8 +365,6 @@ async function scanSingleTable(
   tableConfig: typeof SYNC_TABLES[0],
   prodDatabaseUrl: string
 ): Promise<TableSyncSummary | null> {
-  const { Pool } = await import('pg');
-  
   try {
     const devRecords = await fetchTableData(
       tableConfig.id,
