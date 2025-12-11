@@ -62,16 +62,16 @@ const createCustomerSchema = z.object({
   customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other"]).optional(),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
-  licenseNumber: z.string().min(1, "License number is required"),
-  taxId: z.string().min(1, "Tax ID is required"),
-  billingAddress: z.string().min(1, "Billing address is required"),
-  billingCity: z.string().min(1, "Billing city is required"),
-  billingState: z.string().min(1, "Billing state is required"),
-  billingZipCode: z.string().min(1, "Billing ZIP code is required"),
-  shippingAddress: z.string().min(1, "Shipping address is required"),
-  shippingCity: z.string().min(1, "Shipping city is required"),
-  shippingState: z.string().min(1, "Shipping state is required"),
-  shippingZipCode: z.string().min(1, "Shipping ZIP code is required"),
+  licenseNumber: z.string().optional(), // Optional per database schema
+  taxId: z.string().optional(), // Optional per database schema
+  billingAddress: z.string().optional(), // Optional per database schema
+  billingCity: z.string().optional(), // Optional per database schema
+  billingState: z.string().optional(), // Optional per database schema
+  billingZipCode: z.string().optional(), // Optional per database schema
+  shippingAddress: z.string().optional(), // Optional per database schema
+  shippingCity: z.string().optional(), // Optional per database schema
+  shippingState: z.string().optional(), // Optional per database schema
+  shippingZipCode: z.string().optional(), // Optional per database schema
   tierId: z.string().optional(),
   salesRepId: z.string().optional(), // Optional for sales reps (auto-assigned)
   autoApprove: z.boolean(),
