@@ -3110,47 +3110,85 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       commitmentStartDate: fiscalYearStart,
     });
     
-    // Send confirmation email to customer
+    // Send confirmation email to customer with full agreement copy
     if (process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
+      const minCases = selectedTier.tierName === 'Tier 3' ? '10' : '30';
       const emailHtml = `
         <!DOCTYPE html>
         <html>
         <head>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; }
             .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
             .content { padding: 30px 20px; }
             .success-box { background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 20px 0; }
             .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0; }
+            .agreement-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; background: #fff; }
+            .agreement-section h3 { color: #5C2535; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+            .agreement-section h4 { color: #333; margin: 16px 0 8px 0; }
+            .agreement-section p { margin: 8px 0; font-size: 14px; }
+            .signature-block { background: #f9f9f9; padding: 16px; margin-top: 20px; border: 1px solid #ddd; }
             .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>Agreement Confirmed</h1>
+            <h1>Signed Tier Agreement</h1>
             <p>Nashoba Valley Winery</p>
           </div>
           <div class="content">
             <div class="success-box">
-              <h3 style="margin-top: 0; color: #065F46;">Thank you for signing the Tier Agreement!</h3>
-              <p>Your account has been upgraded to <strong>${selectedTier.tierName}</strong>.</p>
+              <h3 style="margin-top: 0; color: #065F46;">Agreement Confirmed</h3>
+              <p>Your account has been upgraded to <strong>${selectedTier.tierName}</strong> with a ${selectedTier.discountPercentage}% wholesale discount.</p>
             </div>
             
-            <div class="info-box">
-              <h3 style="margin-top: 0; color: #5C2535;">Agreement Details</h3>
-              <p><strong>Business:</strong> ${agreement.businessName}</p>
-              <p><strong>Tier:</strong> ${selectedTier.tierName}</p>
-              <p><strong>Commitment:</strong> ${selectedTier.tierName === 'Tier 3' ? '10' : '30'} cases minimum annually</p>
-              <p><strong>Signed By:</strong> ${signatureName}</p>
-              <p><strong>Date:</strong> ${now.toLocaleDateString()}</p>
+            <p>Please keep this email as your copy of the signed agreement.</p>
+            
+            <div class="agreement-section">
+              <h3>WHOLESALE TIER AGREEMENT</h3>
+              <p><em>Between Nashoba Valley Winery ("Nashoba") and Customer</em></p>
+              
+              <div class="info-box">
+                <p><strong>Business Name:</strong> ${agreement.businessName}</p>
+                <p><strong>Contact:</strong> ${agreement.contactName}</p>
+                <p><strong>Address:</strong> ${agreement.address}</p>
+                <p><strong>Email:</strong> ${agreement.email}</p>
+                <p><strong>Phone:</strong> ${agreement.phone}</p>
+              </div>
+              
+              <h4>1. Tier Selection & Case Commitment</h4>
+              <p><strong>Selected Tier:</strong> ${selectedTier.tierName} - ${selectedTier.discountPercentage}% Discount</p>
+              <p>Customer agrees to purchase a minimum of <strong>${minCases} cases</strong> during the fiscal year for this agreement. In return, Customer will receive the wholesale discount associated with the selected Tier for all qualifying purchases during the fiscal year.</p>
+              
+              <h4>2. Term and Renewal</h4>
+              <p>This Agreement begins on the date signed and continues for 12 consecutive months which will be the fiscal year for this agreement. The Agreement will automatically renew at the end of each fiscal year unless terminated by either party.</p>
+              <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+              
+              <h4>3. Failure to Meet Minimum Case Commitment</h4>
+              <p>If Customer does not meet the minimum case requirement by the end of the fiscal year—or by the termination date if Customer ends the Agreement early—Customer agrees to pay the difference between the Tier discount received and the price Customer would have paid under Tier 1 or Tier 2, depending on eligibility. Nashoba will calculate the shortfall and issue an invoice for the difference. Customer agrees to pay this invoice in full within 30 days.</p>
+              
+              <h4>4. Early Termination</h4>
+              <p>Customer may terminate this Agreement at any time by providing written notice. If Customer terminates early and has not yet met the required case minimum, Section 3 above applies.</p>
+              
+              <h4>5. Eligibility and Compliance</h4>
+              <p>Customer affirms that they hold all licenses required to purchase and resell alcoholic beverages. Nashoba reserves the right to suspend or terminate this Agreement if Customer violates program terms or applicable regulations.</p>
+              
+              <h4>6. Entire Agreement</h4>
+              <p>This document represents the full Agreement between Nashoba and Customer regarding wholesale tier participation. Changes must be made in writing and agreed to by both parties.</p>
+              
+              <div class="signature-block">
+                <p><strong>Signature:</strong> ${signatureName}</p>
+                <p><strong>Date Signed:</strong> ${now.toLocaleDateString()}</p>
+              </div>
             </div>
             
-            <p>You can now enjoy ${selectedTier.discountPercentage}% wholesale discount on all qualifying purchases.</p>
+            <p>If you have any questions about your agreement, please contact us.</p>
             
             <p>Best regards,<br>Nashoba Valley Winery Team</p>
             
             <div class="footer">
               <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+              <p>This email serves as your official copy of the signed Tier Agreement.</p>
             </div>
           </div>
         </body>
@@ -3160,7 +3198,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       await sendgrid.send({
         to: agreement.email,
         from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
-        subject: 'Tier Agreement Confirmed - Nashoba Valley Winery',
+        subject: 'Your Signed Tier Agreement - Nashoba Valley Winery',
         html: emailHtml,
       });
     }
