@@ -108,6 +108,8 @@ export interface SyncTableConfig {
   supportsBackup?: boolean;
   // NEW: Warning message for production imports
   productionWarning?: string;
+  // NEW: Only allow updates, not inserts (for tables with required sensitive fields)
+  updateOnly?: boolean;
 }
 
 export const SYNC_MODULES: Record<SyncModule, { name: string; description: string; icon: string }> = {
@@ -405,6 +407,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     dataType: 'user_generated',
     supportsBackup: true,
     productionWarning: 'Admin accounts have production passwords - import will NOT overwrite passwords',
+    updateOnly: true,
   },
   {
     id: 'b2bSettings',

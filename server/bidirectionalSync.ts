@@ -725,6 +725,14 @@ export async function applySyncOperations(
                   );
                 }
               } else {
+                // Check if this table only allows updates (not inserts) due to required sensitive fields
+                if (tableConfig.updateOnly) {
+                  errors.push({ 
+                    tableId, 
+                    error: `Cannot insert new record - table requires sensitive fields. Create the record in production first, then sync. Business key: ${JSON.stringify(op.businessKey)}` 
+                  });
+                  continue;
+                }
                 // Insert new record in production
                 console.log(`[Sync] Inserting into ${tableName} in prod:`, { businessKey: op.businessKey });
                 await prodPool.query(
@@ -807,6 +815,14 @@ export async function applySyncOperations(
                   await devPool.query(updateQuery, updateValues);
                 }
               } else {
+                // Check if this table only allows updates (not inserts) due to required sensitive fields
+                if (tableConfig.updateOnly) {
+                  errors.push({ 
+                    tableId, 
+                    error: `Cannot insert new record - table requires sensitive fields. Create the record in dev first, then sync. Business key: ${JSON.stringify(op.businessKey)}` 
+                  });
+                  continue;
+                }
                 // Insert new record in dev
                 const insertCols = columns.map(c => escapeIdentifier(c)).join(', ');
                 const insertVals = columns.map((_, i) => `$${i + 1}`).join(', ');
