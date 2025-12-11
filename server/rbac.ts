@@ -1144,6 +1144,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/support',
       status: 'development',
       sortOrder: 16
+    },
+    {
+      moduleKey: 'staff_dashboard',
+      moduleName: 'Staff Dashboard',
+      description: 'Staff resource hub with quick links to customer-facing pages and operational tools',
+      icon: 'LayoutDashboard',
+      color: 'bg-sky-500',
+      routePrefix: '/staff-dashboard',
+      status: 'active',
+      sortOrder: 17
     }
   ];
 
