@@ -668,6 +668,21 @@ export const platformModules = pgTable("platform_modules", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Staff Dashboard Module Configuration - controls which modules appear on the staff-facing dashboard
+export const staffDashboardModules = pgTable("staff_dashboard_modules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  moduleId: varchar("module_id").notNull().references(() => platformModules.id, { onDelete: 'cascade' }),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  linkUrl: varchar("link_url").notNull(), // The customer/staff-facing URL (e.g., '/reservations', '/daily-report')
+  customLabel: varchar("custom_label"), // Optional custom label for the staff dashboard
+  customDescription: text("custom_description"), // Optional custom description
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.moduleId),
+]);
+
 // Platform Users - unified user management across all modules
 export const platformUsers = pgTable("platform_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1212,6 +1227,7 @@ export const insertImprovementNoteSchema = createInsertSchema(improvementNotes).
 
 // Platform Foundation Insert schemas
 export const insertPlatformModuleSchema = createInsertSchema(platformModules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStaffDashboardModuleSchema = createInsertSchema(staffDashboardModules).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPlatformUserSchema = createInsertSchema(platformUsers).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
 export const insertPlatformUserModuleAccessSchema = createInsertSchema(platformUserModuleAccess).omit({ id: true, grantedAt: true });
 export const insertSharedLocationSchema = createInsertSchema(sharedLocations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1385,6 +1401,9 @@ export type ImprovementNote = typeof improvementNotes.$inferSelect;
 // Platform Foundation Types
 export type InsertPlatformModule = z.infer<typeof insertPlatformModuleSchema>;
 export type PlatformModule = typeof platformModules.$inferSelect;
+
+export type InsertStaffDashboardModule = z.infer<typeof insertStaffDashboardModuleSchema>;
+export type StaffDashboardModule = typeof staffDashboardModules.$inferSelect;
 
 export type InsertPlatformUser = z.infer<typeof insertPlatformUserSchema>;
 export type PlatformUser = typeof platformUsers.$inferSelect;
