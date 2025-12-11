@@ -217,7 +217,7 @@ export default function TierAgreementPage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-3">2. Term and Renewal</h3>
                   <p className="text-muted-foreground text-sm">
-                    This Agreement begins on the date signed and continues through the end of Nashoba's fiscal year. The Agreement will automatically renew each year unless terminated by either party.
+                    This Agreement begins on the date signed and continues for 12 consecutive months which will be the fiscal year for this agreement. The Agreement will automatically renew at the end of each fiscal year unless terminated by either party.
                   </p>
                 </div>
                 
