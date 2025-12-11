@@ -2941,7 +2941,7 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       
       await sendgrid.send({
         to: customer.emailAddress,
-        from: process.env.RESEND_FROM_EMAIL,
+        from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
         subject: 'Nashoba Valley Winery - Wholesale Tier Agreement',
         html: emailHtml,
       });
