@@ -3086,6 +3086,11 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
     // Update agreement with signature and tier selection
     // Also invalidate token by setting expiry to now to prevent resubmission
     const now = new Date();
+    // Fiscal year starts when signed and ends 365 days later
+    const fiscalYearStart = new Date(now);
+    const fiscalYearEnd = new Date(now);
+    fiscalYearEnd.setDate(fiscalYearEnd.getDate() + 365);
+    
     await db.update(b2bTierAgreements)
       .set({
         tierId,
@@ -3093,18 +3098,20 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
         signedAt: now,
         status: 'active',
         tokenExpiresAt: now, // Invalidate token immediately after signing
+        fiscalYearStart,
+        fiscalYearEnd,
         updatedAt: now,
       })
       .where(eq(b2bTierAgreements.id, agreement.id));
     
-    // Update customer's tier
+    // Update customer's tier with commitment period
     await storage.updateB2bCustomer(agreement.customerId, { 
       pricingTierId: tierId,
-      commitmentStartDate: now,
+      commitmentStartDate: fiscalYearStart,
     });
     
     // Send confirmation email to customer
-    if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+    if (process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
       const emailHtml = `
         <!DOCTYPE html>
         <html>
@@ -3152,7 +3159,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       
       await sendgrid.send({
         to: agreement.email,
-        from: process.env.RESEND_FROM_EMAIL,
+        from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
         subject: 'Tier Agreement Confirmed - Nashoba Valley Winery',
         html: emailHtml,
       });
@@ -3161,7 +3168,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
     // Notify admins about the signed agreement
     try {
       const admins = await storage.getAllB2bAdmins(true);
-      if (admins.length > 0 && process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+      if (admins.length > 0 && process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
         const adminEmails = admins.map(a => a.email);
         const notifyHtml = `
           <h2>Tier Agreement Signed</h2>
@@ -3173,7 +3180,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
         
         await sendgrid.send({
           to: adminEmails,
-          from: process.env.RESEND_FROM_EMAIL,
+          from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
           subject: `Tier Agreement Signed: ${agreement.businessName} - ${selectedTier.tierName}`,
           html: notifyHtml,
         });
