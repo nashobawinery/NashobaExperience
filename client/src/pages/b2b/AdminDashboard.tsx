@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -4736,22 +4736,22 @@ export default function AdminDashboard() {
                   {customerTierAgreements.map((agreement: any) => (
                     <div key={agreement.id} className="flex items-center justify-between p-3 bg-background rounded-md border">
                       <div className="flex items-center gap-3">
-                        <Badge variant={agreement.status === 'active' && agreement.signatureName !== 'PENDING' ? 'default' : 'secondary'}>
-                          {agreement.status === 'active' && agreement.signatureName !== 'PENDING' ? 'Signed' : 'Pending'}
+                        <Badge variant={agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'default' : 'secondary'}>
+                          {agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'Signed' : 'Pending'}
                         </Badge>
                         <div>
                           <p className="text-sm font-medium">
-                            {agreement.tier?.tierName || agreement.tierId === 'placeholder' ? 'Pending Selection' : agreement.tierId}
+                            {agreement.tier?.tierName ? agreement.tier.tierName : (!agreement.tierId || agreement.tierId === 'placeholder' ? 'Pending Selection' : agreement.tierId)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {agreement.signatureName !== 'PENDING' && agreement.signedAt 
+                            {agreement.signatureName && agreement.signedAt 
                               ? `Signed by ${agreement.signatureName} on ${format(new Date(agreement.signedAt), 'MMM d, yyyy')}`
                               : `Sent on ${format(new Date(agreement.createdAt), 'MMM d, yyyy')}`
                             }
                           </p>
                         </div>
                       </div>
-                      {agreement.signatureName !== 'PENDING' && agreement.signatureName && (
+                      {agreement.signatureName && agreement.signedAt && (
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
