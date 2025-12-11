@@ -2874,7 +2874,7 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       contactName: customer.primaryContactName,
       address: [customer.billingAddress, customer.billingCity, customer.billingState, customer.billingZipCode].filter(Boolean).join(', ') || 'Not provided',
       email: customer.emailAddress,
-      phone: customer.phoneNumber,
+      phone: customer.phoneNumber || 'Not provided',
       status: 'pending',
       fiscalYearStart,
       fiscalYearEnd,
