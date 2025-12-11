@@ -167,6 +167,12 @@ import {
   type ProceduresTemplateWithItems,
   type InsertProceduresStaff,
   type ProceduresStaff,
+  // Staff Dashboard
+  platformModules,
+  staffDashboardModules,
+  type PlatformModule,
+  type InsertStaffDashboardModule,
+  type StaffDashboardModule,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -502,6 +508,14 @@ export interface IStorage {
   updateProceduresStaff(id: string, data: Partial<InsertProceduresStaff>): Promise<ProceduresStaff | undefined>;
   deleteProceduresStaff(id: string): Promise<boolean>;
   getProceduresForStaff(staffId: string): Promise<ProceduresTemplateWithItems[]>;
+
+  // Staff Dashboard
+  getAllStaffDashboardModules(): Promise<(StaffDashboardModule & { module: PlatformModule })[]>;
+  getEnabledStaffDashboardModules(): Promise<(StaffDashboardModule & { module: PlatformModule })[]>;
+  getStaffDashboardModule(moduleId: string): Promise<StaffDashboardModule | undefined>;
+  upsertStaffDashboardModule(data: InsertStaffDashboardModule): Promise<StaffDashboardModule>;
+  updateStaffDashboardModule(id: string, data: Partial<InsertStaffDashboardModule>): Promise<StaffDashboardModule | undefined>;
+  initializeStaffDashboardModules(): Promise<void>;
 }
 
 export interface ProductFilters {
@@ -4465,6 +4479,98 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+
+  // Staff Dashboard Methods
+  async getAllStaffDashboardModules(): Promise<(StaffDashboardModule & { module: PlatformModule })[]> {
+    const results = await db.select()
+      .from(staffDashboardModules)
+      .innerJoin(platformModules, eq(staffDashboardModules.moduleId, platformModules.id))
+      .orderBy(staffDashboardModules.sortOrder);
+    
+    return results.map(r => ({
+      ...r.staff_dashboard_modules,
+      module: r.platform_modules
+    }));
+  }
+
+  async getEnabledStaffDashboardModules(): Promise<(StaffDashboardModule & { module: PlatformModule })[]> {
+    const results = await db.select()
+      .from(staffDashboardModules)
+      .innerJoin(platformModules, eq(staffDashboardModules.moduleId, platformModules.id))
+      .where(eq(staffDashboardModules.isEnabled, true))
+      .orderBy(staffDashboardModules.sortOrder);
+    
+    return results.map(r => ({
+      ...r.staff_dashboard_modules,
+      module: r.platform_modules
+    }));
+  }
+
+  async getStaffDashboardModule(moduleId: string): Promise<StaffDashboardModule | undefined> {
+    const [result] = await db.select()
+      .from(staffDashboardModules)
+      .where(eq(staffDashboardModules.moduleId, moduleId));
+    return result;
+  }
+
+  async upsertStaffDashboardModule(data: InsertStaffDashboardModule): Promise<StaffDashboardModule> {
+    const [result] = await db.insert(staffDashboardModules)
+      .values(data)
+      .onConflictDoUpdate({
+        target: staffDashboardModules.moduleId,
+        set: {
+          isEnabled: data.isEnabled,
+          linkUrl: data.linkUrl,
+          customLabel: data.customLabel,
+          customDescription: data.customDescription,
+          sortOrder: data.sortOrder,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return result;
+  }
+
+  async updateStaffDashboardModule(id: string, data: Partial<InsertStaffDashboardModule>): Promise<StaffDashboardModule | undefined> {
+    const [result] = await db.update(staffDashboardModules)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(staffDashboardModules.id, id))
+      .returning();
+    return result;
+  }
+
+  async initializeStaffDashboardModules(): Promise<void> {
+    // Get all platform modules
+    const modules = await db.select().from(platformModules);
+    
+    // Default URL mappings for customer/staff-facing pages
+    const defaultUrls: Record<string, string> = {
+      'tasting': '/reservations',
+      'reservations': '/reservations',
+      'b2b': '/b2b',
+      'lms': '/lms',
+      'daily_reports': '/daily-report',
+      'procedures': '/procedures',
+      'compliance': '/compliance',
+      'maintenance': '/maintenance',
+      'spot_inventory': '/spot-inventory',
+    };
+
+    for (const module of modules) {
+      // Check if entry exists
+      const existing = await this.getStaffDashboardModule(module.id);
+      if (!existing) {
+        // Create default entry
+        const linkUrl = defaultUrls[module.moduleKey] || `/${module.moduleKey}`;
+        await db.insert(staffDashboardModules).values({
+          moduleId: module.id,
+          isEnabled: false,
+          linkUrl: linkUrl,
+          sortOrder: module.sortOrder
+        }).onConflictDoNothing();
+      }
+    }
   }
 }
 
