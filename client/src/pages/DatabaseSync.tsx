@@ -54,7 +54,10 @@ import {
   Search,
   GitCompare,
   Loader2,
-  Calendar
+  Calendar,
+  BookOpen,
+  Table,
+  Workflow
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -412,7 +415,7 @@ export default function DatabaseSync() {
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
-  const [syncTab, setSyncTab] = useState<'database' | 'storage' | 'bidirectional'>('database');
+  const [syncTab, setSyncTab] = useState<'database' | 'storage' | 'bidirectional' | 'docs'>('database');
   const [syncDirection, setSyncDirection] = useState<'export' | 'import'>('export');
   const [mediaSyncResult, setMediaSyncResult] = useState<MediaSyncResult | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['tasting', 'b2b']));
@@ -961,9 +964,9 @@ export default function DatabaseSync() {
         </Badge>
       </div>
 
-      {/* Top-level tabs for Database vs Object Storage vs Bidirectional */}
-      <Tabs value={syncTab} onValueChange={(v) => setSyncTab(v as 'database' | 'storage' | 'bidirectional')}>
-        <TabsList className="grid w-full grid-cols-3">
+      {/* Top-level tabs for Database vs Object Storage vs Bidirectional vs Docs */}
+      <Tabs value={syncTab} onValueChange={(v) => setSyncTab(v as 'database' | 'storage' | 'bidirectional' | 'docs')}>
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="database" className="flex items-center gap-2" data-testid="tab-database">
             <Database className="h-4 w-4" />
             Export/Import
@@ -975,6 +978,10 @@ export default function DatabaseSync() {
           <TabsTrigger value="storage" className="flex items-center gap-2" data-testid="tab-storage">
             <HardDrive className="h-4 w-4" />
             Object Storage
+          </TabsTrigger>
+          <TabsTrigger value="docs" className="flex items-center gap-2" data-testid="tab-docs">
+            <BookOpen className="h-4 w-4" />
+            Documentation
           </TabsTrigger>
         </TabsList>
 
@@ -2215,6 +2222,310 @@ export default function DatabaseSync() {
               <p><strong>2. Download & Upload:</strong> For missing files, downloads from the source URL (stored in database) and uploads to the current bucket.</p>
               <p><strong>3. URL Update:</strong> Updates the Media Library database record with the new URL pointing to this environment's bucket.</p>
               <p className="pt-2"><strong>Tip:</strong> After syncing database tables (including Media Library), run Object Storage sync to ensure all image files are available in this environment.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Documentation Tab */}
+        <TabsContent value="docs" className="space-y-6">
+          <Alert>
+            <BookOpen className="h-4 w-4" />
+            <AlertTitle>Environment Sync Tool Guide</AlertTitle>
+            <AlertDescription>
+              Complete documentation for syncing data between development and production environments.
+            </AlertDescription>
+          </Alert>
+
+          {/* Overview Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Workflow className="h-5 w-5" />
+                Overview
+              </CardTitle>
+              <CardDescription>
+                The Environment Sync Tool has 3 main functional tabs for managing data between environments.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 font-medium">Tab</th>
+                      <th className="text-left py-2 px-3 font-medium">Purpose</th>
+                      <th className="text-left py-2 px-3 font-medium">Best For</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 font-medium flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        Export/Import
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">File-based transfer via Excel</td>
+                      <td className="py-2 px-3 text-muted-foreground">Backups, initial setup, bulk migrations</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 font-medium flex items-center gap-2">
+                        <ArrowLeftRight className="h-4 w-4" />
+                        Compare & Sync
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">Live database comparison</td>
+                      <td className="py-2 px-3 text-muted-foreground">Keeping dev & prod in sync, finding differences</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 px-3 font-medium flex items-center gap-2">
+                        <HardDrive className="h-4 w-4" />
+                        Object Storage
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">Media file synchronization</td>
+                      <td className="py-2 px-3 text-muted-foreground">Images, documents, uploaded files</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Export/Import Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                When to Use Export/Import
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-2">Best for:</h4>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>Creating backups before major changes</li>
+                  <li>Setting up a fresh environment</li>
+                  <li>One-time bulk data transfers</li>
+                  <li>Sharing data with team members (via Excel file)</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">How it works:</h4>
+                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                  <li><strong>Select tables</strong> you want to export</li>
+                  <li><strong>Download Excel file</strong> from current environment</li>
+                  <li><strong>Switch to target environment</strong> (open the other app)</li>
+                  <li><strong>Upload the Excel file</strong> to import</li>
+                </ol>
+              </div>
+              <Alert variant="default" className="bg-muted/50">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Important:</strong> This is a one-way transfer. It doesn't compare what's already in the target - it merges/upserts based on business keys.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
+          {/* Compare & Sync Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5" />
+                When to Use Compare & Sync
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-2">Best for:</h4>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>Seeing exactly what's different between dev and prod</li>
+                  <li>Selective syncing (choose individual records)</li>
+                  <li>Keeping configuration in sync over time</li>
+                  <li>Syncing the "most recent" version of each row</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">How it works:</h4>
+                <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                  <li><strong>Push Schema first</strong> - Ensures production has all tables</li>
+                  <li><strong>Push Modules</strong> - Syncs module definitions</li>
+                  <li><strong>Enter Production DB URL</strong> and test connection</li>
+                  <li><strong>Scan</strong> - Compares all records using:
+                    <ul className="list-disc list-inside ml-6 mt-1">
+                      <li>Business keys (unique identifiers like SKU, email)</li>
+                      <li><code className="bg-muted px-1 rounded">updatedAt</code> timestamps (determines which is newer)</li>
+                      <li>Content hash (detects actual changes)</li>
+                    </ul>
+                  </li>
+                  <li><strong>Review differences</strong> - Shows:
+                    <ul className="list-disc list-inside ml-6 mt-1">
+                      <li><Badge variant="outline" className="text-xs h-5 mx-1">Dev Newer</Badge> Dev has more recent changes</li>
+                      <li><Badge variant="secondary" className="text-xs h-5 mx-1">Prod Newer</Badge> Prod has more recent changes</li>
+                      <li><Badge variant="outline" className="text-xs h-5 mx-1">Dev Only</Badge> New in dev, not in prod</li>
+                      <li><Badge variant="outline" className="text-xs h-5 mx-1">Prod Only</Badge> New in prod, not in dev</li>
+                      <li><Badge variant="destructive" className="text-xs h-5 mx-1">Conflict</Badge> Both changed since last sync</li>
+                    </ul>
+                  </li>
+                  <li><strong>Select & Sync</strong> - Choose which version to keep</li>
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Best Approach Section */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-primary" />
+                Best Approach for Syncing Most Current Data
+              </CardTitle>
+              <CardDescription>
+                Recommended workflow for keeping your environments synchronized
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <Badge className="shrink-0 mt-0.5">1</Badge>
+                  <div>
+                    <h4 className="font-medium">First, push schema & modules (Compare & Sync tab):</h4>
+                    <ul className="list-disc list-inside text-muted-foreground text-sm mt-1">
+                      <li>Click "Push Schema" to create any missing tables in production</li>
+                      <li>Click "Sync Modules" to sync module definitions</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Badge className="shrink-0 mt-0.5">2</Badge>
+                  <div>
+                    <h4 className="font-medium">Then use Compare & Sync:</h4>
+                    <ul className="list-disc list-inside text-muted-foreground text-sm mt-1">
+                      <li>Connect to production database</li>
+                      <li>Scan all tables (or select specific ones)</li>
+                      <li>Review the differences</li>
+                      <li>The tool shows recommendations based on timestamps</li>
+                      <li>Select "Use Dev" or "Use Prod" for each difference</li>
+                      <li>Apply changes</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Badge className="shrink-0 mt-0.5">3</Badge>
+                  <div>
+                    <h4 className="font-medium">Finally, sync Object Storage:</h4>
+                    <ul className="list-disc list-inside text-muted-foreground text-sm mt-1">
+                      <li>Switch to Object Storage tab</li>
+                      <li>Click "Refresh Status" to see missing files</li>
+                      <li>Click "Sync Media Files" to copy images</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data Type Protection Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Data Type Protection
+              </CardTitle>
+              <CardDescription>
+                The system classifies tables by data type to protect sensitive information
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 font-medium">Type</th>
+                      <th className="text-left py-2 px-3 font-medium">Example</th>
+                      <th className="text-left py-2 px-3 font-medium">Sync Behavior</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-2 px-3">
+                        <Badge variant="outline" className="text-xs">Reference</Badge>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">Products, courses, settings</td>
+                      <td className="py-2 px-3 text-muted-foreground">Safe to sync both ways</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3">
+                        <Badge variant="secondary" className="text-xs">Configuration</Badge>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">App settings, modules</td>
+                      <td className="py-2 px-3 text-muted-foreground">Sync with caution</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3">
+                        <Badge variant="default" className="text-xs">User Generated</Badge>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">B2B customers, sales reps</td>
+                      <td className="py-2 px-3 text-muted-foreground">Warns before overwriting</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 px-3">
+                        <Badge variant="destructive" className="text-xs">Transactional</Badge>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">Orders, reservations</td>
+                      <td className="py-2 px-3 text-muted-foreground">Excluded from sync (never sync from dev to prod)</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Reference Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Table className="h-5 w-5" />
+                Quick Reference
+              </CardTitle>
+              <CardDescription>
+                Common tasks and which feature to use
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 font-medium">Task</th>
+                      <th className="text-left py-2 px-3 font-medium">Use This</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 text-muted-foreground">"I need a backup"</td>
+                      <td className="py-2 px-3 font-medium">Export/Import → Export</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 text-muted-foreground">"What's different between dev and prod?"</td>
+                      <td className="py-2 px-3 font-medium">Compare & Sync → Scan</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 text-muted-foreground">"I changed products in dev, need to push to prod"</td>
+                      <td className="py-2 px-3 font-medium">Compare & Sync</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 text-muted-foreground">"I set up customers in prod, need to copy to dev"</td>
+                      <td className="py-2 px-3 font-medium">Compare & Sync (select Prod→Dev)</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 px-3 text-muted-foreground">"Images are missing"</td>
+                      <td className="py-2 px-3 font-medium">Object Storage → Sync</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 px-3 text-muted-foreground">"New tables aren't showing in prod"</td>
+                      <td className="py-2 px-3 font-medium">Compare & Sync → Push Schema</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
