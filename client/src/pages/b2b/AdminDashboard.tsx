@@ -4746,7 +4746,7 @@ export default function AdminDashboard() {
                           <p className="text-xs text-muted-foreground">
                             {agreement.signatureName && agreement.signedAt 
                               ? `Signed by ${agreement.signatureName} on ${format(new Date(agreement.signedAt), 'MMM d, yyyy')}`
-                              : `Sent on ${format(new Date(agreement.createdAt), 'MMM d, yyyy')}`
+                              : agreement.createdAt ? `Sent on ${format(new Date(agreement.createdAt), 'MMM d, yyyy')}` : 'Pending'
                             }
                           </p>
                         </div>
