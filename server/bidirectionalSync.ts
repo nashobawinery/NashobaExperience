@@ -358,6 +358,9 @@ export async function scanBidirectional(
     const resyTables = tablesToScan.filter(t => t.id.startsWith('resy'));
     console.log(`[Sync] Resy tables to scan: ${resyTables.length} - ${resyTables.map(t => t.id).join(', ')}`);
     
+    // Log ALL tables being scanned (first 20)
+    console.log(`[Sync] All tables: ${tablesToScan.slice(0, 20).map(t => t.id).join(', ')}${tablesToScan.length > 20 ? ` ... and ${tablesToScan.length - 20} more` : ''}`);
+    
     for (const tableConfig of tablesToScan) {
       try {
         const devRecords = await fetchTableData(
@@ -448,6 +451,12 @@ export async function scanBidirectional(
             recommendation,
             selected,
           });
+        }
+        
+        // Log summary for each table
+        const hasDiff = devNewer > 0 || prodNewer > 0 || conflicts > 0 || devOnly > 0 || prodOnly > 0;
+        if (hasDiff || tableConfig.id.includes('Flow') || tableConfig.id.includes('platform')) {
+          console.log(`[Sync] ${tableConfig.id}: dev=${devRecords.length}, prod=${prodRecords.length}, devNewer=${devNewer}, prodNewer=${prodNewer}, conflicts=${conflicts}, identical=${identical}, devOnly=${devOnly}, prodOnly=${prodOnly}`);
         }
         
         tables.push({
