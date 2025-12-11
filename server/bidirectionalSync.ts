@@ -371,7 +371,14 @@ export async function scanBidirectional(
   let totalConflicts = 0;
   let totalIdentical = 0;
   
-  const prodPool = new Pool({ connectionString: config.prodDatabaseUrl });
+  // Use connection pool with better timeout settings for Neon serverless
+  const prodPool = new Pool({ 
+    connectionString: config.prodDatabaseUrl,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 3,
+    allowExitOnIdle: true
+  });
   
   try {
     const tablesToScan = config.tableIds 
@@ -561,7 +568,14 @@ export async function applySync(
     };
   }
   
-  const prodPool = new Pool({ connectionString: config.prodDatabaseUrl });
+  // Use connection pool with better timeout settings for Neon serverless
+  const prodPool = new Pool({ 
+    connectionString: config.prodDatabaseUrl,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 3,
+    allowExitOnIdle: true
+  });
   
   try {
     for (const selection of selections) {
