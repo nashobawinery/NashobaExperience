@@ -2328,12 +2328,29 @@ export const insertResyTicketedEventTimeslotSchema = createInsertSchema(resyTick
 export type InsertResyTicketedEventTimeslot = z.infer<typeof insertResyTicketedEventTimeslotSchema>;
 export type ResyTicketedEventTimeslot = typeof resyTicketedEventTimeslots.$inferSelect;
 
-// Resy Site Settings - Global configuration
+// Resy Site Settings - Global configuration (single row per site)
 export const resySiteSettings = pgTable("resy_site_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  key: varchar("key", { length: 100 }).notNull().unique(),
   value: text("value"),
   description: text("description"),
+  headerTitle: text("header_title"),
+  headerSubtitle: text("header_subtitle"),
+  logoUrl: text("logo_url"),
+  accentColor: text("accent_color"),
+  backgroundImageUrl: text("background_image_url"),
+  headerImageUrl: text("header_image_url"),
+  companyName: text("company_name"),
+  primaryColor: text("primary_color"),
+  secondaryColor: text("secondary_color"),
+  companyAddress: text("company_address"),
+  companyPhone: text("company_phone"),
+  companyEmail: text("company_email"),
+  companyCity: text("company_city"),
+  companyState: text("company_state"),
+  companyZip: text("company_zip"),
+  companyZipCode: text("company_zip_code"),
+  companyWebsite: text("company_website"),
+  showPoweredBy: boolean("show_powered_by").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
