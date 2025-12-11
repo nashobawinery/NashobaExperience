@@ -66,6 +66,181 @@ async function validateTierAssignment(tierId: string | undefined): Promise<strin
   return null;
 }
 
+// Helper function to send email notifications to all B2B admins when sales reps create/edit customers
+async function notifyAdminsOfCustomerChange(
+  action: 'created' | 'updated',
+  customer: any,
+  salesRep: any,
+  changes?: { field: string; oldValue: any; newValue: any }[]
+): Promise<void> {
+  if (!process.env.SENDGRID_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+    console.log('SendGrid not configured - skipping admin notification email');
+    return;
+  }
+
+  try {
+    // Get all active B2B admins
+    const admins = await storage.getAllB2bAdmins(true);
+    if (admins.length === 0) {
+      console.log('No active B2B admins found - skipping notification');
+      return;
+    }
+
+    const adminEmails = admins.map(a => a.email);
+    const actionText = action === 'created' ? 'Created New Customer' : 'Updated Customer';
+    const actionVerb = action === 'created' ? 'created' : 'updated';
+    
+    // Build changes summary for updates
+    let changesHtml = '';
+    let changesText = '';
+    if (action === 'updated' && changes && changes.length > 0) {
+      changesHtml = `
+        <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #92400E;">Changes Made</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #FDE68A;">
+              <th style="text-align: left; padding: 8px; border: 1px solid #D97706;">Field</th>
+              <th style="text-align: left; padding: 8px; border: 1px solid #D97706;">Previous Value</th>
+              <th style="text-align: left; padding: 8px; border: 1px solid #D97706;">New Value</th>
+            </tr>
+            ${changes.map(c => `
+              <tr>
+                <td style="padding: 8px; border: 1px solid #D97706;">${c.field}</td>
+                <td style="padding: 8px; border: 1px solid #D97706;">${c.oldValue || '(empty)'}</td>
+                <td style="padding: 8px; border: 1px solid #D97706;">${c.newValue || '(empty)'}</td>
+              </tr>
+            `).join('')}
+          </table>
+        </div>
+      `;
+      changesText = '\n\nChanges Made:\n' + changes.map(c => 
+        `- ${c.field}: "${c.oldValue || '(empty)'}" → "${c.newValue || '(empty)'}"`
+      ).join('\n');
+    }
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+          .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+          .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0; }
+          .info-row { margin: 8px 0; padding: 4px 0; }
+          .label { font-weight: bold; color: #5C2535; display: inline-block; min-width: 140px; }
+          .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .badge-action { background-color: ${action === 'created' ? '#D1FAE5' : '#FEF3C7'}; color: ${action === 'created' ? '#065F46' : '#92400E'}; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>B2B Customer ${actionText}</h1>
+          <p>Review Required</p>
+        </div>
+        <div class="content">
+          <p style="text-align: center;">
+            <span class="badge badge-action">${action === 'created' ? 'NEW CUSTOMER' : 'CUSTOMER UPDATED'}</span>
+          </p>
+          
+          <p>Sales Representative <strong>${salesRep?.firstName || ''} ${salesRep?.lastName || ''}</strong> (${salesRep?.email || 'Unknown'}) has ${actionVerb} a customer account.</p>
+          
+          <div class="info-box">
+            <h3 style="margin-top: 0; color: #5C2535;">Customer Details</h3>
+            <div class="info-row">
+              <span class="label">Account Name:</span>
+              <span>${customer.accountName || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Customer Number:</span>
+              <span>${customer.customerNumber || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Contact Name:</span>
+              <span>${customer.primaryContactName || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Email:</span>
+              <span>${customer.emailAddress || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Phone:</span>
+              <span>${customer.phoneNumber || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Customer Type:</span>
+              <span>${customer.customerType || 'N/A'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Account Status:</span>
+              <span>${customer.accountStatus || 'N/A'}</span>
+            </div>
+            ${customer.licenseNumber ? `
+            <div class="info-row">
+              <span class="label">License Number:</span>
+              <span>${customer.licenseNumber}</span>
+            </div>
+            ` : ''}
+            ${customer.taxId ? `
+            <div class="info-row">
+              <span class="label">Tax ID:</span>
+              <span>${customer.taxId}</span>
+            </div>
+            ` : ''}
+          </div>
+          
+          ${changesHtml}
+          
+          <p style="text-align: center; margin-top: 30px;">
+            <em>Please review this customer in the B2B Admin Dashboard.</em>
+          </p>
+          
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+            <p>This is an automated notification from the B2B wholesale platform.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const emailText = `
+B2B Customer ${actionText} - Review Required
+
+Sales Representative ${salesRep?.firstName || ''} ${salesRep?.lastName || ''} (${salesRep?.email || 'Unknown'}) has ${actionVerb} a customer account.
+
+Customer Details:
+- Account Name: ${customer.accountName || 'N/A'}
+- Customer Number: ${customer.customerNumber || 'N/A'}
+- Contact Name: ${customer.primaryContactName || 'N/A'}
+- Email: ${customer.emailAddress || 'N/A'}
+- Phone: ${customer.phoneNumber || 'N/A'}
+- Customer Type: ${customer.customerType || 'N/A'}
+- Account Status: ${customer.accountStatus || 'N/A'}
+${customer.licenseNumber ? `- License Number: ${customer.licenseNumber}` : ''}
+${customer.taxId ? `- Tax ID: ${customer.taxId}` : ''}
+${changesText}
+
+Please review this customer in the B2B Admin Dashboard.
+    `.trim();
+
+    // Send to all admins
+    await sendgrid.send({
+      to: adminEmails,
+      from: process.env.RESEND_FROM_EMAIL,
+      subject: `[Review Required] Sales Rep ${actionText}: ${customer.accountName || customer.emailAddress}`,
+      html: emailHtml,
+      text: emailText,
+    });
+
+    console.log(`Admin notification sent to ${adminEmails.length} admins for customer ${action}: ${customer.accountName}`);
+  } catch (error) {
+    console.error('Failed to send admin notification email:', error);
+    // Don't throw - email failure shouldn't block the main operation
+  }
+}
+
 // Public route: Check pricing page access code
 router.post('/api/b2b/verify-code', async (req: Request, res: Response) => {
   const { code } = req.body;
@@ -1254,6 +1429,14 @@ router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Requ
     // Always assign to this sales rep
     await storage.updateB2bCustomer(customer.id, { salesRepId });
     
+    // Get sales rep info for notification
+    const salesRep = await storage.getSalesRep(salesRepId!);
+    
+    // Notify all admins about the new customer (async, non-blocking)
+    notifyAdminsOfCustomerChange('created', { ...customer, salesRepId }, salesRep).catch(err => {
+      console.error('Background admin notification failed:', err);
+    });
+    
     // If auto-approve is requested and tier is provided, approve immediately
     if (autoApprove && tierId) {
       // Prevent manual assignment of Tier 2 (auto-cart-upgrade only)
@@ -1392,11 +1575,53 @@ router.put('/api/b2b/sales-rep/customers/:id', requireB2bSalesRep, async (req: R
     delete updateData.salesRepId;
     delete updateData.accountStatus;
 
+    // Track what fields are being changed for the notification
+    const fieldLabels: Record<string, string> = {
+      accountName: 'Account Name',
+      primaryContactName: 'Contact Name',
+      primaryContactRole: 'Contact Role',
+      emailAddress: 'Email',
+      phoneNumber: 'Phone',
+      altPhoneNumber: 'Alt Phone',
+      licenseNumber: 'License Number',
+      taxId: 'Tax ID',
+      customerType: 'Customer Type',
+      billingAddress: 'Billing Address',
+      billingCity: 'Billing City',
+      billingState: 'Billing State',
+      billingZipCode: 'Billing Zip',
+      shippingAddress: 'Shipping Address',
+      shippingCity: 'Shipping City',
+      shippingState: 'Shipping State',
+      shippingZipCode: 'Shipping Zip',
+      notes: 'Notes',
+      acceptsMarketing: 'Marketing Opt-in',
+    };
+    
+    const changes: { field: string; oldValue: any; newValue: any }[] = [];
+    for (const [key, value] of Object.entries(updateData)) {
+      if (key in fieldLabels && (existingCustomer as any)[key] !== value) {
+        changes.push({
+          field: fieldLabels[key] || key,
+          oldValue: (existingCustomer as any)[key],
+          newValue: value,
+        });
+      }
+    }
+
     // Update customer
     const updatedCustomer = await storage.updateB2bCustomer(id, updateData);
 
     if (!updatedCustomer) {
       return res.status(500).json({ error: 'Failed to update customer' });
+    }
+
+    // If changes were made, notify admins
+    if (changes.length > 0) {
+      const salesRep = await storage.getSalesRep(salesRepId!);
+      notifyAdminsOfCustomerChange('updated', updatedCustomer, salesRep, changes).catch(err => {
+        console.error('Background admin notification failed:', err);
+      });
     }
 
     res.json({ success: true, customer: updatedCustomer });
