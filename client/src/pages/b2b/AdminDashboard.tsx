@@ -3279,6 +3279,104 @@ export default function AdminDashboard() {
           </Card>
           )}
 
+          {/* Tier Commitment Configuration Card - Admin Only */}
+          {currentUser?.type === 'admin' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Tier Commitment Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure the annual case commitment requirements for each tier. Customers on commitment tiers (cases &gt; 0) will appear in the Commitment Report.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingAdminTiers ? (
+                <div className="space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : !adminTiers || adminTiers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No pricing tiers configured
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {adminTiers
+                    .filter(tier => tier.category === 'default')
+                    .sort((a, b) => (a.tierName || '').localeCompare(b.tierName || ''))
+                    .map((tier) => (
+                    <div
+                      key={tier.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
+                      data-testid={`commitment-tier-${tier.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold">{tier.tierName}</p>
+                          <Badge variant={tier.active ? 'default' : 'secondary'}>
+                            {tier.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                          {(tier.commitmentCases || 0) > 0 && (
+                            <Badge variant="outline" className="bg-primary/10">
+                              Commitment Tier
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {tier.discountPercentage}% discount
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`commitment-cases-${tier.id}`} className="text-sm whitespace-nowrap">
+                            Annual Cases:
+                          </Label>
+                          <Input
+                            id={`commitment-cases-${tier.id}`}
+                            type="number"
+                            min="0"
+                            className="w-20 text-center"
+                            defaultValue={tier.commitmentCases || 0}
+                            data-testid={`input-commitment-cases-${tier.id}`}
+                            onBlur={async (e) => {
+                              const newValue = parseInt(e.target.value) || 0;
+                              if (newValue !== ((tier as any).commitmentCases || 0)) {
+                                try {
+                                  await updateTier({
+                                    tierId: tier.id,
+                                    commitmentCases: newValue,
+                                  });
+                                  toast({
+                                    title: "Commitment Updated",
+                                    description: `${tier.tierName} now requires ${newValue} cases per year`,
+                                  });
+                                } catch (error) {
+                                  toast({
+                                    title: "Update Failed",
+                                    description: "Failed to update tier commitment",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+                    Note: Tiers with 0 commitment cases are standard tiers without case requirements.
+                    Tiers with commitment cases (e.g., 10 or 30) require customers to purchase that many cases annually.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          )}
+
           {/* Admin Management Card - Admin Only */}
           {currentUser?.type === 'admin' && (
           <Card>

@@ -63,6 +63,7 @@ export interface TierPricing {
   active: boolean;
   minOrderQuantity?: number;
   category?: string;
+  commitmentCases?: number;
 }
 
 // Fetch all orders
@@ -258,22 +259,25 @@ export function useToggleTierActive() {
   });
 }
 
-// Update tier details (discount percentage and description)
+// Update tier details (discount percentage, description, and commitment cases)
 export function useUpdateTier() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ tierId, discountPercentage, description }: { 
+    mutationFn: async ({ tierId, discountPercentage, description, commitmentCases }: { 
       tierId: string; 
       discountPercentage?: number; 
       description?: string;
+      commitmentCases?: number;
     }) => {
-      return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}`, { discountPercentage, description });
+      return apiRequest("PATCH", `/api/b2b/admin/tiers/${tierId}`, { discountPercentage, description, commitmentCases });
     },
     onSuccess: () => {
       // Invalidate both admin tiers (for Settings tab) and public tiers (for pricing/approval)
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tiers"] });
       queryClient.invalidateQueries({ queryKey: ["b2b", "public", "tiers"] });
+      // Also invalidate tier commitment report since it depends on commitmentCases
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "tier-commitment-report"] });
     },
   });
 }
