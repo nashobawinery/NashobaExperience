@@ -2865,11 +2865,9 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
     const sentByAdminId = session.b2bUserRole === 'admin' ? session.b2bUserId : null;
     const sentBySalesRepId = session.b2bUserRole === 'sales_rep' ? session.b2bUserId : null;
     
-    // Create placeholder agreement record (will be completed when customer signs)
-    // For now we just store the token and customer info
+    // Create pending agreement record (tierId, signatureName, signedAt are null until customer signs)
     await db.insert(b2bTierAgreements).values({
       customerId: customer.id,
-      tierId: 'placeholder', // Will be updated when customer selects tier
       token,
       tokenExpiresAt,
       businessName: customer.accountName,
@@ -2877,8 +2875,6 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       address: [customer.billingAddress, customer.billingCity, customer.billingState, customer.billingZipCode].filter(Boolean).join(', ') || 'Not provided',
       email: customer.emailAddress,
       phone: customer.phoneNumber,
-      signatureName: 'PENDING',
-      signedAt: new Date(), // Placeholder, will be updated when signed
       status: 'pending',
       fiscalYearStart,
       fiscalYearEnd,

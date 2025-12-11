@@ -508,7 +508,7 @@ export const b2bCustomerManualProducts = pgTable("b2b_customer_manual_products",
 export const b2bTierAgreements = pgTable("b2b_tier_agreements", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id, { onDelete: 'cascade' }),
-  tierId: varchar("tier_id").notNull().references(() => tierPricing.id),
+  tierId: varchar("tier_id").references(() => tierPricing.id), // Nullable until customer selects tier
   // Agreement token for secure access
   token: varchar("token").notNull().unique(),
   tokenExpiresAt: timestamp("token_expires_at").notNull(),
@@ -518,9 +518,9 @@ export const b2bTierAgreements = pgTable("b2b_tier_agreements", {
   address: text("address").notNull(),
   email: varchar("email").notNull(),
   phone: varchar("phone").notNull(),
-  // Signature info
-  signatureName: varchar("signature_name").notNull(),
-  signedAt: timestamp("signed_at").notNull(),
+  // Signature info (null until signed)
+  signatureName: varchar("signature_name"),
+  signedAt: timestamp("signed_at"),
   // Agreement status
   status: varchar("status").notNull().default("active"), // active, superseded, voided
   // Fiscal year info
