@@ -102,6 +102,7 @@ const B2bAdminDashboard = lazy(() => import("@/pages/b2b/AdminDashboard"));
 const B2bWhereToBuyPage = lazy(() => import("@/pages/b2b/WhereToBuyPage"));
 const B2bSalesRepDashboard = lazy(() => import("@/pages/b2b/SalesRepDashboard"));
 const B2bCustomerDataPage = lazy(() => import("@/pages/b2b/CustomerDataPage"));
+const B2bTierAgreementPage = lazy(() => import("@/pages/b2b/TierAgreementPage"));
 
 // Import B2B ProtectedRoute synchronously since it's a wrapper component
 import { ProtectedRoute } from "@/components/b2b/ProtectedRoute";
@@ -722,6 +723,7 @@ function B2bRoutes() {
             <Route path="/b2b/forgot-password" component={() => <Suspense fallback={<PageLoader />}><B2bForgotPasswordPage /></Suspense>} />
             <Route path="/b2b/reset-password" component={() => <Suspense fallback={<PageLoader />}><B2bResetPasswordPage /></Suspense>} />
             <Route path="/b2b/setup" component={() => <Suspense fallback={<PageLoader />}><B2bSetupPage /></Suspense>} />
+            <Route path="/b2b/tier-agreement/:token" component={() => <Suspense fallback={<PageLoader />}><B2bTierAgreementPage /></Suspense>} />
 
             {/* Protected Customer Routes */}
             <Route path="/b2b/catalog">

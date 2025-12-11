@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -510,6 +510,31 @@ export default function AdminDashboard() {
       toast({
         title: 'Error',
         description: error?.message || 'Failed to update order status',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send tier agreement mutation
+  const [sendingAgreementCustomerId, setSendingAgreementCustomerId] = useState<string | null>(null);
+  const sendTierAgreementMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      setSendingAgreementCustomerId(customerId);
+      const res = await apiRequest('POST', `/api/b2b/admin/customers/${customerId}/send-tier-agreement`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      setSendingAgreementCustomerId(null);
+      toast({
+        title: 'Tier Agreement Sent',
+        description: 'A tier agreement email has been sent to the customer.',
+      });
+    },
+    onError: (error: any) => {
+      setSendingAgreementCustomerId(null);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to send tier agreement',
         variant: 'destructive',
       });
     },
@@ -1014,6 +1039,19 @@ export default function AdminDashboard() {
   const { data: allProducts } = useQuery<any[]>({
     queryKey: ['/api/products'],
     enabled: editCustomerDialog.isOpen,
+  });
+
+  // Fetch tier agreements for customer
+  const { data: customerTierAgreements } = useQuery<any[]>({
+    queryKey: ['/api/b2b/admin/customers', editCustomerDialog.customer?.id, 'tier-agreements'],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/tier-agreements`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch tier agreements');
+      return res.json();
+    },
+    enabled: !!editCustomerDialog.customer?.id && editCustomerDialog.isOpen,
   });
 
   // Order history dialog state
@@ -1987,6 +2025,32 @@ export default function AdminDashboard() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
+            )}
+            
+            {/* Send Tier Agreement button - Only for active customers without Tier 3 or 4 */}
+            {!isPending && canEditCustomer(customer) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sendTierAgreementMutation.mutate(customer.id)}
+                    disabled={sendingAgreementCustomerId === customer.id}
+                    className="flex-1"
+                    data-testid={`button-send-tier-agreement-${customer.id}`}
+                  >
+                    {sendingAgreementCustomerId === customer.id ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileSignature className="h-4 w-4 mr-2" />
+                    )}
+                    Tier Agreement
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Send Tier 3/4 agreement for customer to sign
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -4639,6 +4703,66 @@ export default function AdminDashboard() {
                 </FormItem>
               )}
             />
+
+            {/* Tier Agreements History */}
+            <div className="p-4 bg-muted rounded-md space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium flex items-center gap-2">
+                    <FileSignature className="h-4 w-4" />
+                    Tier Agreements
+                  </h4>
+                  <p className="text-sm text-muted-foreground">Signed tier agreements for Tier 3/4 pricing</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => sendTierAgreementMutation.mutate(editCustomerDialog.customer?.id)}
+                  disabled={sendingAgreementCustomerId === editCustomerDialog.customer?.id}
+                  data-testid="button-send-tier-agreement-dialog"
+                >
+                  {sendingAgreementCustomerId === editCustomerDialog.customer?.id ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  Send Agreement
+                </Button>
+              </div>
+              
+              {customerTierAgreements && customerTierAgreements.length > 0 ? (
+                <div className="space-y-2 mt-2">
+                  {customerTierAgreements.map((agreement: any) => (
+                    <div key={agreement.id} className="flex items-center justify-between p-3 bg-background rounded-md border">
+                      <div className="flex items-center gap-3">
+                        <Badge variant={agreement.status === 'active' && agreement.signatureName !== 'PENDING' ? 'default' : 'secondary'}>
+                          {agreement.status === 'active' && agreement.signatureName !== 'PENDING' ? 'Signed' : 'Pending'}
+                        </Badge>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {agreement.tier?.tierName || agreement.tierId === 'placeholder' ? 'Pending Selection' : agreement.tierId}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {agreement.signatureName !== 'PENDING' && agreement.signedAt 
+                              ? `Signed by ${agreement.signatureName} on ${format(new Date(agreement.signedAt), 'MMM d, yyyy')}`
+                              : `Sent on ${format(new Date(agreement.createdAt), 'MMM d, yyyy')}`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      {agreement.signatureName !== 'PENDING' && (
+                        <div className="text-right text-xs text-muted-foreground">
+                          <p>{agreement.signatureTitle}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">No tier agreements on file</p>
+              )}
+            </div>
 
             <div className="p-4 bg-muted rounded-md space-y-2">
               <div className="flex items-center justify-between">

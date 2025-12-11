@@ -2823,6 +2823,34 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
       return res.status(404).json({ error: 'Customer not found' });
     }
     
+    // Check if customer already has Tier 3 or Tier 4
+    if (customer.pricingTierId) {
+      const currentTier = await storage.getTierPricing(customer.pricingTierId);
+      if (currentTier && (currentTier.tierName === 'Tier 3' || currentTier.tierName === 'Tier 4')) {
+        return res.status(400).json({ 
+          error: `Customer already has ${currentTier.tierName} pricing. No agreement needed.` 
+        });
+      }
+    }
+    
+    // Check for existing pending (unexpired, unsigned) agreements
+    const existingAgreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(and(
+        eq(b2bTierAgreements.customerId, id),
+        eq(b2bTierAgreements.status, 'pending')
+      ));
+    
+    // Expire any existing pending agreements before creating new one
+    for (const agreement of existingAgreements) {
+      if (new Date() < new Date(agreement.tokenExpiresAt)) {
+        // Mark old agreement as superseded
+        await db.update(b2bTierAgreements)
+          .set({ status: 'superseded', updatedAt: new Date() })
+          .where(eq(b2bTierAgreements.id, agreement.id));
+      }
+    }
+    
     // Generate secure token (64 bytes hex = 128 chars)
     const token = randomBytes(32).toString('hex');
     const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -3059,6 +3087,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       ));
     
     // Update agreement with signature and tier selection
+    // Also invalidate token by setting expiry to now to prevent resubmission
     const now = new Date();
     await db.update(b2bTierAgreements)
       .set({
@@ -3066,6 +3095,7 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
         signatureName,
         signedAt: now,
         status: 'active',
+        tokenExpiresAt: now, // Invalidate token immediately after signing
         updatedAt: now,
       })
       .where(eq(b2bTierAgreements.id, agreement.id));
