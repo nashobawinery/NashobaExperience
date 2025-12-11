@@ -376,6 +376,11 @@ export async function scanBidirectional(
           console.log(`[Sync] ${tableConfig.id} -> ${tableNameSnake}: dev=${devRecords.length} rows`);
         }
         
+        // Special debug for ExperienceDiscounts
+        if (tableConfig.id === 'resyExperienceDiscounts') {
+          console.log(`[Sync DEBUG] resyExperienceDiscounts: devRecords=${JSON.stringify(devRecords.slice(0, 3))}`);
+        }
+        
         let prodRecords: Record<string, any>[] = [];
         
         try {
@@ -383,9 +388,16 @@ export async function scanBidirectional(
           const result = await prodClient.query(`SELECT * FROM "${tableNameSnake}" LIMIT 10000`);
           prodRecords = result.rows;
           prodClient.release();
+          
+          // Special debug for ExperienceDiscounts
+          if (tableConfig.id === 'resyExperienceDiscounts') {
+            console.log(`[Sync DEBUG] resyExperienceDiscounts: prodRecords=${JSON.stringify(prodRecords.slice(0, 3))}`);
+          }
         } catch (error: any) {
           if (!error.message?.includes('does not exist')) {
             console.warn(`Warning: Could not read production table ${tableNameSnake}:`, error.message);
+          } else if (tableConfig.id === 'resyExperienceDiscounts') {
+            console.log(`[Sync DEBUG] resyExperienceDiscounts: prod table does not exist`);
           }
         }
         
