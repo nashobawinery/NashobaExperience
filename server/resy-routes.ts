@@ -7,8 +7,13 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateReservationConfirmationEmail, sendEmail } from "./email";
 import { scheduleReminders, sendDailyReminders } from "./reservationReminders";
 import { sendSMS, generateReservationConfirmationSMS, isSmsConfigured } from "./sms";
+import * as XLSX from "xlsx";
+import multer from "multer";
 
 const requireResyAdmin = requireModuleAccess('reservations');
+
+// Multer configuration for file uploads
+const tableUpload = multer({ storage: multer.memoryStorage() });
 
 // Initialize the reservation reminder scheduler
 scheduleReminders();
@@ -1672,6 +1677,192 @@ router.get("/api/resy/locations/:locationId/tables", async (req, res) => {
     res.json(tables);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch tables: " + error.message });
+  }
+});
+
+// Export tables for a location to Excel (for syncing with TOAST POS etc.)
+router.get("/api/resy/locations/:locationId/tables/export", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const location = await resyStorage.getLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ message: "Location not found" });
+    }
+    
+    const tables = await resyStorage.getLocationTablesByLocation(locationId);
+    
+    // Format for export - use snake_case column names for compatibility with external systems
+    const exportData = tables.map(table => ({
+      table_label: table.tableLabel,
+      min_capacity: table.minCapacity,
+      max_capacity: table.maxCapacity,
+      priority: table.priority,
+      is_communal: table.isCommunal ? 'Yes' : 'No',
+      is_active: table.isActive ? 'Yes' : 'No',
+      is_paused: table.isPaused ? 'Yes' : 'No',
+      combinable_with: table.combinableWith?.join(', ') || '',
+    }));
+    
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Tables');
+    
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    const safeName = location.name.replace(/[^a-zA-Z0-9]/g, '-');
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${safeName}-tables-${timestamp}.xlsx`);
+    res.send(buffer);
+  } catch (error: any) {
+    console.error("Error exporting tables:", error);
+    res.status(500).json({ message: "Failed to export tables: " + error.message });
+  }
+});
+
+// Download a blank template for importing tables
+router.get("/api/resy/locations/:locationId/tables/template", requireResyAdmin, async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const location = await resyStorage.getLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ message: "Location not found" });
+    }
+    
+    // Create template with example data
+    const templateData = [
+      {
+        table_label: 'T1',
+        min_capacity: 2,
+        max_capacity: 4,
+        priority: 0,
+        is_communal: 'No',
+        is_active: 'Yes',
+        is_paused: 'No',
+        combinable_with: '',
+      },
+      {
+        table_label: 'T2',
+        min_capacity: 4,
+        max_capacity: 6,
+        priority: 1,
+        is_communal: 'No',
+        is_active: 'Yes',
+        is_paused: 'No',
+        combinable_with: 'T3',
+      },
+    ];
+    
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Tables');
+    
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=tables-template.xlsx');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error("Error generating template:", error);
+    res.status(500).json({ message: "Failed to generate template: " + error.message });
+  }
+});
+
+// Import tables from Excel file
+router.post("/api/resy/locations/:locationId/tables/import", requireResyAdmin, tableUpload.single('file'), async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const location = await resyStorage.getLocation(locationId);
+    if (!location) {
+      return res.status(404).json({ message: "Location not found" });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rawData = XLSX.utils.sheet_to_json(sheet) as any[];
+    
+    const results = {
+      created: 0,
+      updated: 0,
+      errors: [] as string[],
+    };
+    
+    // Get existing tables for this location
+    const existingTables = await resyStorage.getLocationTablesByLocation(locationId);
+    const existingLabels = new Map(existingTables.map(t => [t.tableLabel, t]));
+    
+    for (let i = 0; i < rawData.length; i++) {
+      const row = rawData[i];
+      const rowNum = i + 2; // Excel row number (1-indexed + header)
+      
+      try {
+        const tableLabel = String(row.table_label || row.tableLabel || '').trim();
+        if (!tableLabel) {
+          results.errors.push(`Row ${rowNum}: Missing table_label`);
+          continue;
+        }
+        
+        if (tableLabel.length > 5) {
+          results.errors.push(`Row ${rowNum}: Table label must be 5 characters or less`);
+          continue;
+        }
+        
+        const minCapacity = parseInt(row.min_capacity || row.minCapacity) || 1;
+        const maxCapacity = parseInt(row.max_capacity || row.maxCapacity) || minCapacity;
+        const priority = parseInt(row.priority) || 0;
+        const isCommunal = String(row.is_communal || row.isCommunal || '').toLowerCase() === 'yes';
+        const isActive = String(row.is_active || row.isActive || 'yes').toLowerCase() !== 'no';
+        const isPaused = String(row.is_paused || row.isPaused || '').toLowerCase() === 'yes';
+        
+        // Parse combinable_with - comma-separated list of table labels
+        const combinableWithStr = String(row.combinable_with || row.combinableWith || '').trim();
+        const combinableWith = combinableWithStr 
+          ? combinableWithStr.split(',').map(s => s.trim()).filter(s => s)
+          : [];
+        
+        const tableData = {
+          locationId,
+          tableLabel,
+          minCapacity,
+          maxCapacity,
+          priority,
+          isCommunal,
+          isActive,
+          isPaused,
+          combinableWith,
+        };
+        
+        const existingTable = existingLabels.get(tableLabel);
+        if (existingTable) {
+          // Update existing table
+          await resyStorage.updateLocationTable(existingTable.id, tableData);
+          results.updated++;
+        } else {
+          // Create new table
+          await resyStorage.createLocationTable(tableData);
+          results.created++;
+        }
+      } catch (error: any) {
+        results.errors.push(`Row ${rowNum}: ${error.message}`);
+      }
+    }
+    
+    // Invalidate cache
+    res.json({
+      success: results.errors.length === 0,
+      created: results.created,
+      updated: results.updated,
+      errors: results.errors,
+    });
+  } catch (error: any) {
+    console.error("Error importing tables:", error);
+    res.status(500).json({ message: "Failed to import tables: " + error.message });
   }
 });
 

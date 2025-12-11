@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings, Check, X } from "lucide-react";
+import { ArrowLeft, Users, Clock, Calendar, Gauge, Timer, CalendarOff, Plus, Pencil, Trash2, Loader2, Pause, Play, Ticket, ExternalLink, Settings, Check, X, Download, Upload, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Location, LocationTable, InsertLocationTable, MealPeriod, InsertMealPeriod, OperatingHours, InsertOperatingHours, FlowControl, InsertFlowControl, TurnTimeSettings, InsertTurnTimeSettings } from "@shared/schema";
@@ -247,6 +247,8 @@ function TablesTab({ locationId }: { locationId: string }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<LocationTable | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useState<HTMLInputElement | null>(null);
 
   const { data: allTables, isLoading: tablesLoading } = useQuery<LocationTable[]>({
     queryKey: ["/api/resy/location-tables"],
@@ -264,19 +266,169 @@ function TablesTab({ locationId }: { locationId: string }) {
     setIsDialogOpen(true);
   };
 
+  const handleExport = async () => {
+    try {
+      const response = await fetch(`/api/resy/locations/${locationId}/tables/export`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const contentDisposition = response.headers.get('content-disposition');
+      const filename = contentDisposition?.match(/filename=(.+)/)?.[1] || 'tables-export.xlsx';
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export Complete",
+        description: `Exported ${tables.length} tables to Excel`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch(`/api/resy/locations/${locationId}/tables/template`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tables-template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`/api/resy/locations/${locationId}/tables/import`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Import failed');
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/location-tables"] });
+      
+      if (result.errors && result.errors.length > 0) {
+        toast({
+          title: "Import Completed with Errors",
+          description: `Created: ${result.created}, Updated: ${result.updated}, Errors: ${result.errors.length}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Import Successful",
+          description: `Created: ${result.created}, Updated: ${result.updated}`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle>Tables</CardTitle>
-            <Button
-              onClick={handleAdd}
-              data-testid="button-add-table"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Table
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                onClick={handleExport}
+                variant="outline"
+                size="sm"
+                disabled={tables.length === 0}
+                data-testid="button-export-tables"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+              <Button
+                onClick={handleDownloadTemplate}
+                variant="outline"
+                size="sm"
+                data-testid="button-download-template"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Template
+              </Button>
+              <label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleImport}
+                  className="hidden"
+                  disabled={isImporting}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isImporting}
+                  asChild
+                  data-testid="button-import-tables"
+                >
+                  <span>
+                    {isImporting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    Import
+                  </span>
+                </Button>
+              </label>
+              <Button
+                onClick={handleAdd}
+                data-testid="button-add-table"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Table
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
