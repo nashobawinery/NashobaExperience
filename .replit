@@ -103,3 +103,8 @@ integrations = ["javascript_database:1.0.0", "javascript_openai:1.0.0", "javascr
 
 [objectStorage]
 defaultBucketID = "replit-objstore-bc352317-e44a-431b-a1e6-a56e47368287"
+
+[userenv]
+
+[userenv.shared]
+SENDGRID_FROM_EMAIL = "email@nashobawinery.com"
