@@ -976,6 +976,15 @@ export default function AdminDashboard() {
     isOpen: false,
     customer: null,
   });
+  
+  // Cancel agreement dialog state
+  const [cancelAgreementDialog, setCancelAgreementDialog] = useState<{ isOpen: boolean; agreement: any | null }>({
+    isOpen: false,
+    agreement: null,
+  });
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancellingAgreement, setIsCancellingAgreement] = useState(false);
+  const [cancellationBillingReport, setCancellationBillingReport] = useState<any>(null);
 
   // Customer locations state
   const [customerLocations, setCustomerLocations] = useState<any[]>([]);
@@ -1042,7 +1051,7 @@ export default function AdminDashboard() {
   });
 
   // Fetch tier agreements for customer
-  const { data: customerTierAgreements } = useQuery<any[]>({
+  const { data: customerTierAgreements, refetch: refetchTierAgreements } = useQuery<any[]>({
     queryKey: ['/api/b2b/admin/customers', editCustomerDialog.customer?.id, 'tier-agreements'],
     queryFn: async () => {
       const res = await fetch(`/api/b2b/admin/customers/${editCustomerDialog.customer?.id}/tier-agreements`, {
@@ -1862,6 +1871,68 @@ export default function AdminDashboard() {
         description: error.message || "An error occurred while resetting the password",
         variant: "destructive",
       });
+    }
+  };
+  
+  // Handle cancel agreement
+  const handleCancelAgreement = async () => {
+    if (!cancelAgreementDialog.agreement?.id) return;
+    
+    // Only admins can cancel agreements
+    if (currentUser?.type !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can cancel tier agreements",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsCancellingAgreement(true);
+    
+    try {
+      const response = await fetch(`/api/b2b/admin/tier-agreements/${cancelAgreementDialog.agreement.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to cancel agreement');
+      }
+      
+      const result = await response.json();
+      
+      // Store billing report for display
+      if (result.billingReport) {
+        setCancellationBillingReport(result.billingReport);
+      }
+      
+      toast({
+        title: "Agreement Cancelled",
+        description: "The tier agreement has been cancelled and the customer has been reverted to Tier 1 pricing.",
+      });
+      
+      // Refresh the agreements list
+      refetchTierAgreements();
+      
+      // Show billing report if there are items
+      if (result.billingReport && result.billingReport.items.length > 0) {
+        // Keep dialog open to show billing report
+      } else {
+        setCancelAgreementDialog({ isOpen: false, agreement: null });
+        setCancelReason("");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Failed to Cancel Agreement",
+        description: error.message || "An error occurred while cancelling the agreement",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancellingAgreement(false);
     }
   };
 
@@ -4763,6 +4834,17 @@ export default function AdminDashboard() {
                             <Eye className="h-4 w-4 mr-1" />
                             View
                           </Button>
+                          {agreement.status === 'active' && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setCancelAgreementDialog({ isOpen: true, agreement })}
+                              data-testid={`button-cancel-agreement-${agreement.id}`}
+                            >
+                              Cancel Contract
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -4810,6 +4892,155 @@ export default function AdminDashboard() {
             </DialogFooter>
           </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Agreement Dialog */}
+      <Dialog open={cancelAgreementDialog.isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setCancelAgreementDialog({ isOpen: false, agreement: null });
+          setCancelReason("");
+          setCancellationBillingReport(null);
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-cancel-agreement">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl text-destructive">Cancel Tier Agreement</DialogTitle>
+            <DialogDescription>
+              {cancellationBillingReport 
+                ? "The agreement has been cancelled. Review the billing report below."
+                : "This will cancel the customer's tier agreement and revert them to Tier 1 pricing."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!cancellationBillingReport ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-destructive/10 rounded-md border border-destructive/20">
+                <p className="text-sm font-medium text-destructive mb-2">Warning: This action cannot be undone</p>
+                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                  <li>The customer will be reverted to Tier 1 pricing</li>
+                  <li>An early termination billing report will be generated</li>
+                  <li>The customer will receive an email with the cancellation notice and billing report</li>
+                </ul>
+              </div>
+              
+              <div>
+                <Label htmlFor="cancel-reason">Reason for cancellation (optional)</Label>
+                <Textarea
+                  id="cancel-reason"
+                  placeholder="Enter the reason for cancelling this agreement..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="mt-2"
+                  data-testid="input-cancel-reason"
+                />
+              </div>
+              
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setCancelAgreementDialog({ isOpen: false, agreement: null });
+                    setCancelReason("");
+                  }}
+                  data-testid="button-cancel-cancel-agreement"
+                >
+                  Keep Agreement
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleCancelAgreement}
+                  disabled={isCancellingAgreement}
+                  data-testid="button-confirm-cancel-agreement"
+                >
+                  {isCancellingAgreement ? "Cancelling..." : "Cancel Agreement"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">Agreement Successfully Cancelled</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The customer has been notified via email with the following billing report.
+                </p>
+              </div>
+              
+              {cancellationBillingReport.items.length > 0 ? (
+                <>
+                  <div className="border rounded-md overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="px-2 py-2 text-left whitespace-nowrap">Order</th>
+                          <th className="px-2 py-2 text-left whitespace-nowrap">Date</th>
+                          <th className="px-2 py-2 text-left">Product</th>
+                          <th className="px-2 py-2 text-center">Qty</th>
+                          <th className="px-2 py-2 text-right whitespace-nowrap">Unit Paid</th>
+                          <th className="px-2 py-2 text-right whitespace-nowrap">Unit Tier 1</th>
+                          <th className="px-2 py-2 text-right whitespace-nowrap">Total Paid</th>
+                          <th className="px-2 py-2 text-right whitespace-nowrap">Total Tier 1</th>
+                          <th className="px-2 py-2 text-right">Diff</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cancellationBillingReport.items.map((item: any, i: number) => (
+                          <tr key={i} className={i % 2 === 0 ? "bg-background" : "bg-muted/50"}>
+                            <td className="px-2 py-2 whitespace-nowrap">{item.orderNumber}</td>
+                            <td className="px-2 py-2 whitespace-nowrap">{item.orderDate}</td>
+                            <td className="px-2 py-2 max-w-[120px] truncate" title={item.productName}>{item.productName}</td>
+                            <td className="px-2 py-2 text-center">{item.quantity}</td>
+                            <td className="px-2 py-2 text-right">${(item.unitPricePaid || 0).toFixed(2)}</td>
+                            <td className="px-2 py-2 text-right">${(item.unitTier1Price || 0).toFixed(2)}</td>
+                            <td className="px-2 py-2 text-right">${item.pricePaid.toFixed(2)}</td>
+                            <td className="px-2 py-2 text-right">${item.tier1Price.toFixed(2)}</td>
+                            <td className={`px-2 py-2 text-right font-medium ${item.difference > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                              ${item.difference.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-muted font-medium">
+                        <tr>
+                          <td colSpan={6} className="px-2 py-2 text-right">TOTALS:</td>
+                          <td className="px-2 py-2 text-right">${cancellationBillingReport.totalPaid.toFixed(2)}</td>
+                          <td className="px-2 py-2 text-right">${cancellationBillingReport.totalTier1.toFixed(2)}</td>
+                          <td className="px-2 py-2 text-right text-destructive">${cancellationBillingReport.totalDifference.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  
+                  <div className="p-4 bg-destructive/10 rounded-md border border-destructive/20">
+                    <p className="font-medium text-destructive">
+                      Amount Due for Early Termination: ${cancellationBillingReport.totalDifference.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      This represents the difference between discounted pricing received and standard Tier 1 pricing.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted-foreground">No orders were placed during the agreement period.</p>
+              )}
+              
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setCancelAgreementDialog({ isOpen: false, agreement: null });
+                    setCancelReason("");
+                    setCancellationBillingReport(null);
+                  }}
+                  data-testid="button-close-billing-report"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

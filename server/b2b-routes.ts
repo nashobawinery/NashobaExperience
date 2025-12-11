@@ -37,7 +37,7 @@ import {
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail } from './email';
 import { substituteVariables, calculateSavingsVsTier1, calculateCommitmentProgress } from './email-template-variables';
-import { eq, and, gt, inArray, desc } from 'drizzle-orm';
+import { eq, and, gt, inArray, desc, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
 const router = Router();
@@ -3031,6 +3031,104 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
       return res.status(400).json({ error: 'Only active agreements can be cancelled' });
     }
     
+    // Get Tier 1 pricing for billing difference calculation
+    const tier1Results = await db.select().from(tierPricing).where(eq(tierPricing.tierName, 'Tier 1'));
+    const tier1ByCategory = new Map(tier1Results.map(t => [t.category, t]));
+    
+    // Get orders within the agreement period (signedAt to now or fiscalYearEnd)
+    const startDate = agreement.signedAt || agreement.createdAt;
+    const endDate = new Date(); // Use current date as cancellation date
+    
+    // Fetch all orders for this customer within the agreement period
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(
+        and(
+          eq(b2bOrders.customerId, agreement.customerId),
+          sql`${b2bOrders.orderDate} >= ${startDate}`,
+          sql`${b2bOrders.orderDate} <= ${endDate}`,
+          sql`${b2bOrders.status} != 'cancelled'`
+        )
+      );
+    
+    // Build billing report with product-level details
+    const billingReport: {
+      items: Array<{
+        orderNumber: string;
+        orderDate: string;
+        productName: string;
+        sku: string | null;
+        quantity: number;
+        unitPricePaid: number;
+        unitTier1Price: number;
+        pricePaid: number;
+        tier1Price: number;
+        difference: number;
+      }>;
+      totalPaid: number;
+      totalTier1: number;
+      totalDifference: number;
+    } = {
+      items: [],
+      totalPaid: 0,
+      totalTier1: 0,
+      totalDifference: 0,
+    };
+    
+    for (const order of orders) {
+      // Get order items
+      const orderItems = await db.select({
+        productId: b2bOrderItems.productId,
+        productName: b2bOrderItems.productName,
+        sku: b2bOrderItems.sku,
+        quantity: b2bOrderItems.quantity,
+        unitPrice: b2bOrderItems.unitPrice,
+      })
+        .from(b2bOrderItems)
+        .where(eq(b2bOrderItems.orderId, order.id));
+      
+      for (const item of orderItems) {
+        // Get product details (for category and base price)
+        const productResults = await db.select()
+          .from(products)
+          .where(eq(products.id, item.productId))
+          .limit(1);
+        
+        if (productResults.length === 0) continue;
+        
+        const product = productResults[0];
+        const basePrice = parseFloat(product.wholesalePricing || product.price || '0');
+        
+        // Calculate Tier 1 price (base price with Tier 1 discount)
+        const tier1 = tier1ByCategory.get(product.category);
+        const tier1Discount = tier1 ? parseFloat(tier1.discountPercentage || '0') : 0;
+        const tier1UnitPrice = basePrice * (1 - tier1Discount / 100);
+        
+        const pricePaid = parseFloat(item.unitPrice || '0');
+        const quantity = item.quantity || 0;
+        const tier1Total = tier1UnitPrice * quantity;
+        const paidTotal = pricePaid * quantity;
+        const difference = tier1Total - paidTotal;
+        
+        billingReport.items.push({
+          orderNumber: order.orderNumber,
+          orderDate: new Date(order.orderDate).toISOString().split('T')[0],
+          productName: item.productName,
+          sku: item.sku,
+          quantity,
+          unitPricePaid: pricePaid,
+          unitTier1Price: tier1UnitPrice,
+          pricePaid: paidTotal,
+          tier1Price: tier1Total,
+          difference: difference,
+        });
+        
+        billingReport.totalPaid += paidTotal;
+        billingReport.totalTier1 += tier1Total;
+        billingReport.totalDifference += difference;
+      }
+    }
+    
     // Update agreement status to cancelled
     await db.update(b2bTierAgreements)
       .set({
@@ -3040,15 +3138,63 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
       .where(eq(b2bTierAgreements.id, agreementId));
     
     // Reset customer's tier to Tier 1 (default) and clear commitment start date
-    const tier1 = await db.select().from(tierPricing).where(eq(tierPricing.tierName, 'Tier 1')).limit(1);
-    if (tier1.length > 0) {
+    const tier1Default = tier1Results.length > 0 ? tier1Results[0] : null;
+    if (tier1Default) {
       await storage.updateB2bCustomer(agreement.customerId, {
-        pricingTierId: tier1[0].id,
+        pricingTierId: tier1Default.id,
         commitmentStartDate: null,
       });
     }
     
-    // Send cancellation notification email to customer
+    // Generate billing report HTML table
+    const billingReportHtml = billingReport.items.length > 0 ? `
+      <h3 style="margin-top: 30px;">Early Termination Billing Report</h3>
+      <p>The following is an itemized summary of discounted purchases during the agreement period:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+        <thead>
+          <tr style="background-color: #5C2535; color: white;">
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Order</th>
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Date</th>
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Product</th>
+            <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Qty</th>
+            <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Unit Paid</th>
+            <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Unit Tier 1</th>
+            <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Total Paid</th>
+            <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Total Tier 1</th>
+            <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${billingReport.items.map((item, i) => `
+            <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : 'white'};">
+              <td style="padding: 8px; border: 1px solid #ddd;">${item.orderNumber}</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${item.orderDate}</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${item.productName}</td>
+              <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${item.quantity}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">$${item.unitPricePaid.toFixed(2)}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">$${item.unitTier1Price.toFixed(2)}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">$${item.pricePaid.toFixed(2)}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">$${item.tier1Price.toFixed(2)}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd; color: ${item.difference > 0 ? '#DC2626' : '#059669'};">$${item.difference.toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background-color: #f3f4f6; font-weight: bold;">
+            <td colspan="6" style="padding: 10px; text-align: right; border: 1px solid #ddd;">TOTALS:</td>
+            <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">$${billingReport.totalPaid.toFixed(2)}</td>
+            <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">$${billingReport.totalTier1.toFixed(2)}</td>
+            <td style="padding: 10px; text-align: right; border: 1px solid #ddd; color: #DC2626;">$${billingReport.totalDifference.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="background-color: #FEE2E2; border-left: 4px solid #DC2626; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Amount Due for Early Termination: $${billingReport.totalDifference.toFixed(2)}</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 13px;">This represents the difference between discounted pricing received and standard Tier 1 pricing due to early contract termination.</p>
+      </div>
+    ` : '<p>No orders were placed during the agreement period.</p>';
+    
+    // Send cancellation notification email with billing report
     if (process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
       const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
       const emailHtml = `
@@ -3056,7 +3202,7 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
         <html>
         <head>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; }
             .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
             .content { padding: 30px 20px; }
             .info-box { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 20px 0; }
@@ -3077,7 +3223,9 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
               ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
             </div>
             
-            <p>If you would like to discuss new tier options or have any questions, please contact your sales representative.</p>
+            ${billingReportHtml}
+            
+            <p>If you have any questions about this billing statement or would like to discuss payment arrangements, please contact your sales representative.</p>
             
             <p>Thank you for your business.</p>
           </div>
@@ -3094,16 +3242,20 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
         await sgMail.send({
           to: agreement.email,
           from: fromEmail,
-          subject: 'Tier Agreement Cancelled - Nashoba Valley Winery',
+          subject: 'Tier Agreement Cancelled - Early Termination Notice - Nashoba Valley Winery',
           html: emailHtml,
         });
-        console.log('[Tier Agreement] Cancellation email sent to:', agreement.email);
+        console.log('[Tier Agreement] Cancellation email with billing report sent to:', agreement.email);
       } catch (emailError) {
         console.error('[Tier Agreement] Failed to send cancellation email:', emailError);
       }
     }
     
-    res.json({ success: true, message: 'Agreement cancelled successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Agreement cancelled successfully',
+      billingReport 
+    });
   } catch (error) {
     console.error('Error cancelling tier agreement:', error);
     res.status(500).json({ error: 'Failed to cancel agreement' });
