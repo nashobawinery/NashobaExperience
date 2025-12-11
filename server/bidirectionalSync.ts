@@ -412,11 +412,24 @@ async function scanSingleTable(
       devByKey.set(keyString, record);
     }
     
+    // CRITICAL: Normalize production records from snake_case to camelCase before key extraction
+    const normalizedProdRecords = prodRecords.map(r => normalizeRecordKeys(r));
+    
     const prodByKey = new Map<string, Record<string, any>>();
-    for (const record of prodRecords) {
-      const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
-      const keyString = businessKeyToString(keyValue);
-      prodByKey.set(keyString, record);
+    for (const record of normalizedProdRecords) {
+      try {
+        const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
+        const keyString = businessKeyToString(keyValue);
+        prodByKey.set(keyString, record);
+      } catch (e: any) {
+        // If business key extraction fails, log it for debugging
+        console.warn(`[Sync] Failed to extract business key from prod record in ${tableConfig.id}:`, e.message);
+      }
+    }
+    
+    // SANITY CHECK: Log if row counts differ significantly
+    if (devRecords.length !== prodRecords.length) {
+      console.log(`[Sync] Row count mismatch in ${tableConfig.id}: dev=${devRecords.length}, prod=${prodRecords.length}`);
     }
     
     const allKeysSet = new Set([...Array.from(devByKey.keys()), ...Array.from(prodByKey.keys())]);
@@ -437,8 +450,9 @@ async function scanSingleTable(
       
       const devUpdatedAt = devRecord?.updatedAt ? new Date(devRecord.updatedAt) : 
                            devRecord?.createdAt ? new Date(devRecord.createdAt) : null;
-      const prodUpdatedAt = prodRecord?.updated_at ? new Date(prodRecord.updated_at) : 
-                            prodRecord?.created_at ? new Date(prodRecord.created_at) : null;
+      // prodRecord is now normalized to camelCase
+      const prodUpdatedAt = prodRecord?.updatedAt ? new Date(prodRecord.updatedAt) : 
+                            prodRecord?.createdAt ? new Date(prodRecord.createdAt) : null;
       
       const state = determineRecordState(devRecord, prodRecord, devHash, prodHash, devUpdatedAt, prodUpdatedAt);
       
