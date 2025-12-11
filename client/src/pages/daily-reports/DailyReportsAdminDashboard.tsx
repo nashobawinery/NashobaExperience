@@ -201,8 +201,9 @@ interface DailyReportFieldDefinition {
   id: string;
   key: string;
   label: string;
-  type: 'number' | 'text';
+  type: 'number' | 'text' | 'checkbox' | 'dropdown';
   description?: string | null;
+  options?: { value: string; label: string }[] | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -220,7 +221,9 @@ interface DepartmentFieldAssignment {
 
 const fieldTypeOptions = [
   { value: "number", label: "Number", description: "Numeric values (counts, quantities, etc.)" },
-  { value: "text", label: "Text", description: "Free-form text responses" }
+  { value: "text", label: "Text", description: "Free-form text responses" },
+  { value: "checkbox", label: "Checkbox", description: "Simple yes/no check mark" },
+  { value: "dropdown", label: "Dropdown", description: "Select from predefined options" }
 ];
 
 function ReportFieldsTab() {
@@ -230,11 +233,13 @@ function ReportFieldsTab() {
   const [fieldFormData, setFieldFormData] = useState({
     key: "",
     label: "",
-    type: "text" as "number" | "text",
+    type: "text" as "number" | "text" | "checkbox" | "dropdown",
     description: "",
+    options: [] as { value: string; label: string }[],
     sortOrder: 0,
     isActive: true
   });
+  const [newOptionLabel, setNewOptionLabel] = useState("");
 
   const { data: fieldDefinitions = [], isLoading } = useQuery<DailyReportFieldDefinition[]>({
     queryKey: ['/api/daily-reports/field-definitions'],
@@ -310,9 +315,11 @@ function ReportFieldsTab() {
       label: "",
       type: "text",
       description: "",
+      options: [],
       sortOrder: fieldDefinitions.length,
       isActive: true
     });
+    setNewOptionLabel("");
   };
 
   const handleAddField = () => {
@@ -328,9 +335,11 @@ function ReportFieldsTab() {
       label: field.label,
       type: field.type,
       description: field.description || "",
+      options: field.options || [],
       sortOrder: field.sortOrder,
       isActive: field.isActive
     });
+    setNewOptionLabel("");
     setIsFieldDialogOpen(true);
   };
 
@@ -340,11 +349,17 @@ function ReportFieldsTab() {
       return;
     }
 
+    if (fieldFormData.type === 'dropdown' && fieldFormData.options.length === 0) {
+      toast({ title: "Error", description: "Dropdown fields require at least one option", variant: "destructive" });
+      return;
+    }
+
     const data = {
       key: fieldFormData.key.toLowerCase().replace(/\s+/g, '_'),
       label: fieldFormData.label,
       type: fieldFormData.type,
       description: fieldFormData.description || null,
+      options: fieldFormData.type === 'dropdown' ? fieldFormData.options : null,
       sortOrder: fieldFormData.sortOrder,
       isActive: fieldFormData.isActive
     };
@@ -354,6 +369,27 @@ function ReportFieldsTab() {
     } else {
       createFieldMutation.mutate(data);
     }
+  };
+
+  const addDropdownOption = () => {
+    if (!newOptionLabel.trim()) return;
+    const value = newOptionLabel.toLowerCase().replace(/\s+/g, '_');
+    if (fieldFormData.options.some(o => o.value === value)) {
+      toast({ title: "Error", description: "Option already exists", variant: "destructive" });
+      return;
+    }
+    setFieldFormData({
+      ...fieldFormData,
+      options: [...fieldFormData.options, { value, label: newOptionLabel.trim() }]
+    });
+    setNewOptionLabel("");
+  };
+
+  const removeDropdownOption = (value: string) => {
+    setFieldFormData({
+      ...fieldFormData,
+      options: fieldFormData.options.filter(o => o.value !== value)
+    });
   };
 
   const handleDeleteField = (field: DailyReportFieldDefinition) => {
@@ -445,7 +481,9 @@ function ReportFieldsTab() {
                     </div>
                     <div className="col-span-2">
                       <Badge variant="outline" className="text-xs">
-                        {field.type === 'number' ? '123' : 'Abc'} {field.type}
+                        {field.type === 'number' ? '123' : 
+                         field.type === 'checkbox' ? 'Yes' : 
+                         field.type === 'dropdown' ? 'List' : 'Abc'} {field.type}
                       </Badge>
                     </div>
                     <div className="col-span-2">
@@ -543,7 +581,11 @@ function ReportFieldsTab() {
               <Label htmlFor="fieldType">Field Type *</Label>
               <Select
                 value={fieldFormData.type}
-                onValueChange={(value: "number" | "text") => setFieldFormData({ ...fieldFormData, type: value })}
+                onValueChange={(value: "number" | "text" | "checkbox" | "dropdown") => setFieldFormData({ 
+                  ...fieldFormData, 
+                  type: value,
+                  options: value === 'dropdown' ? fieldFormData.options : []
+                })}
               >
                 <SelectTrigger data-testid="select-field-type">
                   <SelectValue />
@@ -553,7 +595,9 @@ function ReportFieldsTab() {
                     <SelectItem key={option.value} value={option.value}>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">
-                          {option.value === 'number' ? '123' : 'Abc'}
+                          {option.value === 'number' ? '123' : 
+                           option.value === 'checkbox' ? 'Yes' : 
+                           option.value === 'dropdown' ? 'List' : 'Abc'}
                         </Badge>
                         {option.label}
                       </div>
@@ -561,7 +605,56 @@ function ReportFieldsTab() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {fieldTypeOptions.find(o => o.value === fieldFormData.type)?.description}
+              </p>
             </div>
+
+            {/* Dropdown Options UI */}
+            {fieldFormData.type === 'dropdown' && (
+              <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+                <Label>Dropdown Options *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter option label"
+                    value={newOptionLabel}
+                    onChange={(e) => setNewOptionLabel(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDropdownOption())}
+                    data-testid="input-dropdown-option"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addDropdownOption}
+                    data-testid="button-add-dropdown-option"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {fieldFormData.options.length > 0 ? (
+                  <div className="space-y-1 mt-2">
+                    {fieldFormData.options.map((option) => (
+                      <div key={option.value} className="flex items-center justify-between gap-2 bg-background rounded px-2 py-1">
+                        <span className="text-sm">{option.label}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => removeDropdownOption(option.value)}
+                          data-testid={`button-remove-option-${option.value}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Add at least one option for the dropdown</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="fieldDescription">Description (optional)</Label>

@@ -9324,7 +9324,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(a => ({
           key: a.fieldDefinition?.key || '',
           label: a.fieldDefinition?.label || '',
-          type: a.fieldDefinition?.type || 'text'
+          type: a.fieldDefinition?.type || 'text',
+          options: a.fieldDefinition?.options || null
         }));
 
       res.json({
@@ -9383,7 +9384,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(a => ({
           key: a.fieldDefinition?.key || '',
           label: a.fieldDefinition?.label || '',
-          type: a.fieldDefinition?.type || 'text'
+          type: a.fieldDefinition?.type || 'text',
+          options: a.fieldDefinition?.options || null
         }));
 
       res.json({

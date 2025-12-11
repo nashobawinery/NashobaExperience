@@ -1732,7 +1732,9 @@ export type DailyReportWithDetails = DailyReport & {
 export const dailyReportFieldTypeEnum = pgEnum("daily_report_field_type", [
   "number",
   "currency",
-  "text"
+  "text",
+  "checkbox",
+  "dropdown"
 ]);
 
 export const dailyReportFieldDefinitions = pgTable("daily_report_field_definitions", {
@@ -1741,6 +1743,7 @@ export const dailyReportFieldDefinitions = pgTable("daily_report_field_definitio
   label: varchar("label", { length: 200 }).notNull(),
   type: dailyReportFieldTypeEnum("type").notNull().default("text"),
   description: text("description"),
+  options: jsonb("options"), // For dropdown field type - array of {value: string, label: string}
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

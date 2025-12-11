@@ -34,7 +34,7 @@ interface ValidationResponse {
   availableDepartments?: AvailableDepartment[];
   department?: string;
   departmentLabel?: string;
-  metrics?: Array<{ key: string; label: string; type?: string; unit?: string }>;
+  metrics?: Array<{ key: string; label: string; type?: string; unit?: string; options?: Array<{ value: string; label: string }> }>;
   procedures?: Procedure[];
 }
 
@@ -43,7 +43,7 @@ interface FormData {
   department: string;
   departmentLabel: string;
   code: string;
-  metrics: Array<{ key: string; label: string; type?: string; unit?: string }>;
+  metrics: Array<{ key: string; label: string; type?: string; unit?: string; options?: Array<{ value: string; label: string }> }>;
   procedures: Procedure[];
 }
 
@@ -570,6 +570,52 @@ export default function PublicDailyReportForm() {
                     className="min-h-[60px]"
                     data-testid={`input-metric-${metric.key}`}
                   />
+                </div>
+              ))}
+
+              {/* Checkbox fields */}
+              {formData.metrics.filter(m => m.type === 'checkbox').length > 0 && (
+                <div className="space-y-2">
+                  {formData.metrics.filter(m => m.type === 'checkbox').map((metric) => (
+                    <div key={metric.key} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <Checkbox
+                        id={`metric-${metric.key}`}
+                        checked={metricsData[metric.key] === 'true' || metricsData[metric.key] === true}
+                        onCheckedChange={(checked) => setMetricsData({ 
+                          ...metricsData, 
+                          [metric.key]: checked ? 'true' : 'false' 
+                        })}
+                        data-testid={`checkbox-metric-${metric.key}`}
+                      />
+                      <Label htmlFor={`metric-${metric.key}`} className="text-sm cursor-pointer">
+                        {metric.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Dropdown fields */}
+              {formData.metrics.filter(m => m.type === 'dropdown').map((metric) => (
+                <div key={metric.key} className="space-y-1">
+                  <Label htmlFor={`metric-${metric.key}`} className="text-sm">
+                    {metric.label}
+                  </Label>
+                  <Select
+                    value={metricsData[metric.key] || ""}
+                    onValueChange={(value) => setMetricsData({ ...metricsData, [metric.key]: value })}
+                  >
+                    <SelectTrigger data-testid={`select-metric-${metric.key}`}>
+                      <SelectValue placeholder={`Select ${metric.label.toLowerCase()}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(metric.options || []).map((option: { value: string; label: string }) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               ))}
             </CardContent>
