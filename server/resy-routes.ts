@@ -131,6 +131,15 @@ class ResyStorage {
   }
 
   async deleteLocation(id: string): Promise<void> {
+    // Delete all related records first (cascade manually since schema doesn't have onDelete cascade)
+    await db.delete(resyLocationTables).where(eq(resyLocationTables.locationId, id));
+    await db.delete(resyMealPeriods).where(eq(resyMealPeriods.locationId, id));
+    await db.delete(resyOperatingHours).where(eq(resyOperatingHours.locationId, id));
+    await db.delete(resyFlowControls).where(eq(resyFlowControls.locationId, id));
+    await db.delete(resyTurnTimeSettings).where(eq(resyTurnTimeSettings.locationId, id));
+    await db.delete(resySpecialDates).where(eq(resySpecialDates.locationId, id));
+    await db.delete(resyLocationHolidays).where(eq(resyLocationHolidays.locationId, id));
+    // Finally delete the location
     await db.delete(resyLocations).where(eq(resyLocations.id, id));
   }
 
