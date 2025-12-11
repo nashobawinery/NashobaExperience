@@ -32,6 +32,7 @@ import {
   b2bOrders,
   b2bOrderItems,
   b2bCommissions,
+  b2bTierAgreements,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail } from './email';
@@ -2808,6 +2809,364 @@ router.post('/api/b2b/admin/customers/:id/reject', requireB2bAdmin, async (req: 
     res.status(500).json({ error: 'Failed to reject customer' });
   }
 });
+
+// ============= TIER AGREEMENT ENDPOINTS =============
+
+// Admin/Sales Rep: Send tier agreement email to customer
+router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get customer details
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Generate secure token (64 bytes hex = 128 chars)
+    const token = randomBytes(32).toString('hex');
+    const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    // Calculate fiscal year (assume fiscal year matches calendar year)
+    const now = new Date();
+    const fiscalYearStart = new Date(now.getFullYear(), 0, 1); // Jan 1
+    const fiscalYearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59); // Dec 31
+    
+    // Get sender info
+    const session = req.session as any;
+    const sentByAdminId = session.b2bUserRole === 'admin' ? session.b2bUserId : null;
+    const sentBySalesRepId = session.b2bUserRole === 'sales_rep' ? session.b2bUserId : null;
+    
+    // Create placeholder agreement record (will be completed when customer signs)
+    // For now we just store the token and customer info
+    await db.insert(b2bTierAgreements).values({
+      customerId: customer.id,
+      tierId: 'placeholder', // Will be updated when customer selects tier
+      token,
+      tokenExpiresAt,
+      businessName: customer.accountName,
+      contactName: customer.primaryContactName,
+      address: [customer.billingAddress, customer.billingCity, customer.billingState, customer.billingZipCode].filter(Boolean).join(', ') || 'Not provided',
+      email: customer.emailAddress,
+      phone: customer.phoneNumber,
+      signatureName: 'PENDING',
+      signedAt: new Date(), // Placeholder, will be updated when signed
+      status: 'pending',
+      fiscalYearStart,
+      fiscalYearEnd,
+      sentByAdminId,
+      sentBySalesRepId,
+    });
+    
+    // Build agreement URL
+    const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
+    const agreementUrl = `https://${domain}/b2b/tier-agreement/${token}`;
+    
+    // Send email to customer
+    if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
+            .content { padding: 30px 20px; }
+            .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0; }
+            .cta-button { display: inline-block; background-color: #5C2535; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Wholesale Tier Agreement</h1>
+            <p>Nashoba Valley Winery</p>
+          </div>
+          <div class="content">
+            <p>Dear ${customer.primaryContactName},</p>
+            
+            <p>Thank you for your interest in our wholesale tier program. To receive enhanced wholesale pricing, please review and sign the Tier Agreement.</p>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: #5C2535;">Tier Benefits</h3>
+              <p><strong>Tier 3:</strong> Commit to 10+ cases annually for enhanced pricing</p>
+              <p><strong>Tier 4:</strong> Commit to 30+ cases annually for maximum savings</p>
+            </div>
+            
+            <p>Click the button below to review the agreement. The form will be pre-filled with your account information.</p>
+            
+            <p style="text-align: center;">
+              <a href="${agreementUrl}" class="cta-button">Review & Sign Agreement</a>
+            </p>
+            
+            <p><strong>This link will expire in 7 days.</strong></p>
+            
+            <p>If you have any questions about the tier program, please contact us.</p>
+            
+            <p>Best regards,<br>Nashoba Valley Winery Team</p>
+            
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+              <p>This email was sent regarding your wholesale account.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      await sendgrid.send({
+        to: customer.emailAddress,
+        from: process.env.RESEND_FROM_EMAIL,
+        subject: 'Nashoba Valley Winery - Wholesale Tier Agreement',
+        html: emailHtml,
+      });
+    }
+    
+    res.json({ success: true, message: 'Tier agreement email sent successfully' });
+  } catch (error) {
+    console.error('Error sending tier agreement:', error);
+    res.status(500).json({ error: 'Failed to send tier agreement email' });
+  }
+});
+
+// Admin: Get tier agreements for a customer
+router.get('/api/b2b/admin/customers/:id/tier-agreements', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.customerId, id))
+      .orderBy(desc(b2bTierAgreements.createdAt));
+    
+    // Get tier info for each agreement
+    const agreementsWithTiers = await Promise.all(agreements.map(async (agreement) => {
+      if (agreement.tierId && agreement.tierId !== 'placeholder') {
+        const tier = await storage.getTierPricing(agreement.tierId);
+        return { ...agreement, tier };
+      }
+      return { ...agreement, tier: null };
+    }));
+    
+    res.json(agreementsWithTiers);
+  } catch (error) {
+    console.error('Error fetching tier agreements:', error);
+    res.status(500).json({ error: 'Failed to fetch tier agreements' });
+  }
+});
+
+// PUBLIC: Get tier agreement form data by token (no auth required)
+router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    // Find agreement by token
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.token, token))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.status(404).json({ error: 'Agreement not found or invalid token' });
+    }
+    
+    const agreement = agreements[0];
+    
+    // Check if token is expired
+    if (new Date() > new Date(agreement.tokenExpiresAt)) {
+      return res.status(410).json({ error: 'This agreement link has expired. Please contact your sales representative for a new link.' });
+    }
+    
+    // Check if already signed
+    if (agreement.status === 'active' && agreement.signatureName !== 'PENDING') {
+      return res.status(400).json({ error: 'This agreement has already been signed.', alreadySigned: true });
+    }
+    
+    // Get available Tier 3 and Tier 4 options
+    const allTiers = await storage.getAllTierPricing();
+    const eligibleTiers = allTiers.filter(t => t.tierName === 'Tier 3' || t.tierName === 'Tier 4');
+    
+    // Return agreement data for form pre-fill
+    res.json({
+      agreement: {
+        id: agreement.id,
+        businessName: agreement.businessName,
+        contactName: agreement.contactName,
+        address: agreement.address,
+        email: agreement.email,
+        phone: agreement.phone,
+        fiscalYearStart: agreement.fiscalYearStart,
+        fiscalYearEnd: agreement.fiscalYearEnd,
+      },
+      tiers: eligibleTiers.map(t => ({
+        id: t.id,
+        name: t.tierName,
+        description: t.description,
+        discountPercentage: t.discountPercentage,
+        minimumCases: t.tierName === 'Tier 3' ? 10 : 30,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching tier agreement:', error);
+    res.status(500).json({ error: 'Failed to fetch agreement' });
+  }
+});
+
+// PUBLIC: Submit signed tier agreement (no auth required)
+router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { tierId, signatureName } = req.body;
+    
+    if (!tierId || !signatureName) {
+      return res.status(400).json({ error: 'Please select a tier and provide your signature' });
+    }
+    
+    // Validate tier is Tier 3 or Tier 4
+    const selectedTier = await storage.getTierPricing(tierId);
+    if (!selectedTier || (selectedTier.tierName !== 'Tier 3' && selectedTier.tierName !== 'Tier 4')) {
+      return res.status(400).json({ error: 'Invalid tier selection. Only Tier 3 and Tier 4 are available.' });
+    }
+    
+    // Find agreement by token
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.token, token))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.status(404).json({ error: 'Agreement not found or invalid token' });
+    }
+    
+    const agreement = agreements[0];
+    
+    // Check if token is expired
+    if (new Date() > new Date(agreement.tokenExpiresAt)) {
+      return res.status(410).json({ error: 'This agreement link has expired. Please contact your sales representative for a new link.' });
+    }
+    
+    // Check if already signed
+    if (agreement.status === 'active' && agreement.signatureName !== 'PENDING') {
+      return res.status(400).json({ error: 'This agreement has already been signed.' });
+    }
+    
+    // Mark any previous active agreements as superseded
+    await db.update(b2bTierAgreements)
+      .set({ status: 'superseded', updatedAt: new Date() })
+      .where(and(
+        eq(b2bTierAgreements.customerId, agreement.customerId),
+        eq(b2bTierAgreements.status, 'active')
+      ));
+    
+    // Update agreement with signature and tier selection
+    const now = new Date();
+    await db.update(b2bTierAgreements)
+      .set({
+        tierId,
+        signatureName,
+        signedAt: now,
+        status: 'active',
+        updatedAt: now,
+      })
+      .where(eq(b2bTierAgreements.id, agreement.id));
+    
+    // Update customer's tier
+    await storage.updateB2bCustomer(agreement.customerId, { 
+      pricingTierId: tierId,
+      commitmentStartDate: now,
+    });
+    
+    // Send confirmation email to customer
+    if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
+            .content { padding: 30px 20px; }
+            .success-box { background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 20px 0; }
+            .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0; }
+            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Agreement Confirmed</h1>
+            <p>Nashoba Valley Winery</p>
+          </div>
+          <div class="content">
+            <div class="success-box">
+              <h3 style="margin-top: 0; color: #065F46;">Thank you for signing the Tier Agreement!</h3>
+              <p>Your account has been upgraded to <strong>${selectedTier.tierName}</strong>.</p>
+            </div>
+            
+            <div class="info-box">
+              <h3 style="margin-top: 0; color: #5C2535;">Agreement Details</h3>
+              <p><strong>Business:</strong> ${agreement.businessName}</p>
+              <p><strong>Tier:</strong> ${selectedTier.tierName}</p>
+              <p><strong>Commitment:</strong> ${selectedTier.tierName === 'Tier 3' ? '10' : '30'} cases minimum annually</p>
+              <p><strong>Signed By:</strong> ${signatureName}</p>
+              <p><strong>Date:</strong> ${now.toLocaleDateString()}</p>
+            </div>
+            
+            <p>You can now enjoy ${selectedTier.discountPercentage}% wholesale discount on all qualifying purchases.</p>
+            
+            <p>Best regards,<br>Nashoba Valley Winery Team</p>
+            
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      await sendgrid.send({
+        to: agreement.email,
+        from: process.env.RESEND_FROM_EMAIL,
+        subject: 'Tier Agreement Confirmed - Nashoba Valley Winery',
+        html: emailHtml,
+      });
+    }
+    
+    // Notify admins about the signed agreement
+    try {
+      const admins = await storage.getAllB2bAdmins(true);
+      if (admins.length > 0 && process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL) {
+        const adminEmails = admins.map(a => a.email);
+        const notifyHtml = `
+          <h2>Tier Agreement Signed</h2>
+          <p><strong>${agreement.businessName}</strong> has signed a <strong>${selectedTier.tierName}</strong> agreement.</p>
+          <p>Signed by: ${signatureName}</p>
+          <p>Date: ${now.toLocaleDateString()}</p>
+          <p>Commitment: ${selectedTier.tierName === 'Tier 3' ? '10' : '30'} cases minimum annually</p>
+        `;
+        
+        await sendgrid.send({
+          to: adminEmails,
+          from: process.env.RESEND_FROM_EMAIL,
+          subject: `Tier Agreement Signed: ${agreement.businessName} - ${selectedTier.tierName}`,
+          html: notifyHtml,
+        });
+      }
+    } catch (notifyError) {
+      console.error('Failed to notify admins:', notifyError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Agreement signed successfully. Your tier has been updated.',
+      tier: selectedTier.tierName,
+    });
+  } catch (error) {
+    console.error('Error submitting tier agreement:', error);
+    res.status(500).json({ error: 'Failed to submit agreement' });
+  }
+});
+
+// ============= END TIER AGREEMENT ENDPOINTS =============
 
 // Admin: Get all tier pricing (optionally filtered by category)
 router.get('/api/b2b/admin/tiers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {

@@ -504,6 +504,40 @@ export const b2bCustomerManualProducts = pgTable("b2b_customer_manual_products",
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Tier Agreements - Required for Tier 3 and Tier 4 assignment
+export const b2bTierAgreements = pgTable("b2b_tier_agreements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id, { onDelete: 'cascade' }),
+  tierId: varchar("tier_id").notNull().references(() => tierPricing.id),
+  // Agreement token for secure access
+  token: varchar("token").notNull().unique(),
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  // Snapshot of customer info at time of agreement
+  businessName: varchar("business_name").notNull(),
+  contactName: varchar("contact_name").notNull(),
+  address: text("address").notNull(),
+  email: varchar("email").notNull(),
+  phone: varchar("phone").notNull(),
+  // Signature info
+  signatureName: varchar("signature_name").notNull(),
+  signedAt: timestamp("signed_at").notNull(),
+  // Agreement status
+  status: varchar("status").notNull().default("active"), // active, superseded, voided
+  // Fiscal year info
+  fiscalYearStart: timestamp("fiscal_year_start").notNull(),
+  fiscalYearEnd: timestamp("fiscal_year_end").notNull(),
+  // Admin/rep who sent the agreement
+  sentByAdminId: varchar("sent_by_admin_id").references(() => b2bAdmins.id),
+  sentBySalesRepId: varchar("sent_by_sales_rep_id").references(() => salesReps.id),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_b2b_tier_agreements_customer").on(table.customerId),
+  index("idx_b2b_tier_agreements_token").on(table.token),
+  index("idx_b2b_tier_agreements_status").on(table.status),
+]);
+
 export const b2bSessions = pgTable(
   "b2b_sessions",
   {
@@ -1215,6 +1249,7 @@ export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: tru
 export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
 export const insertB2bCustomerLocationSchema = createInsertSchema(b2bCustomerLocations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCustomerManualProductSchema = createInsertSchema(b2bCustomerManualProducts).omit({ id: true, createdAt: true });
+export const insertB2bTierAgreementSchema = createInsertSchema(b2bTierAgreements).omit({ id: true, createdAt: true, updatedAt: true, sentAt: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1370,6 +1405,9 @@ export type B2bCustomerLocation = typeof b2bCustomerLocations.$inferSelect;
 
 export type InsertB2bCustomerManualProduct = z.infer<typeof insertB2bCustomerManualProductSchema>;
 export type B2bCustomerManualProduct = typeof b2bCustomerManualProducts.$inferSelect;
+
+export type InsertB2bTierAgreement = z.infer<typeof insertB2bTierAgreementSchema>;
+export type B2bTierAgreement = typeof b2bTierAgreements.$inferSelect;
 
 export type InsertB2bOrder = z.infer<typeof insertB2bOrderSchema>;
 export type B2bOrder = typeof b2bOrders.$inferSelect;
