@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, like, or, sql, inArray, isNull, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, like, or, sql, inArray, isNull, gt, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
@@ -2983,6 +2983,8 @@ export class DatabaseStorage implements IStorage {
         )
       );
     
+    console.log('[Commitment Report] Found', signedAgreements.length, 'signed agreements');
+    
     // Create a map of signed agreements by customer ID
     const signedAgreementMap = new Map(signedAgreements.map(a => [a.customerId, a]));
     
@@ -3004,9 +3006,11 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(b2bCustomers.accountStatus, 'active'),
-          sql`${tierPricing.commitmentCases} > 0`
+          gt(tierPricing.commitmentCases, 0)
         )
       );
+    
+    console.log('[Commitment Report] Found', customers.length, 'customers with commitment tiers');
     
     // Combine customers from tier pricing and signed agreements
     const customerIds = new Set(customers.map(c => c.id));

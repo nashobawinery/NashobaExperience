@@ -4807,8 +4807,12 @@ export default function AdminDashboard() {
                   {customerTierAgreements.map((agreement: any) => (
                     <div key={agreement.id} className="flex items-center justify-between p-3 bg-background rounded-md border">
                       <div className="flex items-center gap-3">
-                        <Badge variant={agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'default' : 'secondary'}>
-                          {agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'Signed' : 'Pending'}
+                        <Badge variant={
+                          agreement.status === 'cancelled' ? 'destructive' :
+                          agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'default' : 'secondary'
+                        }>
+                          {agreement.status === 'cancelled' ? 'Cancelled' :
+                           agreement.status === 'active' && agreement.signatureName && agreement.signedAt ? 'Signed' : 'Pending'}
                         </Badge>
                         <div>
                           <p className="text-sm font-medium">
@@ -5033,6 +5037,8 @@ export default function AdminDashboard() {
                     setCancelAgreementDialog({ isOpen: false, agreement: null });
                     setCancelReason("");
                     setCancellationBillingReport(null);
+                    // Refetch tier agreements to show updated status
+                    refetchTierAgreements();
                   }}
                   data-testid="button-close-billing-report"
                 >

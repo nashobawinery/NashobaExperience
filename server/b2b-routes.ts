@@ -4369,6 +4369,7 @@ router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Reque
 router.get('/api/b2b/admin/tier-commitment-report', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
     const report = await storage.getTierCommitmentReport();
+    console.log('[Tier Commitment Report] Returning', report.length, 'customers');
     res.json(report);
   } catch (error) {
     console.error('Error fetching tier commitment report:', error);
