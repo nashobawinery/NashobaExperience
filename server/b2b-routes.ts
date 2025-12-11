@@ -1231,8 +1231,16 @@ router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Requ
     // Always use the session salesRepId, never trust client-provided salesRepId
     const salesRepId = req.session.b2bUserId;
     
-    // Validate customer data
-    const validatedData = insertB2bCustomerSchema.parse(customerData);
+    // Generate a unique customer number (same format as registration)
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const customerNumber = `NVW-${timestamp}-${randomPart}`;
+    
+    // Validate customer data with generated customer number
+    const validatedData = insertB2bCustomerSchema.parse({
+      ...customerData,
+      customerNumber,
+    });
     
     // Check if email already exists
     const existing = await storage.getB2bCustomerByEmail(validatedData.emailAddress);
@@ -1263,12 +1271,12 @@ router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Requ
       }
       const passwordHash = await hashPassword(tempPassword);
       
-      // Approve customer (sales rep acts as approver)
+      // Approve customer (sales rep acts as approver - pass null for approvedByAdminId since sales reps aren't admins)
       const approvedCustomer = await storage.approveB2bCustomer(
         customer.id,
         tierId,
         passwordHash,
-        salesRepId!
+        null
       );
       
       if (!approvedCustomer) {
@@ -1977,8 +1985,16 @@ router.post('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: R
       }
     }
     
-    // Validate customer data
-    const validatedData = insertB2bCustomerSchema.parse(customerData);
+    // Generate a unique customer number (same format as registration)
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const customerNumber = `NVW-${timestamp}-${randomPart}`;
+    
+    // Validate customer data with generated customer number
+    const validatedData = insertB2bCustomerSchema.parse({
+      ...customerData,
+      customerNumber,
+    });
     
     // Check if email already exists
     const existing = await storage.getB2bCustomerByEmail(validatedData.emailAddress);

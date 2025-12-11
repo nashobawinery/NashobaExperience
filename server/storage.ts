@@ -386,7 +386,7 @@ export interface IStorage {
   createB2bCustomer(data: InsertB2bCustomer): Promise<B2bCustomer>;
   updateB2bCustomer(id: string, data: Partial<InsertB2bCustomer>): Promise<B2bCustomer | undefined>;
   deleteB2bCustomer(id: string): Promise<boolean>;
-  approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined>;
+  approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string | null): Promise<B2bCustomer | undefined>;
   upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }>;
 
   // B2B - Customer Locations
@@ -2266,7 +2266,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string): Promise<B2bCustomer | undefined> {
+  async approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string | null): Promise<B2bCustomer | undefined> {
     const [customer] = await db
       .update(b2bCustomers)
       .set({
@@ -2274,7 +2274,7 @@ export class DatabaseStorage implements IStorage {
         pricingTierId: tierId,
         passwordHash,
         approvedAt: new Date(),
-        approvedByAdminId,
+        approvedByAdminId: approvedByAdminId || null,
         updatedAt: new Date(),
       })
       .where(eq(b2bCustomers.id, id))
