@@ -150,6 +150,30 @@ export default function Booking() {
     enabled: !!experience?.locationId && experience?.reservationType !== "ticketed",
   });
 
+  // Check for automatic discounts when experience loads
+  useEffect(() => {
+    const checkAutomaticDiscount = async () => {
+      if (!experience?.id) return;
+      
+      try {
+        const response = await fetch(`/api/resy/experiences/${experience.id}/automatic-discount`);
+        const result = await response.json();
+        
+        if (result.hasAutoDiscount && result.discount) {
+          setAppliedDiscount({
+            code: result.discount.code,
+            discountType: result.discount.discountType as "percentage" | "fixed",
+            discountValue: result.discount.discountValue,
+          });
+        }
+      } catch (error) {
+        console.error("Error checking automatic discount:", error);
+      }
+    };
+    
+    checkAutomaticDiscount();
+  }, [experience?.id]);
+
   const getDefaultName = () => {
     if (customerInfo.firstName || customerInfo.lastName) {
       return `${customerInfo.firstName} ${customerInfo.lastName}`.trim();

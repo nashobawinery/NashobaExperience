@@ -2232,6 +2232,7 @@ export const resyExperienceDiscounts = pgTable("resy_experience_discounts", {
   usedCount: integer("used_count").notNull().default(0),
   validFrom: varchar("valid_from", { length: 10 }),
   validUntil: varchar("valid_until", { length: 10 }),
+  isAutomatic: boolean("is_automatic").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

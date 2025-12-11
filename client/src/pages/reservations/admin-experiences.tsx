@@ -405,6 +405,9 @@ function DiscountManageDialog({ experience, isOpen, onOpenChange }: {
                               ${parseFloat(discount.discountValue).toFixed(2)} off
                             </Badge>
                           )}
+                          {discount.isAutomatic && (
+                            <Badge variant="default" className="text-xs bg-green-600">Auto-Apply</Badge>
+                          )}
                           {!discount.isActive && (
                             <Badge variant="destructive" className="text-xs">Inactive</Badge>
                           )}
@@ -509,6 +512,7 @@ function DiscountForm({ experienceId, discount, onSuccess, onCancel }: {
       maxUses: discount.maxUses ?? undefined,
       validFrom: discount.validFrom ?? undefined,
       validUntil: discount.validUntil ?? undefined,
+      isAutomatic: discount.isAutomatic ?? false,
       isActive: discount.isActive,
     } : {
       experienceId,
@@ -518,6 +522,7 @@ function DiscountForm({ experienceId, discount, onSuccess, onCancel }: {
       maxUses: undefined,
       validFrom: undefined,
       validUntil: undefined,
+      isAutomatic: false,
       isActive: true,
     },
   });
@@ -689,6 +694,28 @@ function DiscountForm({ experienceId, discount, onSuccess, onCancel }: {
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="isAutomatic"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-md border p-4">
+              <div className="space-y-0.5">
+                <FormLabel>Auto-Apply</FormLabel>
+                <FormDescription>
+                  Automatically apply this discount during checkout (within valid dates)
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                  data-testid="switch-discount-automatic"
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

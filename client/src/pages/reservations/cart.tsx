@@ -59,6 +59,27 @@ export default function Cart() {
 
         for (const item of cartItems) {
           try {
+            // Check for automatic discount for this experience
+            let discountCode = null;
+            let totalAmount = parseFloat(item.price) * item.partySize;
+            
+            try {
+              const discountResponse = await fetch(`/api/resy/experiences/${item.experienceId}/automatic-discount`);
+              const discountResult = await discountResponse.json();
+              
+              if (discountResult.hasAutoDiscount && discountResult.discount) {
+                discountCode = discountResult.discount.code;
+                const discountValue = parseFloat(discountResult.discount.discountValue);
+                if (discountResult.discount.discountType === "percentage") {
+                  totalAmount = totalAmount * (1 - discountValue / 100);
+                } else {
+                  totalAmount = Math.max(0, totalAmount - discountValue);
+                }
+              }
+            } catch (discountError) {
+              console.error("Error checking automatic discount:", discountError);
+            }
+            
             const reservationData = {
               experienceId: item.experienceId,
               locationId: item.locationId || null,
@@ -71,10 +92,10 @@ export default function Cart() {
               timeSlotId: null,
               partySize: item.reservationType === "table" ? item.partySize : null,
               ticketQuantity: item.reservationType === "ticketed" ? item.partySize : null,
-              totalAmount: (parseFloat(item.price) * item.partySize).toString(),
+              totalAmount: totalAmount.toFixed(2),
               status: "pending",
               specialRequests: item.specialRequests || null,
-              discountCode: null,
+              discountCode,
             };
 
             const response = await apiRequest(

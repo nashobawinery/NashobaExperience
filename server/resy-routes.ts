@@ -958,6 +958,39 @@ router.delete("/api/resy/discounts/:id", requireResyAdmin, async (req, res) => {
   }
 });
 
+// Get automatic discount for an experience (public endpoint for booking flow)
+router.get("/api/resy/experiences/:experienceId/automatic-discount", async (req, res) => {
+  try {
+    const discounts = await resyStorage.getDiscountsByExperience(req.params.experienceId);
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Find an active, automatic discount that's within the valid date range
+    const automaticDiscount = discounts.find(d => {
+      if (!d.isActive || !d.isAutomatic) return false;
+      if (d.maxUses !== null && d.usedCount >= d.maxUses) return false;
+      if (d.validFrom && today < d.validFrom) return false;
+      if (d.validUntil && today > d.validUntil) return false;
+      return true;
+    });
+    
+    if (automaticDiscount) {
+      res.json({
+        hasAutoDiscount: true,
+        discount: {
+          id: automaticDiscount.id,
+          code: automaticDiscount.code,
+          discountType: automaticDiscount.discountType,
+          discountValue: automaticDiscount.discountValue,
+        }
+      });
+    } else {
+      res.json({ hasAutoDiscount: false });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to check automatic discount: " + error.message });
+  }
+});
+
 // Experience timeslots
 router.get("/api/resy/experiences/:experienceId/timeslots", async (req, res) => {
   try {
