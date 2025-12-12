@@ -33,12 +33,17 @@ function clearCart() {
 export default function CheckoutPage() {
   const [, setLocation] = useLocation();
   const { user } = useB2bAuth();
-  const { data, isLoading, isError } = useB2bProducts();
+  const { data, isLoading, isError, error } = useB2bProducts();
   const { data: tiers } = useB2bPublicTiers();
   const { mutateAsync: placeOrder, isPending } = useB2bCheckout();
   const { toast } = useToast();
   const [cart] = useState<Record<string, CartItem | number>>(getCart());
   const [adminImpersonating, setAdminImpersonating] = useState<any>(null);
+
+  // Debugging - log state for troubleshooting
+  useEffect(() => {
+    console.log('[CheckoutPage] State:', { isLoading, isError, error, dataExists: !!data, productsCount: data?.products?.length || 0, cartKeys: Object.keys(cart).length });
+  }, [isLoading, isError, error, data, cart]);
 
   const products = data?.products || [];
   const currentTier = data?.tier;
@@ -185,8 +190,23 @@ export default function CheckoutPage() {
   if (isError) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-        <p className="text-destructive mb-4">Failed to load product information</p>
-        <Button onClick={() => setLocation("/b2b/catalog")}>Back to Catalog</Button>
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <p className="text-red-700 dark:text-red-200 mb-4 font-medium">Failed to load product information</p>
+          <p className="text-red-600 dark:text-red-300 text-sm mb-4">{error?.message || 'Unable to fetch products'}</p>
+          <Button onClick={() => setLocation("/b2b/catalog")}>Back to Catalog</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if data is undefined and not loading (shouldn't happen, but safety check)
+  if (!data && !isLoading && !isError) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+        <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <p className="text-yellow-700 dark:text-yellow-200 mb-4 font-medium">Unexpected error loading checkout</p>
+          <Button onClick={() => setLocation("/b2b/catalog")}>Back to Catalog</Button>
+        </div>
       </div>
     );
   }
