@@ -636,7 +636,7 @@ router.post('/api/b2b/reset-password', async (req: Request, res: Response) => {
       await db
         .update(b2bCustomers)
         .set({ passwordHash })
-        .where(eq(b2bCustomers.emailAddress, email));
+        .where(eq(b2bCustomers.email_address, email));
     } else if (userType === 'sales_rep') {
       await db
         .update(salesReps)
