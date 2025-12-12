@@ -105,7 +105,8 @@ export default function ViewSignedAgreementPage() {
   
   const isSigned = agreement.status === 'active' && agreement.signatureName;
   const minCases = agreement.tier?.commitmentCases || (agreement.tier?.tierName === 'Tier 3' ? 10 : 30);
-  const canCancel = agreement.status === 'active' || (agreement.status && (agreement.status.toLowerCase() === 'pending' || agreement.status.toLowerCase().includes('pending')));
+  const statusLower = agreement.status ? agreement.status.toLowerCase() : '';
+  const canCancel = agreement.status === 'active' || statusLower === 'pending' || statusLower.includes('pending');
   
   return (
     <div className="min-h-screen bg-background">
@@ -117,7 +118,7 @@ export default function ViewSignedAgreementPage() {
           </Button>
           <div className="flex items-center gap-2">
             <Badge variant={isSigned ? "default" : "secondary"} className="text-sm">
-              {agreement.status === 'active' ? 'Active' : agreement.status?.toLowerCase().includes('pending') ? 'Pending Signature' : agreement.status}
+              {agreement.status === 'active' ? 'Active' : statusLower.includes('pending') ? 'Pending Signature' : agreement.status}
             </Badge>
             {canCancel && (
               <>
