@@ -18,6 +18,7 @@ import ProductDetailModal from "@/components/ProductDetailModal";
 interface CartItem {
   quantity: number;
   unit: 'bottle' | 'case';
+  productId: string;
 }
 
 function getCart(): Record<string, CartItem | number> {

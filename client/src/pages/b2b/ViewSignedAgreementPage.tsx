@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, FileText, CheckCircle, Building, Mail, Phone, MapPin, Calendar } from 'lucide-react';
+import { Loader2, ArrowLeft, FileText, CheckCircle, Building, Mail, Phone, MapPin, Calendar, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface SignedAgreement {
   id: string;
@@ -32,10 +34,42 @@ interface SignedAgreement {
 export default function ViewSignedAgreementPage() {
   const { agreementId } = useParams<{ agreementId: string }>();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   
   const { data: agreement, isLoading, error } = useQuery<SignedAgreement>({
     queryKey: ['/api/b2b/admin/tier-agreements', agreementId],
     enabled: !!agreementId,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/b2b/admin/tier-agreements/${agreementId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: 'Cancelled via agreement view' }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to cancel agreement');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Agreement Cancelled',
+        description: 'The tier agreement has been cancelled.',
+      });
+      setLocation('/b2b/admin');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to Cancel',
+        description: error.message || 'An error occurred',
+        variant: 'destructive',
+      });
+    },
   });
   
   if (isLoading) {
@@ -80,9 +114,31 @@ export default function ViewSignedAgreementPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-          <Badge variant={isSigned ? "default" : "secondary"} className="text-sm">
-            {agreement.status === 'active' ? 'Active' : agreement.status === 'pending' ? 'Pending Signature' : agreement.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={isSigned ? "default" : "secondary"} className="text-sm">
+              {agreement.status === 'active' ? 'Active' : agreement.status === 'pending' ? 'Pending Signature' : agreement.status}
+            </Badge>
+            {agreement.status === 'active' && (
+              <>
+                {showCancelConfirm ? (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending} data-testid="button-confirm-cancel">
+                      {cancelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                      Confirm
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowCancelConfirm(false)} data-testid="button-cancel-cancel">
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="ghost" onClick={() => setShowCancelConfirm(true)} data-testid="button-cancel-agreement">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Cancel Agreement
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </div>
         
         <Card className="mb-6" data-testid="signed-agreement-card">
