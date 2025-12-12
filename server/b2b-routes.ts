@@ -499,13 +499,16 @@ router.post('/api/b2b/setup-admin', async (req: Request, res: Response) => {
 router.post('/api/b2b/forgot-password', async (req: Request, res: Response) => {
   try {
     const { email, userType } = req.body;
+    console.log(`[Password Reset] Request received for ${userType}: ${email}`);
 
     if (!email || !userType) {
+      console.log('[Password Reset] Missing email or userType');
       return res.status(400).json({ error: 'Email and user type are required' });
     }
 
     // Validate user type
     if (!['customer', 'sales_rep', 'admin'].includes(userType)) {
+      console.log(`[Password Reset] Invalid user type: ${userType}`);
       return res.status(400).json({ error: 'Invalid user type' });
     }
 
@@ -514,18 +517,21 @@ router.post('/api/b2b/forgot-password', async (req: Request, res: Response) => {
     if (userType === 'customer') {
       const customer = await storage.getB2bCustomerByEmail(email);
       userExists = !!customer;
+      console.log(`[Password Reset] Customer lookup for ${email}: ${userExists ? 'FOUND' : 'NOT FOUND'}`);
     } else if (userType === 'sales_rep') {
       const salesRep = await db.select().from(salesReps).where(eq(salesReps.email, email)).limit(1);
       userExists = salesRep.length > 0;
+      console.log(`[Password Reset] Sales rep lookup for ${email}: ${userExists ? 'FOUND' : 'NOT FOUND'}`);
     } else if (userType === 'admin') {
       const admin = await db.select().from(b2bAdmins).where(eq(b2bAdmins.email, email)).limit(1);
       userExists = admin.length > 0;
+      console.log(`[Password Reset] Admin lookup for ${email}: ${userExists ? 'FOUND' : 'NOT FOUND'}`);
     }
 
     // For security, always return success even if user doesn't exist
     // This prevents email enumeration
     if (!userExists) {
-      console.log(`Password reset requested for non-existent ${userType}: ${email}`);
+      console.log(`[Password Reset] User not found, returning success (for security): ${email}`);
       return res.json({ success: true });
     }
 
@@ -534,22 +540,26 @@ router.post('/api/b2b/forgot-password', async (req: Request, res: Response) => {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     // Store token in database
+    console.log(`[Password Reset] Storing token in database for ${email}`);
     await db.insert(b2bPasswordResetTokens).values({
       email,
       userType: userType as 'customer' | 'sales_rep' | 'admin',
       token,
       expiresAt,
     });
+    console.log(`[Password Reset] Token stored successfully`);
 
     // Send password reset email
     const resetLink = `${req.protocol}://${req.get('host')}/b2b/reset-password?token=${token}`;
     const emailContent = generatePasswordResetEmail(resetLink, userType);
     
+    console.log(`[Password Reset] Sending password reset email to ${email}`);
     await sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
+    console.log(`[Password Reset] Email sent successfully to ${email}`);
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('[Password Reset] Error:', error);
     res.status(500).json({ error: 'Failed to process password reset request' });
   }
 });
