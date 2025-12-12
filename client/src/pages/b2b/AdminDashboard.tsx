@@ -2166,8 +2166,8 @@ export default function AdminDashboard() {
               </Tooltip>
             )}
             
-            {/* Change Password button - Admin only */}
-            {!isPending && can.edit('customers') && (
+            {/* Change Password button - Admin only for approved customers */}
+            {!isPending && can.edit('customers') && (customer.accountStatus === 'active' || customer.accountStatus === 'inactive') && (
               <Button
                 size="sm"
                 variant="outline"

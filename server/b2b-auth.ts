@@ -122,8 +122,8 @@ export async function authenticateB2bCustomer(email: string, password: string) {
     return null;
   }
 
-  if (customer.accountStatus !== 'active') {
-    throw new Error('Account is not active');
+  if (customer.accountStatus === 'pending_approval') {
+    throw new Error('Account is pending approval. Please wait for admin approval.');
   }
 
   const isValid = await comparePassword(password, customer.passwordHash);
