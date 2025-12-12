@@ -430,6 +430,8 @@ export const b2bAdmins = pgTable("b2b_admins", {
   passwordHash: varchar("password_hash").notNull(),
   active: boolean("active").notNull().default(true),
   receiveOrderEmails: boolean("receive_order_emails").notNull().default(false),
+  receiveContractNotifications: boolean("receive_contract_notifications").notNull().default(false),
+  notes: varchar("notes", { length: 500 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

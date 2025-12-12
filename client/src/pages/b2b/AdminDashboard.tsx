@@ -954,6 +954,8 @@ export default function AdminDashboard() {
     lastName: "",
     email: "",
     password: "",
+    receiveContractNotifications: false,
+    notes: "",
   });
 
   // Delete admin confirmation state
@@ -1331,6 +1333,8 @@ export default function AdminDashboard() {
           firstName: adminForm.firstName,
           lastName: adminForm.lastName,
           email: adminForm.email,
+          receiveContractNotifications: adminForm.receiveContractNotifications,
+          notes: adminForm.notes || null,
         };
         
         // Only include password if it's not empty
@@ -1369,6 +1373,8 @@ export default function AdminDashboard() {
         lastName: "",
         email: "",
         password: "",
+        receiveContractNotifications: false,
+        notes: "",
       });
     } catch (error: any) {
       toast({
@@ -1386,6 +1392,8 @@ export default function AdminDashboard() {
         lastName: admin.lastName,
         email: admin.email,
         password: "",
+        receiveContractNotifications: admin.receiveContractNotifications || false,
+        notes: admin.notes || "",
       });
     } else {
       setAdminForm({
@@ -1393,6 +1401,8 @@ export default function AdminDashboard() {
         lastName: "",
         email: "",
         password: "",
+        receiveContractNotifications: false,
+        notes: "",
       });
     }
     setAdminDialog({ isOpen: true, admin: admin || null });
@@ -3461,59 +3471,71 @@ export default function AdminDashboard() {
                   {admins.map((admin) => (
                     <div
                       key={admin.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border ${!admin.active ? 'opacity-60' : ''}`}
+                      className={`p-4 rounded-lg border ${!admin.active ? 'opacity-60' : ''}`}
                       data-testid={`admin-${admin.id}`}
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold">
-                            {admin.firstName} {admin.lastName}
-                          </p>
-                          <Badge variant={admin.active ? 'default' : 'secondary'}>
-                            {admin.active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{admin.email}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openAdminDialog(admin)}
-                          data-testid={`button-edit-admin-${admin.id}`}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDeleteAdminDialog({ isOpen: true, admin })}
-                                disabled={
-                                  admin.id === currentUser?.id || 
-                                  (admin.active && admins.filter(a => a.active).length <= 1)
-                                }
-                                data-testid={`button-delete-admin-${admin.id}`}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Delete
-                              </Button>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {admin.id === currentUser?.id ? (
-                              <p>Cannot delete your own admin account</p>
-                            ) : admin.active && admins.filter(a => a.active).length <= 1 ? (
-                              <p>Cannot delete the last active admin</p>
-                            ) : (
-                              <p>Delete this administrator</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold">
+                              {admin.firstName} {admin.lastName}
+                            </p>
+                            <Badge variant={admin.active ? 'default' : 'secondary'}>
+                              {admin.active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            {admin.receiveContractNotifications && (
+                              <Badge variant="outline" className="text-xs">
+                                Contract Notifications
+                              </Badge>
                             )}
-                          </TooltipContent>
-                        </Tooltip>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{admin.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openAdminDialog(admin)}
+                            data-testid={`button-edit-admin-${admin.id}`}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setDeleteAdminDialog({ isOpen: true, admin })}
+                                  disabled={
+                                    admin.id === currentUser?.id || 
+                                    (admin.active && admins.filter(a => a.active).length <= 1)
+                                  }
+                                  data-testid={`button-delete-admin-${admin.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {admin.id === currentUser?.id ? (
+                                <p>Cannot delete your own admin account</p>
+                              ) : admin.active && admins.filter(a => a.active).length <= 1 ? (
+                                <p>Cannot delete the last active admin</p>
+                              ) : (
+                                <p>Delete this administrator</p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
+                      {admin.notes && (
+                        <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground italic">
+                          {admin.notes}
+                        </div>
+                      )}
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
@@ -3969,6 +3991,38 @@ export default function AdminDashboard() {
               ) : (
                 <p className="text-xs text-muted-foreground">Leave blank to keep current password</p>
               )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="admin-contract-notifications"
+                checked={adminForm.receiveContractNotifications}
+                onCheckedChange={(checked) => setAdminForm({ ...adminForm, receiveContractNotifications: checked })}
+                data-testid="switch-contract-notifications"
+              />
+              <Label htmlFor="admin-contract-notifications" className="text-sm">
+                Receive contract notification emails
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              When enabled, this admin will receive email notifications when customers sign tier agreements.
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="admin-notes">Notes</Label>
+              <Textarea
+                id="admin-notes"
+                value={adminForm.notes}
+                onChange={(e) => setAdminForm({ ...adminForm, notes: e.target.value })}
+                data-testid="input-admin-notes"
+                placeholder="Optional notes about this admin account..."
+                maxLength={500}
+                className="resize-none"
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                {adminForm.notes.length}/500 characters - Use this for internal documentation about this account's purpose
+              </p>
             </div>
 
             <DialogFooter>

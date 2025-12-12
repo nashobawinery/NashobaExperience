@@ -3510,25 +3510,62 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       });
     }
     
-    // Notify admins about the signed agreement
+    // Notify designated admins about the signed agreement (only those with receiveContractNotifications enabled)
     try {
-      const admins = await storage.getAllB2bAdmins(true);
-      if (admins.length > 0 && process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
-        const adminEmails = admins.map(a => a.email);
+      const allAdmins = await storage.getAllB2bAdmins(true);
+      // Filter to only admins who have opted in to receive contract notifications
+      const contractNotifyAdmins = allAdmins.filter(a => a.receiveContractNotifications);
+      
+      if (contractNotifyAdmins.length > 0 && process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
+        const adminEmails = contractNotifyAdmins.map(a => a.email);
+        const minCasesAdmin = selectedTier.tierName === 'Tier 3' ? '10' : '30';
         const notifyHtml = `
-          <h2>Tier Agreement Signed</h2>
-          <p><strong>${agreement.businessName}</strong> has signed a <strong>${selectedTier.tierName}</strong> agreement.</p>
-          <p>Signed by: ${signatureName}</p>
-          <p>Date: ${now.toLocaleDateString()}</p>
-          <p>Commitment: ${selectedTier.tierName === 'Tier 3' ? '10' : '30'} cases minimum annually</p>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+              .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+              .content { padding: 20px; }
+              .success-box { background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 16px 0; }
+              .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 16px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2 style="margin: 0;">B2B Contract Received</h2>
+            </div>
+            <div class="content">
+              <div class="success-box">
+                <h3 style="margin-top: 0; color: #065F46;">New Tier Agreement Signed</h3>
+                <p>A customer has signed a tier agreement.</p>
+              </div>
+              
+              <div class="info-box">
+                <p><strong>Business Name:</strong> ${agreement.businessName}</p>
+                <p><strong>Signed By:</strong> ${signatureName}</p>
+                <p><strong>Selected Tier:</strong> ${selectedTier.tierName}</p>
+                <p><strong>Discount:</strong> ${selectedTier.discountPercentage}%</p>
+                <p><strong>Case Commitment:</strong> ${minCasesAdmin} cases minimum annually</p>
+                <p><strong>Date Signed:</strong> ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}</p>
+                <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+              </div>
+              
+              <p>Please log into the B2B Admin Dashboard to view the full agreement details.</p>
+            </div>
+          </body>
+          </html>
         `;
         
         await sendgrid.send({
           to: adminEmails,
           from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
-          subject: `Tier Agreement Signed: ${agreement.businessName} - ${selectedTier.tierName}`,
+          subject: `[B2B Contract Received] ${agreement.businessName} signed ${selectedTier.tierName} agreement`,
           html: notifyHtml,
         });
+        console.log(`Contract notification email sent to ${adminEmails.length} admin(s): ${adminEmails.join(', ')}`);
+      } else {
+        console.log('No admins configured to receive contract notifications');
       }
     } catch (notifyError) {
       console.error('Failed to notify admins:', notifyError);
