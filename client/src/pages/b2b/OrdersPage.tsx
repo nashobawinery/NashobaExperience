@@ -6,7 +6,7 @@ import { Package, Calendar, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 export default function OrdersPage() {
-  const { data: orders, isLoading } = useB2bOrders();
+  const { data: orders, isLoading, isError, error } = useB2bOrders();
 
   if (isLoading) {
     return (
@@ -19,6 +19,18 @@ export default function OrdersPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center py-12">
+          <Package className="h-16 w-16 mx-auto mb-4 text-destructive" />
+          <h3 className="text-lg font-medium mb-2">Error Loading Orders</h3>
+          <p className="text-muted-foreground">{error?.message || 'Failed to load order history'}</p>
         </div>
       </div>
     );
