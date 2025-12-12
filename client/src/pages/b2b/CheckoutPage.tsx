@@ -188,11 +188,12 @@ export default function CheckoutPage() {
 
   // Show error state if products failed to load
   if (isError) {
+    const errorMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unable to fetch products';
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
         <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-6">
           <p className="text-red-700 dark:text-red-200 mb-4 font-medium">Failed to load product information</p>
-          <p className="text-red-600 dark:text-red-300 text-sm mb-4">{error?.message || 'Unable to fetch products'}</p>
+          <p className="text-red-600 dark:text-red-300 text-sm mb-4">{errorMessage}</p>
           <Button onClick={() => setLocation("/b2b/catalog")}>Back to Catalog</Button>
         </div>
       </div>
