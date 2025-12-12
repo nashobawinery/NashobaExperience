@@ -2934,6 +2934,8 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
               <p><strong>Tier 4:</strong> Commit to 30+ cases annually for maximum savings</p>
             </div>
             
+            <p><a href="https://nashoba-tasting-experience-email136.replit.app/b2b/pricing-sheet" style="color: #5C2535; font-weight: bold;">To see the savings associated with Tier pricing, click here</a></p>
+            
             <p>Click the button below to review the agreement. The form will be pre-filled with your account information.</p>
             
             <p style="text-align: center;">
