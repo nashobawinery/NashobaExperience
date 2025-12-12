@@ -5050,31 +5050,29 @@ export default function AdminDashboard() {
                           </p>
                         </div>
                       </div>
-                      {agreement.signatureName && agreement.signedAt && (
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/b2b/admin/agreements/${agreement.id}`, '_blank')}
+                          data-testid={`button-view-agreement-${agreement.id}`}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        {(agreement.status === 'active' || (agreement.status && agreement.status.toLowerCase() === 'pending')) && (
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="destructive"
                             size="sm"
-                            onClick={() => window.open(`/b2b/admin/agreements/${agreement.id}`, '_blank')}
-                            data-testid={`button-view-agreement-${agreement.id}`}
+                            onClick={() => setCancelAgreementDialog({ isOpen: true, agreement })}
+                            data-testid={`button-cancel-agreement-${agreement.id}`}
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
+                            Cancel Contract
                           </Button>
-                          {agreement.status === 'active' && (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setCancelAgreementDialog({ isOpen: true, agreement })}
-                              data-testid={`button-cancel-agreement-${agreement.id}`}
-                            >
-                              Cancel Contract
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
