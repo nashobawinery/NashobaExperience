@@ -3832,8 +3832,8 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
     
     const agreement = agreements[0];
     
-    if (agreement.status !== 'active') {
-      return res.status(400).json({ error: 'Only active agreements can be cancelled' });
+    if (agreement.status !== 'active' && agreement.status !== 'pending') {
+      return res.status(400).json({ error: 'Only active or pending agreements can be cancelled' });
     }
     
     // Get Tier 1 pricing for billing difference calculation
