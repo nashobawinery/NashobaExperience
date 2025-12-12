@@ -391,7 +391,7 @@ export default function CheckoutPage() {
                 <p><strong>Business:</strong> {user?.accountName}</p>
                 <p><strong>Email:</strong> {user?.email}</p>
                 {user?.salesRep && (
-                  <p><strong>Sales Rep:</strong> {user.salesRep}</p>
+                  <p><strong>Sales Rep:</strong> {typeof user.salesRep === 'object' ? `${(user.salesRep as any).firstName} ${(user.salesRep as any).lastName}` : user.salesRep}</p>
                 )}
                 <p className="text-muted-foreground mt-4">
                   Order will be prepared and you will be contacted for delivery coordination.
