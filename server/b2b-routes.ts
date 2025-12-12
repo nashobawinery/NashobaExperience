@@ -2841,12 +2841,28 @@ router.post('/api/b2b/admin/customers/:id/send-tier-agreement', requireB2bAdminO
         eq(b2bTierAgreements.status, 'pending')
       ));
     
-    // Expire any existing pending agreements before creating new one
+    // Block if there's an unexpired pending agreement
+    const activePendingAgreement = existingAgreements.find(
+      agreement => new Date() < new Date(agreement.tokenExpiresAt)
+    );
+    
+    if (activePendingAgreement) {
+      const expiresAt = new Date(activePendingAgreement.tokenExpiresAt);
+      const sentAt = activePendingAgreement.sentAt ? new Date(activePendingAgreement.sentAt) : null;
+      return res.status(409).json({ 
+        error: 'A pending contract already exists for this customer.',
+        message: `A contract was sent${sentAt ? ` on ${sentAt.toLocaleDateString()}` : ''} and expires on ${expiresAt.toLocaleDateString()}. Please cancel the existing contract before sending a new one.`,
+        existingAgreementId: activePendingAgreement.id,
+        sentAt: activePendingAgreement.sentAt,
+        expiresAt: activePendingAgreement.tokenExpiresAt,
+      });
+    }
+    
+    // Auto-expire any old pending agreements that have passed their expiration date
     for (const agreement of existingAgreements) {
-      if (new Date() < new Date(agreement.tokenExpiresAt)) {
-        // Mark old agreement as superseded
+      if (new Date() >= new Date(agreement.tokenExpiresAt)) {
         await db.update(b2bTierAgreements)
-          .set({ status: 'superseded', updatedAt: new Date() })
+          .set({ status: 'expired', updatedAt: new Date() })
           .where(eq(b2bTierAgreements.id, agreement.id));
       }
     }

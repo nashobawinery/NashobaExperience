@@ -520,11 +520,25 @@ export default function AdminDashboard() {
   const sendTierAgreementMutation = useMutation({
     mutationFn: async (customerId: string) => {
       setSendingAgreementCustomerId(customerId);
-      const res = await apiRequest('POST', `/api/b2b/admin/customers/${customerId}/send-tier-agreement`, {});
-      return res.json();
+      const res = await fetch(`/api/b2b/admin/customers/${customerId}/send-tier-agreement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const error: any = new Error(data.error || 'Failed to send tier agreement');
+        error.message = data.message || data.error;
+        error.status = res.status;
+        throw error;
+      }
+      return data;
     },
     onSuccess: () => {
       setSendingAgreementCustomerId(null);
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+      refetchTierAgreements();
       toast({
         title: 'Tier Agreement Sent',
         description: 'A tier agreement email has been sent to the customer.',
@@ -532,11 +546,20 @@ export default function AdminDashboard() {
     },
     onError: (error: any) => {
       setSendingAgreementCustomerId(null);
-      toast({
-        title: 'Error',
-        description: error?.message || 'Failed to send tier agreement',
-        variant: 'destructive',
-      });
+      // Special handling for 409 Conflict (pending contract exists)
+      if (error.status === 409) {
+        toast({
+          title: 'Contract Already Sent',
+          description: error.message || 'A pending contract already exists. Cancel it before sending a new one.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error?.message || 'Failed to send tier agreement',
+          variant: 'destructive',
+        });
+      }
     },
   });
 
