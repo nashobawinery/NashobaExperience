@@ -1308,11 +1308,15 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
 
     // Generate order number (simple timestamp-based)
     const orderNumber = `B2B-${Date.now()}`;
+    
+    // Generate delivery date token for sales rep workflow (7-day expiration for security)
+    const deliveryDateToken = randomBytes(32).toString('hex');
+    const deliveryDateTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const orderData = {
       customerId: targetCustomerId,
       orderNumber,
-      status: 'pending_approval',
+      status: 'pending_delivery_date',
       subtotal: subtotal.toFixed(2),
       tax: '0.00',
       total: subtotal.toFixed(2),
@@ -1321,6 +1325,8 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
       shippingCity: shippingAddress?.city || customer.shippingCity,
       shippingState: shippingAddress?.state || customer.shippingState,
       shippingZipCode: shippingAddress?.zipCode || customer.shippingZipCode,
+      deliveryDateToken,
+      deliveryDateTokenExpiresAt,
     };
 
     const order = await storage.createB2bOrder(orderData as any, orderItems as any);
@@ -1837,10 +1843,15 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
 
     // Create order with items using createB2bOrder which handles both
     const orderNumber = `SR-${Date.now()}`;
+    
+    // Generate delivery date token for sales rep workflow (7-day expiration for security)
+    const deliveryDateToken = randomBytes(32).toString('hex');
+    const deliveryDateTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
     const order = await storage.createB2bOrder({
       customerId,
       orderNumber,
-      status: 'pending_approval',
+      status: 'pending_delivery_date',
       subtotal: (subtotal + totalDiscount).toFixed(2),
       tax: '0',
       total: subtotal.toFixed(2),
@@ -1849,6 +1860,8 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
       shippingCity: customer.shippingCity || '',
       shippingState: customer.shippingState || '',
       shippingZipCode: customer.shippingZipCode || '',
+      deliveryDateToken,
+      deliveryDateTokenExpiresAt,
     }, orderItems.map(item => ({
       productId: item.productId,
       productName: item.productName,
@@ -1873,6 +1886,18 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
         commissionAmount: commissionAmount.toFixed(2),
         status: 'pending',
       });
+    }
+
+    // Send order notifications (delivery date workflow email to sales rep)
+    try {
+      await sendOrderNotifications(order, customer, orderItems.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.totalPrice,
+      })));
+    } catch (emailError) {
+      console.error('Failed to send order notifications:', emailError);
     }
 
     res.json({ success: true, orderId: order.id });
@@ -1972,6 +1997,11 @@ router.patch('/api/b2b/admin/commissions/:id/paid', requireB2bAdmin, async (req:
   }
 });
 
+// Helper function to get the application domain
+function getAppDomain(): string {
+  return process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
+}
+
 // Helper function to send order notifications
 async function sendOrderNotifications(order: any, customer: any, items: any[]) {
   if (!process.env.SENDGRID_API_KEY) {
@@ -1980,6 +2010,7 @@ async function sendOrderNotifications(order: any, customer: any, items: any[]) {
   }
 
   const { sendEmail } = await import('./email');
+  const domain = getAppDomain();
 
   const itemsHtml = items.map(item => `
     <tr>
@@ -2051,40 +2082,130 @@ ${order.shippingAddress ? `Shipping Address:\n${order.shippingAddress}\n${order.
 ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
   `.trim();
 
-  // Get notification recipients from settings
-  const recipients = [];
-  
-  // Add sales rep if assigned
-  if (customer.salesRep) {
-    recipients.push(customer.salesRep.email);
-  }
-
-  // Add additional recipients from settings
-  const settingValue = await storage.getB2bSetting('order_notification_emails');
-  if (settingValue?.settingValue) {
-    const additionalEmails = settingValue.settingValue.split(',').map((e: string) => e.trim());
-    recipients.push(...additionalEmails);
-  }
-
-  // Send to all recipients (salesperson + other configured recipients)
-  for (const recipient of recipients) {
+  // Send delivery date request email to sales rep if assigned
+  if (customer.salesRep && order.deliveryDateToken) {
+    const deliveryDateUrl = `https://${domain}/b2b/order-delivery/${order.deliveryDateToken}`;
+    
+    const salesRepEmailHtml = `
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0;">New Order - Action Required</h1>
+            <p style="margin: 10px 0 0;">Please set delivery date</p>
+          </div>
+          <div style="padding: 30px 20px;">
+            <p>Dear ${customer.salesRep.firstName},</p>
+            
+            <p>A new B2B order has been placed and requires your attention. Please set the delivery date to proceed with processing.</p>
+            
+            <div style="background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>Order Number:</strong> ${order.orderNumber}</p>
+              <p style="margin: 8px 0;"><strong>Customer:</strong> ${customer.accountName}</p>
+              <p style="margin: 8px 0;"><strong>Contact:</strong> ${customer.primaryContactName}</p>
+              <p style="margin: 0;"><strong>Order Total:</strong> $${order.total}</p>
+            </div>
+            
+            <h3 style="color: #5C2535;">Order Items</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <thead>
+                <tr style="background-color: #f8f9fa;">
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(item => `
+                  <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.productName}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${item.lineTotal}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="${deliveryDateUrl}" style="display: inline-block; background-color: #5C2535; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: bold;">Set Delivery Date</a>
+            </p>
+            
+            <p style="color: #666; font-size: 14px;">After you set the delivery date, the order will be sent to an administrator for approval before the invoice is generated and sent to the customer.</p>
+            
+            <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+              <p>Nashoba Valley Winery - B2B Wholesale Portal</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    
     await sendEmail(
-      recipient,
-      `New B2B Order: ${order.orderNumber}`,
-      emailHtml,
-      emailText
+      customer.salesRep.email,
+      `Action Required: Set Delivery Date - Order ${order.orderNumber}`,
+      salesRepEmailHtml,
+      `New order ${order.orderNumber} requires delivery date. Customer: ${customer.accountName}. Total: $${order.total}. Set delivery date: ${deliveryDateUrl}`
     );
   }
 
-  // Send confirmation to customer
+  // Send order received confirmation to customer (they will get invoice after approval)
+  const customerConfirmationHtml = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center;">
+          <h1 style="margin: 0;">Order Received</h1>
+          <p style="margin: 10px 0 0;">Thank you for your order</p>
+        </div>
+        <div style="padding: 30px 20px;">
+          <p>Dear ${customer.primaryContactName},</p>
+          
+          <p>Thank you for your order. We have received it and it is now being processed. You will receive an invoice with your delivery date once the order has been approved.</p>
+          
+          <div style="background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Order Number:</strong> ${order.orderNumber}</p>
+            <p style="margin: 0;"><strong>Order Total:</strong> $${order.total}</p>
+          </div>
+          
+          <h3 style="color: #5C2535;">Order Summary</h3>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead>
+              <tr style="background-color: #f8f9fa;">
+                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
+                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Price</th>
+                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">Order Total:</td>
+                <td style="padding: 12px 8px; text-align: right; font-weight: bold;">$${order.total}</td>
+              </tr>
+            </tfoot>
+          </table>
+          
+          <p>If you have any questions about your order, please contact us.</p>
+          
+          <p>Best regards,<br>Nashoba Valley Winery Team</p>
+          
+          <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <p>Nashoba Valley Winery - B2B Wholesale Portal</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
   await sendEmail(
     customer.emailAddress,
-    `Order Confirmation: ${order.orderNumber}`,
-    emailHtml.replace('New B2B Order Received', 'Order Confirmation'),
-    emailText.replace('New B2B Order Received', 'Order Confirmation')
+    `Order Received: ${order.orderNumber}`,
+    customerConfirmationHtml,
+    `Thank you for your order ${order.orderNumber}. Total: $${order.total}. You will receive an invoice with your delivery date once approved.`
   );
 
-  // Send notification to managers
+  // Send notification to managers/additional recipients
   const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
   if (managerEmailsSetting?.settingValue) {
     const managerEmails = managerEmailsSetting.settingValue.split(',').map((e: string) => e.trim()).filter(e => e);
@@ -2098,6 +2219,662 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
     }
   }
 }
+
+// ============= ORDER WORKFLOW ENDPOINTS =============
+
+// Get order details for delivery date entry page (via token from email)
+router.get('/api/b2b/order-workflow/delivery-date/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.deliveryDateToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.deliveryDateTokenExpiresAt && new Date() > new Date(order.deliveryDateTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please contact an administrator.' });
+    }
+    
+    // Check if delivery date has already been set
+    if (order.scheduledDeliveryDate) {
+      return res.status(400).json({ 
+        error: 'Delivery date has already been set for this order.',
+        alreadySet: true,
+        deliveryDate: order.scheduledDeliveryDate
+      });
+    }
+    
+    // Get customer info
+    const customer = await storage.getB2bCustomer(order.customerId);
+    
+    // Get order items
+    const items = await db.select()
+      .from(b2bOrderItems)
+      .where(eq(b2bOrderItems.orderId, order.id));
+    
+    res.json({
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderDate: order.orderDate,
+        total: order.total,
+        subtotal: order.subtotal,
+        status: order.status,
+        notes: order.notes,
+        shippingAddress: order.shippingAddress,
+        shippingCity: order.shippingCity,
+        shippingState: order.shippingState,
+        shippingZipCode: order.shippingZipCode,
+      },
+      customer: customer ? {
+        accountName: customer.accountName,
+        primaryContactName: customer.primaryContactName,
+        emailAddress: customer.emailAddress,
+        phoneNumber: customer.phoneNumber,
+      } : null,
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching order for delivery date:', error);
+    res.status(500).json({ error: 'Failed to fetch order details' });
+  }
+});
+
+// Set delivery date for an order (via token from email)
+router.post('/api/b2b/order-workflow/delivery-date/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { deliveryDate } = req.body;
+    
+    if (!deliveryDate) {
+      return res.status(400).json({ error: 'Delivery date is required' });
+    }
+    
+    const parsedDate = new Date(deliveryDate);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid delivery date format' });
+    }
+    
+    // Validate delivery date is in the future
+    if (parsedDate < new Date()) {
+      return res.status(400).json({ error: 'Delivery date must be in the future' });
+    }
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.deliveryDateToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.deliveryDateTokenExpiresAt && new Date() > new Date(order.deliveryDateTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please contact an administrator.' });
+    }
+    
+    // Check if delivery date has already been set
+    if (order.scheduledDeliveryDate) {
+      return res.status(400).json({ error: 'Delivery date has already been set for this order.' });
+    }
+    
+    // Generate approval token for admin
+    const approvalToken = randomBytes(32).toString('hex');
+    const approvalTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for security
+    
+    // Update order with delivery date and approval token
+    await db.update(b2bOrders)
+      .set({
+        scheduledDeliveryDate: parsedDate,
+        status: 'pending_approval',
+        approvalToken,
+        approvalTokenExpiresAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bOrders.id, order.id));
+    
+    // Get customer and items for email
+    const customer = await storage.getB2bCustomer(order.customerId);
+    const items = await db.select().from(b2bOrderItems).where(eq(b2bOrderItems.orderId, order.id));
+    
+    // Send approval request email to all B2B admins
+    if (process.env.SENDGRID_API_KEY && customer) {
+      const { sendEmail } = await import('./email');
+      const domain = getAppDomain();
+      const approvalUrl = `https://${domain}/b2b/order-approval/${approvalToken}`;
+      
+      // Get all active admins
+      const admins = await storage.getAllB2bAdmins(true);
+      
+      const itemsHtml = items.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.productName}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${item.unitPrice}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${item.lineTotal}</td>
+        </tr>
+      `).join('');
+      
+      const approvalEmailHtml = `
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center;">
+              <h1 style="margin: 0;">Order Approval Required</h1>
+              <p style="margin: 10px 0 0;">Please review and approve this order</p>
+            </div>
+            <div style="padding: 30px 20px;">
+              <p>A B2B order is ready for your approval. The sales representative has set a delivery date and the order is waiting for final approval before the invoice is sent to the customer.</p>
+              
+              <div style="background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Order Number:</strong> ${order.orderNumber}</p>
+                <p style="margin: 8px 0;"><strong>Customer:</strong> ${customer.accountName}</p>
+                <p style="margin: 8px 0;"><strong>Contact:</strong> ${customer.primaryContactName}</p>
+                <p style="margin: 8px 0;"><strong>Scheduled Delivery:</strong> ${parsedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                <p style="margin: 0;"><strong>Order Total:</strong> $${order.total}</p>
+              </div>
+              
+              <h3 style="color: #5C2535;">Invoice Preview</h3>
+              <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <thead>
+                  <tr style="background-color: #f8f9fa;">
+                    <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                    <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
+                    <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Unit Price</th>
+                    <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">Order Total:</td>
+                    <td style="padding: 12px 8px; text-align: right; font-weight: bold;">$${order.total}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              
+              <p style="text-align: center; margin: 30px 0;">
+                <a href="${approvalUrl}" style="display: inline-block; background-color: #5C2535; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: bold;">Review & Approve Order</a>
+              </p>
+              
+              <p style="color: #666; font-size: 14px;">Once approved, an invoice will be generated and sent to the customer with the scheduled delivery date.</p>
+              
+              <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                <p>Nashoba Valley Winery - B2B Wholesale Portal</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      for (const admin of admins) {
+        await sendEmail(
+          admin.email,
+          `Approval Required: Order ${order.orderNumber}`,
+          approvalEmailHtml,
+          `Order ${order.orderNumber} from ${customer.accountName} is ready for approval. Delivery: ${parsedDate.toLocaleDateString()}. Total: $${order.total}. Review: ${approvalUrl}`
+        );
+      }
+    }
+    
+    res.json({ success: true, message: 'Delivery date set successfully. Order sent for approval.' });
+  } catch (error) {
+    console.error('Error setting delivery date:', error);
+    res.status(500).json({ error: 'Failed to set delivery date' });
+  }
+});
+
+// Get order details for approval page (via token from email)
+router.get('/api/b2b/order-workflow/approval/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.approvalToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.approvalTokenExpiresAt && new Date() > new Date(order.approvalTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please use the admin dashboard.' });
+    }
+    
+    // Check if order has already been approved or rejected
+    if (order.approvedAt) {
+      return res.status(400).json({ 
+        error: 'This order has already been approved.',
+        alreadyProcessed: true,
+        status: order.status
+      });
+    }
+    if (order.rejectedAt) {
+      return res.status(400).json({ 
+        error: 'This order has been rejected.',
+        alreadyProcessed: true,
+        status: order.status
+      });
+    }
+    
+    // Get customer info
+    const customer = await storage.getB2bCustomer(order.customerId);
+    
+    // Get order items
+    const items = await db.select()
+      .from(b2bOrderItems)
+      .where(eq(b2bOrderItems.orderId, order.id));
+    
+    res.json({
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderDate: order.orderDate,
+        scheduledDeliveryDate: order.scheduledDeliveryDate,
+        total: order.total,
+        subtotal: order.subtotal,
+        status: order.status,
+        notes: order.notes,
+        shippingAddress: order.shippingAddress,
+        shippingCity: order.shippingCity,
+        shippingState: order.shippingState,
+        shippingZipCode: order.shippingZipCode,
+      },
+      customer: customer ? {
+        accountName: customer.accountName,
+        primaryContactName: customer.primaryContactName,
+        emailAddress: customer.emailAddress,
+        phoneNumber: customer.phoneNumber,
+      } : null,
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching order for approval:', error);
+    res.status(500).json({ error: 'Failed to fetch order details' });
+  }
+});
+
+// Approve or reject an order (via token from email)
+router.post('/api/b2b/order-workflow/approval/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { action, rejectionReason } = req.body;
+    
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject".' });
+    }
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.approvalToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.approvalTokenExpiresAt && new Date() > new Date(order.approvalTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please use the admin dashboard.' });
+    }
+    
+    // Check if order has already been processed
+    if (order.approvedAt || order.rejectedAt) {
+      return res.status(400).json({ error: 'This order has already been processed.' });
+    }
+    
+    const customer = await storage.getB2bCustomer(order.customerId);
+    const items = await db.select().from(b2bOrderItems).where(eq(b2bOrderItems.orderId, order.id));
+    
+    if (action === 'approve') {
+      // Generate invoice number and delivery confirmation token
+      const invoiceNumber = `INV-${Date.now()}`;
+      const deliveryConfirmationToken = randomBytes(32).toString('hex');
+      const deliveryConfirmationTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for security
+      
+      await db.update(b2bOrders)
+        .set({
+          status: 'approved_delivery_pending',
+          invoiceNumber,
+          approvedAt: new Date(),
+          deliveryConfirmationToken,
+          deliveryConfirmationTokenExpiresAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(b2bOrders.id, order.id));
+      
+      // Send invoice to customer and sales rep
+      if (process.env.SENDGRID_API_KEY && customer) {
+        const { sendEmail } = await import('./email');
+        
+        const itemsHtml = items.map(item => `
+          <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.productName}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${item.unitPrice}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${item.lineTotal}</td>
+          </tr>
+        `).join('');
+        
+        const deliveryDateStr = order.scheduledDeliveryDate 
+          ? new Date(order.scheduledDeliveryDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+          : 'To be determined';
+        
+        const invoiceHtml = `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+              <div style="background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center;">
+                <h1 style="margin: 0;">Invoice</h1>
+                <p style="margin: 10px 0 0;">Order Approved</p>
+              </div>
+              <div style="padding: 30px 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                  <div>
+                    <h3 style="color: #5C2535; margin: 0 0 10px;">Nashoba Valley Winery</h3>
+                    <p style="margin: 0; color: #666;">100 Wattaquadock Hill Road<br>Bolton, MA 01740</p>
+                  </div>
+                  <div style="text-align: right;">
+                    <p style="margin: 0;"><strong>Invoice #:</strong> ${invoiceNumber}</p>
+                    <p style="margin: 0;"><strong>Order #:</strong> ${order.orderNumber}</p>
+                    <p style="margin: 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
+                
+                <div style="background-color: #F5F5F0; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                  <h4 style="margin: 0 0 10px; color: #5C2535;">Bill To:</h4>
+                  <p style="margin: 0;"><strong>${customer.accountName}</strong></p>
+                  <p style="margin: 0;">${customer.primaryContactName}</p>
+                  <p style="margin: 0;">${customer.emailAddress}</p>
+                  ${customer.phoneNumber ? `<p style="margin: 0;">${customer.phoneNumber}</p>` : ''}
+                </div>
+                
+                <div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 16px; margin: 20px 0;">
+                  <p style="margin: 0;"><strong>Scheduled Delivery Date:</strong> ${deliveryDateStr}</p>
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <thead>
+                    <tr style="background-color: #f8f9fa;">
+                      <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                      <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
+                      <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Unit Price</th>
+                      <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemsHtml}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold; border-top: 2px solid #ddd;">Total Due:</td>
+                      <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 18px; border-top: 2px solid #ddd;">$${order.total}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                
+                <div style="background-color: #F5F5F0; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                  <h4 style="margin: 0 0 10px; color: #5C2535;">Payment Terms</h4>
+                  <p style="margin: 0;">Payment is due upon delivery. Please make checks payable to Nashoba Valley Winery.</p>
+                </div>
+                
+                <p>Thank you for your business!</p>
+                
+                <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                  <p>Nashoba Valley Winery - B2B Wholesale Portal</p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `;
+        
+        // Send invoice to customer
+        await sendEmail(
+          customer.emailAddress,
+          `Invoice ${invoiceNumber} - Order ${order.orderNumber}`,
+          invoiceHtml,
+          `Invoice ${invoiceNumber} for order ${order.orderNumber}. Delivery: ${deliveryDateStr}. Total: $${order.total}`
+        );
+        
+        // Send invoice to sales rep if assigned
+        if (customer.salesRepId) {
+          const salesRep = await storage.getSalesRep(customer.salesRepId);
+          if (salesRep) {
+            await sendEmail(
+              salesRep.email,
+              `Invoice Sent: ${invoiceNumber} - ${customer.accountName}`,
+              invoiceHtml,
+              `Invoice ${invoiceNumber} sent to ${customer.accountName}. Delivery: ${deliveryDateStr}. Total: $${order.total}`
+            );
+          }
+        }
+      }
+      
+      res.json({ success: true, message: 'Order approved. Invoice sent to customer.' });
+    } else {
+      // Reject the order
+      await db.update(b2bOrders)
+        .set({
+          status: 'rejected',
+          rejectedAt: new Date(),
+          rejectionReason: rejectionReason || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(b2bOrders.id, order.id));
+      
+      // Notify customer and sales rep of rejection
+      if (process.env.SENDGRID_API_KEY && customer) {
+        const { sendEmail } = await import('./email');
+        
+        const rejectionEmailHtml = `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+              <div style="background-color: #c62828; color: white; padding: 30px 20px; text-align: center;">
+                <h1 style="margin: 0;">Order Update</h1>
+              </div>
+              <div style="padding: 30px 20px;">
+                <p>Dear ${customer.primaryContactName},</p>
+                
+                <p>We regret to inform you that your order ${order.orderNumber} could not be processed at this time.</p>
+                
+                ${rejectionReason ? `
+                  <div style="background-color: #ffebee; border-left: 4px solid #c62828; padding: 16px; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Reason:</strong> ${rejectionReason}</p>
+                  </div>
+                ` : ''}
+                
+                <p>If you have any questions, please contact us.</p>
+                
+                <p>Best regards,<br>Nashoba Valley Winery Team</p>
+              </div>
+            </body>
+          </html>
+        `;
+        
+        await sendEmail(
+          customer.emailAddress,
+          `Order ${order.orderNumber} Update`,
+          rejectionEmailHtml,
+          `Your order ${order.orderNumber} could not be processed. ${rejectionReason || ''}`
+        );
+        
+        // Notify sales rep
+        if (customer.salesRepId) {
+          const salesRep = await storage.getSalesRep(customer.salesRepId);
+          if (salesRep) {
+            await sendEmail(
+              salesRep.email,
+              `Order Rejected: ${order.orderNumber} - ${customer.accountName}`,
+              rejectionEmailHtml.replace(customer.primaryContactName, salesRep.firstName),
+              `Order ${order.orderNumber} from ${customer.accountName} was rejected. ${rejectionReason || ''}`
+            );
+          }
+        }
+      }
+      
+      res.json({ success: true, message: 'Order rejected. Customer has been notified.' });
+    }
+  } catch (error) {
+    console.error('Error processing order approval:', error);
+    res.status(500).json({ error: 'Failed to process order' });
+  }
+});
+
+// Get order details for delivery confirmation page (via token from email)
+router.get('/api/b2b/order-workflow/delivery-confirm/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.deliveryConfirmationToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.deliveryConfirmationTokenExpiresAt && new Date() > new Date(order.deliveryConfirmationTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please use the admin dashboard.' });
+    }
+    
+    // Check if delivery has already been confirmed
+    if (order.deliveredAt) {
+      return res.status(400).json({ 
+        error: 'Delivery has already been confirmed for this order.',
+        alreadyConfirmed: true,
+        deliveredAt: order.deliveredAt
+      });
+    }
+    
+    // Get customer info
+    const customer = await storage.getB2bCustomer(order.customerId);
+    
+    // Get order items
+    const items = await db.select()
+      .from(b2bOrderItems)
+      .where(eq(b2bOrderItems.orderId, order.id));
+    
+    res.json({
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        invoiceNumber: order.invoiceNumber,
+        orderDate: order.orderDate,
+        scheduledDeliveryDate: order.scheduledDeliveryDate,
+        total: order.total,
+        subtotal: order.subtotal,
+        status: order.status,
+      },
+      customer: customer ? {
+        accountName: customer.accountName,
+        primaryContactName: customer.primaryContactName,
+        emailAddress: customer.emailAddress,
+      } : null,
+      items,
+    });
+  } catch (error) {
+    console.error('Error fetching order for delivery confirmation:', error);
+    res.status(500).json({ error: 'Failed to fetch order details' });
+  }
+});
+
+// Confirm delivery of an order (via token from email)
+router.post('/api/b2b/order-workflow/delivery-confirm/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    const orders = await db.select()
+      .from(b2bOrders)
+      .where(eq(b2bOrders.deliveryConfirmationToken, token));
+    
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'Order not found or link has expired' });
+    }
+    
+    const order = orders[0];
+    
+    // Check if token has expired
+    if (order.deliveryConfirmationTokenExpiresAt && new Date() > new Date(order.deliveryConfirmationTokenExpiresAt)) {
+      return res.status(400).json({ error: 'This link has expired. Please use the admin dashboard.' });
+    }
+    
+    // Check if delivery has already been confirmed
+    if (order.deliveredAt) {
+      return res.status(400).json({ error: 'Delivery has already been confirmed for this order.' });
+    }
+    
+    // Update order status
+    await db.update(b2bOrders)
+      .set({
+        status: 'delivered_pending_payment',
+        deliveredAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bOrders.id, order.id));
+    
+    res.json({ success: true, message: 'Delivery confirmed. Order status updated to Delivered - Pending Payment.' });
+  } catch (error) {
+    console.error('Error confirming delivery:', error);
+    res.status(500).json({ error: 'Failed to confirm delivery' });
+  }
+});
+
+// Admin: Record payment for an order
+router.post('/api/b2b/admin/orders/:id/record-payment', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { paymentMethod, paymentReference, paymentNotes } = req.body;
+    
+    const order = await storage.getB2bOrder(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // Update order with payment info
+    await db.update(b2bOrders)
+      .set({
+        status: 'completed',
+        paidAt: new Date(),
+        completedAt: new Date(),
+        paymentMethod: paymentMethod || null,
+        paymentReference: paymentReference || null,
+        paymentNotes: paymentNotes || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bOrders.id, id));
+    
+    // Update commission status to earned
+    try {
+      const commissions = await storage.getCommissionsByOrderId(id);
+      for (const commission of commissions) {
+        await storage.updateCommissionStatus(commission.id, 'earned');
+      }
+    } catch (commissionError) {
+      console.error('Error updating commissions:', commissionError);
+    }
+    
+    res.json({ success: true, message: 'Payment recorded successfully.' });
+  } catch (error) {
+    console.error('Error recording payment:', error);
+    res.status(500).json({ error: 'Failed to record payment' });
+  }
+});
 
 // ===== ADMIN ROUTES =====
 
@@ -3946,10 +4723,15 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
 
     // Create order with items using createB2bOrder which handles both
     const orderNumber = `MO-${Date.now()}`;
+    
+    // Generate delivery date token for sales rep workflow (7-day expiration for security)
+    const deliveryDateToken = randomBytes(32).toString('hex');
+    const deliveryDateTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
     const order = await storage.createB2bOrder({
       customerId,
       orderNumber,
-      status: 'pending_approval',
+      status: 'pending_delivery_date',
       subtotal: (subtotal + totalDiscount).toFixed(2),
       tax: '0',
       total: subtotal.toFixed(2),
@@ -3958,6 +4740,8 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       shippingCity: customer.shippingCity || '',
       shippingState: customer.shippingState || '',
       shippingZipCode: customer.shippingZipCode || '',
+      deliveryDateToken,
+      deliveryDateTokenExpiresAt,
     }, orderItems.map(item => ({
       productId: item.productId,
       productName: item.productName,
@@ -3984,6 +4768,18 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
           status: 'pending',
         });
       }
+    }
+
+    // Send order notifications (delivery date workflow email to sales rep)
+    try {
+      await sendOrderNotifications(order, customer, orderItems.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.totalPrice,
+      })));
+    } catch (emailError) {
+      console.error('Failed to send order notifications:', emailError);
     }
 
     res.json({ success: true, orderId: order.id });

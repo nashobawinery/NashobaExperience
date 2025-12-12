@@ -104,6 +104,9 @@ const B2bSalesRepDashboard = lazy(() => import("@/pages/b2b/SalesRepDashboard"))
 const B2bCustomerDataPage = lazy(() => import("@/pages/b2b/CustomerDataPage"));
 const B2bTierAgreementPage = lazy(() => import("@/pages/b2b/TierAgreementPage"));
 const B2bViewSignedAgreementPage = lazy(() => import("@/pages/b2b/ViewSignedAgreementPage"));
+const B2bOrderDeliveryDatePage = lazy(() => import("@/pages/b2b/OrderDeliveryDatePage"));
+const B2bOrderApprovalPage = lazy(() => import("@/pages/b2b/OrderApprovalPage"));
+const B2bOrderDeliveryConfirmPage = lazy(() => import("@/pages/b2b/OrderDeliveryConfirmPage"));
 
 // Import B2B ProtectedRoute synchronously since it's a wrapper component
 import { ProtectedRoute } from "@/components/b2b/ProtectedRoute";
@@ -725,6 +728,9 @@ function B2bRoutes() {
             <Route path="/b2b/reset-password" component={() => <Suspense fallback={<PageLoader />}><B2bResetPasswordPage /></Suspense>} />
             <Route path="/b2b/setup" component={() => <Suspense fallback={<PageLoader />}><B2bSetupPage /></Suspense>} />
             <Route path="/b2b/tier-agreement/:token" component={() => <Suspense fallback={<PageLoader />}><B2bTierAgreementPage /></Suspense>} />
+            <Route path="/b2b/order-delivery/:token" component={() => <Suspense fallback={<PageLoader />}><B2bOrderDeliveryDatePage /></Suspense>} />
+            <Route path="/b2b/order-approval/:token" component={() => <Suspense fallback={<PageLoader />}><B2bOrderApprovalPage /></Suspense>} />
+            <Route path="/b2b/order-confirm-delivery/:token" component={() => <Suspense fallback={<PageLoader />}><B2bOrderDeliveryConfirmPage /></Suspense>} />
 
             {/* Protected Customer Routes */}
             <Route path="/b2b/catalog">
