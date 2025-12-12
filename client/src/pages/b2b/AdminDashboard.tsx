@@ -3305,7 +3305,6 @@ export default function AdminDashboard() {
               ) : (
                 <div className="space-y-3">
                   {adminTiers
-                    .filter(tier => tier.category === 'default')
                     .sort((a, b) => (a.tierName || '').localeCompare(b.tierName || ''))
                     .map((tier) => (
                     <div
