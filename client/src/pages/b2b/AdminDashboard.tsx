@@ -3304,13 +3304,28 @@ export default function AdminDashboard() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {adminTiers
+                  {/* Deduplicate tiers by name - show one entry per tier name */}
+                  {Array.from(
+                    adminTiers.reduce((map, tier) => {
+                      if (!map.has(tier.tierName || '')) {
+                        map.set(tier.tierName || '', tier);
+                      }
+                      return map;
+                    }, new Map<string, typeof adminTiers[0]>())
+                  )
+                    .map(([, tier]) => tier)
                     .sort((a, b) => (a.tierName || '').localeCompare(b.tierName || ''))
-                    .map((tier) => (
+                    .map((tier) => {
+                      // Get all tier IDs with this name (for bulk update)
+                      const allTierIdsWithName = adminTiers
+                        .filter(t => t.tierName === tier.tierName)
+                        .map(t => t.id);
+                      
+                      return (
                     <div
                       key={tier.id}
                       className={`flex items-center justify-between p-4 rounded-lg border ${!tier.active ? 'opacity-60' : ''}`}
-                      data-testid={`commitment-tier-${tier.id}`}
+                      data-testid={`commitment-tier-${tier.tierName}`}
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -3325,7 +3340,7 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {tier.discountPercentage}% discount
+                          {tier.discountPercentage}% discount • Applies to all {allTierIdsWithName.length} categories
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -3339,18 +3354,23 @@ export default function AdminDashboard() {
                             min="0"
                             className="w-20 text-center"
                             defaultValue={tier.commitmentCases || 0}
-                            data-testid={`input-commitment-cases-${tier.id}`}
+                            data-testid={`input-commitment-cases-${tier.tierName}`}
                             onBlur={async (e) => {
                               const newValue = parseInt(e.target.value) || 0;
                               if (newValue !== ((tier as any).commitmentCases || 0)) {
                                 try {
-                                  await updateTier({
-                                    tierId: tier.id,
-                                    commitmentCases: newValue,
-                                  });
+                                  // Update ALL tiers with this name across all categories
+                                  await Promise.all(
+                                    allTierIdsWithName.map(tierId =>
+                                      updateTier({
+                                        tierId,
+                                        commitmentCases: newValue,
+                                      })
+                                    )
+                                  );
                                   toast({
                                     title: "Commitment Updated",
-                                    description: `${tier.tierName} now requires ${newValue} cases per year`,
+                                    description: `${tier.tierName} now requires ${newValue} cases per year (all categories)`,
                                   });
                                 } catch (error) {
                                   toast({
@@ -3365,7 +3385,8 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                      );
+                    })}
                   <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
                     Note: Tiers with 0 commitment cases are standard tiers without case requirements.
                     Tiers with commitment cases (e.g., 10 or 30) require customers to purchase that many cases annually.
