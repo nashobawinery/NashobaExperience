@@ -3289,9 +3289,18 @@ router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response)
       return res.status(400).json({ error: 'This agreement has already been signed.', alreadySigned: true });
     }
     
-    // Get available Tier 3 and Tier 4 options
+    // Get available Tier 3 and Tier 4 options (deduplicated by tier name)
     const allTiers = await storage.getAllTierPricing();
     const eligibleTiers = allTiers.filter(t => t.tierName === 'Tier 3' || t.tierName === 'Tier 4');
+    
+    // Deduplicate tiers by name - show only one Tier 3 and one Tier 4 option
+    const uniqueTiersMap = new Map<string, typeof eligibleTiers[0]>();
+    for (const tier of eligibleTiers) {
+      if (!uniqueTiersMap.has(tier.tierName)) {
+        uniqueTiersMap.set(tier.tierName, tier);
+      }
+    }
+    const uniqueTiers = Array.from(uniqueTiersMap.values());
     
     // Return agreement data for form pre-fill
     res.json({
@@ -3305,12 +3314,12 @@ router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response)
         fiscalYearStart: agreement.fiscalYearStart,
         fiscalYearEnd: agreement.fiscalYearEnd,
       },
-      tiers: eligibleTiers.map(t => ({
+      tiers: uniqueTiers.map(t => ({
         id: t.id,
         name: t.tierName,
         description: t.description,
         discountPercentage: t.discountPercentage,
-        minimumCases: t.tierName === 'Tier 3' ? 10 : 30,
+        minimumCases: t.commitmentCases || (t.tierName === 'Tier 3' ? 10 : 30),
       })),
     });
   } catch (error) {
