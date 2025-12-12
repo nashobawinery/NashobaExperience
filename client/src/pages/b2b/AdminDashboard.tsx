@@ -1915,8 +1915,9 @@ export default function AdminDashboard() {
         description: "The tier agreement has been cancelled and the customer has been reverted to Tier 1 pricing.",
       });
       
-      // Refresh the agreements list
+      // Refresh the agreements list and customer data
       refetchTierAgreements();
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
       
       // Show billing report if there are items
       if (result.billingReport && result.billingReport.items.length > 0) {
