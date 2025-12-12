@@ -162,19 +162,19 @@ interface LocationFormProps {
   location: any | null;
   customer?: {
     accountName?: string | null;
-    shippingAddress?: string | null;
-    shippingCity?: string | null;
-    shippingState?: string | null;
-    shippingZipCode?: string | null;
+    billingAddress?: string | null;
+    billingCity?: string | null;
+    billingState?: string | null;
+    billingZipCode?: string | null;
     phoneNumber?: string | null;
     emailAddress?: string | null;
   } | null;
   formValues?: {
     accountName?: string;
-    shippingAddress?: string;
-    shippingCity?: string;
-    shippingState?: string;
-    shippingZipCode?: string;
+    billingAddress?: string;
+    billingCity?: string;
+    billingState?: string;
+    billingZipCode?: string;
     phoneNumber?: string;
     emailAddress?: string;
   };
@@ -231,28 +231,28 @@ function LocationForm({ location, customer, formValues, onSave, onCancel, isSavi
   const handleCopyFromMain = () => {
     // Use current form values first (if user edited but hasn't saved), then fall back to customer data
     const accountName = formValues?.accountName || customer?.accountName;
-    const shippingAddress = formValues?.shippingAddress || customer?.shippingAddress;
-    const shippingCity = formValues?.shippingCity || customer?.shippingCity;
-    const shippingState = formValues?.shippingState || customer?.shippingState;
-    const shippingZipCode = formValues?.shippingZipCode || customer?.shippingZipCode;
+    const billingAddress = formValues?.billingAddress || customer?.billingAddress;
+    const billingCity = formValues?.billingCity || customer?.billingCity;
+    const billingState = formValues?.billingState || customer?.billingState;
+    const billingZipCode = formValues?.billingZipCode || customer?.billingZipCode;
     const phoneNumber = formValues?.phoneNumber || customer?.phoneNumber;
     const emailAddress = formValues?.emailAddress || customer?.emailAddress;
     
     setFormData(prev => ({
       ...prev,
       storeName: accountName || prev.storeName,
-      storeAddress: shippingAddress || prev.storeAddress,
-      storeCity: shippingCity || prev.storeCity,
-      storeState: shippingState || prev.storeState,
-      storeZipCode: shippingZipCode || prev.storeZipCode,
+      storeAddress: billingAddress || prev.storeAddress,
+      storeCity: billingCity || prev.storeCity,
+      storeState: billingState || prev.storeState,
+      storeZipCode: billingZipCode || prev.storeZipCode,
       storePhone: phoneNumber || prev.storePhone,
       storeEmail: emailAddress || prev.storeEmail,
     }));
   };
 
   // Check if there's any main info to copy (from either form values or customer data)
-  const hasMainInfo = (formValues?.accountName || formValues?.shippingAddress || formValues?.shippingCity) ||
-                      (customer?.accountName || customer?.shippingAddress || customer?.shippingCity);
+  const hasMainInfo = (formValues?.accountName || formValues?.billingAddress || formValues?.billingCity) ||
+                      (customer?.accountName || customer?.billingAddress || customer?.billingCity);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
