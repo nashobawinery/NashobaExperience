@@ -5235,6 +5235,39 @@ router.post('/api/b2b/admin/change-password', requireB2bAdmin, async (req: Reque
   }
 });
 
+// Admin: Change customer password
+router.post('/api/b2b/admin/customers/:id/change-password', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    
+    if (!newPassword) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    // Get customer
+    const customer = await storage.getB2bCustomer(id);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+    
+    // Update customer password
+    await storage.updateB2bCustomer(id, { passwordHash: newPasswordHash });
+
+    res.json({ success: true, message: `Password updated for ${customer.accountName}` });
+  } catch (error) {
+    console.error('Error changing customer password:', error);
+    res.status(500).json({ error: 'Failed to change customer password' });
+  }
+});
+
 // Admin: Get tier commitment report
 router.get('/api/b2b/admin/tier-commitment-report', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {

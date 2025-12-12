@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useB2bAdminCustomers, useB2bApproveCustomer, useB2bRejectCustomer, useCreateB2bCustomer, useUpdateB2bCustomer } from "@/hooks/useB2bAdminCustomers";
-import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder, useDeleteB2bOrder } from "@/hooks/useB2bAdmin";
+import { useB2bAdminOrders, useB2bAdminSalesReps, useB2bAdminTiers, useB2bAdmins, useChangeAdminPassword, useChangeCustomerPassword, useCreateSalesRep, useUpdateSalesRep, useCreateAdmin, useUpdateAdmin, useDeleteAdmin, useToggleTierActive, useUpdateTier, useB2bAdminProducts, useCreateManualOrder, useDeleteB2bOrder } from "@/hooks/useB2bAdmin";
 import { useB2bPublicTiers } from "@/hooks/useB2bProducts";
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { useB2bPermissions } from "@/hooks/useB2bPermissions";
@@ -826,6 +826,14 @@ export default function AdminDashboard() {
     isOpen: false,
     salesRep: null,
   });
+
+  // Customer password change dialog state
+  const [passwordDialog, setPasswordDialog] = useState<{ isOpen: boolean; customer: any | null }>({
+    isOpen: false,
+    customer: null,
+  });
+  const [customerNewPassword, setCustomerNewPassword] = useState("");
+  const changeCustomerPasswordMutation = useChangeCustomerPassword();
   const { data: commissions, isLoading: loadingCommissions } = useQuery<any[]>({
     queryKey: ["b2b", "admin", "sales-reps", commissionDialog.salesRep?.id, "commissions"],
     queryFn: async () => {
@@ -2156,6 +2164,23 @@ export default function AdminDashboard() {
                   Send Tier 3/4 agreement for customer to sign
                 </TooltipContent>
               </Tooltip>
+            )}
+            
+            {/* Change Password button - Admin only */}
+            {!isPending && can.edit('customers') && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPasswordDialog({ isOpen: true, customer });
+                  setCustomerNewPassword("");
+                }}
+                className="flex-1"
+                data-testid={`button-change-password-${customer.id}`}
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Change Password
+              </Button>
             )}
           </div>
         </div>
@@ -5508,6 +5533,76 @@ export default function AdminDashboard() {
               data-testid="button-close-order-history"
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Customer Password Change Dialog */}
+      <Dialog open={passwordDialog.isOpen} onOpenChange={(open) => setPasswordDialog({ isOpen: open, customer: passwordDialog.customer })}>
+        <DialogContent data-testid="dialog-change-customer-password">
+          <DialogHeader>
+            <DialogTitle>Change Customer Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {passwordDialog.customer?.accountName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new-customer-password">New Password</Label>
+              <Input
+                id="new-customer-password"
+                type="password"
+                placeholder="Enter new password (minimum 6 characters)"
+                value={customerNewPassword}
+                onChange={(e) => setCustomerNewPassword(e.target.value)}
+                data-testid="input-new-customer-password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPasswordDialog({ isOpen: false, customer: null })}
+              data-testid="button-cancel-password-change"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (customerNewPassword.length < 6) {
+                  toast({
+                    title: "Error",
+                    description: "Password must be at least 6 characters",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                try {
+                  await changeCustomerPasswordMutation.mutateAsync({
+                    customerId: passwordDialog.customer.id,
+                    newPassword: customerNewPassword,
+                  });
+                  toast({
+                    title: "Success",
+                    description: `Password updated for ${passwordDialog.customer.accountName}`,
+                  });
+                  setPasswordDialog({ isOpen: false, customer: null });
+                  setCustomerNewPassword("");
+                } catch (error: any) {
+                  toast({
+                    title: "Error",
+                    description: error.message || "Failed to change password",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={changeCustomerPasswordMutation.isPending}
+              data-testid="button-save-password-change"
+            >
+              {changeCustomerPasswordMutation.isPending ? "Saving..." : "Save Password"}
             </Button>
           </DialogFooter>
         </DialogContent>

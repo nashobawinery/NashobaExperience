@@ -337,3 +337,20 @@ export function useDeleteB2bOrder() {
     },
   });
 }
+
+// Change customer password (admin only)
+export function useChangeCustomerPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      customerId: string;
+      newPassword: string;
+    }) => {
+      return apiRequest("POST", `/api/b2b/admin/customers/${data.customerId}/change-password`, { newPassword: data.newPassword });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+    },
+  });
+}
