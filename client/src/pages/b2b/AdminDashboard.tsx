@@ -404,9 +404,12 @@ export default function AdminDashboard() {
   const { data: adminTiers, isLoading: loadingAdminTiers } = useB2bAdminTiers(); // All tiers for Settings tab
   const { data: activeTiers, isLoading: loadingActiveTiers } = useB2bPublicTiers(); // Active tiers for approval dialog
   
-  // Filter out Tier 2 (auto-cart-upgrade only) from manual assignment
+  // Filter out Tier 2 (auto-cart-upgrade only) from manual assignment and deduplicate by tierName
   const manuallyAssignableTiers = useMemo(() => {
-    return activeTiers?.filter(tier => tier.tierName !== 'Tier 2') || [];
+    if (!activeTiers) return [];
+    // Deduplicate tiers by tierName, keeping only the first occurrence
+    const uniqueTiers = Array.from(new Map(activeTiers.map(tier => [tier.tierName, tier])).values());
+    return uniqueTiers.filter(tier => tier.tierName !== 'Tier 2');
   }, [activeTiers]);
   
   // Filter customers by assigned sales rep when user is a sales rep

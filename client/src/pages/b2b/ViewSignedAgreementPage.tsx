@@ -118,7 +118,7 @@ export default function ViewSignedAgreementPage() {
             <Badge variant={isSigned ? "default" : "secondary"} className="text-sm">
               {agreement.status === 'active' ? 'Active' : agreement.status === 'pending' ? 'Pending Signature' : agreement.status}
             </Badge>
-            {agreement.status === 'active' && (
+            {(agreement.status === 'active' || agreement.status === 'pending') && (
               <>
                 {showCancelConfirm ? (
                   <div className="flex gap-2">
