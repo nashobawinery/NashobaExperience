@@ -1,5 +1,31 @@
-import type { Product, CartItem, Favorite } from "@shared/schema";
+import type { Product, CartItem, Favorite, B2bSystemTemplateCustomization } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
+import { storage } from "./storage";
+
+interface EmailCustomization {
+  subject?: string | null;
+  introText?: string | null;
+  bodyText?: string | null;
+  closingText?: string | null;
+}
+
+async function getEmailCustomization(templateKey: string): Promise<EmailCustomization | null> {
+  try {
+    const customization = await storage.getSystemTemplateCustomization(templateKey);
+    if (customization && customization.active) {
+      return {
+        subject: customization.customSubject,
+        introText: customization.customIntroText,
+        bodyText: customization.customBodyText,
+        closingText: customization.customClosingText,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error(`Failed to load email customization for ${templateKey}:`, error);
+    return null;
+  }
+}
 
 // ============= BRANDED EMAIL COMPONENTS =============
 // Reusable branded header and wrapper for customer-facing emails
@@ -325,17 +351,24 @@ Questions? Contact us at support@nashobawinery.com or (978) 779-5521
   return { subject, html, text };
 }
 
-export function generatePasswordResetEmail(resetLink: string, userType: string): { subject: string; html: string; text: string } {
+export async function generatePasswordResetEmail(resetLink: string, userType: string): Promise<{ subject: string; html: string; text: string }> {
   const roleDisplay = userType === "sales_rep" ? "Sales Representative" : userType.charAt(0).toUpperCase() + userType.slice(1);
+  const customization = await getEmailCustomization('password_reset');
 
-  const subject = `Password Reset Request - Nashoba Winery B2B`;
+  const defaultSubject = `Password Reset Request - Nashoba Winery B2B`;
+  const defaultIntro = `We received a request to reset your password for your ${roleDisplay} account at Nashoba Valley Winery B2B Portal.`;
+  const defaultClosing = `Best regards,\nNashoba Valley Winery Team`;
+
+  const subject = customization?.subject || defaultSubject;
+  const introText = customization?.introText || defaultIntro;
+  const closingText = customization?.closingText || defaultClosing;
   
   const text = `
 Password Reset Request
 
 Hello,
 
-We received a request to reset your password for your ${roleDisplay} account at Nashoba Valley Winery B2B Portal.
+${introText}
 
 Click the link below to reset your password:
 ${resetLink}
@@ -344,8 +377,7 @@ This link will expire in 1 hour for security reasons.
 
 If you didn't request this password reset, you can safely ignore this email.
 
-Best regards,
-Nashoba Valley Winery Team
+${closingText}
   `.trim();
 
   const html = `
@@ -368,7 +400,7 @@ Nashoba Valley Winery Team
     <div class="content">
       <p>Hello,</p>
       
-      <p>We received a request to reset your password for your <strong>${roleDisplay}</strong> account at Nashoba Valley Winery B2B Portal.</p>
+      <p>${introText}</p>
       
       <p style="text-align: center;">
         <a href="${resetLink}" class="button">Reset Your Password</a>
@@ -382,6 +414,8 @@ Nashoba Valley Winery Team
       <p style="word-break: break-all; color: #5C2535;">${resetLink}</p>
       
       <p>If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+      
+      <p style="margin-top: 20px; white-space: pre-line;">${closingText}</p>
     </div>
     ${generateBrandedEmailFooter()}
   </div>
@@ -494,7 +528,7 @@ Please provide them with the wholesale access code: WHOLESALE2025
   return { subject, html, text };
 }
 
-export function generateTierRenewalEmail(
+export async function generateTierRenewalEmail(
   customerName: string,
   tierName: string,
   casesPurchased: number,
@@ -502,15 +536,25 @@ export function generateTierRenewalEmail(
   commitmentCases: number,
   daysUntilRenewal: number,
   commitmentEndDate: Date
-): { subject: string; html: string; text: string } {
-  const subject = `Your ${tierName} Tier Renewal - Nashoba Valley Winery`;
+): Promise<{ subject: string; html: string; text: string }> {
+  const customization = await getEmailCustomization('tier_renewal');
+
+  const defaultSubject = `Your ${tierName} Tier Renewal - Nashoba Valley Winery`;
+  const defaultIntro = `Thank you for being a valued wholesale partner with Nashoba Valley Winery! We appreciate your continued business.`;
+  const defaultClosingText = `Warm regards,\nThe Nashoba Valley Winery Team`;
+  const defaultClosingHtml = `Warm regards,<br><strong>The Nashoba Valley Winery Team</strong>`;
+
+  const subject = customization?.subject || defaultSubject;
+  const introText = customization?.introText || defaultIntro;
+  const closingText = customization?.closingText || defaultClosingText;
+  const closingHtml = customization?.closingText ? customization.closingText.replace(/\n/g, '<br>') : defaultClosingHtml;
   
   const text = `
 Your Tier Commitment Update
 
 Dear ${customerName},
 
-Thank you for being a valued wholesale partner with Nashoba Valley Winery! We appreciate your continued business.
+${introText}
 
 Your ${tierName} tier commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString()}.
 
@@ -530,8 +574,7 @@ If you have any questions about your commitment or would like to discuss your ac
 
 Thank you for your continued partnership!
 
-Warm regards,
-The Nashoba Valley Winery Team
+${closingText}
 
 Questions? Contact us at support@nashobawinery.com or (978) 779-5521
 100 Wattaquadock Hill Road, Bolton, MA 01740
@@ -584,7 +627,7 @@ Questions? Contact us at support@nashobawinery.com or (978) 779-5521
     <div class="content">
       <p>Dear <strong>${customerName}</strong>,</p>
       
-      <p>Thank you for being a valued wholesale partner with Nashoba Valley Winery! We truly appreciate your continued business and partnership.</p>
+      <p>${introText}</p>
       
       <p>Your <strong>${tierName}</strong> tier commitment period ends on <strong>${commitmentEndDate.toLocaleDateString()}</strong>.</p>
       
@@ -632,7 +675,7 @@ Questions? Contact us at support@nashobawinery.com or (978) 779-5521
       <p>If you have any questions about your commitment or would like to discuss your account, please don't hesitate to reach out - we're always here to help!</p>
       
       <p style="margin-top: 25px;">Thank you for your continued partnership!</p>
-      <p>Warm regards,<br><strong>The Nashoba Valley Winery Team</strong></p>
+      <p>${closingHtml}</p>
     </div>
     ${generateBrandedEmailFooter()}
   </div>

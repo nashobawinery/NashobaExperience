@@ -551,7 +551,7 @@ router.post('/api/b2b/forgot-password', async (req: Request, res: Response) => {
 
     // Send password reset email
     const resetLink = `${req.protocol}://${req.get('host')}/b2b/reset-password?token=${token}`;
-    const emailContent = generatePasswordResetEmail(resetLink, userType);
+    const emailContent = await generatePasswordResetEmail(resetLink, userType);
     
     console.log(`[Password Reset] Sending password reset email to ${email}`);
     await sendEmail(email, emailContent.subject, emailContent.html, emailContent.text);
@@ -5786,7 +5786,7 @@ router.post('/api/b2b/admin/send-renewal-reminders', requireB2bAdmin, async (req
     const emailResults = await Promise.allSettled(
       customersToEmail.map(async (customer) => {
         const { generateTierRenewalEmail } = await import('./email');
-        const emailContent = generateTierRenewalEmail(
+        const emailContent = await generateTierRenewalEmail(
           customer.accountName,
           customer.tierName || 'Wholesale',
           customer.casesPurchased,
@@ -6189,7 +6189,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
         break;
         
       case 'password_reset':
-        const resetEmail = generatePasswordResetEmail('https://example.com/reset?token=sample', 'customer');
+        const resetEmail = await generatePasswordResetEmail('https://example.com/reset?token=sample', 'customer');
         previewSubject = resetEmail.subject;
         previewHtml = resetEmail.html;
         break;
@@ -6224,7 +6224,7 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
         break;
         
       case 'tier_renewal':
-        const tierEmail = generateTierRenewalEmail(
+        const tierEmail = await generateTierRenewalEmail(
           'Sample Restaurant',
           'Tier 3',
           25,
