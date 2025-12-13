@@ -48,7 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreHorizontal, Truck, CreditCard } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreVertical, Truck, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -529,6 +529,7 @@ export default function AdminDashboard() {
   // Order workflow action mutations
   const [deliveryDateDialog, setDeliveryDateDialog] = useState<{ isOpen: boolean; orderId: string | null; deliveryDate: string }>({ isOpen: false, orderId: null, deliveryDate: '' });
   const [paymentDialog, setPaymentDialog] = useState<{ isOpen: boolean; orderId: string | null; paymentMethod: string; paymentReference: string; paymentNotes: string }>({ isOpen: false, orderId: null, paymentMethod: '', paymentReference: '', paymentNotes: '' });
+  const [viewOrderDialog, setViewOrderDialog] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
 
   const setDeliveryDateMutation = useMutation({
     mutationFn: async ({ orderId, deliveryDate }: { orderId: string; deliveryDate: string }) => {
@@ -2645,16 +2646,16 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(order.orderDate), "MMM d, yyyy")}
                         </p>
-                        {order.scheduledDeliveryDate && (
+                        {(order as any).scheduledDeliveryDate && (
                           <p className="text-xs text-muted-foreground">
-                            Delivery: {format(new Date(order.scheduledDeliveryDate), "MMM d, yyyy")}
+                            Delivery: {format(new Date((order as any).scheduledDeliveryDate), "MMM d, yyyy")}
                           </p>
                         )}
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost" data-testid={`button-order-actions-${order.id}`}>
-                            <MoreHorizontal className="h-4 w-4" />
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -2683,8 +2684,12 @@ export default function AdminDashboard() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setDeliveryDateDialog({ isOpen: true, orderId: order.id, deliveryDate: order.scheduledDeliveryDate ? format(new Date(order.scheduledDeliveryDate), "yyyy-MM-dd") : '' })} data-testid={`menu-edit-delivery-${order.id}`}>
-                            <Edit className="h-4 w-4 mr-2" />
+                          <DropdownMenuItem onClick={() => setViewOrderDialog({ isOpen: true, order })} data-testid={`menu-view-order-${order.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View/Edit Order
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeliveryDateDialog({ isOpen: true, orderId: order.id, deliveryDate: (order as any).scheduledDeliveryDate ? format(new Date((order as any).scheduledDeliveryDate), "yyyy-MM-dd") : '' })} data-testid={`menu-edit-delivery-${order.id}`}>
+                            <Calendar className="h-4 w-4 mr-2" />
                             Edit Delivery Date
                           </DropdownMenuItem>
                           {!isSalesRep && (
@@ -5850,6 +5855,71 @@ export default function AdminDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View/Edit Order Dialog */}
+      <Dialog open={viewOrderDialog.isOpen} onOpenChange={(open) => setViewOrderDialog({ isOpen: open, order: viewOrderDialog.order })}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-view-order">
+          <DialogHeader>
+            <DialogTitle>Order Details - {viewOrderDialog.order?.orderNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Customer:</span>
+                <p className="font-medium">{viewOrderDialog.order?.customer?.accountName || 'Unknown'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status:</span>
+                <p className="font-medium">{getOrderStatusLabel(viewOrderDialog.order?.status || '')}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Order Date:</span>
+                <p className="font-medium">{viewOrderDialog.order?.orderDate ? format(new Date(viewOrderDialog.order.orderDate), "MMM d, yyyy") : '-'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Delivery Date:</span>
+                <p className="font-medium">{viewOrderDialog.order?.scheduledDeliveryDate ? format(new Date(viewOrderDialog.order.scheduledDeliveryDate), "MMM d, yyyy") : 'Not set'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total:</span>
+                <p className="font-medium">${viewOrderDialog.order?.total || '0.00'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total Cases:</span>
+                <p className="font-medium">{viewOrderDialog.order?.totalCases || 0}</p>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">Order Items:</h4>
+              <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                {viewOrderDialog.order?.items?.map((item: any, index: number) => (
+                  <div key={index} className="p-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{item.productName}</p>
+                      <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${Number(item.totalPrice || 0).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{item.quantity} cases @ ${Number(item.unitPrice || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {viewOrderDialog.order?.notes && (
+              <div>
+                <span className="text-muted-foreground text-sm">Notes:</span>
+                <p className="text-sm">{viewOrderDialog.order.notes}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOrderDialog({ isOpen: false, order: null })} data-testid="button-close-view-order">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
