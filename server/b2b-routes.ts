@@ -4853,7 +4853,7 @@ router.patch('/api/b2b/admin/orders/:id/status', requireB2bAdmin, async (req: Re
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    const validStatuses = ['pending_approval', 'awaiting_delivery', 'awaiting_payment', 'completed'];
+    const validStatuses = ['pending_delivery_date', 'pending_approval', 'awaiting_delivery', 'awaiting_payment', 'completed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -4936,6 +4936,102 @@ The status for this order has been updated in the system.
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+// Admin: Set delivery date for order (manual workflow action)
+router.post('/api/b2b/admin/orders/:id/set-delivery-date', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { deliveryDate } = req.body;
+    
+    if (!deliveryDate) {
+      return res.status(400).json({ error: 'Delivery date is required' });
+    }
+    
+    const order = await storage.getB2bOrder(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // Update order with delivery date and advance status to pending_approval
+    await db.update(b2bOrders)
+      .set({
+        scheduledDeliveryDate: new Date(deliveryDate),
+        status: 'pending_approval',
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bOrders.id, id));
+    
+    const updatedOrder = await storage.getB2bOrder(id);
+    res.json({ success: true, message: 'Delivery date set. Order moved to pending approval.', order: updatedOrder });
+  } catch (error) {
+    console.error('Error setting delivery date:', error);
+    res.status(500).json({ error: 'Failed to set delivery date' });
+  }
+});
+
+// Admin: Approve order (manual workflow action)
+router.post('/api/b2b/admin/orders/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = (req.session as any).b2bUserId;
+    
+    const order = await storage.getB2bOrder(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // Update order with approval and advance status to awaiting_delivery
+    await db.update(b2bOrders)
+      .set({
+        approvedAt: new Date(),
+        approvedByAdminId: adminId,
+        status: 'awaiting_delivery',
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bOrders.id, id));
+    
+    const updatedOrder = await storage.getB2bOrder(id);
+    res.json({ success: true, message: 'Order approved. Ready for delivery.', order: updatedOrder });
+  } catch (error) {
+    console.error('Error approving order:', error);
+    res.status(500).json({ error: 'Failed to approve order' });
+  }
+});
+
+// Admin: Confirm delivery (manual workflow action)
+router.post('/api/b2b/admin/orders/:id/confirm-delivery', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = (req.session as any).b2bUserId;
+    const userType = (req.session as any).b2bUserType;
+    
+    const order = await storage.getB2bOrder(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // Update order with delivery confirmation and advance status to awaiting_payment
+    const updateData: any = {
+      deliveredAt: new Date(),
+      status: 'awaiting_payment',
+      updatedAt: new Date(),
+    };
+    
+    if (userType === 'sales_rep') {
+      updateData.deliveryConfirmedBySalesRepId = userId;
+    }
+    
+    await db.update(b2bOrders)
+      .set(updateData)
+      .where(eq(b2bOrders.id, id));
+    
+    const updatedOrder = await storage.getB2bOrder(id);
+    res.json({ success: true, message: 'Delivery confirmed. Order awaiting payment.', order: updatedOrder });
+  } catch (error) {
+    console.error('Error confirming delivery:', error);
+    res.status(500).json({ error: 'Failed to confirm delivery' });
   }
 });
 

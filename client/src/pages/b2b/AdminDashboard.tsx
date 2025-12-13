@@ -38,10 +38,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreHorizontal, Truck, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
@@ -135,6 +142,7 @@ type ManualOrderFormData = z.infer<typeof manualOrderSchema>;
 
 const getOrderStatusLabel = (status: string): string => {
   const labels: Record<string, string> = {
+    'pending_delivery_date': 'Pending Delivery Date',
     'pending_approval': 'Awaiting Approval',
     'awaiting_delivery': 'Awaiting Delivery',
     'awaiting_payment': 'Awaiting Payment',
@@ -515,6 +523,68 @@ export default function AdminDashboard() {
         description: error?.message || 'Failed to update order status',
         variant: 'destructive',
       });
+    },
+  });
+
+  // Order workflow action mutations
+  const [deliveryDateDialog, setDeliveryDateDialog] = useState<{ isOpen: boolean; orderId: string | null; deliveryDate: string }>({ isOpen: false, orderId: null, deliveryDate: '' });
+  const [paymentDialog, setPaymentDialog] = useState<{ isOpen: boolean; orderId: string | null; paymentMethod: string; paymentReference: string; paymentNotes: string }>({ isOpen: false, orderId: null, paymentMethod: '', paymentReference: '', paymentNotes: '' });
+
+  const setDeliveryDateMutation = useMutation({
+    mutationFn: async ({ orderId, deliveryDate }: { orderId: string; deliveryDate: string }) => {
+      const res = await apiRequest('POST', `/api/b2b/admin/orders/${orderId}/set-delivery-date`, { deliveryDate });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      setDeliveryDateDialog({ isOpen: false, orderId: null, deliveryDate: '' });
+      toast({ title: 'Success', description: 'Delivery date set. Order moved to pending approval.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to set delivery date', variant: 'destructive' });
+    },
+  });
+
+  const approveOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await apiRequest('POST', `/api/b2b/admin/orders/${orderId}/approve`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      toast({ title: 'Success', description: 'Order approved. Ready for delivery.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to approve order', variant: 'destructive' });
+    },
+  });
+
+  const confirmDeliveryMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await apiRequest('POST', `/api/b2b/admin/orders/${orderId}/confirm-delivery`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      toast({ title: 'Success', description: 'Delivery confirmed. Order awaiting payment.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to confirm delivery', variant: 'destructive' });
+    },
+  });
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: async ({ orderId, paymentMethod, paymentReference, paymentNotes }: { orderId: string; paymentMethod: string; paymentReference: string; paymentNotes: string }) => {
+      const res = await apiRequest('POST', `/api/b2b/admin/orders/${orderId}/record-payment`, { paymentMethod, paymentReference, paymentNotes });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      setPaymentDialog({ isOpen: false, orderId: null, paymentMethod: '', paymentReference: '', paymentNotes: '' });
+      toast({ title: 'Success', description: 'Payment recorded. Order completed.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to record payment', variant: 'destructive' });
     },
   });
 
@@ -2575,26 +2645,59 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(order.orderDate), "MMM d, yyyy")}
                         </p>
+                        {order.scheduledDeliveryDate && (
+                          <p className="text-xs text-muted-foreground">
+                            Delivery: {format(new Date(order.scheduledDeliveryDate), "MMM d, yyyy")}
+                          </p>
+                        )}
                       </div>
-                      <Select value={order.status} onValueChange={(newStatus) => updateOrderStatusMutation.mutate({ orderId: order.id, status: newStatus })}>
-                        <SelectTrigger className="w-40" data-testid={`select-order-status-${order.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending_approval">Awaiting Approval</SelectItem>
-                          <SelectItem value="awaiting_delivery">Awaiting Delivery</SelectItem>
-                          <SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
-                          <SelectItem value="completed">Paid</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteOrderDialog({ isOpen: true, order })}
-                        data-testid={`button-delete-order-${order.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" data-testid={`button-order-actions-${order.id}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {order.status === 'pending_delivery_date' && (
+                            <DropdownMenuItem onClick={() => setDeliveryDateDialog({ isOpen: true, orderId: order.id, deliveryDate: '' })} data-testid={`menu-set-delivery-date-${order.id}`}>
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Set Delivery Date
+                            </DropdownMenuItem>
+                          )}
+                          {order.status === 'pending_approval' && !isSalesRep && (
+                            <DropdownMenuItem onClick={() => approveOrderMutation.mutate(order.id)} data-testid={`menu-approve-order-${order.id}`}>
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Approve Order
+                            </DropdownMenuItem>
+                          )}
+                          {order.status === 'awaiting_delivery' && (
+                            <DropdownMenuItem onClick={() => confirmDeliveryMutation.mutate(order.id)} data-testid={`menu-confirm-delivery-${order.id}`}>
+                              <Truck className="h-4 w-4 mr-2" />
+                              Confirm Delivery
+                            </DropdownMenuItem>
+                          )}
+                          {order.status === 'awaiting_payment' && !isSalesRep && (
+                            <DropdownMenuItem onClick={() => setPaymentDialog({ isOpen: true, orderId: order.id, paymentMethod: '', paymentReference: '', paymentNotes: '' })} data-testid={`menu-record-payment-${order.id}`}>
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Record Payment
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setDeliveryDateDialog({ isOpen: true, orderId: order.id, deliveryDate: order.scheduledDeliveryDate ? format(new Date(order.scheduledDeliveryDate), "yyyy-MM-dd") : '' })} data-testid={`menu-edit-delivery-${order.id}`}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Delivery Date
+                          </DropdownMenuItem>
+                          {!isSalesRep && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setDeleteOrderDialog({ isOpen: true, order })} className="text-destructive" data-testid={`menu-delete-order-${order.id}`}>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Order
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   ))}
                 </div>
@@ -5610,6 +5713,107 @@ export default function AdminDashboard() {
       </Dialog>
 
       {/* Delete Order Confirmation Dialog */}
+      {/* Set Delivery Date Dialog */}
+      <Dialog open={deliveryDateDialog.isOpen} onOpenChange={(open) => setDeliveryDateDialog({ isOpen: open, orderId: deliveryDateDialog.orderId, deliveryDate: deliveryDateDialog.deliveryDate })}>
+        <DialogContent data-testid="dialog-set-delivery-date">
+          <DialogHeader>
+            <DialogTitle>Set Delivery Date</DialogTitle>
+            <DialogDescription>Choose the scheduled delivery date for this order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="delivery-date">Delivery Date</Label>
+              <Input
+                id="delivery-date"
+                type="date"
+                value={deliveryDateDialog.deliveryDate}
+                onChange={(e) => setDeliveryDateDialog({ ...deliveryDateDialog, deliveryDate: e.target.value })}
+                data-testid="input-delivery-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeliveryDateDialog({ isOpen: false, orderId: null, deliveryDate: '' })} data-testid="button-cancel-delivery-date">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (deliveryDateDialog.orderId && deliveryDateDialog.deliveryDate) {
+                  setDeliveryDateMutation.mutate({ orderId: deliveryDateDialog.orderId, deliveryDate: deliveryDateDialog.deliveryDate });
+                }
+              }}
+              disabled={!deliveryDateDialog.deliveryDate || setDeliveryDateMutation.isPending}
+              data-testid="button-save-delivery-date"
+            >
+              {setDeliveryDateMutation.isPending ? "Saving..." : "Set Date"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={paymentDialog.isOpen} onOpenChange={(open) => setPaymentDialog({ isOpen: open, orderId: paymentDialog.orderId, paymentMethod: paymentDialog.paymentMethod, paymentReference: paymentDialog.paymentReference, paymentNotes: paymentDialog.paymentNotes })}>
+        <DialogContent data-testid="dialog-record-payment">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>Enter payment details for this order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment Method</Label>
+              <Select value={paymentDialog.paymentMethod} onValueChange={(val) => setPaymentDialog({ ...paymentDialog, paymentMethod: val })}>
+                <SelectTrigger data-testid="select-payment-method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-reference">Reference Number (Optional)</Label>
+              <Input
+                id="payment-reference"
+                value={paymentDialog.paymentReference}
+                onChange={(e) => setPaymentDialog({ ...paymentDialog, paymentReference: e.target.value })}
+                placeholder="Check number, transaction ID, etc."
+                data-testid="input-payment-reference"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-notes">Notes (Optional)</Label>
+              <Textarea
+                id="payment-notes"
+                value={paymentDialog.paymentNotes}
+                onChange={(e) => setPaymentDialog({ ...paymentDialog, paymentNotes: e.target.value })}
+                placeholder="Additional payment notes..."
+                data-testid="input-payment-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialog({ isOpen: false, orderId: null, paymentMethod: '', paymentReference: '', paymentNotes: '' })} data-testid="button-cancel-payment">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (paymentDialog.orderId) {
+                  recordPaymentMutation.mutate({ orderId: paymentDialog.orderId, paymentMethod: paymentDialog.paymentMethod, paymentReference: paymentDialog.paymentReference, paymentNotes: paymentDialog.paymentNotes });
+                }
+              }}
+              disabled={recordPaymentMutation.isPending}
+              data-testid="button-save-payment"
+            >
+              {recordPaymentMutation.isPending ? "Recording..." : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={deleteOrderDialog.isOpen} onOpenChange={(open) => setDeleteOrderDialog({ isOpen: open, order: deleteOrderDialog.order })}>
         <AlertDialogContent data-testid="dialog-delete-order-confirm">
           <AlertDialogHeader>
