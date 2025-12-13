@@ -4067,6 +4067,307 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
   }
 });
 
+// Admin: Get customer's active tier agreement status (active, expired, or none)
+router.get('/api/b2b/admin/customers/:id/agreement-status', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the most recent signed (active) agreement for this customer
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(and(
+        eq(b2bTierAgreements.customerId, id),
+        eq(b2bTierAgreements.status, 'active')
+      ))
+      .orderBy(desc(b2bTierAgreements.signedAt))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.json({ status: 'none', agreement: null });
+    }
+    
+    const agreement = agreements[0];
+    const now = new Date();
+    const fiscalYearEnd = new Date(agreement.fiscalYearEnd);
+    
+    // Check if agreement is expired
+    const isExpired = now > fiscalYearEnd;
+    
+    // Get tier info
+    let tier = null;
+    if (agreement.tierId) {
+      tier = await storage.getTierPricing(agreement.tierId);
+    }
+    
+    res.json({
+      status: isExpired ? 'expired' : 'active',
+      agreement: {
+        ...agreement,
+        tier,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching agreement status:', error);
+    res.status(500).json({ error: 'Failed to fetch agreement status' });
+  }
+});
+
+// Admin: Renew an expired tier agreement (extends dates by 1 year without customer signature)
+router.post('/api/b2b/admin/tier-agreements/:agreementId/renew', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { agreementId } = req.params;
+    
+    // Find the agreement
+    const agreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(eq(b2bTierAgreements.id, agreementId))
+      .limit(1);
+    
+    if (agreements.length === 0) {
+      return res.status(404).json({ error: 'Agreement not found' });
+    }
+    
+    const agreement = agreements[0];
+    
+    // Verify agreement is signed/active
+    if (agreement.status !== 'active') {
+      return res.status(400).json({ error: 'Only active agreements can be renewed' });
+    }
+    
+    // Calculate new dates (extend by 1 year from current end date)
+    const oldFiscalYearEnd = new Date(agreement.fiscalYearEnd);
+    const newFiscalYearStart = new Date(oldFiscalYearEnd);
+    newFiscalYearStart.setDate(newFiscalYearStart.getDate() + 1); // Day after old end
+    const newFiscalYearEnd = new Date(newFiscalYearStart);
+    newFiscalYearEnd.setFullYear(newFiscalYearEnd.getFullYear() + 1);
+    newFiscalYearEnd.setDate(newFiscalYearEnd.getDate() - 1); // End of year
+    
+    // Get sender info
+    const session = req.session as any;
+    const renewedByAdminId = session.b2bUserRole === 'admin' ? session.b2bUserId : null;
+    const renewedBySalesRepId = session.b2bUserRole === 'sales_rep' ? session.b2bUserId : null;
+    
+    // Update agreement with new dates
+    await db.update(b2bTierAgreements)
+      .set({
+        fiscalYearStart: newFiscalYearStart,
+        fiscalYearEnd: newFiscalYearEnd,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bTierAgreements.id, agreementId));
+    
+    // Get customer info for notifications
+    const customer = await storage.getB2bCustomer(agreement.customerId);
+    
+    // Send renewal confirmation email to customer
+    if (process.env.SENDGRID_API_KEY && process.env.RESEND_FROM_EMAIL && customer) {
+      const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
+      
+      // Get tier info
+      let tierName = 'Tier 3/4';
+      if (agreement.tierId) {
+        const tier = await storage.getTierPricing(agreement.tierId);
+        if (tier) tierName = tier.tierName;
+      }
+      
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
+            .content { padding: 30px 20px; }
+            .info-box { background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 20px 0; }
+            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Tier Agreement Renewed</h1>
+            <p>Nashoba Valley Winery</p>
+          </div>
+          <div class="content">
+            <p>Dear ${customer.primaryContactName},</p>
+            
+            <div class="info-box">
+              <p><strong>Great news!</strong> Your ${tierName} wholesale tier agreement has been renewed.</p>
+            </div>
+            
+            <p><strong>New Agreement Period:</strong></p>
+            <p>From: ${newFiscalYearStart.toLocaleDateString()}<br>
+            To: ${newFiscalYearEnd.toLocaleDateString()}</p>
+            
+            <p>Your ${tierName} pricing benefits will continue during this period. Thank you for your continued partnership!</p>
+            
+            <p>If you have any questions, please contact your sales representative.</p>
+            
+            <p>Best regards,<br>Nashoba Valley Winery Team</p>
+          </div>
+          <div class="footer">
+            <p>Nashoba Valley Winery | Bolton, MA</p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      try {
+        await sendgrid.send({
+          to: customer.emailAddress,
+          from: fromEmail,
+          subject: 'Your Tier Agreement Has Been Renewed - Nashoba Valley Winery',
+          html: emailHtml,
+        });
+        console.log('[Tier Agreement] Renewal confirmation sent to:', customer.emailAddress);
+      } catch (emailError) {
+        console.error('[Tier Agreement] Failed to send renewal email:', emailError);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Agreement renewed successfully',
+      newFiscalYearStart,
+      newFiscalYearEnd,
+    });
+  } catch (error) {
+    console.error('Error renewing tier agreement:', error);
+    res.status(500).json({ error: 'Failed to renew agreement' });
+  }
+});
+
+// Admin: Check for expired tier agreements and send notifications
+router.post('/api/b2b/admin/tier-agreements/check-expired', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    
+    // Find all active agreements where fiscalYearEnd has passed
+    const expiredAgreements = await db.select()
+      .from(b2bTierAgreements)
+      .where(and(
+        eq(b2bTierAgreements.status, 'active'),
+        sql`${b2bTierAgreements.fiscalYearEnd} < ${now}`
+      ));
+    
+    if (expiredAgreements.length === 0) {
+      return res.json({ success: true, message: 'No expired agreements found', count: 0 });
+    }
+    
+    // Get all B2B admins who want contract notifications
+    const admins = await db.select()
+      .from(b2bAdmins)
+      .where(and(
+        eq(b2bAdmins.active, true),
+        eq(b2bAdmins.receiveContractNotifications, true)
+      ));
+    
+    const notifications: string[] = [];
+    
+    for (const agreement of expiredAgreements) {
+      // Get customer info
+      const customer = await storage.getB2bCustomer(agreement.customerId);
+      if (!customer) continue;
+      
+      // Get tier info
+      let tierName = 'Tier 3/4';
+      if (agreement.tierId) {
+        const tier = await storage.getTierPricing(agreement.tierId);
+        if (tier) tierName = tier.tierName;
+      }
+      
+      // Get sales rep info if assigned
+      let salesRep = null;
+      if (agreement.sentBySalesRepId) {
+        const reps = await db.select().from(salesReps).where(eq(salesReps.id, agreement.sentBySalesRepId)).limit(1);
+        if (reps.length > 0) salesRep = reps[0];
+      } else if (customer.salesRepId) {
+        const reps = await db.select().from(salesReps).where(eq(salesReps.id, customer.salesRepId)).limit(1);
+        if (reps.length > 0) salesRep = reps[0];
+      }
+      
+      if (!process.env.SENDGRID_API_KEY || !process.env.RESEND_FROM_EMAIL) continue;
+      
+      const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
+      const expiredDate = new Date(agreement.fiscalYearEnd).toLocaleDateString();
+      
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+            .header { background-color: #DC2626; color: white; padding: 20px; text-align: center; }
+            .content { padding: 30px 20px; }
+            .info-box { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 20px 0; }
+            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Tier Agreement Expired</h1>
+          </div>
+          <div class="content">
+            <div class="info-box">
+              <p><strong>Action Required:</strong> A tier agreement has expired and needs renewal.</p>
+            </div>
+            
+            <p><strong>Customer:</strong> ${customer.accountName}</p>
+            <p><strong>Tier:</strong> ${tierName}</p>
+            <p><strong>Expired On:</strong> ${expiredDate}</p>
+            ${salesRep ? `<p><strong>Sales Rep:</strong> ${salesRep.firstName} ${salesRep.lastName}</p>` : ''}
+            
+            <p>Please log into the B2B Admin Dashboard to renew this agreement or contact the customer.</p>
+          </div>
+          <div class="footer">
+            <p>Nashoba Valley Winery B2B Platform</p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Send to sales rep if assigned
+      if (salesRep && salesRep.email) {
+        try {
+          await sendgrid.send({
+            to: salesRep.email,
+            from: fromEmail,
+            subject: `[Action Required] Tier Agreement Expired: ${customer.accountName}`,
+            html: emailHtml,
+          });
+          notifications.push(`Sent to sales rep: ${salesRep.email}`);
+        } catch (e) {
+          console.error('Failed to send to sales rep:', e);
+        }
+      }
+      
+      // Send to admins who want notifications
+      for (const admin of admins) {
+        try {
+          await sendgrid.send({
+            to: admin.email,
+            from: fromEmail,
+            subject: `[Action Required] Tier Agreement Expired: ${customer.accountName}`,
+            html: emailHtml,
+          });
+          notifications.push(`Sent to admin: ${admin.email}`);
+        } catch (e) {
+          console.error('Failed to send to admin:', e);
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Found ${expiredAgreements.length} expired agreements`,
+      count: expiredAgreements.length,
+      notifications,
+    });
+  } catch (error) {
+    console.error('Error checking expired agreements:', error);
+    res.status(500).json({ error: 'Failed to check expired agreements' });
+  }
+});
+
 // PUBLIC: Get tier agreement form data by token (no auth required)
 router.get('/api/b2b/tier-agreement/:token', async (req: Request, res: Response) => {
   try {
