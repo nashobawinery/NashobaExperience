@@ -647,6 +647,132 @@ registerModuleDocs({
       ),
     },
     {
+      id: "commitments",
+      title: "Tier Commitments & Renewals",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            The commitment system tracks customer purchase progress toward annual tier requirements 
+            and manages renewal reminders.
+          </p>
+          
+          <div className="bg-primary/5 rounded-lg p-4 border-l-4 border-primary mb-4">
+            <h4 className="font-medium mb-3">Commitment Workflow</h4>
+            <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+              <li><strong>Tier Assignment:</strong> Customer is assigned a pricing tier with a case commitment requirement</li>
+              <li><strong>Commitment Starts:</strong> Commitment start date is set when tier is activated</li>
+              <li><strong>Progress Tracking:</strong> System automatically tracks cases purchased from completed orders</li>
+              <li><strong>Annual Period:</strong> Commitment period runs for 1 year from start date</li>
+              <li><strong>Renewal Reminders:</strong> Admin can view customers approaching commitment end date</li>
+              <li><strong>Reminder Emails:</strong> System sends renewal reminder emails with progress summary</li>
+            </ol>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Commitment Data</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li><strong>Commitment Cases:</strong> Required cases per year (set per tier)</li>
+                <li><strong>Start Date:</strong> When the commitment period began</li>
+                <li><strong>End Date:</strong> Automatically calculated as start + 1 year</li>
+                <li><strong>Cases Purchased:</strong> Total from completed orders</li>
+                <li><strong>Cases Remaining:</strong> Commitment minus purchased</li>
+                <li><strong>Progress %:</strong> Percentage toward commitment goal</li>
+              </ul>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Renewal Reminder System</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>Admin configures reminder window (days before end)</li>
+                <li>View list of customers needing reminders</li>
+                <li>Send reminder emails in bulk or individually</li>
+                <li>Email includes commitment progress summary</li>
+                <li>Shows cases purchased vs. required</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">Admin Commitments Tab</h4>
+            <p className="text-sm text-muted-foreground">
+              The Commitments tab in the Admin Dashboard provides visibility into customer commitment 
+              status, allowing admins to monitor progress and proactively reach out to customers 
+              who may need support meeting their tier requirements before renewal.
+            </p>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">Key API Endpoints</h4>
+            <ul className="text-sm text-muted-foreground font-mono space-y-1">
+              <li>GET /api/b2b/admin/renewal-reminders - List customers needing reminders</li>
+              <li>POST /api/b2b/admin/send-renewal-reminders - Send reminder emails</li>
+            </ul>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "returns",
+      title: "Returns & Credits",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Returns and credits for B2B wholesale orders are handled through a manual administrative process.
+          </p>
+          
+          <div className="bg-amber-500/10 rounded-lg p-4 border-l-4 border-amber-500 mb-4">
+            <h4 className="font-medium mb-2">Manual Return Process</h4>
+            <p className="text-sm text-muted-foreground">
+              The B2B platform does not currently have an automated returns workflow. Returns 
+              are handled directly between the customer and their assigned sales representative 
+              or the admin team.
+            </p>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">Current Return Handling</h4>
+            <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+              <li><strong>Customer Contact:</strong> Customer contacts their sales rep or admin about a return</li>
+              <li><strong>Review:</strong> Admin reviews the return request and original order</li>
+              <li><strong>Approval:</strong> Return is approved or denied based on business policy</li>
+              <li><strong>Pickup/Return:</strong> Physical product return is coordinated</li>
+              <li><strong>Credit:</strong> Credit is applied manually via order notes or separate credit memo</li>
+              <li><strong>Records:</strong> Return details are documented in customer or order notes</li>
+            </ol>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Documenting Returns</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>Add notes to the original order</li>
+                <li>Add notes to the customer account</li>
+                <li>Update order status if fully returned</li>
+                <li>Track in external accounting system</li>
+              </ul>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Credit Considerations</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>Returns may affect commission calculations</li>
+                <li>Partial credits require manual adjustment</li>
+                <li>Credits do not count toward commitment cases</li>
+                <li>Returned cases may be deducted from progress</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="bg-primary/5 rounded-lg p-4 border-l-4 border-primary">
+            <h4 className="font-medium mb-2">Future Enhancement</h4>
+            <p className="text-sm text-muted-foreground">
+              An automated returns system with RMA numbers, credit memos, and integration with 
+              order history may be added in a future platform update.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
       id: "email-templates",
       title: "Email Template Customization",
       content: (
