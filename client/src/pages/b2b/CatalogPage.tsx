@@ -250,7 +250,12 @@ export default function CatalogPage() {
               <div className="pt-2 border-t space-y-3">
                 {(product.category === 'wine' || product.category === 'spirits') ? (
                   <>
-                    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                    <div 
+                      className="space-y-2 p-1 -m-1" 
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center gap-2">
                         <div className="flex-1">
                           <Label htmlFor={`bottles-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Bottles</Label>
@@ -267,11 +272,14 @@ export default function CatalogPage() {
                                 })
                               }
                               onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
                               className="h-8"
                               data-testid={`input-bottles-${product.id}`}
                             />
                             <Button
                               size="sm"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-bottle`] || 0;
@@ -290,7 +298,7 @@ export default function CatalogPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
                         <div className="flex-1">
                           <Label htmlFor={`cases-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
                           <div className="flex items-center gap-2">
@@ -306,11 +314,14 @@ export default function CatalogPage() {
                                 })
                               }
                               onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
                               className="h-8"
                               data-testid={`input-cases-${product.id}`}
                             />
                             <Button
                               size="sm"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const qty = quantityInputs[`${product.id}-case`] || 0;
@@ -342,7 +353,12 @@ export default function CatalogPage() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div 
+                      className="flex items-center gap-2 p-1 -m-1" 
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                    >
                       <div className="flex-1">
                         <Label htmlFor={`cases-qty-${product.id}`} className="text-xs text-muted-foreground mb-1 block">Cases</Label>
                         <div className="flex items-center gap-2">
@@ -358,12 +374,15 @@ export default function CatalogPage() {
                               })
                             }
                             onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             className="h-8"
                             placeholder="0"
                             data-testid={`input-cases-qty-${product.id}`}
                           />
                           <Button
                             size="sm"
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
                               const qty = quantityInputs[product.id] || 0;
@@ -444,7 +463,12 @@ export default function CatalogPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 items-end flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <div 
+                  className="flex flex-col gap-2 items-end flex-shrink-0 p-2 -m-2" 
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                >
                   {(product.category === 'wine' || product.category === 'spirits') ? (
                     <>
                       <div className="flex gap-2 items-center">
@@ -460,6 +484,8 @@ export default function CatalogPage() {
                               })
                             }
                             onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-bottles-listing-${product.id}`}
@@ -467,6 +493,7 @@ export default function CatalogPage() {
                         </div>
                         <Button
                           size="sm"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             const qty = quantityInputs[`${product.id}-bottle`] || 0;
@@ -496,6 +523,8 @@ export default function CatalogPage() {
                               })
                             }
                             onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             placeholder="0"
                             className="h-8 text-center text-xs"
                             data-testid={`input-cases-listing-${product.id}`}
@@ -503,6 +532,7 @@ export default function CatalogPage() {
                         </div>
                         <Button
                           size="sm"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             const qty = quantityInputs[`${product.id}-case`] || 0;
@@ -534,6 +564,8 @@ export default function CatalogPage() {
                             })
                           }
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
                           placeholder="Cases"
                           className="h-8 text-center text-xs"
                           data-testid={`input-cases-listing-qty-${product.id}`}
@@ -541,6 +573,7 @@ export default function CatalogPage() {
                       </div>
                       <Button
                         size="sm"
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
                           const qty = quantityInputs[product.id] || 0;
