@@ -52,6 +52,9 @@ export interface B2bAdmin {
   lastName: string;
   email: string;
   active: boolean;
+  receiveOrderEmails?: boolean;
+  receiveContractNotifications?: boolean;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
 }
