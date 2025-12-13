@@ -4,7 +4,7 @@ registerModuleDocs({
   moduleKey: "b2b",
   moduleName: "B2B Wholesale Platform",
   description: "Business-to-business wholesale ordering, customer management, and sales operations",
-  lastUpdated: "2024-12-12",
+  lastUpdated: "2024-12-13",
   sections: [
     {
       id: "overview",
@@ -473,8 +473,8 @@ registerModuleDocs({
             <div className="border-l-4 border-primary pl-4">
               <h5 className="font-medium">Marketing Tab</h5>
               <p className="text-sm text-muted-foreground">
-                Manage B2B-specific email templates and marketing campaigns. Configure automated 
-                emails for order confirmations, approvals, and promotions.
+                Manage B2B-specific email templates with preview and customization options. 
+                Configure automated emails for order workflow, password resets, tier renewals, and more.
               </p>
             </div>
             <div className="border-l-4 border-primary pl-4">
@@ -642,6 +642,87 @@ registerModuleDocs({
               The public pricing page requires an access code to view wholesale pricing details. 
               This allows prospective customers to see pricing before registering.
             </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "email-templates",
+      title: "Email Template Customization",
+      content: (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            The B2B platform includes a comprehensive email template management system that allows admins 
+            to preview and customize all system-generated emails without modifying code.
+          </p>
+          
+          <div className="bg-primary/5 rounded-lg p-4 border-l-4 border-primary mb-4">
+            <h4 className="font-medium mb-2">Available Email Templates</h4>
+            <div className="grid md:grid-cols-2 gap-2 text-sm text-muted-foreground">
+              <div>
+                <strong>Order Workflow Emails:</strong>
+                <ul className="list-disc list-inside ml-2 space-y-1">
+                  <li>Delivery Date Request</li>
+                  <li>Order Approval Request</li>
+                  <li>Delivery Confirmation Request</li>
+                  <li>Payment Confirmation Request</li>
+                </ul>
+              </div>
+              <div>
+                <strong>Account & System Emails:</strong>
+                <ul className="list-disc list-inside ml-2 space-y-1">
+                  <li>Password Reset</li>
+                  <li>Access Request Notification</li>
+                  <li>Wholesale Application</li>
+                  <li>Tier Renewal Reminder</li>
+                  <li>Favorites Email</li>
+                  <li>Cart Order Email</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Preview Feature</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>View any system email with sample data</li>
+                <li>See exactly how emails appear to recipients</li>
+                <li>Test email layout and formatting</li>
+                <li>Verify branding and styling</li>
+              </ul>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2">Customization Options</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li><strong>Subject Line:</strong> Custom email subject</li>
+                <li><strong>Intro Text:</strong> Opening paragraph</li>
+                <li><strong>Body Text:</strong> Main content (where applicable)</li>
+                <li><strong>Closing Text:</strong> Signature/closing message</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-2">How It Works</h4>
+            <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+              <li>Navigate to Marketing Tab in the Admin Dashboard</li>
+              <li>Click on any email template to preview it with sample data</li>
+              <li>Click "Edit Template" to customize text content</li>
+              <li>Customizations are saved to the database and applied automatically</li>
+              <li>Toggle "Active" to enable/disable customizations</li>
+              <li>Default text is used when no customization exists or is inactive</li>
+            </ol>
+          </div>
+          
+          <div className="bg-amber-500/10 rounded-lg p-4 border-l-4 border-amber-500">
+            <h4 className="font-medium mb-2">Important Notes</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>Customizations only affect text content, not the email layout or branding</li>
+              <li>The Nashoba Valley Winery header and footer remain consistent across all emails</li>
+              <li>All customizations support both HTML and plain text email formats</li>
+              <li>Changes take effect immediately for new emails sent</li>
+            </ul>
           </div>
         </div>
       ),
