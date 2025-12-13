@@ -356,7 +356,7 @@ registerModuleDocs({
               </thead>
               <tbody className="text-muted-foreground">
                 <tr className="border-b">
-                  <td className="p-2">Order Created</td>
+                  <td className="p-2">Customer receives order confirmation when they place an order</td>
                   <td className="p-2">Customer</td>
                   <td className="p-2">Order confirmation with order details and items</td>
                 </tr>
@@ -371,12 +371,12 @@ registerModuleDocs({
                   <td className="p-2">Invoice preview + approval link</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Order Approved</td>
+                  <td className="p-2">Customer and sales rep receive approved invoice</td>
                   <td className="p-2">Customer, Sales Rep</td>
                   <td className="p-2">Full invoice with delivery date</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Order Delivered</td>
+                  <td className="p-2">Customer receives delivery confirmation with invoice</td>
                   <td className="p-2">Customer</td>
                   <td className="p-2">Delivery confirmation with invoice details</td>
                 </tr>
