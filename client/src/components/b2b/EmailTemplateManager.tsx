@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, Copy, Eye, FileText, Mail, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, Copy, Eye, FileText, Mail, Clock, CheckCircle, XCircle, Lock, Info, Zap } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import type { B2bEmailTemplate, B2bEmailAutomationLog } from "@shared/schema";
@@ -41,6 +41,89 @@ const triggerTypes = [
 ];
 
 const tiers = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'];
+
+const systemTemplates = [
+  {
+    id: 'order_delivery_date',
+    name: 'Order Delivery Date Request',
+    trigger: 'Order Created (Manual)',
+    description: 'Sent to the assigned sales rep when a manual order is created. Contains a secure link for the sales rep to set the delivery date with the customer.',
+    variables: ['Order ID', 'Customer Name', 'Sales Rep Name', 'Order Items', 'Secure Token Link'],
+    category: 'Order Workflow',
+  },
+  {
+    id: 'order_approval_request',
+    name: 'Order Approval Request',
+    trigger: 'Delivery Date Set',
+    description: 'Sent to admin after the sales rep sets a delivery date. Contains order details and a secure link for the admin to approve or reject the order.',
+    variables: ['Order ID', 'Customer Name', 'Delivery Date', 'Order Total', 'Secure Token Link'],
+    category: 'Order Workflow',
+  },
+  {
+    id: 'delivery_confirmation_request',
+    name: 'Delivery Confirmation Request',
+    trigger: 'Order Approved',
+    description: 'Sent after an order is approved. Contains a secure link for confirming delivery was completed and recording any delivery notes.',
+    variables: ['Order ID', 'Customer Name', 'Delivery Date', 'Order Items', 'Secure Token Link'],
+    category: 'Order Workflow',
+  },
+  {
+    id: 'payment_confirmation_request',
+    name: 'Payment Confirmation Request',
+    trigger: 'Delivery Confirmed',
+    description: 'Sent after delivery is confirmed. Contains a secure link for recording the payment method and confirming the order is complete.',
+    variables: ['Order ID', 'Customer Name', 'Order Total', 'Secure Token Link'],
+    category: 'Order Workflow',
+  },
+  {
+    id: 'password_reset',
+    name: 'Password Reset Email',
+    trigger: 'Reset Requested',
+    description: 'Sent when a B2B user (customer or sales rep) requests to reset their password. Contains a secure time-limited reset link.',
+    variables: ['User Type/Role', 'Secure Reset Link (expires in 1 hour)'],
+    category: 'Authentication',
+  },
+  {
+    id: 'access_request',
+    name: 'Wholesale Access Code Request',
+    trigger: 'Access Form Submitted',
+    description: 'Sent to admin when someone requests an access code through the B2B landing page. Admin can then provide the access code to the requester.',
+    variables: ['Requester Name', 'Business Name', 'Email Address'],
+    category: 'Onboarding',
+  },
+  {
+    id: 'wholesale_application',
+    name: 'New Wholesale Account Application',
+    trigger: 'Application Submitted',
+    description: 'Sent to admin when a new business completes the wholesale account application form. Contains all submitted business information for review.',
+    variables: ['Account Name', 'Customer Type', 'Contact Info', 'License Info', 'Address', 'Notes'],
+    category: 'Onboarding',
+  },
+  {
+    id: 'tier_renewal',
+    name: 'Tier Commitment Renewal Reminder',
+    trigger: 'Approaching Renewal Date',
+    description: 'Sent to customers approaching their tier commitment renewal date. Shows their progress toward meeting the case commitment and remaining time.',
+    variables: ['Customer Name', 'Tier Name', 'Cases Purchased', 'Cases Remaining', 'Days Until Renewal'],
+    category: 'Customer Engagement',
+  },
+  {
+    id: 'favorites_email',
+    name: 'Tasting Favorites Email',
+    trigger: 'Guest Email Request',
+    description: 'Sent to tasting room guests when they request their favorites list via email. Contains all favorited products with notes and pricing.',
+    variables: ['Guest Name', 'Product List', 'Product Notes', 'Prices'],
+    category: 'Tasting Room',
+  },
+  {
+    id: 'cart_order_email',
+    name: 'Tasting Order Notification',
+    trigger: 'Cart Submitted',
+    description: 'Sent to staff when a guest submits their tasting room order. Contains the full order details including discounts and totals.',
+    variables: ['Guest Name', 'Order Items', 'Subtotal', 'Discounts', 'Total'],
+    category: 'Tasting Room',
+  },
+];
 
 interface FormData {
   name: string;
@@ -253,6 +336,89 @@ export function EmailTemplateManager() {
           ))}
         </div>
       )}
+
+      {/* System Templates Section */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2" data-testid="heading-system-templates">
+            <Lock className="w-5 h-5" />
+            System Email Templates
+          </CardTitle>
+          <CardDescription>
+            These are built-in email templates that power the order workflow and automated notifications. 
+            They are managed by the system and cannot be edited directly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 p-4 bg-muted/50 rounded-lg flex items-start gap-3">
+            <Info className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">How System Templates Work</p>
+              <p>
+                System templates are triggered automatically by specific actions in the platform (like creating an order or setting a delivery date). 
+                They use secure token links for each step of the order workflow, ensuring only authorized users can take action.
+                These emails are branded with Nashoba Valley Winery styling and include all relevant order information.
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {['Order Workflow', 'Authentication', 'Onboarding', 'Customer Engagement', 'Tasting Room'].map((category) => {
+              const categoryTemplates = systemTemplates.filter(t => t.category === category);
+              if (categoryTemplates.length === 0) return null;
+              
+              return (
+                <div key={category}>
+                  <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    {category}
+                  </h4>
+                  <div className="grid gap-2">
+                    {categoryTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className="p-4 border rounded-lg"
+                        data-testid={`system-template-${template.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h5 className="font-medium" data-testid={`system-template-name-${template.id}`}>
+                                {template.name}
+                              </h5>
+                              <Badge variant="secondary" data-testid={`system-template-badge-${template.id}`}>
+                                <Lock className="w-3 h-3 mr-1" />
+                                System
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2" data-testid={`system-template-desc-${template.id}`}>
+                              {template.description}
+                            </p>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <span className="text-muted-foreground">Trigger:</span>
+                              <Badge variant="outline" data-testid={`system-template-trigger-${template.id}`}>
+                                {template.trigger}
+                              </Badge>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1" data-testid={`system-template-variables-${template.id}`}>
+                              <span className="text-xs text-muted-foreground mr-1">Variables:</span>
+                              {template.variables.map((v, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-normal" data-testid={`system-template-variable-${template.id}-${i}`}>
+                                  {v}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Email Automation Logs */}
       <Card className="mt-8">
