@@ -357,6 +357,11 @@ registerModuleDocs({
               <tbody className="text-muted-foreground">
                 <tr className="border-b">
                   <td className="p-2">Order Created</td>
+                  <td className="p-2">Customer</td>
+                  <td className="p-2">Order confirmation with order details and items</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Order Created</td>
                   <td className="p-2">Sales Rep</td>
                   <td className="p-2">Order details + delivery date link</td>
                 </tr>
@@ -369,6 +374,11 @@ registerModuleDocs({
                   <td className="p-2">Order Approved</td>
                   <td className="p-2">Customer, Sales Rep</td>
                   <td className="p-2">Full invoice with delivery date</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Order Delivered</td>
+                  <td className="p-2">Customer</td>
+                  <td className="p-2">Delivery confirmation with invoice details</td>
                 </tr>
                 <tr className="border-b">
                   <td className="p-2">Order Rejected</td>
