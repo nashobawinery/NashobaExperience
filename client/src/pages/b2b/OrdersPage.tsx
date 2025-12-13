@@ -2,8 +2,81 @@ import { useB2bOrders } from "@/hooks/useB2bOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Calendar, DollarSign } from "lucide-react";
+import { Package, Calendar, DollarSign, Truck, Clock, CheckCircle, FileText } from "lucide-react";
 import { format } from "date-fns";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+function getOrderStatusLabel(status: string): string {
+  switch (status) {
+    case 'pending_delivery_date':
+      return 'Processing';
+    case 'pending_approval':
+      return 'Awaiting Confirmation';
+    case 'awaiting_delivery':
+      return 'Scheduled for Delivery';
+    case 'awaiting_payment':
+      return 'Delivered - Payment Due';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status;
+  }
+}
+
+function getOrderStatusDescription(status: string): string {
+  switch (status) {
+    case 'pending_delivery_date':
+      return 'Your order is being processed and a delivery date will be scheduled soon.';
+    case 'pending_approval':
+      return 'Your delivery date has been set and the order is being prepared.';
+    case 'awaiting_delivery':
+      return 'Your order has been approved and is scheduled for delivery.';
+    case 'awaiting_payment':
+      return 'Your order has been delivered. Payment is now due.';
+    case 'completed':
+      return 'Your order has been completed. Thank you for your business!';
+    case 'cancelled':
+      return 'This order has been cancelled.';
+    default:
+      return '';
+  }
+}
+
+function getOrderStatusIcon(status: string) {
+  switch (status) {
+    case 'pending_delivery_date':
+      return <Clock className="h-4 w-4" />;
+    case 'pending_approval':
+      return <FileText className="h-4 w-4" />;
+    case 'awaiting_delivery':
+      return <Truck className="h-4 w-4" />;
+    case 'awaiting_payment':
+      return <DollarSign className="h-4 w-4" />;
+    case 'completed':
+      return <CheckCircle className="h-4 w-4" />;
+    default:
+      return null;
+  }
+}
+
+function getOrderStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+  switch (status) {
+    case 'completed':
+      return 'default';
+    case 'cancelled':
+      return 'destructive';
+    case 'awaiting_payment':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+}
 
 export default function OrdersPage() {
   const { data: orders, isLoading, isError, error } = useB2bOrders();
@@ -56,7 +129,7 @@ export default function OrdersPage() {
                     <CardTitle className="font-serif text-xl mb-2">
                       Order #{order.orderNumber}
                     </CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         {format(new Date(order.orderDate), "MMM d, yyyy")}
@@ -67,13 +140,31 @@ export default function OrdersPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <DollarSign className="h-4 w-4" />
-                        ${(order.total || order.totalAmount || 0).toFixed(2)}
+                        ${Number(order.totalAmount || 0).toFixed(2)}
                       </div>
+                      {(order as any).deliveryDate && (
+                        <div className="flex items-center gap-1">
+                          <Truck className="h-4 w-4" />
+                          Delivery: {format(new Date((order as any).deliveryDate), "MMM d, yyyy")}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <Badge variant={order.status === "completed" ? "default" : "secondary"}>
-                    {order.status}
-                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant={getOrderStatusVariant(order.status)}
+                        className="flex items-center gap-1 cursor-help"
+                        data-testid={`status-badge-${order.id}`}
+                      >
+                        {getOrderStatusIcon(order.status)}
+                        {getOrderStatusLabel(order.status)}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">{getOrderStatusDescription(order.status)}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </CardHeader>
               <CardContent>
@@ -86,9 +177,9 @@ export default function OrdersPage() {
                         <p className="text-muted-foreground">SKU: {item.sku}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">${item.totalPrice.toFixed(2)}</p>
+                        <p className="font-medium">${Number(item.totalPrice || 0).toFixed(2)}</p>
                         <p className="text-muted-foreground text-xs">
-                          {item.quantity} case(s) @ ${item.unitPrice.toFixed(2)}
+                          {item.quantity} case(s) @ ${Number(item.unitPrice || 0).toFixed(2)}
                         </p>
                       </div>
                     </div>
