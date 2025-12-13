@@ -67,7 +67,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <DollarSign className="h-4 w-4" />
-                        ${order.totalAmount.toFixed(2)}
+                        ${(order.total || order.totalAmount || 0).toFixed(2)}
                       </div>
                     </div>
                   </div>
