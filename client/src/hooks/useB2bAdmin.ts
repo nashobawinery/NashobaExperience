@@ -12,6 +12,7 @@ export interface B2bOrder {
   discount: string;
   total: string;
   orderDate: string;
+  orderType?: 'order' | 'return';
   items?: B2bOrderItem[];
   customer?: {
     id: string;
@@ -306,7 +307,7 @@ export function useB2bAdminProducts() {
   });
 }
 
-// Create manual order
+// Create manual order or return
 export function useCreateManualOrder() {
   const queryClient = useQueryClient();
 
@@ -315,6 +316,7 @@ export function useCreateManualOrder() {
       customerId: string; 
       items: Array<{ productId: string; quantity: number }>; 
       notes?: string;
+      orderType?: 'order' | 'return';
     }) => {
       return apiRequest("POST", "/api/b2b/admin/orders/manual", data);
     },

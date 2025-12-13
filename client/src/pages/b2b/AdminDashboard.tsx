@@ -1068,6 +1068,7 @@ export default function AdminDashboard() {
   // Create customer dialog state
   const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
   const [manualOrderDialog, setManualOrderDialog] = useState(false);
+  const [returnDialog, setReturnDialog] = useState(false);
   const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number }>>([{ productId: "", quantity: 1 }]);
 
   const createCustomerForm = useForm<CreateCustomerFormData>({
@@ -2092,6 +2093,7 @@ export default function AdminDashboard() {
         customerId: data.customerId,
         items: data.items,
         notes: data.notes,
+        orderType: 'order',
       });
       
       toast({
@@ -2107,6 +2109,33 @@ export default function AdminDashboard() {
       toast({
         title: "Failed to Create Order",
         description: error.message || "An error occurred while creating the order",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReturnSubmit = async (data: ManualOrderFormData) => {
+    try {
+      await createManualOrder({
+        customerId: data.customerId,
+        items: data.items,
+        notes: data.notes,
+        orderType: 'return',
+      });
+      
+      toast({
+        title: "Return Created",
+        description: "The return/credit memo has been created successfully.",
+      });
+
+      // Reset form and close dialog
+      manualOrderForm.reset();
+      setOrderItems([{ productId: "", quantity: 1 }]);
+      setReturnDialog(false);
+    } catch (error: any) {
+      toast({
+        title: "Failed to Create Return",
+        description: error.message || "An error occurred while creating the return",
         variant: "destructive",
       });
     }
@@ -2612,7 +2641,7 @@ export default function AdminDashboard() {
             (filteredPendingCustomers && filteredPendingCustomers.length > 0) ||
             (filteredInactiveCustomers && filteredInactiveCustomers.length > 0)
           )) && (
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end gap-2 mb-4">
               <Button
                 onClick={() => setManualOrderDialog(true)}
                 data-testid="button-create-manual-order"
@@ -2620,6 +2649,16 @@ export default function AdminDashboard() {
                 <Plus className="h-4 w-4 mr-2" />
                 Create Manual Order
               </Button>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={() => setReturnDialog(true)}
+                  data-testid="button-create-return"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Return
+                </Button>
+              )}
             </div>
           )}
           <Card>
@@ -2653,6 +2692,9 @@ export default function AdminDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <p className="font-semibold">{order.orderNumber}</p>
+                          {(order as any).orderType === 'return' && (
+                            <Badge variant="destructive">Credit Memo</Badge>
+                          )}
                           <Badge variant={getOrderStatusBadgeVariant(order.status)}>
                             {getOrderStatusLabel(order.status)}
                           </Badge>
@@ -2661,7 +2703,7 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">{order.customer?.emailAddress || 'No email'}</p>
                       </div>
                       <div className="text-right mr-4">
-                        <p className="font-semibold text-lg">${order.total}</p>
+                        <p className={`font-semibold text-lg ${Number(order.total) < 0 ? 'text-destructive' : ''}`}>${order.total}</p>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(order.orderDate), "MMM d, yyyy")}
                         </p>
@@ -5568,6 +5610,158 @@ export default function AdminDashboard() {
                   data-testid="button-submit-manual-order"
                 >
                   Create Order
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Return Dialog (Admin Only) */}
+      <Dialog open={returnDialog} onOpenChange={setReturnDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-return">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Create Return / Credit Memo</DialogTitle>
+            <DialogDescription>
+              Create a return for a customer. Returns generate credit invoices with negative amounts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...manualOrderForm}>
+            <form onSubmit={manualOrderForm.handleSubmit(handleReturnSubmit)} className="space-y-4">
+              <FormField
+                control={manualOrderForm.control}
+                name="customerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-return-customer">
+                          <SelectValue placeholder="Select customer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {activeCustomers?.map((customer: any) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.accountName} - {customer.tier?.tierName || "No tier"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">Return Items *</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={addOrderItem}
+                    data-testid="button-add-return-item"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Item
+                  </Button>
+                </div>
+
+                {orderItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-start border p-3 rounded-md">
+                    <div className="flex-1 space-y-3">
+                      <FormField
+                        control={manualOrderForm.control}
+                        name={`items.${index}.productId`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Product</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid={`select-return-product-${index}`}>
+                                  <SelectValue placeholder="Select product" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {adminProducts?.map((product) => (
+                                  <SelectItem key={product.id} value={product.id}>
+                                    {product.name} - ${product.price}/case ({product.caseSize} bottles)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={manualOrderForm.control}
+                        name={`items.${index}.quantity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quantity (cases being returned)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                data-testid={`input-return-quantity-${index}`}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {orderItems.length > 1 && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeOrderItem(index)}
+                        className="mt-8"
+                        data-testid={`button-remove-return-item-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <FormField
+                control={manualOrderForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Return Notes (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} data-testid="input-return-notes" rows={3} placeholder="Reason for return..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReturnDialog(false)}
+                  data-testid="button-cancel-return"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  data-testid="button-submit-return"
+                >
+                  Create Return
                 </Button>
               </DialogFooter>
             </form>
