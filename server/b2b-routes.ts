@@ -6310,6 +6310,143 @@ router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdm
         previewHtml = cartEmail.html;
         break;
         
+      case 'order_confirmation':
+        previewSubject = 'Order Received: B2B-123456';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Order Confirmation', 'Thank you for your order')}
+  <div class="content">
+    <p>Dear <strong>John Smith</strong>,</p>
+    <p>Thank you for your order! We have received your order and it is now being processed.</p>
+    <div class="info-box">
+      <p><strong>Order #B2B-123456</strong></p>
+      <p>Order Date: ${new Date().toLocaleDateString()}</p>
+    </div>
+    <h3 style="color: #5C2535;">Order Items</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <tr style="background-color: #f8f9fa;">
+        <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6;">Product</th>
+        <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">Qty</th>
+        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">Price</th>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Chardonnay</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">12</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$180.00</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Merlot</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">6</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$96.00</td>
+      </tr>
+    </table>
+    <p style="text-align: right; font-size: 18px;"><strong>Total: $276.00</strong></p>
+    <p>Your sales representative will contact you shortly to confirm the delivery date.</p>
+    <p>If you have any questions, please contact your sales representative or reply to this email.</p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'invoice_email':
+        previewSubject = 'Invoice INV-123456 - Order B2B-123456';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Invoice', 'Your order has been approved')}
+  <div class="content">
+    <p>Dear <strong>John Smith</strong>,</p>
+    <p>Your order has been approved and is scheduled for delivery. Please find your invoice details below.</p>
+    <div class="info-box">
+      <p><strong>Invoice #INV-123456</strong></p>
+      <p>Order #B2B-123456</p>
+      <p>Scheduled Delivery: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
+    </div>
+    <h3 style="color: #5C2535;">Invoice Items</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <tr style="background-color: #f8f9fa;">
+        <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6;">Product</th>
+        <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">Qty</th>
+        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">Unit Price</th>
+        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">Total</th>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Chardonnay</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">12</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$15.00</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$180.00</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Merlot</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">6</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$16.00</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$96.00</td>
+      </tr>
+    </table>
+    <p style="text-align: right; font-size: 18px;"><strong>Invoice Total: $276.00</strong></p>
+    <p>Payment is due upon delivery. Please have your payment ready when your order arrives.</p>
+    <p>Thank you for your business!</p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'delivery_confirmation_customer':
+        previewSubject = 'Your Order Has Been Delivered - B2B-123456';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Delivery Confirmation', 'Your order has been delivered')}
+  <div class="content">
+    <p>Dear <strong>John Smith</strong>,</p>
+    <p>Great news! Your order has been successfully delivered.</p>
+    <div class="info-box">
+      <p><strong>Order #B2B-123456</strong></p>
+      <p>Invoice #INV-123456</p>
+      <p>Delivered: ${new Date().toLocaleDateString()}</p>
+    </div>
+    <h3 style="color: #5C2535;">Delivered Items</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <tr style="background-color: #f8f9fa;">
+        <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6;">Product</th>
+        <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">Qty</th>
+        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">Price</th>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Chardonnay</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">12</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$180.00</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">Nashoba Valley Merlot</td>
+        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">6</td>
+        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">$96.00</td>
+      </tr>
+    </table>
+    <p style="text-align: right; font-size: 18px;"><strong>Total: $276.00</strong></p>
+    <p>If you have any questions about your delivery or need assistance, please contact your sales representative.</p>
+    <p>Thank you for choosing Nashoba Valley!</p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
       default:
         return res.status(404).json({ error: 'Unknown template key' });
     }

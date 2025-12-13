@@ -123,6 +123,30 @@ const systemTemplates = [
     variables: ['Guest Name', 'Order Items', 'Subtotal', 'Discounts', 'Total'],
     category: 'Tasting Room',
   },
+  {
+    id: 'order_confirmation',
+    name: 'Order Confirmation',
+    trigger: 'Order Placed',
+    description: 'Sent to the customer when they place an order. Confirms receipt of the order with order details and next steps.',
+    variables: ['Customer Name', 'Order Number', 'Order Items', 'Order Total', 'Sales Rep Name'],
+    category: 'Customer Notifications',
+  },
+  {
+    id: 'invoice_email',
+    name: 'Invoice Email',
+    trigger: 'Order Approved',
+    description: 'Sent to the customer and sales rep when an order is approved. Contains the official invoice with payment information.',
+    variables: ['Customer Name', 'Invoice Number', 'Order Items', 'Order Total', 'Delivery Date', 'Payment Terms'],
+    category: 'Customer Notifications',
+  },
+  {
+    id: 'delivery_confirmation_customer',
+    name: 'Delivery Confirmation (Customer)',
+    trigger: 'Order Delivered',
+    description: 'Sent to the customer when their order has been delivered. Confirms delivery completion and provides order summary.',
+    variables: ['Customer Name', 'Order Number', 'Delivery Date', 'Order Items', 'Order Total'],
+    category: 'Customer Notifications',
+  },
 ];
 
 interface FormData {
@@ -487,7 +511,7 @@ export function EmailTemplateManager() {
           </div>
           
           <div className="space-y-3">
-            {['Order Workflow', 'Authentication', 'Onboarding', 'Customer Engagement', 'Tasting Room'].map((category) => {
+            {['Order Workflow', 'Authentication', 'Onboarding', 'Customer Engagement', 'Customer Notifications', 'Tasting Room'].map((category) => {
               const categoryTemplates = systemTemplates.filter(t => t.category === category);
               if (categoryTemplates.length === 0) return null;
               

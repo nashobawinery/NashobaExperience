@@ -405,6 +405,21 @@ registerModuleDocs({
                   <td className="p-2">Staff/Manager</td>
                   <td className="p-2">Cart contents for order processing</td>
                 </tr>
+                <tr className="border-b">
+                  <td className="p-2">Order Confirmation</td>
+                  <td className="p-2">Customer</td>
+                  <td className="p-2">Confirms receipt of order with details and next steps</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Invoice Email</td>
+                  <td className="p-2">Customer, Sales Rep</td>
+                  <td className="p-2">Official invoice with payment information</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Delivery Confirmation (Customer)</td>
+                  <td className="p-2">Customer</td>
+                  <td className="p-2">Confirms order delivery with order summary</td>
+                </tr>
               </tbody>
             </table>
           </div>
