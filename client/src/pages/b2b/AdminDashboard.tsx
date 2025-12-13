@@ -135,6 +135,7 @@ const manualOrderSchema = z.object({
   items: z.array(z.object({
     productId: z.string().min(1, "Product is required"),
     quantity: z.number().min(1, "Quantity must be at least 1"),
+    unitType: z.enum(["cases", "bottles"]).default("cases"),
   })).min(1, "At least one product is required"),
 });
 
@@ -1147,7 +1148,7 @@ export default function AdminDashboard() {
   const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
   const [manualOrderDialog, setManualOrderDialog] = useState(false);
   const [returnDialog, setReturnDialog] = useState(false);
-  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number }>>([{ productId: "", quantity: 1 }]);
+  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number; unitType: "cases" | "bottles" }>>([{ productId: "", quantity: 1, unitType: "cases" }]);
 
   const createCustomerForm = useForm<CreateCustomerFormData>({
     resolver: zodResolver(createCustomerSchema),
@@ -1315,7 +1316,7 @@ export default function AdminDashboard() {
     defaultValues: {
       customerId: "",
       notes: "",
-      items: [{ productId: "", quantity: 1 }],
+      items: [{ productId: "", quantity: 1, unitType: "cases" }],
     },
   });
 
@@ -2152,8 +2153,8 @@ export default function AdminDashboard() {
 
   const addOrderItem = () => {
     const items = manualOrderForm.getValues("items");
-    manualOrderForm.setValue("items", [...items, { productId: "", quantity: 1 }]);
-    setOrderItems([...orderItems, { productId: "", quantity: 1 }]);
+    manualOrderForm.setValue("items", [...items, { productId: "", quantity: 1, unitType: "cases" }]);
+    setOrderItems([...orderItems, { productId: "", quantity: 1, unitType: "cases" }]);
   };
 
   const removeOrderItem = (index: number) => {
@@ -2181,7 +2182,7 @@ export default function AdminDashboard() {
 
       // Reset form and close dialog
       manualOrderForm.reset();
-      setOrderItems([{ productId: "", quantity: 1 }]);
+      setOrderItems([{ productId: "", quantity: 1, unitType: "cases" }]);
       setManualOrderDialog(false);
     } catch (error: any) {
       toast({
@@ -2208,7 +2209,7 @@ export default function AdminDashboard() {
 
       // Reset form and close dialog
       manualOrderForm.reset();
-      setOrderItems([{ productId: "", quantity: 1 }]);
+      setOrderItems([{ productId: "", quantity: 1, unitType: "cases" }]);
       setReturnDialog(false);
     } catch (error: any) {
       toast({
@@ -5844,25 +5845,49 @@ export default function AdminDashboard() {
                         )}
                       />
 
-                      <FormField
-                        control={manualOrderForm.control}
-                        name={`items.${index}.quantity`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Quantity (cases being returned)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                                data-testid={`input-return-quantity-${index}`}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField
+                          control={manualOrderForm.control}
+                          name={`items.${index}.quantity`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quantity</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                  data-testid={`input-return-quantity-${index}`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={manualOrderForm.control}
+                          name={`items.${index}.unitType`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Unit Type</FormLabel>
+                              <Select value={field.value || "cases"} onValueChange={field.onChange}>
+                                <FormControl>
+                                  <SelectTrigger data-testid={`select-return-unit-type-${index}`}>
+                                    <SelectValue placeholder="Select unit" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="cases">Cases</SelectItem>
+                                  <SelectItem value="bottles">Bottles</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     </div>
 
                     {orderItems.length > 1 && (
