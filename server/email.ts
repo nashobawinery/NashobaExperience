@@ -38,21 +38,34 @@ const BRAND_COLORS = {
 };
 
 /**
+ * Gets the base URL for the application
+ */
+function getBaseUrl(): string {
+  if (process.env.REPLIT_DOMAINS) {
+    return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return 'http://localhost:5000';
+}
+
+/**
  * Generates branded email header with Nashoba Valley Winery logo and name
  * Used for customer-facing emails to build trust and recognition
  */
 export function generateBrandedEmailHeader(title: string, subtitle?: string): string {
+  const baseUrl = getBaseUrl();
+  const logoUrl = `${baseUrl}/attached_assets/NVW%20logo%20no%20background_1762469370864.png`;
+  
   return `
     <div style="background-color: ${BRAND_COLORS.burgundy}; padding: 30px 20px; text-align: center;">
       <table cellpadding="0" cellspacing="0" border="0" width="100%">
         <tr>
           <td align="center">
             <div style="margin-bottom: 15px;">
-              <span style="font-size: 32px; color: ${BRAND_COLORS.gold};">&#127815;</span>
+              <img src="${logoUrl}" alt="Nashoba Valley Winery" style="max-width: 180px; height: auto;" />
             </div>
-            <h1 style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; color: ${BRAND_COLORS.cream}; font-weight: normal; letter-spacing: 1px;">
-              Nashoba Valley Winery
-            </h1>
             <p style="margin: 8px 0 0; font-size: 13px; color: ${BRAND_COLORS.gold}; letter-spacing: 2px; text-transform: uppercase;">
               Farm Winery &bull; Distillery &bull; Restaurant
             </p>
