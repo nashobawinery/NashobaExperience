@@ -356,39 +356,54 @@ registerModuleDocs({
               </thead>
               <tbody className="text-muted-foreground">
                 <tr className="border-b">
-                  <td className="p-2">Customer receives order confirmation when they place an order</td>
-                  <td className="p-2">Customer</td>
-                  <td className="p-2">Order confirmation with order details and items</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="p-2">Order Created</td>
+                  <td className="p-2">Delivery Date Request</td>
                   <td className="p-2">Sales Rep</td>
-                  <td className="p-2">Order details + delivery date link</td>
+                  <td className="p-2">Order details + link to set delivery date</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Delivery Date Set</td>
+                  <td className="p-2">Order Approval Request</td>
                   <td className="p-2">All Admins</td>
-                  <td className="p-2">Invoice preview + approval link</td>
+                  <td className="p-2">Invoice preview + approval/reject link</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Customer and sales rep receive approved invoice</td>
-                  <td className="p-2">Customer, Sales Rep</td>
-                  <td className="p-2">Full invoice with delivery date</td>
+                  <td className="p-2">Delivery Confirmation Request</td>
+                  <td className="p-2">Sales Rep/Admin</td>
+                  <td className="p-2">Link to confirm order was delivered</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Customer receives delivery confirmation with invoice</td>
+                  <td className="p-2">Payment Confirmation Request</td>
+                  <td className="p-2">Admin</td>
+                  <td className="p-2">Link to record payment for delivered order</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Password Reset</td>
+                  <td className="p-2">Customer/Sales Rep/Admin</td>
+                  <td className="p-2">Secure password reset link</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Access Request Notification</td>
+                  <td className="p-2">Support</td>
+                  <td className="p-2">New access request details</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Wholesale Application</td>
+                  <td className="p-2">Support</td>
+                  <td className="p-2">New wholesale application details</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="p-2">Tier Renewal Reminder</td>
                   <td className="p-2">Customer</td>
-                  <td className="p-2">Delivery confirmation with invoice details</td>
+                  <td className="p-2">Commitment progress and renewal reminder</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Order Rejected</td>
-                  <td className="p-2">Customer, Sales Rep</td>
-                  <td className="p-2">Rejection notice with reason</td>
+                  <td className="p-2">Favorites Email</td>
+                  <td className="p-2">Guest</td>
+                  <td className="p-2">List of favorited products</td>
                 </tr>
                 <tr className="border-b">
-                  <td className="p-2">Tier Agreement</td>
-                  <td className="p-2">Customer</td>
-                  <td className="p-2">Agreement link for signature</td>
+                  <td className="p-2">Cart Order Email</td>
+                  <td className="p-2">Staff/Manager</td>
+                  <td className="p-2">Cart contents for order processing</td>
                 </tr>
               </tbody>
             </table>
