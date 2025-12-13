@@ -4648,11 +4648,16 @@ router.get('/api/b2b/admin/products', requireB2bAdminOrSalesRep, async (req: Req
 // Admin/Sales Rep: Create manual order
 router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
-    const { customerId, items, notes } = req.body;
+    const { customerId, items, notes, orderType = 'order' } = req.body;
 
     // Validate input
     if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Customer and at least one item are required' });
+    }
+    
+    // Returns can only be created by admins
+    if (orderType === 'return' && (req.session as any).b2bUserType !== 'admin') {
+      return res.status(403).json({ error: 'Only administrators can create returns' });
     }
 
     // Fetch customer
@@ -4732,37 +4737,47 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
     }
 
     // Create order with items using createB2bOrder which handles both
-    const orderNumber = `MO-${Date.now()}`;
+    const isReturn = orderType === 'return';
+    const orderNumber = isReturn ? `RET-${Date.now()}` : `MO-${Date.now()}`;
     
     // Generate delivery date token for sales rep workflow (7-day expiration for security)
-    const deliveryDateToken = randomBytes(32).toString('hex');
-    const deliveryDateTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    // Returns skip the workflow and go directly to completed
+    const deliveryDateToken = isReturn ? null : randomBytes(32).toString('hex');
+    const deliveryDateTokenExpiresAt = isReturn ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    // For returns: negative totals, completed status, credit invoice
+    const finalSubtotal = isReturn ? -subtotal : subtotal;
+    const finalTotal = isReturn ? -subtotal : subtotal;
+    const finalDiscount = isReturn ? -totalDiscount : totalDiscount;
     
     const order = await storage.createB2bOrder({
       customerId,
       orderNumber,
-      status: 'pending_delivery_date',
-      subtotal: (subtotal + totalDiscount).toFixed(2),
+      orderType: orderType,
+      status: isReturn ? 'completed' : 'pending_delivery_date',
+      subtotal: (Math.abs(finalSubtotal) + Math.abs(finalDiscount)).toFixed(2),
       tax: '0',
-      total: subtotal.toFixed(2),
-      notes: notes || '',
+      total: finalTotal.toFixed(2),
+      notes: isReturn ? `CREDIT MEMO - ${notes || 'Return processed'}` : (notes || ''),
       shippingAddress: customer.shippingAddress || '',
       shippingCity: customer.shippingCity || '',
       shippingState: customer.shippingState || '',
       shippingZipCode: customer.shippingZipCode || '',
       deliveryDateToken,
       deliveryDateTokenExpiresAt,
+      completedAt: isReturn ? new Date() : null,
     }, orderItems.map(item => ({
       productId: item.productId,
       productName: item.productName,
       sku: item.productSku,
-      quantity: item.quantity,
+      quantity: isReturn ? -item.quantity : item.quantity,
       unitPrice: item.unitPrice,
       retailPrice: item.retailPrice,
-      lineTotal: item.totalPrice,
+      lineTotal: isReturn ? (-parseFloat(item.totalPrice)).toFixed(2) : item.totalPrice,
     })));
 
     // Create commission record if customer has sales rep
+    // For returns, create a negative commission adjustment
     if (customer.salesRepId) {
       const salesRep = await storage.getSalesRep(customer.salesRepId);
       if (salesRep && salesRep.commissionPercentage) {
@@ -4772,24 +4787,27 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
         await storage.createCommission({
           orderId: order.id,
           salesRepId: customer.salesRepId,
-          orderTotal: subtotal.toFixed(2),
+          orderTotal: isReturn ? (-subtotal).toFixed(2) : subtotal.toFixed(2),
           commissionPercentage: commissionPercentage.toString(),
-          commissionAmount: commissionAmount.toFixed(2),
-          status: 'pending',
+          commissionAmount: isReturn ? (-commissionAmount).toFixed(2) : commissionAmount.toFixed(2),
+          status: isReturn ? 'earned' : 'pending', // Returns are immediately applied
         });
       }
     }
 
     // Send order notifications (delivery date workflow email to sales rep)
-    try {
-      await sendOrderNotifications(order, customer, orderItems.map(item => ({
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        lineTotal: item.totalPrice,
-      })));
-    } catch (emailError) {
-      console.error('Failed to send order notifications:', emailError);
+    // Skip notifications for returns - they're processed immediately
+    if (!isReturn) {
+      try {
+        await sendOrderNotifications(order, customer, orderItems.map(item => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.totalPrice,
+        })));
+      } catch (emailError) {
+        console.error('Failed to send order notifications:', emailError);
+      }
     }
 
     res.json({ success: true, orderId: order.id });
