@@ -4441,7 +4441,10 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
     const { token } = req.params;
     const { tierId, signatureName } = req.body;
     
+    console.log('[TierAgreement] Submit request received:', { token: token?.substring(0, 8) + '...', tierId, signatureName });
+    
     if (!tierId || !signatureName) {
+      console.log('[TierAgreement] Validation failed: missing tierId or signatureName');
       return res.status(400).json({ error: 'Please select a tier and provide your signature' });
     }
     
@@ -4489,7 +4492,9 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
     const fiscalYearEnd = new Date(now);
     fiscalYearEnd.setDate(fiscalYearEnd.getDate() + 365);
     
-    await db.update(b2bTierAgreements)
+    console.log('[TierAgreement] Updating agreement:', { agreementId: agreement.id, tierId, signatureName, status: 'active' });
+    
+    const updateResult = await db.update(b2bTierAgreements)
       .set({
         tierId,
         signatureName,
@@ -4500,13 +4505,18 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
         fiscalYearEnd,
         updatedAt: now,
       })
-      .where(eq(b2bTierAgreements.id, agreement.id));
+      .where(eq(b2bTierAgreements.id, agreement.id))
+      .returning();
+    
+    console.log('[TierAgreement] Agreement update result:', updateResult);
     
     // Update customer's tier with commitment period
+    console.log('[TierAgreement] Updating customer tier:', { customerId: agreement.customerId, tierId });
     await storage.updateB2bCustomer(agreement.customerId, { 
       pricingTierId: tierId,
       commitmentStartDate: fiscalYearStart,
     });
+    console.log('[TierAgreement] Customer tier updated successfully');
     
     // Send confirmation email to customer with full agreement copy
     if (process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {

@@ -190,26 +190,26 @@ export default function TierAgreementPage() {
                     className="space-y-4"
                   >
                     {tiers.map((tier) => (
-                      <div
+                      <label
                         key={tier.id}
+                        htmlFor={tier.id}
                         className={`flex items-start space-x-4 p-4 border rounded-lg cursor-pointer transition-colors ${
                           selectedTierId === tier.id
                             ? 'border-primary bg-primary/5'
                             : 'border-border hover:border-primary/50'
                         }`}
-                        onClick={() => setSelectedTierId(tier.id)}
                         data-testid={`tier-option-${tier.name.toLowerCase().replace(' ', '-')}`}
                       >
                         <RadioGroupItem value={tier.id} id={tier.id} className="mt-1" />
                         <div className="flex-1">
-                          <Label htmlFor={tier.id} className="text-base font-semibold cursor-pointer">
+                          <span className="text-base font-semibold cursor-pointer">
                             {tier.name} – {tier.discountPercentage}% Discount
-                          </Label>
+                          </span>
                           <p className="text-sm text-muted-foreground mt-1">
                             Customer agrees to purchase a minimum of <strong>{tier.minimumCases} cases</strong> during Nashoba's fiscal year.
                           </p>
                         </div>
-                      </div>
+                      </label>
                     ))}
                   </RadioGroup>
                   
