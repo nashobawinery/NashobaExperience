@@ -89,9 +89,18 @@ export default function CheckoutPage() {
     const product = products.find((p) => p.id === productId);
     return sum + getCartQuantityInCases(item, product);
   }, 0);
-  const qualifiesForTier2 = totalCases >= 5;
+  // Check if customer's current tier is already better than Tier 2
+  // Tier 3 and Tier 4 customers should NOT be downgraded to Tier 2
+  const tier2 = tiers?.find(t => t.tierName === 'Tier 2');
+  const customerTierObj = tiers?.find(t => t.tierName === currentTier);
+  const tier2SortOrder = tier2?.sortOrder || 2;
+  const customerTierSortOrder = customerTierObj?.sortOrder || 1;
+  const customerHasBetterTierThanTier2 = customerTierSortOrder > tier2SortOrder;
   
-  // Determine effective tier - upgrade to Tier 2 if cart >= 5 cases
+  // Only qualify for Tier 2 upgrade if cart >= 5 cases AND customer doesn't have a better tier
+  const qualifiesForTier2 = totalCases >= 5 && !customerHasBetterTierThanTier2;
+  
+  // Determine effective tier - upgrade to Tier 2 only if customer doesn't already have a better tier
   const effectiveTier = qualifiesForTier2 ? 'Tier 2' : currentTier;
 
   // Get cart items with product details and apply category-specific tier-based pricing
