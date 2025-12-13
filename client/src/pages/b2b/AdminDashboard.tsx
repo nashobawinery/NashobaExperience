@@ -608,6 +608,30 @@ export default function AdminDashboard() {
     },
   });
 
+  // Customer agreement status tracking for dynamic button states
+  const [customerAgreementStatuses, setCustomerAgreementStatuses] = useState<Record<string, { status: 'none' | 'active' | 'expired'; agreement?: any }>>({});
+  const [fetchingAgreementStatus, setFetchingAgreementStatus] = useState<Record<string, boolean>>({});
+  const [renewingAgreementId, setRenewingAgreementId] = useState<string | null>(null);
+
+  // Fetch agreement status for a customer
+  const fetchAgreementStatus = async (customerId: string) => {
+    if (fetchingAgreementStatus[customerId]) return;
+    setFetchingAgreementStatus(prev => ({ ...prev, [customerId]: true }));
+    try {
+      const res = await fetch(`/api/b2b/admin/customers/${customerId}/agreement-status`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomerAgreementStatuses(prev => ({ ...prev, [customerId]: data }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch agreement status:', error);
+    } finally {
+      setFetchingAgreementStatus(prev => ({ ...prev, [customerId]: false }));
+    }
+  };
+
   // Send tier agreement mutation
   const [sendingAgreementCustomerId, setSendingAgreementCustomerId] = useState<string | null>(null);
   const sendTierAgreementMutation = useMutation({
@@ -626,12 +650,17 @@ export default function AdminDashboard() {
         error.status = res.status;
         throw error;
       }
-      return data;
+      return { ...data, customerId };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const customerId = sendingAgreementCustomerId;
       setSendingAgreementCustomerId(null);
       queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
       refetchTierAgreements();
+      // Refresh agreement status for this customer
+      if (customerId) {
+        setTimeout(() => fetchAgreementStatus(customerId), 500);
+      }
       toast({
         title: 'Tier Agreement Sent',
         description: 'A tier agreement email has been sent to the customer.',
@@ -653,6 +682,55 @@ export default function AdminDashboard() {
           variant: 'destructive',
         });
       }
+    },
+  });
+
+  // Fetch agreement status for all active customers on mount
+  useEffect(() => {
+    if (activeCustomers && activeCustomers.length > 0) {
+      activeCustomers.forEach(customer => {
+        if (!customerAgreementStatuses[customer.id]) {
+          fetchAgreementStatus(customer.id);
+        }
+      });
+    }
+  }, [activeCustomers]);
+
+  // Renew expired agreement mutation - takes { agreementId, customerId } to avoid stale state issues
+  const renewAgreementMutation = useMutation({
+    mutationFn: async ({ agreementId, customerId }: { agreementId: string; customerId: string }) => {
+      setRenewingAgreementId(agreementId);
+      const res = await fetch(`/api/b2b/admin/tier-agreements/${agreementId}/renew`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to renew agreement');
+      }
+      return { ...data, customerId };
+    },
+    onSuccess: (data) => {
+      setRenewingAgreementId(null);
+      // Use the customerId passed through the mutation to refresh their status
+      if (data.customerId) {
+        fetchAgreementStatus(data.customerId);
+      }
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "customers"] });
+      toast({
+        title: 'Agreement Renewed',
+        description: 'The tier agreement has been renewed for another year.',
+      });
+    },
+    onError: (error: any) => {
+      setRenewingAgreementId(null);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to renew agreement',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -2262,31 +2340,100 @@ export default function AdminDashboard() {
               </Button>
             )}
             
-            {/* Send Tier Agreement button - Only for active customers without Tier 3 or 4 */}
-            {!isPending && canEditCustomer(customer) && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => sendTierAgreementMutation.mutate(customer.id)}
-                    disabled={sendingAgreementCustomerId === customer.id}
-                    className="flex-1"
-                    data-testid={`button-send-tier-agreement-${customer.id}`}
-                  >
-                    {sendingAgreementCustomerId === customer.id ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <FileSignature className="h-4 w-4 mr-2" />
-                    )}
-                    Tier Agreement
+            {/* Dynamic Tier Agreement button - Shows different states based on agreement status */}
+            {!isPending && canEditCustomer(customer) && (() => {
+              const agreementData = customerAgreementStatuses[customer.id];
+              const isLoading = fetchingAgreementStatus[customer.id];
+              const isSending = sendingAgreementCustomerId === customer.id;
+              const isRenewing = agreementData?.agreement && renewingAgreementId === agreementData.agreement.id;
+              
+              // Show loading state while fetching agreement status
+              if (isLoading && !agreementData) {
+                return (
+                  <Button size="sm" variant="outline" disabled className="flex-1" data-testid={`button-tier-agreement-loading-${customer.id}`}>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Send Tier 3/4 agreement for customer to sign
-                </TooltipContent>
-              </Tooltip>
-            )}
+                );
+              }
+              
+              // Expired agreement - show renew button
+              if (agreementData?.status === 'expired' && agreementData?.agreement) {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => renewAgreementMutation.mutate({ agreementId: agreementData.agreement.id, customerId: customer.id })}
+                        disabled={isRenewing}
+                        className="flex-1"
+                        data-testid={`button-renew-agreement-${customer.id}`}
+                      >
+                        {isRenewing ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileSignature className="h-4 w-4 mr-2" />
+                        )}
+                        Expired - Renew
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Agreement expired on {format(new Date(agreementData.agreement.fiscalYearEnd), "MMM d, yyyy")}. Click to renew for another year.
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+              
+              // Active agreement - show view button
+              if (agreementData?.status === 'active' && agreementData?.agreement) {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditCustomer(customer)}
+                        className="flex-1"
+                        data-testid={`button-view-agreement-${customer.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Agreement
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Active agreement expires {format(new Date(agreementData.agreement.fiscalYearEnd), "MMM d, yyyy")}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+              
+              // No agreement or unknown status - show send button
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => sendTierAgreementMutation.mutate(customer.id)}
+                      disabled={isSending}
+                      className="flex-1"
+                      data-testid={`button-send-tier-agreement-${customer.id}`}
+                    >
+                      {isSending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileSignature className="h-4 w-4 mr-2" />
+                      )}
+                      Tier Agreement
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Send Tier 3/4 agreement for customer to sign
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })()}
             
             {/* Change Password button - Admin only for approved customers */}
             {!isPending && can.edit('customers') && (customer.accountStatus === 'active' || customer.accountStatus === 'inactive') && (
