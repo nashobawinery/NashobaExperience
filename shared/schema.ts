@@ -678,6 +678,28 @@ export const b2bEmailAutomationLogs = pgTable("b2b_email_automation_logs", {
   errorMessage: text("error_message"),
 });
 
+// System email template customizations - allows editing hardcoded template text
+export const b2bSystemTemplateCustomizations = pgTable("b2b_system_template_customizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateKey: varchar("template_key").notNull().unique(), // e.g., 'order_delivery_date', 'password_reset'
+  customSubject: text("custom_subject"), // Custom subject line (null = use default)
+  customIntroText: text("custom_intro_text"), // Custom intro/greeting text
+  customBodyText: text("custom_body_text"), // Custom main body text
+  customClosingText: text("custom_closing_text"), // Custom closing/signature text
+  active: boolean("active").notNull().default(true), // Whether customizations are active
+  updatedByAdminId: varchar("updated_by_admin_id").references(() => b2bAdmins.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertB2bSystemTemplateCustomizationSchema = createInsertSchema(b2bSystemTemplateCustomizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertB2bSystemTemplateCustomization = z.infer<typeof insertB2bSystemTemplateCustomizationSchema>;
+export type B2bSystemTemplateCustomization = typeof b2bSystemTemplateCustomizations.$inferSelect;
+
 export const improvementNotes = pgTable("improvement_notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   noteNumber: integer("note_number").notNull(),

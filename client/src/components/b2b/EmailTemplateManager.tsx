@@ -137,11 +137,43 @@ interface FormData {
   active: boolean;
 }
 
+interface SystemTemplatePreview {
+  templateKey: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+interface SystemTemplateCustomization {
+  id?: string;
+  templateKey: string;
+  customSubject: string;
+  customIntroText: string;
+  customBodyText: string;
+  customClosingText: string;
+  active: boolean;
+}
+
 export function EmailTemplateManager() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<B2bEmailTemplate | null>(null);
   const [showVariables, setShowVariables] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<SystemTemplatePreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [editSystemDialogOpen, setEditSystemDialogOpen] = useState(false);
+  const [editingSystemTemplate, setEditingSystemTemplate] = useState<string | null>(null);
+  const [systemCustomization, setSystemCustomization] = useState<SystemTemplateCustomization>({
+    templateKey: '',
+    customSubject: '',
+    customIntroText: '',
+    customBodyText: '',
+    customClosingText: '',
+    active: true,
+  });
+  const [loadingCustomization, setLoadingCustomization] = useState(false);
+  const [savingCustomization, setSavingCustomization] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -251,6 +283,98 @@ export function EmailTemplateManager() {
       ...prev,
       [field]: prev[field] + variable,
     }));
+  }
+
+  async function fetchSystemTemplatePreview(templateKey: string) {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch(`/api/b2b/admin/system-templates/preview/${templateKey}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch preview');
+      }
+      const data = await response.json();
+      setPreviewData(data);
+      setPreviewDialogOpen(true);
+    } catch (error) {
+      toast({ 
+        title: "Failed to load preview", 
+        description: "Could not generate template preview",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  async function openEditSystemDialog(templateKey: string) {
+    setEditingSystemTemplate(templateKey);
+    setLoadingCustomization(true);
+    setEditSystemDialogOpen(true);
+    
+    try {
+      const response = await fetch(`/api/b2b/admin/system-templates/customization/${templateKey}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSystemCustomization({
+          id: data.id,
+          templateKey: templateKey,
+          customSubject: data.customSubject || '',
+          customIntroText: data.customIntroText || '',
+          customBodyText: data.customBodyText || '',
+          customClosingText: data.customClosingText || '',
+          active: data.active ?? true,
+        });
+      } else {
+        setSystemCustomization({
+          templateKey: templateKey,
+          customSubject: '',
+          customIntroText: '',
+          customBodyText: '',
+          customClosingText: '',
+          active: true,
+        });
+      }
+    } catch (error) {
+      setSystemCustomization({
+        templateKey: templateKey,
+        customSubject: '',
+        customIntroText: '',
+        customBodyText: '',
+        customClosingText: '',
+        active: true,
+      });
+    } finally {
+      setLoadingCustomization(false);
+    }
+  }
+
+  async function saveSystemCustomization() {
+    setSavingCustomization(true);
+    try {
+      const response = await fetch('/api/b2b/admin/system-templates/customization', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(systemCustomization),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save customization');
+      }
+      toast({ title: "Customization saved successfully" });
+      setEditSystemDialogOpen(false);
+      setEditingSystemTemplate(null);
+    } catch (error) {
+      toast({ 
+        title: "Failed to save customization", 
+        variant: "destructive" 
+      });
+    } finally {
+      setSavingCustomization(false);
+    }
   }
 
   return (
@@ -408,6 +532,27 @@ export function EmailTemplateManager() {
                                 </Badge>
                               ))}
                             </div>
+                          </div>
+                          <div className="flex-shrink-0 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditSystemDialog(template.id)}
+                              data-testid={`button-edit-system-template-${template.id}`}
+                            >
+                              <Edit2 className="w-4 h-4 mr-2" />
+                              Customize
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => fetchSystemTemplatePreview(template.id)}
+                              disabled={loadingPreview}
+                              data-testid={`button-preview-system-template-${template.id}`}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              Preview
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -681,6 +826,153 @@ export function EmailTemplateManager() {
               data-testid="button-save-template"
             >
               {editingTemplate ? 'Update' : 'Create'} Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* System Template Preview Dialog */}
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle data-testid="dialog-title-system-preview">
+              System Email Preview
+            </DialogTitle>
+            <DialogDescription>
+              Preview of the email template with sample data
+            </DialogDescription>
+          </DialogHeader>
+          
+          {previewData && (
+            <div className="flex-1 flex flex-col min-h-0 space-y-4">
+              <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg">
+                <span className="text-sm text-muted-foreground">Subject:</span>
+                <span className="font-medium" data-testid="preview-subject">{previewData.subject}</span>
+              </div>
+              
+              <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
+                <iframe
+                  srcDoc={previewData.html}
+                  title="Email Preview"
+                  className="w-full h-full min-h-[400px]"
+                  sandbox="allow-same-origin"
+                  data-testid="preview-iframe"
+                />
+              </div>
+              
+              <div className="text-xs text-muted-foreground text-center">
+                This preview uses sample data. Actual emails will contain real order and customer information.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialogOpen(false)} data-testid="button-close-preview">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* System Template Edit/Customize Dialog */}
+      <Dialog open={editSystemDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setEditingSystemTemplate(null);
+        }
+        setEditSystemDialogOpen(open);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle data-testid="dialog-title-customize-system">
+              Customize System Template
+            </DialogTitle>
+            <DialogDescription>
+              Override default text for {systemTemplates.find(t => t.id === editingSystemTemplate)?.name || 'this template'}. 
+              Leave fields empty to use the default text.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingCustomization ? (
+            <div className="py-8 text-center text-muted-foreground">Loading customization...</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="customSubject">Custom Subject Line</Label>
+                <Input
+                  id="customSubject"
+                  value={systemCustomization.customSubject}
+                  onChange={(e) => setSystemCustomization(prev => ({ ...prev, customSubject: e.target.value }))}
+                  placeholder="Leave empty to use default"
+                  data-testid="input-custom-subject"
+                />
+                <p className="text-xs text-muted-foreground">Override the email subject line</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="customIntroText">Custom Introduction Text</Label>
+                <Textarea
+                  id="customIntroText"
+                  value={systemCustomization.customIntroText}
+                  onChange={(e) => setSystemCustomization(prev => ({ ...prev, customIntroText: e.target.value }))}
+                  placeholder="Leave empty to use default"
+                  rows={3}
+                  data-testid="textarea-custom-intro"
+                />
+                <p className="text-xs text-muted-foreground">Opening greeting or introduction paragraph</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="customBodyText">Custom Body Text</Label>
+                <Textarea
+                  id="customBodyText"
+                  value={systemCustomization.customBodyText}
+                  onChange={(e) => setSystemCustomization(prev => ({ ...prev, customBodyText: e.target.value }))}
+                  placeholder="Leave empty to use default"
+                  rows={4}
+                  data-testid="textarea-custom-body"
+                />
+                <p className="text-xs text-muted-foreground">Main content of the email</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="customClosingText">Custom Closing Text</Label>
+                <Textarea
+                  id="customClosingText"
+                  value={systemCustomization.customClosingText}
+                  onChange={(e) => setSystemCustomization(prev => ({ ...prev, customClosingText: e.target.value }))}
+                  placeholder="Leave empty to use default"
+                  rows={2}
+                  data-testid="textarea-custom-closing"
+                />
+                <p className="text-xs text-muted-foreground">Closing message or signature</p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="customActive"
+                  checked={systemCustomization.active}
+                  onCheckedChange={(checked) => setSystemCustomization(prev => ({ ...prev, active: checked }))}
+                  data-testid="switch-custom-active"
+                />
+                <Label htmlFor="customActive">Use custom text (when disabled, defaults are used)</Label>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditSystemDialogOpen(false)} 
+              data-testid="button-cancel-customize"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveSystemCustomization}
+              disabled={savingCustomization || loadingCustomization}
+              data-testid="button-save-customize"
+            >
+              {savingCustomization ? 'Saving...' : 'Save Customization'}
             </Button>
           </DialogFooter>
         </DialogContent>

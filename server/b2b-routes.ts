@@ -6054,6 +6054,319 @@ router.get('/api/b2b/admin/email-automation-logs', requireB2bAdmin, async (req: 
   }
 });
 
+// Admin: Get system email template preview with sample data
+router.get('/api/b2b/admin/system-templates/preview/:templateKey', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { templateKey } = req.params;
+    
+    // Import email generation functions
+    const {
+      generatePasswordResetEmail,
+      generateAccessRequestEmail,
+      generateWholesaleApplicationEmail,
+      generateTierRenewalEmail,
+      generateFavoritesEmail,
+      generateCartEmail,
+      generateBrandedEmailHeader,
+      generateBrandedEmailFooter,
+      getBrandedEmailStyles,
+    } = await import('./email');
+    
+    // Generate preview with sample data based on template key
+    let previewHtml = '';
+    let previewSubject = '';
+    
+    switch (templateKey) {
+      case 'order_delivery_date':
+        previewSubject = 'Action Required: Set Delivery Date for Order #12345';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Delivery Date Request', 'Action required for Order #12345')}
+  <div class="content">
+    <p>Hello <strong>John Smith (Sales Rep)</strong>,</p>
+    <p>A new order has been created for <strong>Sample Restaurant</strong> and requires a delivery date to be set.</p>
+    <div class="info-box">
+      <p><strong>Order #12345</strong></p>
+      <p>Customer: Sample Restaurant</p>
+      <p>Items: 3 cases of Chardonnay, 2 cases of Merlot</p>
+      <p>Total: $450.00</p>
+    </div>
+    <p style="text-align: center;">
+      <a href="#" class="button">Set Delivery Date</a>
+    </p>
+    <p class="warning-box"><strong>Note:</strong> This link is secure and expires after use.</p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'order_approval_request':
+        previewSubject = 'Order Approval Required: Order #12345';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Order Approval Request', 'Review and approve order')}
+  <div class="content">
+    <p>Hello <strong>Admin</strong>,</p>
+    <p>An order is ready for your approval.</p>
+    <div class="info-box">
+      <p><strong>Order #12345</strong></p>
+      <p>Customer: Sample Restaurant</p>
+      <p>Delivery Date: December 20, 2025</p>
+      <p>Total: $450.00</p>
+    </div>
+    <p style="text-align: center;">
+      <a href="#" class="button">Review & Approve</a>
+    </p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'delivery_confirmation_request':
+        previewSubject = 'Confirm Delivery: Order #12345';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Delivery Confirmation', 'Confirm order delivery')}
+  <div class="content">
+    <p>Hello,</p>
+    <p>Please confirm delivery of the following order:</p>
+    <div class="info-box">
+      <p><strong>Order #12345</strong></p>
+      <p>Customer: Sample Restaurant</p>
+      <p>Scheduled Delivery: December 20, 2025</p>
+    </div>
+    <p style="text-align: center;">
+      <a href="#" class="button">Confirm Delivery</a>
+    </p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'payment_confirmation_request':
+        previewSubject = 'Record Payment: Order #12345';
+        previewHtml = `
+<!DOCTYPE html>
+<html>
+<head><style>${getBrandedEmailStyles()}</style></head>
+<body>
+<div class="email-container">
+  ${generateBrandedEmailHeader('Payment Confirmation', 'Record payment for delivered order')}
+  <div class="content">
+    <p>Hello,</p>
+    <p>Order #12345 has been delivered. Please record the payment details.</p>
+    <div class="info-box">
+      <p><strong>Order #12345</strong></p>
+      <p>Customer: Sample Restaurant</p>
+      <p>Amount Due: $450.00</p>
+    </div>
+    <p style="text-align: center;">
+      <a href="#" class="button">Record Payment</a>
+    </p>
+  </div>
+  ${generateBrandedEmailFooter()}
+</div>
+</body>
+</html>`;
+        break;
+        
+      case 'password_reset':
+        const resetEmail = generatePasswordResetEmail('https://example.com/reset?token=sample', 'customer');
+        previewSubject = resetEmail.subject;
+        previewHtml = resetEmail.html;
+        break;
+        
+      case 'access_request':
+        const accessEmail = generateAccessRequestEmail('John Doe', 'Sample Business', 'john@example.com');
+        previewSubject = accessEmail.subject;
+        previewHtml = accessEmail.html;
+        break;
+        
+      case 'wholesale_application':
+        const appEmail = generateWholesaleApplicationEmail({
+          accountName: 'Sample Restaurant',
+          customerType: 'restaurant',
+          customerNumber: 'CUST-001',
+          primaryContactName: 'John Smith',
+          primaryContactRole: 'Owner',
+          emailAddress: 'john@samplerestaurant.com',
+          phoneNumber: '555-123-4567',
+          licenseNumber: 'LIC-12345',
+          taxId: '12-3456789',
+          billingAddress: '123 Main St',
+          billingCity: 'Boston',
+          billingState: 'MA',
+          billingZipCode: '02101',
+          storeLocationSameAsBusiness: 'yes',
+          acceptsMarketing: true,
+          submittedAt: new Date(),
+        });
+        previewSubject = appEmail.subject;
+        previewHtml = appEmail.html;
+        break;
+        
+      case 'tier_renewal':
+        const tierEmail = generateTierRenewalEmail(
+          'Sample Restaurant',
+          'Tier 3',
+          25,
+          5,
+          30,
+          30,
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        );
+        previewSubject = tierEmail.subject;
+        previewHtml = tierEmail.html;
+        break;
+        
+      case 'favorites_email':
+        const favEmail = generateFavoritesEmail({
+          guestName: 'Sample Guest',
+          favorites: [
+            {
+              id: '1',
+              guestId: '1',
+              productId: '1',
+              note: 'Really enjoyed this one!',
+              createdAt: new Date(),
+              product: {
+                id: '1',
+                name: 'Nashoba Valley Chardonnay',
+                category: 'Wine',
+                description: 'A crisp, refreshing white wine with notes of apple and citrus.',
+                price: '18.99',
+                enabled: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                abvMin: null,
+                abvMax: null,
+                quantity: null,
+                sortOrder: null,
+                imageId: null,
+                unitCount: null,
+                unitVolume: null,
+              }
+            }
+          ]
+        });
+        previewSubject = favEmail.subject;
+        previewHtml = favEmail.html;
+        break;
+        
+      case 'cart_order_email':
+        const cartEmail = generateCartEmail({
+          guestName: 'Sample Guest',
+          items: [
+            {
+              id: '1',
+              guestId: '1',
+              productId: '1',
+              quantity: 2,
+              note: null,
+              createdAt: new Date(),
+              product: {
+                id: '1',
+                name: 'Nashoba Valley Chardonnay',
+                category: 'Wine',
+                description: 'A crisp white wine',
+                price: '18.99',
+                enabled: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                abvMin: null,
+                abvMax: null,
+                quantity: null,
+                sortOrder: null,
+                imageId: null,
+                unitCount: null,
+                unitVolume: null,
+              }
+            }
+          ],
+          subtotal: 37.98,
+          discount: 0,
+          triviaCredit: 0,
+          total: 37.98,
+        });
+        previewSubject = cartEmail.subject;
+        previewHtml = cartEmail.html;
+        break;
+        
+      default:
+        return res.status(404).json({ error: 'Unknown template key' });
+    }
+    
+    res.json({
+      templateKey,
+      subject: previewSubject,
+      html: previewHtml,
+    });
+  } catch (error) {
+    console.error('Error generating system template preview:', error);
+    res.status(500).json({ error: 'Failed to generate preview' });
+  }
+});
+
+// Admin: Get system template customization
+router.get('/api/b2b/admin/system-templates/customization/:templateKey', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { templateKey } = req.params;
+    const customization = await storage.getSystemTemplateCustomization(templateKey);
+    if (!customization) {
+      return res.status(404).json({ error: 'No customization found' });
+    }
+    res.json(customization);
+  } catch (error) {
+    console.error('Error fetching system template customization:', error);
+    res.status(500).json({ error: 'Failed to fetch customization' });
+  }
+});
+
+// Admin: Save/update system template customization
+router.post('/api/b2b/admin/system-templates/customization', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { templateKey, customSubject, customIntroText, customBodyText, customClosingText, active } = req.body;
+    
+    if (!templateKey) {
+      return res.status(400).json({ error: 'Template key is required' });
+    }
+    
+    const admin = (req as any).b2bAdmin;
+    const customization = await storage.upsertSystemTemplateCustomization({
+      templateKey,
+      customSubject: customSubject || null,
+      customIntroText: customIntroText || null,
+      customBodyText: customBodyText || null,
+      customClosingText: customClosingText || null,
+      active: active ?? true,
+      updatedByAdminId: admin?.id || null,
+    });
+    
+    res.json(customization);
+  } catch (error) {
+    console.error('Error saving system template customization:', error);
+    res.status(500).json({ error: 'Failed to save customization' });
+  }
+});
+
 // Admin: Backfill missing commissions for existing orders
 router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: Request, res: Response) => {
   try {

@@ -88,6 +88,7 @@ import {
   b2bEmailTemplates,
   b2bTierAgreements,
   b2bEmailAutomationLogs,
+  b2bSystemTemplateCustomizations,
   productMedia,
   improvementNotes,
   type InsertTierPricing,
@@ -118,6 +119,8 @@ import {
   type B2bEmailTemplate,
   type InsertB2bEmailAutomationLog,
   type B2bEmailAutomationLog,
+  type InsertB2bSystemTemplateCustomization,
+  type B2bSystemTemplateCustomization,
   type InsertProductMedia,
   type ProductMedia,
   type InsertImprovementNote,
@@ -517,6 +520,10 @@ export interface IStorage {
   upsertStaffDashboardModule(data: InsertStaffDashboardModule): Promise<StaffDashboardModule>;
   updateStaffDashboardModule(id: string, data: Partial<InsertStaffDashboardModule>): Promise<StaffDashboardModule | undefined>;
   initializeStaffDashboardModules(): Promise<void>;
+
+  // B2B - System Template Customizations
+  getSystemTemplateCustomization(templateKey: string): Promise<B2bSystemTemplateCustomization | undefined>;
+  upsertSystemTemplateCustomization(data: InsertB2bSystemTemplateCustomization): Promise<B2bSystemTemplateCustomization>;
 }
 
 export interface ProductFilters {
@@ -3534,6 +3541,27 @@ export class DatabaseStorage implements IStorage {
   async logEmailAutomation(data: InsertB2bEmailAutomationLog): Promise<B2bEmailAutomationLog> {
     const [log] = await db.insert(b2bEmailAutomationLogs).values(data).returning();
     return log;
+  }
+
+  // B2B - System Template Customizations
+  async getSystemTemplateCustomization(templateKey: string): Promise<B2bSystemTemplateCustomization | undefined> {
+    const [result] = await db.select()
+      .from(b2bSystemTemplateCustomizations)
+      .where(eq(b2bSystemTemplateCustomizations.templateKey, templateKey));
+    return result;
+  }
+
+  async upsertSystemTemplateCustomization(data: InsertB2bSystemTemplateCustomization): Promise<B2bSystemTemplateCustomization> {
+    const existing = await this.getSystemTemplateCustomization(data.templateKey);
+    if (existing) {
+      const [updated] = await db.update(b2bSystemTemplateCustomizations)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(b2bSystemTemplateCustomizations.templateKey, data.templateKey))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(b2bSystemTemplateCustomizations).values(data).returning();
+    return created;
   }
 
   // Improvement Notes (shared between Base App and B2B Admin)
