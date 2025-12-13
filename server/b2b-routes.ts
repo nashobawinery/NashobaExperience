@@ -35,7 +35,7 @@ import {
   b2bTierAgreements,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
-import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail } from './email';
+import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail, generateBrandedEmailHeader, generateBrandedEmailFooter } from './email';
 import { substituteVariables, calculateSavingsVsTier1, calculateCommitmentProgress } from './email-template-variables';
 import { eq, and, gt, inArray, desc, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
@@ -2160,49 +2160,50 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
   // Send order received confirmation to customer (they will get invoice after approval)
   const customerConfirmationHtml = `
     <html>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center;">
-          <h1 style="margin: 0;">Order Received</h1>
-          <p style="margin: 10px 0 0;">Thank you for your order</p>
-        </div>
-        <div style="padding: 30px 20px;">
-          <p>Dear ${customer.primaryContactName},</p>
-          
-          <p>Thank you for your order. We have received it and it is now being processed. You will receive an invoice with your delivery date once the order has been approved.</p>
-          
-          <div style="background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 20px 0;">
-            <p style="margin: 0;"><strong>Order Number:</strong> ${order.orderNumber}</p>
-            <p style="margin: 0;"><strong>Order Total:</strong> $${order.total}</p>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+          .email-container { max-width: 600px; margin: 0 auto; background-color: white; }
+          .content { padding: 30px 25px; }
+        </style>
+      </head>
+      <body>
+        <div class="email-container">
+          ${generateBrandedEmailHeader('Order Received', 'Thank you for your order!')}
+          <div class="content">
+            <p>Dear ${customer.primaryContactName},</p>
+            
+            <p>We're delighted to confirm that we've received your order! Your order is now being processed by our team, and you'll receive an invoice with your scheduled delivery date once it's been approved.</p>
+            
+            <div style="background-color: #F5F5F0; border-left: 4px solid #C9A961; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+              <p style="margin: 0;"><strong>Order Number:</strong> ${order.orderNumber}</p>
+              <p style="margin: 0;"><strong>Order Total:</strong> $${order.total}</p>
+            </div>
+            
+            <h3 style="color: #5C2535;">Order Summary</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <thead>
+                <tr style="background-color: #f8f9fa;">
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Price</th>
+                  <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">Order Total:</td>
+                  <td style="padding: 12px 8px; text-align: right; font-weight: bold;">$${order.total}</td>
+                </tr>
+              </tfoot>
+            </table>
+            
+            <p>We truly appreciate your business and partnership with Nashoba Valley Winery!</p>
           </div>
-          
-          <h3 style="color: #5C2535;">Order Summary</h3>
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <thead>
-              <tr style="background-color: #f8f9fa;">
-                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: left;">Product</th>
-                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: center;">Qty</th>
-                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Price</th>
-                <th style="padding: 12px 8px; border-bottom: 2px solid #ddd; text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">Order Total:</td>
-                <td style="padding: 12px 8px; text-align: right; font-weight: bold;">$${order.total}</td>
-              </tr>
-            </tfoot>
-          </table>
-          
-          <p>If you have any questions about your order, please contact us.</p>
-          
-          <p>Best regards,<br>Nashoba Valley Winery Team</p>
-          
-          <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-            <p>Nashoba Valley Winery - B2B Wholesale Portal</p>
-          </div>
+          ${generateBrandedEmailFooter()}
         </div>
       </body>
     </html>

@@ -1,6 +1,131 @@
 import type { Product, CartItem, Favorite } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
 
+// ============= BRANDED EMAIL COMPONENTS =============
+// Reusable branded header and wrapper for customer-facing emails
+
+const BRAND_COLORS = {
+  burgundy: '#5C2535',
+  gold: '#C9A961',
+  cream: '#F5F5F0',
+  text: '#333333',
+};
+
+/**
+ * Generates branded email header with Nashoba Valley Winery logo and name
+ * Used for customer-facing emails to build trust and recognition
+ */
+export function generateBrandedEmailHeader(title: string, subtitle?: string): string {
+  return `
+    <div style="background-color: ${BRAND_COLORS.burgundy}; padding: 30px 20px; text-align: center;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td align="center">
+            <div style="margin-bottom: 15px;">
+              <span style="font-size: 32px; color: ${BRAND_COLORS.gold};">&#127815;</span>
+            </div>
+            <h1 style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; color: ${BRAND_COLORS.cream}; font-weight: normal; letter-spacing: 1px;">
+              Nashoba Valley Winery
+            </h1>
+            <p style="margin: 8px 0 0; font-size: 13px; color: ${BRAND_COLORS.gold}; letter-spacing: 2px; text-transform: uppercase;">
+              Farm Winery &bull; Distillery &bull; Restaurant
+            </p>
+          </td>
+        </tr>
+      </table>
+      <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(201, 169, 97, 0.3);">
+        <h2 style="margin: 0; font-size: 22px; color: ${BRAND_COLORS.cream}; font-weight: bold;">${title}</h2>
+        ${subtitle ? `<p style="margin: 10px 0 0; color: rgba(245, 245, 240, 0.9); font-size: 15px;">${subtitle}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generates branded email footer with contact info and warm closing
+ */
+export function generateBrandedEmailFooter(includeContact: boolean = true): string {
+  return `
+    <div style="background-color: ${BRAND_COLORS.cream}; padding: 30px 20px; text-align: center; border-top: 3px solid ${BRAND_COLORS.gold};">
+      <p style="margin: 0 0 15px; font-family: Georgia, 'Times New Roman', serif; font-size: 18px; color: ${BRAND_COLORS.burgundy};">
+        Thank you for being part of the Nashoba Valley family!
+      </p>
+      ${includeContact ? `
+      <div style="margin: 20px 0; padding: 15px; background-color: white; border-radius: 8px; display: inline-block;">
+        <p style="margin: 0 0 5px; font-size: 14px; color: ${BRAND_COLORS.text};">
+          <strong>Questions?</strong> We're here to help!
+        </p>
+        <p style="margin: 0; font-size: 14px; color: ${BRAND_COLORS.text};">
+          <a href="mailto:support@nashobawinery.com" style="color: ${BRAND_COLORS.burgundy};">support@nashobawinery.com</a> | 
+          <a href="tel:+19787795521" style="color: ${BRAND_COLORS.burgundy};">(978) 779-5521</a>
+        </p>
+      </div>
+      ` : ''}
+      <p style="margin: 20px 0 0; font-size: 12px; color: #666;">
+        Nashoba Valley Winery | 100 Wattaquadock Hill Road, Bolton, MA 01740
+      </p>
+      <p style="margin: 5px 0 0; font-size: 11px; color: #999;">
+        &copy; ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Common CSS styles for branded emails
+ */
+export function getBrandedEmailStyles(): string {
+  return `
+    body { 
+      font-family: Arial, sans-serif; 
+      line-height: 1.6; 
+      color: ${BRAND_COLORS.text}; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f5f5f5; 
+    }
+    .email-container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      background-color: white; 
+    }
+    .content { 
+      padding: 30px 25px; 
+    }
+    .button { 
+      display: inline-block;
+      background-color: ${BRAND_COLORS.burgundy}; 
+      color: ${BRAND_COLORS.cream} !important; 
+      padding: 14px 28px; 
+      text-decoration: none; 
+      border-radius: 4px; 
+      font-weight: bold;
+    }
+    .button:hover {
+      background-color: #7a3346;
+    }
+    .info-box { 
+      background-color: ${BRAND_COLORS.cream}; 
+      border-left: 4px solid ${BRAND_COLORS.gold}; 
+      padding: 16px; 
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .warning-box { 
+      background-color: #FEF3C7; 
+      border-left: 4px solid #F59E0B; 
+      padding: 12px 16px; 
+      margin: 20px 0;
+    }
+    .success-box {
+      background-color: #D1FAE5;
+      border-left: 4px solid #22c55e;
+      padding: 12px 16px;
+      margin: 20px 0;
+    }
+  `;
+}
+
 interface EmailCartData {
   guestName: string;
   items: Array<CartItem & { product: Product }>;
@@ -195,61 +320,37 @@ Nashoba Valley Winery Team
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
-    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
-    .button { 
-      display: inline-block;
-      background-color: #5C2535; 
-      color: #F5F5F0 !important; 
-      padding: 14px 28px; 
-      text-decoration: none; 
-      border-radius: 4px; 
-      margin: 20px 0;
-      font-weight: bold;
-    }
+    ${getBrandedEmailStyles()}
     .warning { 
       background-color: #FEF3C7; 
       border-left: 4px solid #F59E0B; 
       padding: 12px 16px; 
       margin: 20px 0;
     }
-    .footer { 
-      text-align: center; 
-      color: #666; 
-      font-size: 12px; 
-      margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 1px solid #eee;
-    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Password Reset Request</h1>
-  </div>
-  <div class="content">
-    <p>Hello,</p>
-    
-    <p>We received a request to reset your password for your <strong>${roleDisplay}</strong> account at Nashoba Valley Winery B2B Portal.</p>
-    
-    <p style="text-align: center;">
-      <a href="${resetLink}" class="button">Reset Your Password</a>
-    </p>
-    
-    <div class="warning">
-      <strong>⏰ Important:</strong> This link will expire in 1 hour for security reasons.
+  <div class="email-container">
+    ${generateBrandedEmailHeader('Password Reset Request', 'Secure account recovery')}
+    <div class="content">
+      <p>Hello,</p>
+      
+      <p>We received a request to reset your password for your <strong>${roleDisplay}</strong> account at Nashoba Valley Winery B2B Portal.</p>
+      
+      <p style="text-align: center;">
+        <a href="${resetLink}" class="button">Reset Your Password</a>
+      </p>
+      
+      <div class="warning">
+        <strong>Important:</strong> This link will expire in 1 hour for security reasons.
+      </div>
+      
+      <p>If the button above doesn't work, copy and paste this link into your browser:</p>
+      <p style="word-break: break-all; color: #5C2535;">${resetLink}</p>
+      
+      <p>If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
     </div>
-    
-    <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-    <p style="word-break: break-all; color: #5C2535;">${resetLink}</p>
-    
-    <p>If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
-    
-    <div class="footer">
-      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
-      <p>This is an automated message, please do not reply to this email.</p>
-    </div>
+    ${generateBrandedEmailFooter()}
   </div>
 </body>
 </html>
