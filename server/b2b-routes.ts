@@ -5018,10 +5018,30 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
         }
       }
 
-      const retailPrice = parseFloat(product.price);
-      const unitPrice = retailPrice * (1 - discountPercentage / 100);
-      const lineTotal = unitPrice * item.quantity;
-      const lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      const retailCasePrice = parseFloat(product.price);
+      const casePriceWithDiscount = retailCasePrice * (1 - discountPercentage / 100);
+      const caseSize = product.caseSize || 12;
+      
+      // Check if this item is priced per bottle or per case
+      const unitType = item.unitType || 'cases';
+      let unitPrice: number;
+      let retailPrice: number;
+      let lineTotal: number;
+      let lineDiscount: number;
+      
+      if (unitType === 'bottles') {
+        // Calculate bottle price from case price
+        retailPrice = retailCasePrice / caseSize;
+        unitPrice = casePriceWithDiscount / caseSize;
+        lineTotal = unitPrice * item.quantity;
+        lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      } else {
+        // Standard case pricing
+        retailPrice = retailCasePrice;
+        unitPrice = casePriceWithDiscount;
+        lineTotal = unitPrice * item.quantity;
+        lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      }
       
       subtotal += lineTotal;
       totalDiscount += lineDiscount;
@@ -5031,7 +5051,8 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
         productName: product.name,
         productSku: product.sku || '',
         quantity: item.quantity,
-        caseSize: product.caseSize || 12,
+        caseSize: caseSize,
+        unitType: unitType,
         unitPrice: unitPrice.toFixed(2),
         retailPrice: retailPrice.toFixed(2),
         totalPrice: lineTotal.toFixed(2),
