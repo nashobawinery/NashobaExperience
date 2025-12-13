@@ -3084,6 +3084,7 @@ export class DatabaseStorage implements IStorage {
           Math.round((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30))
         );
 
+        // Only count orders that are approved (awaiting_delivery, awaiting_payment, or completed)
         const orderItems = await db
           .select({
             quantity: b2bOrderItems.quantity,
@@ -3096,7 +3097,8 @@ export class DatabaseStorage implements IStorage {
             and(
               eq(b2bOrders.customerId, customer.id),
               sql`${b2bOrders.orderDate} >= ${startDate}`,
-              sql`${b2bOrders.orderDate} <= ${endDate}`
+              sql`${b2bOrders.orderDate} <= ${endDate}`,
+              sql`${b2bOrders.status} IN ('awaiting_delivery', 'awaiting_payment', 'completed')`
             )
           );
 
