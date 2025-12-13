@@ -530,6 +530,25 @@ export default function AdminDashboard() {
   const [deliveryDateDialog, setDeliveryDateDialog] = useState<{ isOpen: boolean; orderId: string | null; deliveryDate: string }>({ isOpen: false, orderId: null, deliveryDate: '' });
   const [paymentDialog, setPaymentDialog] = useState<{ isOpen: boolean; orderId: string | null; paymentMethod: string; paymentReference: string; paymentNotes: string }>({ isOpen: false, orderId: null, paymentMethod: '', paymentReference: '', paymentNotes: '' });
   const [viewOrderDialog, setViewOrderDialog] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
+  const [editOrderItems, setEditOrderItems] = useState<Array<{ productId: string; productName: string; sku: string; quantity: number; unitPrice: number; totalPrice: number }>>([]);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ orderId, items }: { orderId: string; items: Array<{ productId: string; quantity: number }> }) => {
+      const res = await apiRequest('PATCH', `/api/b2b/admin/orders/${orderId}`, { items });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["b2b", "admin", "orders"] });
+      setViewOrderDialog({ isOpen: false, order: null });
+      setIsEditingOrder(false);
+      setEditOrderItems([]);
+      toast({ title: 'Success', description: 'Order updated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to update order', variant: 'destructive' });
+    },
+  });
 
   const setDeliveryDateMutation = useMutation({
     mutationFn: async ({ orderId, deliveryDate }: { orderId: string; deliveryDate: string }) => {
@@ -5857,7 +5876,13 @@ export default function AdminDashboard() {
       </AlertDialog>
 
       {/* View/Edit Order Dialog */}
-      <Dialog open={viewOrderDialog.isOpen} onOpenChange={(open) => setViewOrderDialog({ isOpen: open, order: viewOrderDialog.order })}>
+      <Dialog open={viewOrderDialog.isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditingOrder(false);
+          setEditOrderItems([]);
+        }
+        setViewOrderDialog({ isOpen: open, order: viewOrderDialog.order });
+      }}>
         <DialogContent className="max-w-2xl" data-testid="dialog-view-order">
           <DialogHeader>
             <DialogTitle>Order Details - {viewOrderDialog.order?.orderNumber}</DialogTitle>
@@ -5886,25 +5911,107 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <span className="text-muted-foreground">Total Cases:</span>
-                <p className="font-medium">{viewOrderDialog.order?.totalCases || 0}</p>
+                <p className="font-medium">{isEditingOrder ? editOrderItems.reduce((sum, item) => sum + item.quantity, 0) : (viewOrderDialog.order?.totalCases || 0)}</p>
               </div>
             </div>
             <div>
-              <h4 className="font-medium mb-2">Order Items:</h4>
-              <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                {viewOrderDialog.order?.items?.map((item: any, index: number) => (
-                  <div key={index} className="p-3 flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{item.productName}</p>
-                      <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">${Number(item.totalPrice || 0).toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{item.quantity} cases @ ${Number(item.unitPrice || 0).toFixed(2)}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium">Order Items:</h4>
+                {!isEditingOrder && !isSalesRep && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      const items = viewOrderDialog.order?.items?.map((item: any) => ({
+                        productId: item.productId,
+                        productName: item.productName,
+                        sku: item.sku,
+                        quantity: item.quantity,
+                        unitPrice: Number(item.unitPrice || 0),
+                        totalPrice: Number(item.totalPrice || item.lineTotal || 0),
+                      })) || [];
+                      setEditOrderItems(items);
+                      setIsEditingOrder(true);
+                    }}
+                    data-testid="button-edit-order-items"
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit Items
+                  </Button>
+                )}
               </div>
+              <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                {isEditingOrder ? (
+                  editOrderItems.map((item, index) => (
+                    <div key={index} className="p-3 flex justify-between items-center gap-3">
+                      <div className="flex-1">
+                        <p className="font-medium">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            const newItems = [...editOrderItems];
+                            if (newItems[index].quantity > 1) {
+                              newItems[index].quantity -= 1;
+                              newItems[index].totalPrice = newItems[index].quantity * newItems[index].unitPrice;
+                              setEditOrderItems(newItems);
+                            }
+                          }}
+                          data-testid={`button-decrease-qty-${index}`}
+                        >
+                          -
+                        </Button>
+                        <span className="w-8 text-center font-medium">{item.quantity}</span>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            const newItems = [...editOrderItems];
+                            newItems[index].quantity += 1;
+                            newItems[index].totalPrice = newItems[index].quantity * newItems[index].unitPrice;
+                            setEditOrderItems(newItems);
+                          }}
+                          data-testid={`button-increase-qty-${index}`}
+                        >
+                          +
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => {
+                            setEditOrderItems(editOrderItems.filter((_, i) => i !== index));
+                          }}
+                          data-testid={`button-remove-item-${index}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  viewOrderDialog.order?.items?.map((item: any, index: number) => (
+                    <div key={index} className="p-3 flex justify-between items-center">
+                      <div>
+                        <p className="font-medium">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">${Number(item.totalPrice || item.lineTotal || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{item.quantity} cases @ ${Number(item.unitPrice || 0).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {isEditingOrder && editOrderItems.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No items in order. Add items or cancel.</p>
+              )}
             </div>
             {viewOrderDialog.order?.notes && (
               <div>
@@ -5913,10 +6020,42 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewOrderDialog({ isOpen: false, order: null })} data-testid="button-close-view-order">
-              Close
-            </Button>
+          <DialogFooter className="gap-2">
+            {isEditingOrder ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsEditingOrder(false);
+                    setEditOrderItems([]);
+                  }} 
+                  data-testid="button-cancel-edit-order"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (viewOrderDialog.order && editOrderItems.length > 0) {
+                      updateOrderMutation.mutate({
+                        orderId: viewOrderDialog.order.id,
+                        items: editOrderItems.map(item => ({
+                          productId: item.productId,
+                          quantity: item.quantity,
+                        })),
+                      });
+                    }
+                  }}
+                  disabled={editOrderItems.length === 0 || updateOrderMutation.isPending}
+                  data-testid="button-save-order-changes"
+                >
+                  {updateOrderMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={() => setViewOrderDialog({ isOpen: false, order: null })} data-testid="button-close-view-order">
+                Close
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
