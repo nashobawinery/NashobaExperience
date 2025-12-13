@@ -9,8 +9,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import nvwLogo from '@assets/NVW logo no background_1762469370864.png';
 
 interface AgreementData {
   agreement: {
@@ -151,7 +152,12 @@ export default function TierAgreementPage() {
         <Card className="shadow-lg">
           <CardHeader className="text-center bg-[#5C2535] text-white rounded-t-lg py-8">
             <div className="mb-4">
-              <FileText className="h-12 w-12 mx-auto opacity-90" />
+              <img 
+                src={nvwLogo} 
+                alt="Nashoba Valley Winery" 
+                className="h-16 mx-auto"
+                data-testid="img-nvw-logo"
+              />
             </div>
             <CardTitle className="text-2xl md:text-3xl font-bold">
               Nashoba Valley Winery

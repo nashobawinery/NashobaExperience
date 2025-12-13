@@ -4662,6 +4662,65 @@ router.post('/api/b2b/tier-agreement/:token/submit', async (req: Request, res: R
       console.error('Failed to notify admins:', notifyError);
     }
     
+    // Notify the sales rep who sent the agreement
+    try {
+      if (agreement.sentBySalesRepId && process.env.SENDGRID_API_KEY && (process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL)) {
+        const salesRep = await db.select().from(salesReps).where(eq(salesReps.id, agreement.sentBySalesRepId)).limit(1);
+        
+        if (salesRep.length > 0 && salesRep[0].email) {
+          const minCasesSalesRep = selectedTier.tierName === 'Tier 3' ? '10' : '30';
+          const salesRepHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+                .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
+                .content { padding: 20px; }
+                .success-box { background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 16px 0; }
+                .info-box { background-color: #F5F5F0; border-left: 4px solid #5C2535; padding: 16px; margin: 16px 0; }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h2 style="margin: 0;">Your Customer Signed!</h2>
+              </div>
+              <div class="content">
+                <div class="success-box">
+                  <h3 style="margin-top: 0; color: #065F46;">Contract Signed Successfully</h3>
+                  <p>Great news! Your customer has signed their tier agreement.</p>
+                </div>
+                
+                <div class="info-box">
+                  <p><strong>Business Name:</strong> ${agreement.businessName}</p>
+                  <p><strong>Signed By:</strong> ${signatureName}</p>
+                  <p><strong>Selected Tier:</strong> ${selectedTier.tierName}</p>
+                  <p><strong>Discount:</strong> ${selectedTier.discountPercentage}%</p>
+                  <p><strong>Case Commitment:</strong> ${minCasesSalesRep} cases minimum annually</p>
+                  <p><strong>Date Signed:</strong> ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}</p>
+                  <p><strong>Agreement Period:</strong> ${fiscalYearStart.toLocaleDateString()} to ${fiscalYearEnd.toLocaleDateString()}</p>
+                </div>
+                
+                <p>The customer's account has been automatically upgraded to ${selectedTier.tierName} pricing.</p>
+                <p>Log into the B2B Sales Portal to view the full agreement details.</p>
+              </div>
+            </body>
+            </html>
+          `;
+          
+          await sendgrid.send({
+            to: salesRep[0].email,
+            from: process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@nashobawinery.com',
+            subject: `[Contract Signed] ${agreement.businessName} signed ${selectedTier.tierName} agreement`,
+            html: salesRepHtml,
+          });
+          console.log(`Sales rep notification email sent to: ${salesRep[0].email}`);
+        }
+      }
+    } catch (salesRepNotifyError) {
+      console.error('Failed to notify sales rep:', salesRepNotifyError);
+    }
+    
     res.json({ 
       success: true, 
       message: 'Agreement signed successfully. Your tier has been updated.',
