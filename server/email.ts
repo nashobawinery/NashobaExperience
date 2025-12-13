@@ -238,10 +238,16 @@ Please prepare this order for the guest.
 export function generateFavoritesEmail(data: EmailFavoritesData): { subject: string; html: string; text: string } {
   const { guestName, favorites } = data;
 
-  const subject = `${guestName}'s Tasting Favorites - Nashoba Winery`;
+  const subject = `Your Tasting Favorites - Nashoba Valley Winery`;
   
   const text = `
-Your Tasting Favorites - ${guestName}
+Your Tasting Favorites
+
+Hi ${guestName},
+
+Thank you for visiting Nashoba Valley Winery! We're delighted that you found some favorites during your tasting experience.
+
+Here are the products you loved:
 
 ${favorites.map(fav => `
 ${fav.product.name} (${fav.product.category}) - $${parseFloat(fav.product.price).toFixed(2)}
@@ -249,7 +255,13 @@ ${fav.product.description}
 ${fav.note ? `Your notes: ${fav.note}` : ''}
 `).join('\n---\n')}
 
-Thank you for visiting Nashoba Winery!
+We hope to see you again soon!
+
+Cheers,
+The Nashoba Valley Winery Team
+
+Questions? Contact us at support@nashobawinery.com or (978) 779-5521
+100 Wattaquadock Hill Road, Bolton, MA 01740
   `.trim();
 
   const html = `
@@ -257,33 +269,54 @@ Thank you for visiting Nashoba Winery!
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
-    .content { padding: 20px; }
-    .favorite { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 15px 0; }
-    .favorite h3 { color: #5C2535; margin-top: 0; }
-    .price { color: #C9A961; font-weight: bold; }
-    .notes { background-color: #f9f9f9; padding: 10px; border-left: 3px solid #C9A961; margin-top: 10px; font-style: italic; }
+    ${getBrandedEmailStyles()}
+    .favorite { 
+      border: 1px solid #e0e0e0; 
+      border-radius: 8px; 
+      padding: 20px; 
+      margin: 15px 0;
+      background-color: white;
+    }
+    .favorite h3 { color: #5C2535; margin-top: 0; margin-bottom: 10px; }
+    .price { color: #C9A961; font-weight: bold; font-size: 18px; }
+    .notes { 
+      background-color: #F5F5F0; 
+      padding: 12px 15px; 
+      border-left: 3px solid #C9A961; 
+      margin-top: 15px; 
+      font-style: italic;
+      border-radius: 0 8px 8px 0;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Your Tasting Favorites</h1>
-    <p>${guestName}</p>
-  </div>
-  <div class="content">
-    ${favorites.map(fav => `
-      <div class="favorite">
-        <h3>${fav.product.name}</h3>
-        <p><strong>Category:</strong> ${fav.product.category} | <span class="price">$${parseFloat(fav.product.price).toFixed(2)}</span></p>
-        <p>${fav.product.description}</p>
-        ${fav.note ? `<div class="notes">Your notes: ${fav.note}</div>` : ''}
+  <div class="email-container">
+    ${generateBrandedEmailHeader('Your Tasting Favorites', 'A keepsake from your visit')}
+    <div class="content">
+      <p>Hi <strong>${guestName}</strong>,</p>
+      
+      <p>Thank you for visiting Nashoba Valley Winery! We're delighted that you found some favorites during your tasting experience.</p>
+      
+      <p>Here are the products you loved:</p>
+      
+      ${favorites.map(fav => `
+        <div class="favorite">
+          <h3>${fav.product.name}</h3>
+          <p><strong>Category:</strong> ${fav.product.category}</p>
+          <p class="price">$${parseFloat(fav.product.price).toFixed(2)}</p>
+          <p>${fav.product.description}</p>
+          ${fav.note ? `<div class="notes"><strong>Your notes:</strong> ${fav.note}</div>` : ''}
+        </div>
+      `).join('')}
+      
+      <div class="info-box">
+        <p style="margin: 0;"><strong>Want to order more?</strong> Visit our tasting room or contact us anytime. We'd love to help you stock up on your favorites!</p>
       </div>
-    `).join('')}
-    
-    <p style="text-align: center; margin-top: 30px; color: #666;">
-      Thank you for visiting Nashoba Winery!
-    </p>
+      
+      <p style="margin-top: 25px;">We hope to see you again soon!</p>
+      <p>Cheers,<br><strong>The Nashoba Valley Winery Team</strong></p>
+    </div>
+    ${generateBrandedEmailFooter()}
   </div>
 </body>
 </html>
@@ -470,16 +503,16 @@ export function generateTierRenewalEmail(
   daysUntilRenewal: number,
   commitmentEndDate: Date
 ): { subject: string; html: string; text: string } {
-  const subject = `Tier Commitment Renewal Reminder - ${tierName}`;
+  const subject = `Your ${tierName} Tier Renewal - Nashoba Valley Winery`;
   
   const text = `
-Tier Commitment Renewal Reminder
+Your Tier Commitment Update
 
 Dear ${customerName},
 
-We want to thank you for being a valued wholesale customer in our ${tierName} tier!
+Thank you for being a valued wholesale partner with Nashoba Valley Winery! We appreciate your continued business.
 
-Your annual commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString()}.
+Your ${tierName} tier commitment period ends in ${daysUntilRenewal} days on ${commitmentEndDate.toLocaleDateString()}.
 
 Commitment Summary:
 - Tier: ${tierName}
@@ -493,12 +526,15 @@ ${casesRemaining > 0
 
 Your commitment will automatically renew for another year, and we look forward to continuing to serve you.
 
-If you have any questions about your commitment or would like to discuss your account, please don't hesitate to contact us.
+If you have any questions about your commitment or would like to discuss your account, please don't hesitate to reach out - we're always here to help!
 
 Thank you for your continued partnership!
 
-Best regards,
-Nashoba Valley Winery B2B Team
+Warm regards,
+The Nashoba Valley Winery Team
+
+Questions? Contact us at support@nashobawinery.com or (978) 779-5521
+100 Wattaquadock Hill Road, Bolton, MA 01740
   `.trim();
 
   const html = `
@@ -506,14 +542,13 @@ Nashoba Valley Winery B2B Team
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .header { background-color: #5C2535; color: #F5F5F0; padding: 20px; text-align: center; }
-    .content { padding: 30px 20px; max-width: 600px; margin: 0 auto; }
+    ${getBrandedEmailStyles()}
     .commitment-box { 
       background-color: #F5F5F0; 
       border-left: 4px solid #C9A961; 
       padding: 20px; 
       margin: 20px 0;
+      border-radius: 0 8px 8px 0;
     }
     .stat-row {
       display: flex;
@@ -541,83 +576,65 @@ Nashoba Valley Winery B2B Team
       height: 100%;
       transition: width 0.3s ease;
     }
-    .alert-box {
-      background-color: ${casesRemaining > 0 ? '#FEF3C7' : '#D1FAE5'};
-      border-left: 4px solid ${casesRemaining > 0 ? '#F59E0B' : '#22c55e'};
-      padding: 16px;
-      margin: 20px 0;
-    }
-    .footer { 
-      text-align: center; 
-      color: #666; 
-      font-size: 12px; 
-      margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 1px solid #eee;
-    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Tier Commitment Renewal Reminder</h1>
-  </div>
-  <div class="content">
-    <p>Dear ${customerName},</p>
-    
-    <p>We want to thank you for being a valued wholesale customer in our <strong>${tierName}</strong> tier!</p>
-    
-    <p>Your annual commitment period ends in <strong>${daysUntilRenewal} days</strong> on <strong>${commitmentEndDate.toLocaleDateString()}</strong>.</p>
-    
-    <div class="commitment-box">
-      <h3 style="margin-top: 0; color: #5C2535;">Commitment Summary</h3>
+  <div class="email-container">
+    ${generateBrandedEmailHeader('Tier Commitment Update', `${daysUntilRenewal} days until renewal`)}
+    <div class="content">
+      <p>Dear <strong>${customerName}</strong>,</p>
       
-      <div class="stat-row">
-        <span class="stat-label">Tier:</span>
-        <span class="stat-value">${tierName}</span>
+      <p>Thank you for being a valued wholesale partner with Nashoba Valley Winery! We truly appreciate your continued business and partnership.</p>
+      
+      <p>Your <strong>${tierName}</strong> tier commitment period ends on <strong>${commitmentEndDate.toLocaleDateString()}</strong>.</p>
+      
+      <div class="commitment-box">
+        <h3 style="margin-top: 0; color: #5C2535;">Your Progress</h3>
+        
+        <div class="stat-row">
+          <span class="stat-label">Tier:</span>
+          <span class="stat-value">${tierName}</span>
+        </div>
+        
+        <div class="stat-row">
+          <span class="stat-label">Required Cases:</span>
+          <span class="stat-value">${commitmentCases} cases per year</span>
+        </div>
+        
+        <div class="stat-row">
+          <span class="stat-label">Cases Purchased:</span>
+          <span class="stat-value">${casesPurchased} cases</span>
+        </div>
+        
+        <div class="stat-row" style="border-bottom: none;">
+          <span class="stat-label">Cases Remaining:</span>
+          <span class="stat-value" style="font-weight: bold; color: ${casesRemaining === 0 ? '#22c55e' : '#F59E0B'};">
+            ${casesRemaining} cases
+          </span>
+        </div>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${Math.min(100, (casesPurchased / commitmentCases) * 100)}%"></div>
+        </div>
+        <p style="text-align: center; font-size: 14px; margin: 5px 0; color: #666;">
+          ${Math.min(100, Math.round((casesPurchased / commitmentCases) * 100))}% Complete
+        </p>
       </div>
       
-      <div class="stat-row">
-        <span class="stat-label">Required Cases:</span>
-        <span class="stat-value">${commitmentCases} cases per year</span>
+      <div class="${casesRemaining > 0 ? 'warning-box' : 'success-box'}">
+        ${casesRemaining > 0 
+          ? `<strong>Next Steps:</strong> To keep your ${tierName} pricing benefits, please order <strong>${casesRemaining} more case${casesRemaining > 1 ? 's' : ''}</strong> before ${commitmentEndDate.toLocaleDateString()}. We're happy to help with your order!`
+          : '<strong>Great news!</strong> You\'ve met your commitment for this period. Thank you for your loyalty!'}
       </div>
       
-      <div class="stat-row">
-        <span class="stat-label">Cases Purchased:</span>
-        <span class="stat-value">${casesPurchased} cases</span>
-      </div>
+      <p>Your commitment will automatically renew for another year, and we look forward to continuing to serve you.</p>
       
-      <div class="stat-row" style="border-bottom: none;">
-        <span class="stat-label">Cases Remaining:</span>
-        <span class="stat-value" style="font-weight: bold; color: ${casesRemaining === 0 ? '#22c55e' : '#F59E0B'};">
-          ${casesRemaining} cases
-        </span>
-      </div>
+      <p>If you have any questions about your commitment or would like to discuss your account, please don't hesitate to reach out - we're always here to help!</p>
       
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: ${Math.min(100, (casesPurchased / commitmentCases) * 100)}%"></div>
-      </div>
-      <p style="text-align: center; font-size: 14px; margin: 5px 0; color: #666;">
-        ${Math.min(100, Math.round((casesPurchased / commitmentCases) * 100))}% Complete
-      </p>
+      <p style="margin-top: 25px;">Thank you for your continued partnership!</p>
+      <p>Warm regards,<br><strong>The Nashoba Valley Winery Team</strong></p>
     </div>
-    
-    <div class="alert-box">
-      ${casesRemaining > 0 
-        ? `<strong>⏰ Action Required:</strong> To maintain your ${tierName} pricing, please order <strong>${casesRemaining} more case${casesRemaining > 1 ? 's' : ''}</strong> before ${commitmentEndDate.toLocaleDateString()}.`
-        : '<strong>✓ Congratulations!</strong> You have met your commitment requirement for this period.'}
-    </div>
-    
-    <p>Your commitment will automatically renew for another year, and we look forward to continuing to serve you.</p>
-    
-    <p>If you have any questions about your commitment or would like to discuss your account, please don't hesitate to contact us.</p>
-    
-    <p style="margin-top: 30px;">Thank you for your continued partnership!</p>
-    
-    <div class="footer">
-      <p><strong>Nashoba Valley Winery B2B Team</strong></p>
-      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
-      <p>This is an automated reminder based on your tier commitment.</p>
-    </div>
+    ${generateBrandedEmailFooter()}
   </div>
 </body>
 </html>
@@ -1044,14 +1061,14 @@ export function generateReservationConfirmationEmail(data: ReservationConfirmati
   });
   const formattedTime = formatTo12Hour(reservationTime);
 
-  const subject = `Reservation Confirmed: ${experienceName} - ${formattedDate}`;
+  const subject = `You're All Set! ${experienceName} - ${formattedDate}`;
   
   const text = `
-Thank you for your reservation!
+Your Reservation is Confirmed!
 
 Hi ${customerName},
 
-Your reservation at Nashoba Valley Winery has been confirmed.
+Great news - your reservation at Nashoba Valley Winery is confirmed! We can't wait to welcome you.
 
 RESERVATION DETAILS
 Experience: ${experienceName}
@@ -1067,11 +1084,12 @@ To modify or cancel your reservation, please contact us at:
 Email: support@nashobawinery.com
 Phone: (978) 779-5521
 
-We look forward to seeing you!
+We look forward to seeing you soon!
 
-Nashoba Valley Winery
-100 Wattaquadock Hill Road
-Bolton, MA 01740
+Cheers,
+The Nashoba Valley Winery Team
+
+100 Wattaquadock Hill Road, Bolton, MA 01740
   `.trim();
 
   const html = `
@@ -1079,13 +1097,7 @@ Bolton, MA 01740
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
-    .container { max-width: 600px; margin: 0 auto; background-color: white; }
-    .header { background-color: #5C2535; color: #F5F5F0; padding: 30px 20px; text-align: center; }
-    .header h1 { margin: 0; font-size: 28px; }
-    .header p { margin: 10px 0 0; opacity: 0.9; font-size: 16px; }
-    .content { padding: 30px 25px; }
-    .greeting { font-size: 18px; margin-bottom: 20px; }
+    ${getBrandedEmailStyles()}
     .confirmation-box { 
       background: linear-gradient(135deg, #5C2535 0%, #7a3346 100%);
       color: white;
@@ -1108,16 +1120,6 @@ Bolton, MA 01740
     .confirmation-code .label { font-size: 12px; text-transform: uppercase; opacity: 0.8; }
     .confirmation-code .code { font-size: 24px; font-weight: bold; letter-spacing: 2px; margin-top: 5px; }
     ` : ''}
-    .contact-box { 
-      background-color: #F5F5F0; 
-      border-left: 4px solid #C9A961; 
-      padding: 20px; 
-      margin: 25px 0;
-      border-radius: 0 8px 8px 0;
-    }
-    .contact-box h3 { margin: 0 0 15px 0; color: #5C2535; }
-    .contact-box p { margin: 8px 0; }
-    .contact-box a { color: #5C2535; font-weight: bold; }
     ${specialRequests ? `
     .special-requests { 
       background-color: #fff8e7; 
@@ -1128,30 +1130,18 @@ Bolton, MA 01740
     }
     .special-requests h4 { margin: 0 0 10px 0; color: #856404; }
     ` : ''}
-    .footer { 
-      background-color: #f8f8f8; 
-      padding: 25px; 
-      text-align: center; 
-      border-top: 1px solid #eee;
-    }
-    .footer p { margin: 5px 0; color: #666; font-size: 14px; }
-    .footer .brand { color: #5C2535; font-weight: bold; font-size: 16px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>Reservation Confirmed!</h1>
-      <p>Thank you for booking with us</p>
-    </div>
-    
+  <div class="email-container">
+    ${generateBrandedEmailHeader('Reservation Confirmed!', 'We can\'t wait to see you')}
     <div class="content">
-      <p class="greeting">Hi ${customerName},</p>
+      <p>Hi <strong>${customerName}</strong>,</p>
       
-      <p>Your reservation at Nashoba Valley Winery has been confirmed. We're excited to have you!</p>
+      <p>Great news - your reservation at Nashoba Valley Winery is confirmed! We're excited to welcome you for a wonderful experience.</p>
       
       <div class="confirmation-box">
-        <h2>Reservation Details</h2>
+        <h2>Your Reservation Details</h2>
         <div class="detail-row">
           <span class="detail-label">Experience</span>
           <span class="detail-value">${experienceName}</span>
@@ -1189,21 +1179,17 @@ Bolton, MA 01740
       </div>
       ` : ''}
       
-      <div class="contact-box">
-        <h3>Need to Make Changes?</h3>
-        <p>To modify or cancel your reservation, please contact us:</p>
-        <p><strong>Email:</strong> <a href="mailto:support@nashobawinery.com">support@nashobawinery.com</a></p>
-        <p><strong>Phone:</strong> (978) 779-5521</p>
+      <div class="info-box">
+        <h3 style="margin: 0 0 15px 0; color: #5C2535;">Need to Make Changes?</h3>
+        <p style="margin: 0;">To modify or cancel your reservation, please contact us:</p>
+        <p style="margin: 8px 0 0;"><strong>Email:</strong> <a href="mailto:support@nashobawinery.com" style="color: #5C2535;">support@nashobawinery.com</a></p>
+        <p style="margin: 8px 0 0;"><strong>Phone:</strong> (978) 779-5521</p>
       </div>
       
-      <p>We look forward to seeing you!</p>
+      <p style="margin-top: 25px;">We look forward to seeing you soon!</p>
+      <p>Cheers,<br><strong>The Nashoba Valley Winery Team</strong></p>
     </div>
-    
-    <div class="footer">
-      <p class="brand">Nashoba Valley Winery</p>
-      <p>100 Wattaquadock Hill Road, Bolton, MA 01740</p>
-      <p>© ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
-    </div>
+    ${generateBrandedEmailFooter()}
   </div>
 </body>
 </html>
