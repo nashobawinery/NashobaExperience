@@ -8667,6 +8667,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // REVISION REQUESTS ROUTES
+  // ==========================================
+
+  // Get revision requests for a specific report
+  app.get('/api/daily-reports/reports/:reportId/revision-requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId } = req.params;
+      const requests = await storage.getDailyReportRevisionRequests(reportId);
+      res.json(requests);
+    } catch (error) {
+      console.error('Error fetching revision requests:', error);
+      res.status(500).json({ message: 'Failed to fetch revision requests' });
+    }
+  });
+
+  // Create a new revision request for a report
+  app.post('/api/daily-reports/reports/:reportId/revision-requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId } = req.params;
+      const { requestMessage } = req.body;
+      
+      if (!requestMessage || !requestMessage.trim()) {
+        return res.status(400).json({ message: 'Request message is required' });
+      }
+      
+      // Verify the report exists
+      const report = await storage.getDailyReport(reportId);
+      if (!report) {
+        return res.status(404).json({ message: 'Report not found' });
+      }
+      
+      const userName = req.user?.claims?.name || req.user?.claims?.first_name || 'Unknown';
+      const userId = req.user?.claims?.sub || null;
+      
+      const request = await storage.createDailyReportRevisionRequest({
+        reportId,
+        requestedById: userId,
+        requestedByName: userName,
+        requestMessage: requestMessage.trim(),
+        status: 'open'
+      });
+      
+      res.status(201).json(request);
+    } catch (error) {
+      console.error('Error creating revision request:', error);
+      res.status(500).json({ message: 'Failed to create revision request' });
+    }
+  });
+
+  // Get all open revision requests for reports submitted by current user
+  app.get('/api/daily-reports/my-revision-requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.json([]);
+      }
+      const requests = await storage.getOpenRevisionRequestsForSubmitter(userId);
+      res.json(requests);
+    } catch (error) {
+      console.error('Error fetching my revision requests:', error);
+      res.status(500).json({ message: 'Failed to fetch revision requests' });
+    }
+  });
+
+  // Respond to a revision request
+  app.patch('/api/daily-reports/revision-requests/:id/respond', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { responseMessage } = req.body;
+      
+      if (!responseMessage || !responseMessage.trim()) {
+        return res.status(400).json({ message: 'Response message is required' });
+      }
+      
+      const userName = req.user?.claims?.name || req.user?.claims?.first_name || 'Unknown';
+      const userId = req.user?.claims?.sub || null;
+      
+      const updated = await storage.respondToDailyReportRevisionRequest(
+        id,
+        responseMessage.trim(),
+        userId,
+        userName
+      );
+      
+      if (!updated) {
+        return res.status(404).json({ message: 'Revision request not found' });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error responding to revision request:', error);
+      res.status(500).json({ message: 'Failed to respond to revision request' });
+    }
+  });
+
   // Get a single daily report with all details
   app.get('/api/daily-reports/:id', isAuthenticated, async (req: any, res) => {
     try {

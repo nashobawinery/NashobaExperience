@@ -1892,6 +1892,31 @@ export type DepartmentFieldAssignmentWithDefinition = DepartmentFieldAssignment 
   fieldDefinition?: DailyReportFieldDefinition;
 };
 
+// Daily Report Revision Requests - Track requests for clarification/revision on reports
+export const dailyReportRevisionRequests = pgTable("daily_report_revision_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportId: varchar("report_id").notNull().references(() => dailyReports.id, { onDelete: "cascade" }),
+  requestedById: varchar("requested_by_id"),
+  requestedByName: varchar("requested_by_name"),
+  requestMessage: text("request_message").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("open"), // 'open' or 'resolved'
+  responseMessage: text("response_message"),
+  respondedById: varchar("responded_by_id"),
+  respondedByName: varchar("responded_by_name"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_revision_requests_report").on(table.reportId),
+  index("idx_revision_requests_status").on(table.status),
+]);
+
+export const insertDailyReportRevisionRequestSchema = createInsertSchema(dailyReportRevisionRequests).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertDailyReportRevisionRequest = z.infer<typeof insertDailyReportRevisionRequestSchema>;
+export type DailyReportRevisionRequest = typeof dailyReportRevisionRequests.$inferSelect;
+
 // ============================================
 // RESERVATION MODULE (resy_*) TABLES
 // ============================================

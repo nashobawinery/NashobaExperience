@@ -154,6 +154,9 @@ import {
   type InsertDepartmentFieldAssignment,
   type DepartmentFieldAssignment,
   type DepartmentFieldAssignmentWithDefinition,
+  dailyReportRevisionRequests,
+  type InsertDailyReportRevisionRequest,
+  type DailyReportRevisionRequest,
   // Daily Procedures Module
   proceduresTemplates,
   proceduresItems,
@@ -4300,6 +4303,59 @@ export class DatabaseStorage implements IStorage {
           eq(departmentFieldAssignments.fieldDefinitionId, update.fieldDefinitionId)
         ));
     }
+  }
+
+  // Daily Report Revision Requests
+  async getDailyReportRevisionRequests(reportId: string): Promise<DailyReportRevisionRequest[]> {
+    return await db.select().from(dailyReportRevisionRequests)
+      .where(eq(dailyReportRevisionRequests.reportId, reportId))
+      .orderBy(desc(dailyReportRevisionRequests.createdAt));
+  }
+
+  async getOpenRevisionRequestsForSubmitter(submitterId: string): Promise<DailyReportRevisionRequest[]> {
+    // Get all open revision requests for reports submitted by this user
+    const reports = await db.select({ id: dailyReports.id }).from(dailyReports)
+      .where(eq(dailyReports.submittedById, submitterId));
+    
+    if (reports.length === 0) return [];
+    
+    const reportIds = reports.map(r => r.id);
+    return await db.select().from(dailyReportRevisionRequests)
+      .where(and(
+        inArray(dailyReportRevisionRequests.reportId, reportIds),
+        eq(dailyReportRevisionRequests.status, 'open')
+      ))
+      .orderBy(desc(dailyReportRevisionRequests.createdAt));
+  }
+
+  async createDailyReportRevisionRequest(data: InsertDailyReportRevisionRequest): Promise<DailyReportRevisionRequest> {
+    const [request] = await db.insert(dailyReportRevisionRequests).values(data).returning();
+    return request;
+  }
+
+  async respondToDailyReportRevisionRequest(
+    id: string, 
+    responseMessage: string,
+    respondedById: string | null,
+    respondedByName: string | null
+  ): Promise<DailyReportRevisionRequest | undefined> {
+    const [updated] = await db.update(dailyReportRevisionRequests)
+      .set({
+        responseMessage,
+        respondedById,
+        respondedByName,
+        respondedAt: new Date(),
+        status: 'resolved'
+      })
+      .where(eq(dailyReportRevisionRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getDailyReportRevisionRequest(id: string): Promise<DailyReportRevisionRequest | undefined> {
+    const [request] = await db.select().from(dailyReportRevisionRequests)
+      .where(eq(dailyReportRevisionRequests.id, id));
+    return request;
   }
 
   // ==========================================
