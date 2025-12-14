@@ -134,12 +134,15 @@ export const products = pgTable("products", {
   wineOfMonth: boolean("wine_of_month").notNull().default(false),
   tags: text("tags").array(),
   caseSize: integer("case_size").notNull().default(12),
+  isArchived: boolean("is_archived").notNull().default(false),
+  archivedAt: timestamp("archived_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_products_category").on(table.category),
   index("idx_products_wine_color").on(table.wineColor),
   index("idx_products_available").on(table.available),
   index("idx_products_category_available").on(table.category, table.available),
+  index("idx_products_archived").on(table.isArchived),
 ]);
 
 export const guestSessions = pgTable("guest_sessions", {
