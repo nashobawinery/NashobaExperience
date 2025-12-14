@@ -112,6 +112,8 @@ export default function AdminProductManager({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/archived'] });
       toast({
         title: "Products archived",
         description: `Successfully archived ${selectedIds.length} product(s). You can restore them from the archived products section.`,

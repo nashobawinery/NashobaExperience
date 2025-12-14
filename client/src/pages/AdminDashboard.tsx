@@ -1,4 +1,5 @@
 import AdminProductManager from "@/components/AdminProductManager";
+import ArchivedProductsManager from "@/components/ArchivedProductsManager";
 import BulkProductEditor from "@/components/BulkProductEditor";
 import ProductMediaManager from "@/components/ProductMediaManager";
 import { ImageSelectionDialog } from "@/components/ImageSelectionDialog";
@@ -30,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database, Home } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database, Home, Archive } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/tasting";
@@ -808,10 +809,14 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <Card className="p-4">
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-muted-foreground">Product Management</h3>
-                <TabsList className="grid w-full grid-cols-4 h-auto">
+                <TabsList className="grid w-full grid-cols-5 h-auto">
                   <TabsTrigger value="products" data-testid="tab-products" className="flex items-center justify-center gap-2">
                     <Package className="w-4 h-4" />
                     <span>Products</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="archived-products" data-testid="tab-archived-products" className="flex items-center justify-center gap-2">
+                    <Archive className="w-4 h-4" />
+                    <span>Archived</span>
                   </TabsTrigger>
                   <TabsTrigger value="product-media" data-testid="tab-product-media" className="flex items-center justify-center gap-2">
                     <Image className="w-4 h-4" />
@@ -927,6 +932,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                 <BulkProductEditor />
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="archived-products">
+            <ArchivedProductsManager />
           </TabsContent>
 
           <TabsContent value="product-media">
