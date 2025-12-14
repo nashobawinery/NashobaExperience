@@ -4078,7 +4078,7 @@ export default function DailyReportsAdminDashboard() {
               disabled={updateDepartmentMutation.isPending}
               data-testid="button-save-department"
             >
-              {updateDepartmentMutation.isPending ? "Saving..." : "Save Email Settings"}
+              {updateDepartmentMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
