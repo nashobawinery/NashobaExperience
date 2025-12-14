@@ -205,6 +205,15 @@ interface DailyReportAccessCode {
   createdAt: string;
 }
 
+interface DailyReportIncidentNote {
+  id: string;
+  incidentId: string;
+  note: string;
+  addedById: string | null;
+  addedByName: string | null;
+  createdAt: string;
+}
+
 interface DailyReportFieldDefinition {
   id: string;
   key: string;
@@ -991,6 +1000,11 @@ export default function DailyReportsAdminDashboard() {
   const [revisionRequestMessage, setRevisionRequestMessage] = useState("");
   const [reportForRevision, setReportForRevision] = useState<DailyReport | null>(null);
 
+  // Incident management state
+  const [isIncidentManageDialogOpen, setIsIncidentManageDialogOpen] = useState(false);
+  const [managingIncident, setManagingIncident] = useState<DailyReportIncident | null>(null);
+  const [newIncidentNote, setNewIncidentNote] = useState("");
+
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
   });
@@ -1058,6 +1072,47 @@ export default function DailyReportsAdminDashboard() {
   const { data: unresolvedIncidents = [], isLoading: unresolvedIncidentsLoading } = useQuery<DailyReportIncident[]>({
     queryKey: ['/api/daily-reports/incidents/unresolved'],
     enabled: activeTab === 'incidents'
+  });
+
+  // Query for incident notes (when managing an incident)
+  const { data: incidentNotes = [], isLoading: incidentNotesLoading } = useQuery<DailyReportIncidentNote[]>({
+    queryKey: ['/api/daily-reports/incidents', managingIncident?.id, 'notes'],
+    enabled: !!managingIncident
+  });
+
+  // Mutation for resolving incidents
+  const resolveIncidentMutation = useMutation({
+    mutationFn: async (incidentId: string) => {
+      return await apiRequest('POST', `/api/daily-reports/incidents/${incidentId}/resolve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/incidents/unresolved'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      if (selectedReport) {
+        queryClient.invalidateQueries({ queryKey: ['/api/daily-reports', selectedReport.id, 'incidents'] });
+      }
+      setIsIncidentManageDialogOpen(false);
+      setManagingIncident(null);
+      toast({ title: "Incident marked as resolved" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to resolve incident", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Mutation for adding incident notes
+  const addIncidentNoteMutation = useMutation({
+    mutationFn: async ({ incidentId, note }: { incidentId: string; note: string }) => {
+      return await apiRequest('POST', `/api/daily-reports/incidents/${incidentId}/notes`, { note });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/incidents', managingIncident?.id, 'notes'] });
+      setNewIncidentNote("");
+      toast({ title: "Note added successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add note", description: error.message, variant: "destructive" });
+    }
   });
 
   const createEmailRecipientMutation = useMutation({
@@ -2678,8 +2733,48 @@ export default function DailyReportsAdminDashboard() {
                               </p>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground text-right">
-                            {incident.createdAt && format(new Date(incident.createdAt), 'MMM d, h:mm a')}
+                          <div className="flex items-start gap-2">
+                            <div className="text-xs text-muted-foreground text-right">
+                              {incident.createdAt && format(new Date(incident.createdAt), 'MMM d, h:mm a')}
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-incident-menu-${incident.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setManagingIncident(incident);
+                                    setIsIncidentManageDialogOpen(true);
+                                  }}
+                                  data-testid={`menu-manage-incident-${incident.id}`}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setManagingIncident(incident);
+                                    setIsIncidentManageDialogOpen(true);
+                                  }}
+                                  data-testid={`menu-add-note-incident-${incident.id}`}
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Add Note
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => resolveIncidentMutation.mutate(incident.id)}
+                                  className="text-green-600"
+                                  data-testid={`menu-resolve-incident-${incident.id}`}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Mark Resolved
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       </div>
@@ -3513,11 +3608,60 @@ export default function DailyReportsAdminDashboard() {
                                 <p className="text-sm mt-1"><strong>Action:</strong> {incident.actionTaken}</p>
                               )}
                             </div>
-                            {incident.requiresFollowUp && (
-                              <Badge variant="outline" className="text-orange-600">
-                                Follow-up Required
-                              </Badge>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {incident.requiresFollowUp && (
+                                <Badge variant="outline" className="text-orange-600">
+                                  Follow-up Required
+                                </Badge>
+                              )}
+                              {incident.resolved && (
+                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                  Resolved
+                                </Badge>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-report-incident-menu-${incident.id}`}>
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setManagingIncident(incident);
+                                      setIsIncidentManageDialogOpen(true);
+                                    }}
+                                    data-testid={`menu-view-report-incident-${incident.id}`}
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setManagingIncident(incident);
+                                      setIsIncidentManageDialogOpen(true);
+                                    }}
+                                    data-testid={`menu-add-note-report-incident-${incident.id}`}
+                                  >
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Add Note
+                                  </DropdownMenuItem>
+                                  {!incident.resolved && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        onClick={() => resolveIncidentMutation.mutate(incident.id)}
+                                        className="text-green-600"
+                                        data-testid={`menu-resolve-report-incident-${incident.id}`}
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Mark Resolved
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -3782,6 +3926,170 @@ export default function DailyReportsAdminDashboard() {
             >
               {createIncidentMutation.isPending ? "Saving..." : "Log Incident"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Incident Management Dialog */}
+      <Dialog 
+        open={isIncidentManageDialogOpen} 
+        onOpenChange={(open) => {
+          setIsIncidentManageDialogOpen(open);
+          if (!open) {
+            setManagingIncident(null);
+            setNewIncidentNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Incident Details
+            </DialogTitle>
+            <DialogDescription>
+              View incident details, add notes, and manage resolution
+            </DialogDescription>
+          </DialogHeader>
+          
+          {managingIncident && (
+            <div className="space-y-4">
+              {/* Incident Summary */}
+              <div className={`p-4 rounded-lg border ${
+                managingIncident.severity === 'high' 
+                  ? 'border-destructive/50 bg-destructive/5' 
+                  : managingIncident.severity === 'medium'
+                  ? 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20'
+                  : 'border-border bg-muted/30'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge 
+                    variant={managingIncident.severity === 'high' ? 'destructive' : managingIncident.severity === 'medium' ? 'outline' : 'secondary'}
+                    className="text-xs"
+                  >
+                    {managingIncident.severity}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {incidentTypes.find(t => t.value === managingIncident.incidentType)?.label || managingIncident.incidentType}
+                  </Badge>
+                  {managingIncident.resolved && (
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+                      Resolved
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm">{managingIncident.description}</p>
+                {managingIncident.actionTaken && (
+                  <p className="text-sm mt-2 text-muted-foreground">
+                    <strong>Action Taken:</strong> {managingIncident.actionTaken}
+                  </p>
+                )}
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Reported {managingIncident.createdAt && formatDistanceToNow(new Date(managingIncident.createdAt), { addSuffix: true })}
+                  {managingIncident.reportedByName && ` by ${managingIncident.reportedByName}`}
+                </div>
+              </div>
+
+              {/* Notes Timeline */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Notes & Updates</Label>
+                </div>
+                
+                <ScrollArea className="h-40 rounded-md border p-3">
+                  {incidentNotesLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : incidentNotes.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      No notes yet. Add a note below to track updates.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {incidentNotes.map((note) => (
+                        <div key={note.id} className="border-l-2 border-muted-foreground/30 pl-3 py-1">
+                          <p className="text-sm">{note.note}</p>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {note.addedByName || "System"} • {note.createdAt && formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+
+                {/* Add Note Form */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Add a note or update..."
+                      value={newIncidentNote}
+                      onChange={(e) => setNewIncidentNote(e.target.value)}
+                      rows={2}
+                      className="flex-1"
+                      data-testid="textarea-new-incident-note"
+                    />
+                    <Button
+                      size="icon"
+                      onClick={() => {
+                        if (newIncidentNote.trim() && managingIncident) {
+                          addIncidentNoteMutation.mutate({
+                            incidentId: managingIncident.id,
+                            note: newIncidentNote.trim()
+                          });
+                        }
+                      }}
+                      disabled={!newIncidentNote.trim() || addIncidentNoteMutation.isPending}
+                      data-testid="button-add-incident-note"
+                    >
+                      {addIncidentNoteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsIncidentManageDialogOpen(false);
+                setManagingIncident(null);
+                setNewIncidentNote("");
+              }}
+            >
+              Close
+            </Button>
+            {managingIncident && !managingIncident.resolved && (
+              <Button
+                onClick={() => {
+                  if (managingIncident) {
+                    resolveIncidentMutation.mutate(managingIncident.id);
+                  }
+                }}
+                disabled={resolveIncidentMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-resolve-incident-dialog"
+              >
+                {resolveIncidentMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Resolving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark Resolved
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
