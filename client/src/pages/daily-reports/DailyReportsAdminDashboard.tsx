@@ -107,6 +107,7 @@ interface DailyReport {
   status: string;
   source: 'qr_form' | 'admin' | 'api' | string;
   metrics: Record<string, number | string>;
+  metricsData: Record<string, number | string> | null;
   customerServiceSummary: string | null;
   operationalNotes: string | null;
   staffingNotes: string | null;
