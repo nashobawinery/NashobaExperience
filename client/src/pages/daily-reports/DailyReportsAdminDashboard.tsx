@@ -979,6 +979,11 @@ export default function DailyReportsAdminDashboard() {
     isActive: true
   });
 
+  // Revision request state
+  const [isRevisionRequestDialogOpen, setIsRevisionRequestDialogOpen] = useState(false);
+  const [revisionRequestMessage, setRevisionRequestMessage] = useState("");
+  const [reportForRevision, setReportForRevision] = useState<DailyReport | null>(null);
+
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
   });
@@ -1002,6 +1007,23 @@ export default function DailyReportsAdminDashboard() {
 
   const { data: selectedReportProcedures = [] } = useQuery<DailyProcedureCompletion[]>({
     queryKey: ['/api/daily-reports', selectedReport?.id, 'procedures'],
+    enabled: !!selectedReport
+  });
+
+  const { data: selectedReportRevisionRequests = [] } = useQuery<{
+    id: string;
+    reportId: string;
+    requestedById: string | null;
+    requestedByName: string | null;
+    requestMessage: string;
+    status: string;
+    responseMessage: string | null;
+    respondedById: string | null;
+    respondedByName: string | null;
+    respondedAt: string | null;
+    createdAt: string;
+  }[]>({
+    queryKey: ['/api/daily-reports/reports', selectedReport?.id, 'revision-requests'],
     enabled: !!selectedReport
   });
 
@@ -1323,6 +1345,25 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to review report", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const createRevisionRequestMutation = useMutation({
+    mutationFn: async ({ reportId, requestMessage }: { reportId: string; requestMessage: string }) => {
+      const response = await apiRequest('POST', `/api/daily-reports/reports/${reportId}/revision-requests`, { requestMessage });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      toast({ title: "Revision request sent", description: "The report has been sent back for revision with your message." });
+      setIsRevisionRequestDialogOpen(false);
+      setRevisionRequestMessage("");
+      setReportForRevision(null);
+      setIsViewReportDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to send revision request", description: error.message, variant: "destructive" });
     }
   });
 
@@ -2520,7 +2561,10 @@ export default function DailyReportsAdminDashboard() {
                                     
                                     {/* Request revision for submitted reports */}
                                     {report.status === "submitted" && (
-                                      <DropdownMenuItem onClick={() => reviewReportMutation.mutate({ id: report.id, approved: false })}>
+                                      <DropdownMenuItem onClick={() => {
+                                        setReportForRevision(report);
+                                        setIsRevisionRequestDialogOpen(true);
+                                      }}>
                                         <RotateCcw className="h-4 w-4 mr-2" />
                                         Request Revision
                                       </DropdownMenuItem>
@@ -3260,9 +3304,9 @@ export default function DailyReportsAdminDashboard() {
                   {/* Request revision for submitted */}
                   {selectedReport.status === "submitted" && (
                     <Button size="sm" variant="outline" onClick={() => {
-                      reviewReportMutation.mutate({ id: selectedReport.id, approved: false });
-                      setIsViewReportDialogOpen(false);
-                    }}>
+                      setReportForRevision(selectedReport);
+                      setIsRevisionRequestDialogOpen(true);
+                    }} data-testid="button-request-revision">
                       <RotateCcw className="h-4 w-4 mr-2" />
                       Request Revision
                     </Button>
@@ -3488,6 +3532,63 @@ export default function DailyReportsAdminDashboard() {
                   </div>
                 )}
               </div>
+
+              {selectedReportRevisionRequests.length > 0 && (
+                <div className="border-t pt-4">
+                  <Label className="text-base font-medium">
+                    Revision Requests ({selectedReportRevisionRequests.length})
+                  </Label>
+                  <div className="space-y-3 mt-3">
+                    {selectedReportRevisionRequests.map(request => (
+                      <Card key={request.id} data-testid={`revision-request-${request.id}`}>
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                {request.requestedByName || 'Admin'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(request.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                              </span>
+                            </div>
+                            <Badge 
+                              className={
+                                request.status === 'pending' 
+                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' 
+                                  : request.status === 'addressed'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                              }
+                            >
+                              {request.status === 'pending' ? 'Pending' : request.status === 'addressed' ? 'Addressed' : request.status}
+                            </Badge>
+                          </div>
+                          <div className="pl-6">
+                            <p className="text-sm text-muted-foreground mb-2">{request.requestMessage}</p>
+                            {request.responseMessage && (
+                              <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  <span className="text-xs font-medium">
+                                    Response from {request.respondedByName || 'Submitter'}
+                                  </span>
+                                  {request.respondedAt && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {format(new Date(request.respondedAt), "MMM d 'at' h:mm a")}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{request.responseMessage}</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="border-t pt-4 text-xs text-muted-foreground">
                 {selectedReport.submittedByName && (
@@ -4283,6 +4384,61 @@ export default function DailyReportsAdminDashboard() {
                 ? "Saving..." 
                 : (editingProcedureTemplate ? "Update Procedure" : "Add Procedure")
               }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revision Request Dialog */}
+      <Dialog open={isRevisionRequestDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setRevisionRequestMessage("");
+          setReportForRevision(null);
+        }
+        setIsRevisionRequestDialogOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Request Revision</DialogTitle>
+            <DialogDescription>
+              Describe what needs to be clarified or corrected in this report.
+              {reportForRevision && (
+                <span className="block mt-1 font-medium">
+                  Report: {templates.find(t => t.id === reportForRevision.templateId)?.departmentLabel || reportForRevision.department} - {format(new Date(reportForRevision.reportDate), "MMM d, yyyy")}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea 
+              placeholder="Enter your revision request... (e.g., Please clarify the sales numbers for the afternoon shift)"
+              value={revisionRequestMessage}
+              onChange={(e) => setRevisionRequestMessage(e.target.value)}
+              rows={4}
+              data-testid="input-revision-request-message"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsRevisionRequestDialogOpen(false);
+              setRevisionRequestMessage("");
+              setReportForRevision(null);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (reportForRevision) {
+                  createRevisionRequestMutation.mutate({
+                    reportId: reportForRevision.id,
+                    requestMessage: revisionRequestMessage
+                  });
+                }
+              }}
+              disabled={!revisionRequestMessage.trim() || createRevisionRequestMutation.isPending}
+              data-testid="button-submit-revision-request"
+            >
+              {createRevisionRequestMutation.isPending ? "Sending..." : "Send Request"}
             </Button>
           </DialogFooter>
         </DialogContent>

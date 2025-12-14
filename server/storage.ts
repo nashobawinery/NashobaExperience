@@ -3813,6 +3813,15 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getDailyReportsBySubmitter(submitterName: string, department: string): Promise<DailyReport[]> {
+    return await db.select().from(dailyReports)
+      .where(and(
+        eq(dailyReports.submittedByName, submitterName),
+        eq(dailyReports.department, department as any)
+      ))
+      .orderBy(desc(dailyReports.reportDate));
+  }
+
   async createDailyReport(data: InsertDailyReport): Promise<DailyReport> {
     const [report] = await db.insert(dailyReports).values(data).returning();
     return report;

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight, Save, Send } from "lucide-react";
+import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight, Save, Send, RotateCcw, MessageSquare } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 
 interface Procedure {
@@ -55,6 +56,18 @@ interface Incident {
   followUpNotes: string;
 }
 
+interface RevisionRequest {
+  id: string;
+  reportId: string;
+  requestedByName: string | null;
+  requestMessage: string;
+  status: string;
+  createdAt: string;
+  reportDate: string;
+  department: string;
+  departmentLabel: string;
+}
+
 export default function PublicDailyReportForm() {
   const { code: urlCode } = useParams<{ code: string }>();
   const [, navigate] = useLocation();
@@ -87,6 +100,47 @@ export default function PublicDailyReportForm() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  
+  // Revision request state
+  const [revisionResponseText, setRevisionResponseText] = useState<Record<string, string>>({});
+  const [respondingToRequestId, setRespondingToRequestId] = useState<string | null>(null);
+
+  // Fetch pending revision requests for this staff member
+  const { data: pendingRevisionRequests = [] } = useQuery<RevisionRequest[]>({
+    queryKey: ['/api/public/daily-reports/revision-requests', validatedCode],
+    queryFn: async () => {
+      if (!validatedCode) return [];
+      const response = await fetch(`/api/public/daily-reports/revision-requests?code=${validatedCode}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!validatedCode
+  });
+
+  // Mutation to respond to a revision request
+  const respondToRevisionMutation = useMutation({
+    mutationFn: async ({ requestId, responseMessage }: { requestId: string; responseMessage: string }) => {
+      const response = await fetch(`/api/public/daily-reports/revision-requests/${requestId}/respond`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responseMessage, code: validatedCode })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to submit response');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/public/daily-reports/revision-requests', validatedCode] });
+      setRespondingToRequestId(null);
+      setRevisionResponseText({});
+      toast({ title: "Response submitted!", description: "Your response has been sent to the admin." });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message, variant: "destructive" });
+    }
+  });
 
   // Initialize procedure completions when form data loads
   useEffect(() => {
@@ -514,6 +568,107 @@ export default function PublicDailyReportForm() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+        {pendingRevisionRequests.length > 0 && (
+          <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-yellow-600" />
+                <div>
+                  <CardTitle className="text-lg">Revision Requests</CardTitle>
+                  <CardDescription>You have {pendingRevisionRequests.length} pending revision request{pendingRevisionRequests.length > 1 ? 's' : ''}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingRevisionRequests.map(request => (
+                <Card key={request.id} data-testid={`revision-request-card-${request.id}`}>
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <Badge variant="outline" className="mb-1">
+                          {request.departmentLabel}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          Report from {new Date(request.reportDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        Pending
+                      </Badge>
+                    </div>
+                    <div className="p-2 bg-muted/50 rounded mb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs font-medium">{request.requestedByName || 'Admin'}</span>
+                      </div>
+                      <p className="text-sm">{request.requestMessage}</p>
+                    </div>
+                    
+                    {respondingToRequestId === request.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Type your response..."
+                          value={revisionResponseText[request.id] || ''}
+                          onChange={(e) => setRevisionResponseText({
+                            ...revisionResponseText,
+                            [request.id]: e.target.value
+                          })}
+                          className="min-h-[80px]"
+                          data-testid={`textarea-revision-response-${request.id}`}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if ((revisionResponseText[request.id] || '').trim()) {
+                                respondToRevisionMutation.mutate({
+                                  requestId: request.id,
+                                  responseMessage: revisionResponseText[request.id]
+                                });
+                              }
+                            }}
+                            disabled={respondToRevisionMutation.isPending || !(revisionResponseText[request.id] || '').trim()}
+                            data-testid={`button-submit-response-${request.id}`}
+                          >
+                            {respondToRevisionMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4 mr-2" />
+                            )}
+                            Submit Response
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setRespondingToRequestId(null);
+                              setRevisionResponseText({});
+                            }}
+                            data-testid={`button-cancel-response-${request.id}`}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRespondingToRequestId(request.id)}
+                        className="w-full"
+                        data-testid={`button-respond-${request.id}`}
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Respond to Request
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {formData.metrics && formData.metrics.length > 0 && (
           <Card>
             <CardHeader className="pb-3">

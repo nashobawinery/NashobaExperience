@@ -9775,6 +9775,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get pending revision requests for a staff member (by access code)
+  app.get('/api/public/daily-reports/revision-requests', async (req, res) => {
+    try {
+      const { code } = req.query;
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: 'Access code required' });
+      }
+
+      // Get all access codes for this staff member
+      const accessCodes = await storage.getDailyReportAccessCodesByCode(code);
+      if (!accessCodes || accessCodes.length === 0) {
+        return res.status(403).json({ message: 'Invalid access code' });
+      }
+
+      const staffName = accessCodes[0].staffName;
+      
+      // Get all pending revision requests for reports submitted by this staff member
+      const allRequests = [];
+      for (const accessCode of accessCodes) {
+        const reports = await storage.getDailyReportsBySubmitter(accessCode.staffName, accessCode.department);
+        for (const report of reports) {
+          const requests = await storage.getDailyReportRevisionRequests(report.id);
+          const pendingRequests = requests.filter(r => r.status === 'pending');
+          const template = await storage.getDailyReportTemplate(report.templateId);
+          allRequests.push(...pendingRequests.map(r => ({
+            ...r,
+            reportDate: report.reportDate,
+            department: report.department,
+            departmentLabel: template?.departmentLabel || report.department
+          })));
+        }
+      }
+
+      res.json(allRequests);
+    } catch (error) {
+      console.error('Error fetching revision requests:', error);
+      res.status(500).json({ message: 'Failed to fetch revision requests' });
+    }
+  });
+
+  // Respond to a revision request (public, via access code)
+  app.patch('/api/public/daily-reports/revision-requests/:id/respond', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { responseMessage, code } = req.body;
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: 'Access code required' });
+      }
+
+      if (!responseMessage || typeof responseMessage !== 'string' || responseMessage.trim().length === 0) {
+        return res.status(400).json({ message: 'Response message is required' });
+      }
+
+      // Get access code info
+      const accessCode = await storage.getDailyReportAccessCodeByCode(code);
+      if (!accessCode || !accessCode.isActive) {
+        return res.status(403).json({ message: 'Invalid or inactive access code' });
+      }
+
+      // Verify the revision request exists and belongs to a report by this submitter
+      const request = await storage.getDailyReportRevisionRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: 'Revision request not found' });
+      }
+
+      const report = await storage.getDailyReport(request.reportId);
+      if (!report || report.submittedByName !== accessCode.staffName) {
+        return res.status(403).json({ message: 'You are not authorized to respond to this request' });
+      }
+
+      // Update the revision request
+      const updated = await storage.respondToDailyReportRevisionRequest(id, {
+        responseMessage: responseMessage.trim(),
+        respondedByName: accessCode.staffName,
+        status: 'addressed'
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error responding to revision request:', error);
+      res.status(500).json({ message: 'Failed to respond to revision request' });
+    }
+  });
+
   // ===============================
   // Staff Dashboard Configuration
   // ===============================
