@@ -1687,6 +1687,7 @@ export const dailyReportIncidents = pgTable("daily_report_incidents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   reportId: varchar("report_id").notNull().references(() => dailyReports.id, { onDelete: 'cascade' }),
   
+  incidentType: varchar("incident_type").notNull().default("other"), // customer_complaint, equipment_issue, safety, staffing, inventory, policy_violation, other
   incidentTime: timestamp("incident_time"),
   severity: incidentSeverityEnum("severity").notNull().default("low"),
   description: text("description").notNull(),

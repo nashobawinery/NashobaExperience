@@ -133,15 +133,20 @@ interface DailyReportIncident {
   id: string;
   reportId: string;
   incidentType: string;
+  incidentTime: string | null;
   severity: string;
   description: string;
+  isCustomerRelated: boolean;
+  customerName: string | null;
+  customerContact: string | null;
   actionTaken: string | null;
-  followUpRequired: boolean;
+  resolved: boolean;
+  requiresFollowUp: boolean;
   followUpNotes: string | null;
   reportedById: string | null;
   reportedByName: string | null;
-  occurredAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface DailyProcedureCompletion {
@@ -3449,7 +3454,7 @@ export default function DailyReportsAdminDashboard() {
                                 <p className="text-sm mt-1"><strong>Action:</strong> {incident.actionTaken}</p>
                               )}
                             </div>
-                            {incident.followUpRequired && (
+                            {incident.requiresFollowUp && (
                               <Badge variant="outline" className="text-orange-600">
                                 Follow-up Required
                               </Badge>

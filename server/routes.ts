@@ -9645,13 +9645,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create incidents if any
+      // Create incidents if any (map public form field names to database schema)
+      let hasCustomerRelatedIncident = false;
       if (incidents && Array.isArray(incidents)) {
         for (const incident of incidents) {
+          const isCustomerRelated = incident.isCustomerRelated ?? false;
+          if (isCustomerRelated) hasCustomerRelatedIncident = true;
           await storage.createDailyReportIncident({
             reportId: report.id,
-            ...incident
+            incidentType: incident.category || incident.incidentType || 'other',
+            incidentTime: incident.occurredAt || incident.incidentTime ? new Date(incident.occurredAt || incident.incidentTime) : null,
+            severity: incident.severity || 'low',
+            description: incident.description || '',
+            requiresFollowUp: incident.followUpRequired ?? incident.requiresFollowUp ?? false,
+            followUpNotes: incident.followUpNotes || null,
+            isCustomerRelated,
+            customerName: incident.customerName || null,
+            customerContact: incident.customerContact || null,
+            actionTaken: incident.actionTaken || null,
+            resolved: incident.resolved ?? false
           });
+        }
+        // Update report's hasCustomerConcerns flag if any incident is customer-related
+        if (hasCustomerRelatedIncident) {
+          await storage.updateDailyReport(report.id, { hasCustomerConcerns: true });
         }
       }
 
@@ -9772,13 +9789,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create incidents if any
+      // Create incidents if any (map public form field names to database schema)
+      let hasCustomerRelatedIncident = false;
       if (incidents && Array.isArray(incidents)) {
         for (const incident of incidents) {
+          const isCustomerRelated = incident.isCustomerRelated ?? false;
+          if (isCustomerRelated) hasCustomerRelatedIncident = true;
           await storage.createDailyReportIncident({
             reportId: report.id,
-            ...incident
+            incidentType: incident.category || incident.incidentType || 'other',
+            incidentTime: incident.occurredAt || incident.incidentTime ? new Date(incident.occurredAt || incident.incidentTime) : null,
+            severity: incident.severity || 'low',
+            description: incident.description || '',
+            requiresFollowUp: incident.followUpRequired ?? incident.requiresFollowUp ?? false,
+            followUpNotes: incident.followUpNotes || null,
+            isCustomerRelated,
+            customerName: incident.customerName || null,
+            customerContact: incident.customerContact || null,
+            actionTaken: incident.actionTaken || null,
+            resolved: incident.resolved ?? false
           });
+        }
+        // Update report's hasCustomerConcerns flag if any incident is customer-related
+        if (hasCustomerRelatedIncident) {
+          await storage.updateDailyReport(report.id, { hasCustomerConcerns: true });
         }
       }
 
