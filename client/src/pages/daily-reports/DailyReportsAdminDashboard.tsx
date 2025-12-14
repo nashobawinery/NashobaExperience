@@ -204,6 +204,7 @@ interface DailyReportFieldDefinition {
   type: 'number' | 'text' | 'checkbox' | 'dropdown';
   description?: string | null;
   options?: { value: string; label: string }[] | null;
+  notificationEmails?: { email: string; name?: string }[] | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -236,10 +237,13 @@ function ReportFieldsTab() {
     type: "text" as "number" | "text" | "checkbox" | "dropdown",
     description: "",
     options: [] as { value: string; label: string }[],
+    notificationEmails: [] as { email: string; name?: string }[],
     sortOrder: 0,
     isActive: true
   });
   const [newOptionLabel, setNewOptionLabel] = useState("");
+  const [newNotificationEmail, setNewNotificationEmail] = useState("");
+  const [newNotificationName, setNewNotificationName] = useState("");
 
   const { data: fieldDefinitions = [], isLoading } = useQuery<DailyReportFieldDefinition[]>({
     queryKey: ['/api/daily-reports/field-definitions'],
@@ -316,10 +320,13 @@ function ReportFieldsTab() {
       type: "text",
       description: "",
       options: [],
+      notificationEmails: [],
       sortOrder: fieldDefinitions.length,
       isActive: true
     });
     setNewOptionLabel("");
+    setNewNotificationEmail("");
+    setNewNotificationName("");
   };
 
   const handleAddField = () => {
@@ -336,10 +343,13 @@ function ReportFieldsTab() {
       type: field.type,
       description: field.description || "",
       options: field.options || [],
+      notificationEmails: field.notificationEmails || [],
       sortOrder: field.sortOrder,
       isActive: field.isActive
     });
     setNewOptionLabel("");
+    setNewNotificationEmail("");
+    setNewNotificationName("");
     setIsFieldDialogOpen(true);
   };
 
@@ -360,6 +370,7 @@ function ReportFieldsTab() {
       type: fieldFormData.type,
       description: fieldFormData.description || null,
       options: fieldFormData.type === 'dropdown' ? fieldFormData.options : null,
+      notificationEmails: fieldFormData.notificationEmails.length > 0 ? fieldFormData.notificationEmails : null,
       sortOrder: fieldFormData.sortOrder,
       isActive: fieldFormData.isActive
     };
@@ -389,6 +400,39 @@ function ReportFieldsTab() {
     setFieldFormData({
       ...fieldFormData,
       options: fieldFormData.options.filter(o => o.value !== value)
+    });
+  };
+
+  const addNotificationEmail = () => {
+    const email = newNotificationEmail.trim().toLowerCase();
+    if (!email) return;
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast({ title: "Error", description: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+    
+    if (fieldFormData.notificationEmails.some(e => e.email === email)) {
+      toast({ title: "Error", description: "This email is already added", variant: "destructive" });
+      return;
+    }
+    
+    setFieldFormData({
+      ...fieldFormData,
+      notificationEmails: [...fieldFormData.notificationEmails, { 
+        email, 
+        name: newNotificationName.trim() || undefined 
+      }]
+    });
+    setNewNotificationEmail("");
+    setNewNotificationName("");
+  };
+
+  const removeNotificationEmail = (email: string) => {
+    setFieldFormData({
+      ...fieldFormData,
+      notificationEmails: fieldFormData.notificationEmails.filter(e => e.email !== email)
     });
   };
 
@@ -667,6 +711,72 @@ function ReportFieldsTab() {
                 rows={2}
                 data-testid="input-field-description"
               />
+            </div>
+
+            {/* Field-Level Notification Emails */}
+            <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+              <Label className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Field-Specific Email Notifications (optional)
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                When this field is submitted, a separate email with just this field's value will be sent to these addresses.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Email address"
+                  type="email"
+                  value={newNotificationEmail}
+                  onChange={(e) => setNewNotificationEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addNotificationEmail())}
+                  data-testid="input-notification-email"
+                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Name (optional)"
+                    value={newNotificationName}
+                    onChange={(e) => setNewNotificationName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addNotificationEmail())}
+                    data-testid="input-notification-name"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addNotificationEmail}
+                    data-testid="button-add-notification-email"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {fieldFormData.notificationEmails.length > 0 ? (
+                <div className="space-y-1 mt-2">
+                  {fieldFormData.notificationEmails.map((recipient) => (
+                    <div key={recipient.email} className="flex items-center justify-between gap-2 bg-background rounded px-2 py-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="h-3 w-3 text-muted-foreground" />
+                        <span>{recipient.email}</span>
+                        {recipient.name && (
+                          <span className="text-muted-foreground">({recipient.name})</span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => removeNotificationEmail(recipient.email)}
+                        data-testid={`button-remove-notification-${recipient.email}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">No email notifications configured for this field</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
