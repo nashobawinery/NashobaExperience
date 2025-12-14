@@ -303,11 +303,42 @@ export async function updateProduct(id: string, product: any): Promise<Product> 
   return response.json();
 }
 
-export async function deleteProduct(id: string): Promise<void> {
+// Archive a product (soft delete)
+export async function archiveProduct(id: string): Promise<Product> {
   const response = await fetch(`/api/products/${id}`, {
     method: "DELETE",
   });
-  if (!response.ok) throw new Error("Failed to delete product");
+  if (!response.ok) throw new Error("Failed to archive product");
+  const data = await response.json();
+  return data.product;
+}
+
+// Alias for backward compatibility
+export const deleteProduct = archiveProduct;
+
+// Restore an archived product
+export async function restoreProduct(id: string): Promise<Product> {
+  const response = await fetch(`/api/products/${id}/restore`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("Failed to restore product");
+  const data = await response.json();
+  return data.product;
+}
+
+// Get all archived products
+export async function getArchivedProducts(): Promise<Product[]> {
+  const response = await fetch(`/api/products/archived`);
+  if (!response.ok) throw new Error("Failed to fetch archived products");
+  return response.json();
+}
+
+// Permanently delete a product
+export async function permanentlyDeleteProduct(id: string): Promise<void> {
+  const response = await fetch(`/api/products/${id}/permanent`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to permanently delete product");
 }
 
 export async function getRecommendations(sessionId: string): Promise<Array<{ product: Product; reason: string }>> {

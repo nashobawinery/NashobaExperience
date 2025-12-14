@@ -229,6 +229,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Products
+  
+  // Get archived products (must be before /:id route)
+  app.get("/api/products/archived", isAdmin, async (req, res) => {
+    const archivedProducts = await storage.getArchivedProducts();
+    res.json(archivedProducts);
+  });
+
   app.get("/api/products", async (req, res) => {
     const filters = {
       search: req.query.search as string,
@@ -334,7 +341,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Archive product (soft delete) - this is the default "delete" action
   app.delete("/api/products/:id", isAdmin, async (req, res) => {
+    const product = await storage.archiveProduct(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    res.json({ success: true, product });
+  });
+
+  // Restore an archived product
+  app.post("/api/products/:id/restore", isAdmin, async (req, res) => {
+    const product = await storage.restoreProduct(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    res.json({ success: true, product });
+  });
+
+  // Permanently delete a product (for admin use only)
+  app.delete("/api/products/:id/permanent", isAdmin, async (req, res) => {
     const success = await storage.deleteProduct(req.params.id);
     if (!success) {
       return res.status(404).json({ message: "Product not found" });

@@ -22,11 +22,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown, ImageOff } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Eye, Package, ArrowUpDown, ArrowUp, ArrowDown, ImageOff, Archive } from "lucide-react";
 import type { Product } from "@shared/schema";
 import { type ProductWithMedia, getPrimaryImageUrl } from "@/lib/productImageUtils";
 import { useMutation } from "@tanstack/react-query";
-import { deleteProduct } from "@/lib/api";
+import { archiveProduct } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -104,23 +104,23 @@ export default function AdminProductManager({
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
-  const bulkDeleteMutation = useMutation({
+  const bulkArchiveMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       for (const id of ids) {
-        await deleteProduct(id);
+        await archiveProduct(id);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       toast({
-        title: "Products deleted",
-        description: `Successfully deleted ${selectedIds.length} product(s)`,
+        title: "Products archived",
+        description: `Successfully archived ${selectedIds.length} product(s). You can restore them from the archived products section.`,
       });
       setSelectedIds([]);
     },
     onError: (error: Error) => {
       toast({
-        title: "Error deleting products",
+        title: "Error archiving products",
         description: error.message,
         variant: "destructive",
       });
@@ -143,11 +143,11 @@ export default function AdminProductManager({
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkArchive = () => {
     if (selectedIds.length === 0) return;
     
-    if (window.confirm(`Are you sure you want to delete ${selectedIds.length} product(s)? This action cannot be undone.`)) {
-      bulkDeleteMutation.mutate(selectedIds);
+    if (window.confirm(`Are you sure you want to archive ${selectedIds.length} product(s)? You can restore them later from the archived products section.`)) {
+      bulkArchiveMutation.mutate(selectedIds);
     }
   };
 
@@ -209,13 +209,13 @@ export default function AdminProductManager({
           <div className="flex gap-2">
             {selectedIds.length > 0 && (
               <Button 
-                variant="destructive" 
-                onClick={handleBulkDelete}
-                disabled={bulkDeleteMutation.isPending}
-                data-testid="button-bulk-delete"
+                variant="secondary" 
+                onClick={handleBulkArchive}
+                disabled={bulkArchiveMutation.isPending}
+                data-testid="button-bulk-archive"
               >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Selected ({selectedIds.length})
+                <Archive className="w-4 h-4 mr-2" />
+                Archive Selected ({selectedIds.length})
               </Button>
             )}
             <Button onClick={onAddProduct} data-testid="button-add-product">
