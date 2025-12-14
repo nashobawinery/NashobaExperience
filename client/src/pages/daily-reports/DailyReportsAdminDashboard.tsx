@@ -59,7 +59,8 @@ import {
   FileSpreadsheet,
   X,
   RotateCcw,
-  Save
+  Save,
+  Loader2
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -1051,6 +1052,12 @@ export default function DailyReportsAdminDashboard() {
   const { data: allFieldAssignments = {} } = useQuery<Record<string, DepartmentFieldAssignment[]>>({
     queryKey: ['/api/daily-reports/field-assignments'],
     enabled: activeTab === 'departments' || isReportDialogOpen || isViewReportDialogOpen
+  });
+
+  // Query for unresolved incidents (for the Incidents tab)
+  const { data: unresolvedIncidents = [], isLoading: unresolvedIncidentsLoading } = useQuery<DailyReportIncident[]>({
+    queryKey: ['/api/daily-reports/incidents/unresolved'],
+    enabled: activeTab === 'incidents'
   });
 
   const createEmailRecipientMutation = useMutation({
@@ -2623,10 +2630,62 @@ export default function DailyReportsAdminDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a report to view and manage incidents</p>
-                </div>
+                {unresolvedIncidentsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : unresolvedIncidents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No unresolved incidents</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {unresolvedIncidents.map((incident) => (
+                      <div
+                        key={incident.id}
+                        className={`p-4 rounded-lg border ${
+                          incident.severity === 'high' 
+                            ? 'border-destructive/50 bg-destructive/5' 
+                            : incident.severity === 'medium'
+                            ? 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20'
+                            : 'border-border bg-muted/30'
+                        }`}
+                        data-testid={`incident-card-${incident.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge 
+                                variant={incident.severity === 'high' ? 'destructive' : incident.severity === 'medium' ? 'outline' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {incident.severity}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {incident.incidentType}
+                              </Badge>
+                              {incident.requiresFollowUp && (
+                                <Badge variant="outline" className="text-xs border-orange-500 text-orange-600">
+                                  Follow-up Required
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm mt-2">{incident.description}</p>
+                            {incident.followUpNotes && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Notes: {incident.followUpNotes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground text-right">
+                            {incident.createdAt && format(new Date(incident.createdAt), 'MMM d, h:mm a')}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
