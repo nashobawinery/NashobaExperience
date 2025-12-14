@@ -8514,9 +8514,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (hasCustomerConcerns !== undefined) filters.hasCustomerConcerns = hasCustomerConcerns === 'true';
       
       const reports = await storage.getDailyReports(Object.keys(filters).length > 0 ? filters : undefined);
-      // Transform reports to include frontend-expected field names
-      const transformedReports = reports.map(transformReportForFrontend);
-      res.json(transformedReports);
+      
+      // Get incident counts for all reports
+      const reportsWithCounts = await Promise.all(reports.map(async (report) => {
+        const incidents = await storage.getDailyReportIncidents(report.id);
+        return {
+          ...transformReportForFrontend(report),
+          incidentsCount: incidents.length
+        };
+      }));
+      
+      res.json(reportsWithCounts);
     } catch (error) {
       console.error('Error fetching daily reports:', error);
       res.status(500).json({ message: 'Failed to fetch reports' });
@@ -9646,9 +9654,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create incidents if any (map public form field names to database schema)
+      console.log('[Daily Reports Submit] Received incidents in body:', JSON.stringify(incidents));
       let hasCustomerRelatedIncident = false;
       if (incidents && Array.isArray(incidents)) {
+        console.log(`[Daily Reports Submit] Processing ${incidents.length} incidents for report ${report.id}`);
         for (const incident of incidents) {
+          console.log('[Daily Reports Submit] Creating incident:', JSON.stringify(incident));
           const isCustomerRelated = incident.isCustomerRelated ?? false;
           if (isCustomerRelated) hasCustomerRelatedIncident = true;
           await storage.createDailyReportIncident({
@@ -9665,11 +9676,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             actionTaken: incident.actionTaken || null,
             resolved: incident.resolved ?? false
           });
+          console.log('[Daily Reports Submit] Incident created successfully');
         }
         // Update report's hasCustomerConcerns flag if any incident is customer-related
         if (hasCustomerRelatedIncident) {
           await storage.updateDailyReport(report.id, { hasCustomerConcerns: true });
         }
+      } else {
+        console.log('[Daily Reports Submit] No incidents to process (incidents is null/undefined or not an array)');
       }
 
       // Update last used
