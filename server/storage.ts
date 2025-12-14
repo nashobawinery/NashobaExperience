@@ -220,6 +220,9 @@ export interface IStorage {
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
   upsertProductBySku(product: InsertProduct): Promise<{ product: Product; action: 'created' | 'updated' }>;
   deleteProduct(id: string): Promise<boolean>;
+  archiveProduct(id: string): Promise<Product | undefined>;
+  restoreProduct(id: string): Promise<Product | undefined>;
+  getArchivedProducts(): Promise<Product[]>;
   incrementProductViews(productId: string): Promise<void>;
 
   // Guest Sessions
@@ -646,6 +649,9 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(products);
     
     const conditions = [];
+    
+    // By default, filter out archived products
+    conditions.push(eq(products.isArchived, false));
     if (filters?.search) {
       // Keep original substring search for text fields to support phrases like "ice wine"
       conditions.push(
@@ -785,7 +791,7 @@ export class DatabaseStorage implements IStorage {
       FROM products p
       LEFT JOIN product_characteristics pc ON p.id = pc.product_id
       LEFT JOIN characteristics c ON pc.characteristic_id = c.id ${filterClause}
-      WHERE p.available = true
+      WHERE p.available = true AND p.is_archived = false
       GROUP BY p.id
       ORDER BY p.name
     `);
@@ -880,6 +886,26 @@ export class DatabaseStorage implements IStorage {
   async deleteProduct(id: string): Promise<boolean> {
     const result = await db.delete(products).where(eq(products.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async archiveProduct(id: string): Promise<Product | undefined> {
+    const [updated] = await db.update(products)
+      .set({ isArchived: true, archivedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    return updated;
+  }
+
+  async restoreProduct(id: string): Promise<Product | undefined> {
+    const [updated] = await db.update(products)
+      .set({ isArchived: false, archivedAt: null })
+      .where(eq(products.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getArchivedProducts(): Promise<Product[]> {
+    return await db.select().from(products).where(eq(products.isArchived, true)).orderBy(desc(products.archivedAt));
   }
 
   async incrementProductViews(productId: string): Promise<void> {
