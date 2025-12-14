@@ -8950,6 +8950,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         }
+        
+        // Send field-specific email notifications
+        const { generateFieldSpecificEmail } = await import("./email");
+        const activeFields = await storage.getDailyReportFieldDefinitions(true);
+        const metricsData = (report.metricsData as Record<string, any>) || {};
+        const reportDateFormatted = new Date(report.reportDate).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        for (const field of activeFields) {
+          const fieldNotificationEmails = (field.notificationEmails as Array<{ email: string; name?: string }>) || [];
+          
+          // Skip fields without notification emails or without a value in metricsData
+          if (fieldNotificationEmails.length === 0) continue;
+          
+          const fieldValue = metricsData[field.key];
+          // Only skip if the field was not provided at all (undefined/null)
+          // Allow 0, false, and empty string as valid values that should trigger notifications
+          if (fieldValue === undefined || fieldValue === null) continue;
+          
+          // Generate and send field-specific email
+          const fieldEmailData = generateFieldSpecificEmail({
+            department: report.department,
+            departmentLabel: template?.departmentLabel || report.department,
+            reportDate: reportDateFormatted,
+            submitterName: userName,
+            fieldLabel: field.label,
+            fieldValue: fieldValue,
+            fieldUnit: field.unit || undefined,
+            fieldDescription: field.description || undefined
+          });
+          
+          for (const recipient of fieldNotificationEmails) {
+            try {
+              await sendEmail(
+                recipient.email,
+                fieldEmailData.subject,
+                fieldEmailData.html,
+                fieldEmailData.text
+              );
+              console.log(`[Daily Reports] Field-specific email for '${field.label}' sent to ${recipient.email}`);
+            } catch (fieldEmailError) {
+              console.error(`[Daily Reports] Failed to send field-specific email to ${recipient.email}:`, fieldEmailError);
+            }
+          }
+        }
       } catch (emailError) {
         console.error('[Daily Reports] Error sending email notifications:', emailError);
         // Don't fail the submission if email fails

@@ -1056,6 +1056,152 @@ This is an automated notification from the Nashoba Valley Daily Reports system.
   return { subject, html, text };
 }
 
+// Field-specific daily report email data interface
+interface FieldSpecificEmailData {
+  department: string;
+  departmentLabel: string;
+  reportDate: string;
+  submitterName: string;
+  fieldLabel: string;
+  fieldValue: string | number | boolean | null;
+  fieldUnit?: string;
+  fieldDescription?: string;
+}
+
+export function generateFieldSpecificEmail(data: FieldSpecificEmailData): { subject: string; html: string; text: string } {
+  const { 
+    departmentLabel, 
+    reportDate, 
+    submitterName,
+    fieldLabel,
+    fieldValue,
+    fieldUnit,
+    fieldDescription
+  } = data;
+
+  const formattedValue = fieldValue !== null && fieldValue !== undefined 
+    ? `${fieldValue}${fieldUnit ? ` ${fieldUnit}` : ''}` 
+    : 'Not provided';
+
+  const subject = `Daily Report Update: ${fieldLabel} - ${departmentLabel} - ${reportDate}`;
+  
+  const text = `
+Daily Report Field Update
+=========================
+
+Department: ${departmentLabel}
+Date: ${reportDate}
+Submitted by: ${submitterName}
+
+${fieldLabel}: ${formattedValue}
+${fieldDescription ? `\nDescription: ${fieldDescription}` : ''}
+
+---
+This is an automated notification from the Nashoba Valley Daily Reports system.
+You are receiving this email because you are subscribed to updates for this specific field.
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+    .container { max-width: 600px; margin: 0 auto; background-color: white; }
+    .header { background-color: #5C2535; color: #F5F5F0; padding: 25px; text-align: center; }
+    .header h1 { margin: 0 0 8px 0; font-size: 22px; }
+    .header p { margin: 0; opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px 25px; }
+    .field-highlight { 
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+      padding: 25px; 
+      border-radius: 12px; 
+      margin: 20px 0;
+      border-left: 5px solid #C9A961;
+    }
+    .field-label { 
+      font-size: 14px; 
+      color: #666; 
+      text-transform: uppercase; 
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .field-value { 
+      font-size: 32px; 
+      font-weight: bold; 
+      color: #5C2535;
+    }
+    .field-description {
+      font-size: 13px;
+      color: #666;
+      margin-top: 12px;
+      font-style: italic;
+    }
+    .meta-info { 
+      background: #f8f9fa; 
+      padding: 15px 20px; 
+      border-radius: 8px; 
+      margin-bottom: 20px;
+      border-left: 4px solid #5C2535;
+    }
+    .meta-row { display: flex; justify-content: space-between; margin: 5px 0; }
+    .meta-label { color: #666; }
+    .meta-value { font-weight: 600; color: #333; }
+    .footer { 
+      background: #f8f9fa; 
+      padding: 20px; 
+      text-align: center; 
+      font-size: 12px; 
+      color: #666; 
+      border-top: 1px solid #e0e0e0;
+    }
+    .footer p { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Daily Report Update</h1>
+      <p>${departmentLabel} - ${reportDate}</p>
+    </div>
+    
+    <div class="content">
+      <div class="meta-info">
+        <div class="meta-row">
+          <span class="meta-label">Department:</span>
+          <span class="meta-value">${departmentLabel}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Report Date:</span>
+          <span class="meta-value">${reportDate}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Submitted by:</span>
+          <span class="meta-value">${submitterName}</span>
+        </div>
+      </div>
+
+      <div class="field-highlight">
+        <div class="field-label">${fieldLabel}</div>
+        <div class="field-value">${formattedValue}</div>
+        ${fieldDescription ? `<div class="field-description">${fieldDescription}</div>` : ''}
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p><strong>Nashoba Valley Winery</strong></p>
+      <p>This is an automated notification from the Daily Reports system.</p>
+      <p>You are receiving this email because you are subscribed to updates for this specific field.</p>
+      <p>&copy; ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
 // Helper to format 24-hour time to 12-hour AM/PM format
 function formatTo12Hour(timeStr: string): string {
   // If already in 12-hour format (contains AM/PM), return as-is
