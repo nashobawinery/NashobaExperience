@@ -1714,6 +1714,18 @@ export const dailyReportIncidents = pgTable("daily_report_incidents", {
   index("idx_daily_incidents_severity").on(table.severity),
 ]);
 
+// Daily Report Incident Notes - Tracks notes/updates on incidents until resolved
+export const dailyReportIncidentNotes = pgTable("daily_report_incident_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: varchar("incident_id").notNull().references(() => dailyReportIncidents.id, { onDelete: 'cascade' }),
+  note: text("note").notNull(),
+  addedById: varchar("added_by_id"),
+  addedByName: varchar("added_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_incident_notes_incident").on(table.incidentId),
+]);
+
 // Daily Procedure Completions - Tracks which procedures were completed
 export const dailyProcedureCompletions = pgTable("daily_procedure_completions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1775,6 +1787,10 @@ export const insertDailyProcedureCompletionSchema = createInsertSchema(dailyProc
   createdAt: true,
   completedAt: true
 });
+export const insertDailyReportIncidentNoteSchema = createInsertSchema(dailyReportIncidentNotes).omit({ 
+  id: true, 
+  createdAt: true
+});
 
 // Daily Reports Types
 export type InsertDailyReportTemplate = z.infer<typeof insertDailyReportTemplateSchema>;
@@ -1788,6 +1804,9 @@ export type DailyReport = typeof dailyReports.$inferSelect;
 
 export type InsertDailyReportIncident = z.infer<typeof insertDailyReportIncidentSchema>;
 export type DailyReportIncident = typeof dailyReportIncidents.$inferSelect;
+
+export type InsertDailyReportIncidentNote = z.infer<typeof insertDailyReportIncidentNoteSchema>;
+export type DailyReportIncidentNote = typeof dailyReportIncidentNotes.$inferSelect;
 
 export type InsertDailyProcedureCompletion = z.infer<typeof insertDailyProcedureCompletionSchema>;
 export type DailyProcedureCompletion = typeof dailyProcedureCompletions.$inferSelect;
