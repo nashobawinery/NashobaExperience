@@ -1847,6 +1847,7 @@ export const dailyReportFieldDefinitions = pgTable("daily_report_field_definitio
   type: dailyReportFieldTypeEnum("type").notNull().default("text"),
   description: text("description"),
   options: jsonb("options"), // For dropdown field type - array of {value: string, label: string}
+  notificationEmails: jsonb("notification_emails"), // Array of {email: string, name?: string} for field-specific email notifications
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
