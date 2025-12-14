@@ -129,6 +129,7 @@ import {
   dailyProcedureTemplates,
   dailyReports,
   dailyReportIncidents,
+  dailyReportIncidentNotes,
   dailyProcedureCompletions,
   dailyReportEmailRecipients,
   dailyReportAccessCodes,
@@ -141,6 +142,8 @@ import {
   type DailyReportWithDetails,
   type InsertDailyReportIncident,
   type DailyReportIncident,
+  type InsertDailyReportIncidentNote,
+  type DailyReportIncidentNote,
   type InsertDailyProcedureCompletion,
   type DailyProcedureCompletion,
   type InsertDailyReportEmailRecipient,
@@ -3917,6 +3920,29 @@ export class DatabaseStorage implements IStorage {
   async deleteDailyReportIncident(id: string): Promise<boolean> {
     const result = await db.delete(dailyReportIncidents).where(eq(dailyReportIncidents.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async resolveIncident(id: string, resolvedById?: string, resolvedByName?: string): Promise<DailyReportIncident | undefined> {
+    const [updated] = await db.update(dailyReportIncidents)
+      .set({ 
+        resolved: true, 
+        updatedAt: new Date()
+      })
+      .where(eq(dailyReportIncidents.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Incident Notes
+  async getIncidentNotes(incidentId: string): Promise<DailyReportIncidentNote[]> {
+    return await db.select().from(dailyReportIncidentNotes)
+      .where(eq(dailyReportIncidentNotes.incidentId, incidentId))
+      .orderBy(dailyReportIncidentNotes.createdAt);
+  }
+
+  async createIncidentNote(data: InsertDailyReportIncidentNote): Promise<DailyReportIncidentNote> {
+    const [note] = await db.insert(dailyReportIncidentNotes).values(data).returning();
+    return note;
   }
 
   // Daily Procedure Completions

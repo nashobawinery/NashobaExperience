@@ -9279,6 +9279,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get incident notes
+  app.get('/api/daily-reports/incidents/:incidentId/notes', isAuthenticated, async (req, res) => {
+    try {
+      const { incidentId } = req.params;
+      const notes = await storage.getIncidentNotes(incidentId);
+      res.json(notes);
+    } catch (error) {
+      console.error('Error fetching incident notes:', error);
+      res.status(500).json({ message: 'Failed to fetch incident notes' });
+    }
+  });
+
+  // Create incident note
+  app.post('/api/daily-reports/incidents/:incidentId/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const { incidentId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const userName = req.user?.claims?.name || req.user?.claims?.email || 'Unknown';
+      
+      const note = await storage.createIncidentNote({
+        incidentId,
+        note: req.body.note,
+        addedById: userId,
+        addedByName: userName
+      });
+      res.json(note);
+    } catch (error) {
+      console.error('Error creating incident note:', error);
+      res.status(500).json({ message: 'Failed to create incident note' });
+    }
+  });
+
   // Update procedure completion status
   app.post('/api/daily-reports/:reportId/procedures/:procedureId/complete', isAuthenticated, async (req: any, res) => {
     try {
