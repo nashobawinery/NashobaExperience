@@ -1616,6 +1616,7 @@ export const dailyReportTemplates = pgTable("daily_report_templates", {
   departmentLabel: text("department_label").notNull(),
   metrics: jsonb("metrics").notNull(), // Array of { key, label, type: 'count'|'decimal'|'text', required, description }
   notificationEmails: jsonb("notification_emails").default([]), // Array of { email, name?, role? }
+  sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

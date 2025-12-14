@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -94,6 +94,7 @@ interface DailyReportTemplate {
   departmentLabel: string;
   metrics: DailyReportMetric[];
   notificationEmails?: NotificationEmail[];
+  sortOrder?: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -953,7 +954,8 @@ export default function DailyReportsAdminDashboard() {
   const [editingDepartment, setEditingDepartment] = useState<DailyReportTemplate | null>(null);
   const [departmentFormData, setDepartmentFormData] = useState({
     departmentLabel: "",
-    notificationEmailsText: ""
+    notificationEmailsText: "",
+    sortOrder: 0
   });
   
   const [isNewDepartmentDialogOpen, setIsNewDepartmentDialogOpen] = useState(false);
@@ -980,6 +982,10 @@ export default function DailyReportsAdminDashboard() {
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
   });
+  
+  const sortedTemplates = useMemo(() => {
+    return [...templates].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [templates]);
 
   const { data: reports = [], isLoading: reportsLoading } = useQuery<DailyReport[]>({
     queryKey: ['/api/daily-reports', { department: selectedDepartment, date: selectedDate }]
@@ -1112,7 +1118,7 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const updateDepartmentMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { departmentLabel?: string; notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[] } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { departmentLabel?: string; notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[]; sortOrder?: number } }) => {
       return await apiRequest('PATCH', `/api/daily-reports/templates/${id}`, data);
     },
     onSuccess: () => {
@@ -1599,7 +1605,8 @@ export default function DailyReportsAdminDashboard() {
       .join(', ');
     setDepartmentFormData({
       departmentLabel: template.departmentLabel || "",
-      notificationEmailsText: emailsText
+      notificationEmailsText: emailsText,
+      sortOrder: template.sortOrder ?? 0
     });
     setIsDepartmentDialogOpen(true);
   };
@@ -1623,7 +1630,8 @@ export default function DailyReportsAdminDashboard() {
       id: editingDepartment.id,
       data: {
         departmentLabel: trimmedLabel,
-        notificationEmails: emailList
+        notificationEmails: emailList,
+        sortOrder: departmentFormData.sortOrder
       }
     });
   };
@@ -2166,7 +2174,7 @@ export default function DailyReportsAdminDashboard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {templates.map(t => (
+                    {sortedTemplates.map(t => (
                       <SelectItem key={t.department} value={t.department}>
                         {t.departmentLabel}
                       </SelectItem>
@@ -2177,7 +2185,7 @@ export default function DailyReportsAdminDashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map(template => {
+              {sortedTemplates.map(template => {
                 const report = filteredReports.find(r => r.department === template.department);
                 const Icon = departmentIcons[template.department] || Building;
                 
@@ -2275,7 +2283,7 @@ export default function DailyReportsAdminDashboard() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Departments</SelectItem>
-                        {templates.map(t => (
+                        {sortedTemplates.map(t => (
                           <SelectItem key={t.department} value={t.department}>
                             {t.departmentLabel}
                           </SelectItem>
@@ -2623,7 +2631,7 @@ export default function DailyReportsAdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {templates.map(template => {
+                  {sortedTemplates.map(template => {
                     const Icon = departmentIcons[template.department] || Building;
                     const emailCount = template.notificationEmails?.length || 0;
                     const deptAccessCodes = accessCodes.filter(c => c.department === template.department);
@@ -3004,7 +3012,7 @@ export default function DailyReportsAdminDashboard() {
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    {templates.map(t => (
+                    {sortedTemplates.map(t => (
                       <SelectItem key={t.department} value={t.department}>
                         {t.departmentLabel}
                       </SelectItem>
@@ -3631,7 +3639,7 @@ export default function DailyReportsAdminDashboard() {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map(t => (
+                  {sortedTemplates.map(t => (
                     <SelectItem key={t.department} value={t.department}>
                       {t.departmentLabel}
                     </SelectItem>
@@ -3723,7 +3731,7 @@ export default function DailyReportsAdminDashboard() {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map(t => (
+                  {sortedTemplates.map(t => (
                     <SelectItem key={t.department} value={t.department}>
                       {t.departmentLabel}
                     </SelectItem>
@@ -3926,21 +3934,41 @@ export default function DailyReportsAdminDashboard() {
           </DialogHeader>
           
           <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="departmentLabel" className="flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                Department Name
-              </Label>
-              <Input
-                id="departmentLabel"
-                placeholder="Enter department name"
-                value={departmentFormData.departmentLabel}
-                onChange={(e) => setDepartmentFormData({ ...departmentFormData, departmentLabel: e.target.value })}
-                data-testid="input-department-label"
-              />
-              <p className="text-xs text-muted-foreground">
-                The display name for this department in reports and notifications.
-              </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="departmentLabel" className="flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  Department Name
+                </Label>
+                <Input
+                  id="departmentLabel"
+                  placeholder="Enter department name"
+                  value={departmentFormData.departmentLabel}
+                  onChange={(e) => setDepartmentFormData({ ...departmentFormData, departmentLabel: e.target.value })}
+                  data-testid="input-department-label"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The display name for this department in reports and notifications.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder" className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  Sort Order
+                </Label>
+                <Input
+                  id="sortOrder"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={departmentFormData.sortOrder}
+                  onChange={(e) => setDepartmentFormData({ ...departmentFormData, sortOrder: parseInt(e.target.value) || 0 })}
+                  data-testid="input-department-sort-order"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Lower numbers appear first.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
