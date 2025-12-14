@@ -3375,7 +3375,7 @@ export default function DailyReportsAdminDashboard() {
                       <div key={metric.key} className="bg-muted rounded-lg p-3">
                         <div className="text-sm text-muted-foreground">{metric.label}</div>
                         <div className="text-2xl font-bold">
-                          {selectedReport.metrics ? (selectedReport.metrics as any)[metric.key] || (metric.type === 'text' ? '—' : 0) : (metric.type === 'text' ? '—' : 0)}
+                          {selectedReport.metricsData ? (selectedReport.metricsData as any)[metric.key] || (metric.type === 'text' ? '—' : 0) : (metric.type === 'text' ? '—' : 0)}
                         </div>
                       </div>
                     );

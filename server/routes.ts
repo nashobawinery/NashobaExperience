@@ -9150,6 +9150,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get incidents for a specific report
+  app.get('/api/daily-reports/:reportId/incidents', isAuthenticated, async (req: any, res) => {
+    try {
+      const { reportId } = req.params;
+      const incidents = await storage.getDailyReportIncidents(reportId);
+      res.json(incidents);
+    } catch (error) {
+      console.error('Error fetching report incidents:', error);
+      res.status(500).json({ message: 'Failed to fetch incidents' });
+    }
+  });
+
   // Add an incident to a report
   app.post('/api/daily-reports/:reportId/incidents', isAuthenticated, async (req: any, res) => {
     try {
