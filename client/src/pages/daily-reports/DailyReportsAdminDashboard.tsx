@@ -952,6 +952,7 @@ export default function DailyReportsAdminDashboard() {
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DailyReportTemplate | null>(null);
   const [departmentFormData, setDepartmentFormData] = useState({
+    departmentLabel: "",
     notificationEmailsText: ""
   });
   
@@ -1111,7 +1112,7 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const updateDepartmentMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[] } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { departmentLabel?: string; notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[] } }) => {
       return await apiRequest('PATCH', `/api/daily-reports/templates/${id}`, data);
     },
     onSuccess: () => {
@@ -1597,6 +1598,7 @@ export default function DailyReportsAdminDashboard() {
       .map(e => e.email)
       .join(', ');
     setDepartmentFormData({
+      departmentLabel: template.departmentLabel || "",
       notificationEmailsText: emailsText
     });
     setIsDepartmentDialogOpen(true);
@@ -1604,6 +1606,12 @@ export default function DailyReportsAdminDashboard() {
 
   const handleSaveDepartment = () => {
     if (!editingDepartment) return;
+    
+    const trimmedLabel = departmentFormData.departmentLabel.trim();
+    if (!trimmedLabel) {
+      toast({ title: "Department name is required", variant: "destructive" });
+      return;
+    }
     
     const emailList = departmentFormData.notificationEmailsText
       .split(',')
@@ -1614,6 +1622,7 @@ export default function DailyReportsAdminDashboard() {
     updateDepartmentMutation.mutate({
       id: editingDepartment.id,
       data: {
+        departmentLabel: trimmedLabel,
         notificationEmails: emailList
       }
     });
@@ -3917,6 +3926,23 @@ export default function DailyReportsAdminDashboard() {
           </DialogHeader>
           
           <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="departmentLabel" className="flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Department Name
+              </Label>
+              <Input
+                id="departmentLabel"
+                placeholder="Enter department name"
+                value={departmentFormData.departmentLabel}
+                onChange={(e) => setDepartmentFormData({ ...departmentFormData, departmentLabel: e.target.value })}
+                data-testid="input-department-label"
+              />
+              <p className="text-xs text-muted-foreground">
+                The display name for this department in reports and notifications.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="notificationEmails" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
