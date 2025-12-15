@@ -8897,6 +8897,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Get incident count
             const incidents = await storage.getDailyReportIncidents(report.id);
             
+            // Get enabled field assignments for this department to filter email content
+            const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
+            const enabledFields = fieldAssignments
+              .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+              .map(fa => ({
+                key: fa.fieldDefinition!.key,
+                label: fa.fieldDefinition!.label,
+                unit: fa.fieldDefinition!.unit || undefined
+              }));
+            
+            // Filter metricsData to only include enabled fields
+            const allMetricsData = (data.metricsData as Record<string, any>) || {};
+            const enabledFieldKeys = new Set(enabledFields.map(f => f.key));
+            const filteredMetricsData = Object.fromEntries(
+              Object.entries(allMetricsData).filter(([key]) => enabledFieldKeys.has(key))
+            );
+            
             const emailData = generateDailyReportEmail({
               department: data.department,
               departmentLabel: template?.departmentLabel || data.department,
@@ -8911,8 +8928,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               overallRating: data.overallRating || undefined,
               hasCustomerConcerns: data.hasCustomerConcerns || false,
               customerConcernsSummary: data.customerConcernsSummary || undefined,
-              metricsData: (data.metricsData as Record<string, any>) || undefined,
-              metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+              metricsData: Object.keys(filteredMetricsData).length > 0 ? filteredMetricsData : undefined,
+              metricsConfig: enabledFields.length > 0 ? enabledFields : undefined,
               incidentCount: incidents.length,
               proceduresCompletedCount: data.proceduresCompletedCount || 0,
               proceduresTotalCount: data.proceduresTotalCount || 0
@@ -9044,6 +9061,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get incident count
           const incidents = await storage.getDailyReportIncidents(report.id);
           
+          // Get enabled field assignments for this department to filter email content
+          const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
+          const enabledFields = fieldAssignments
+            .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+            .map(fa => ({
+              key: fa.fieldDefinition!.key,
+              label: fa.fieldDefinition!.label,
+              unit: fa.fieldDefinition!.unit || undefined
+            }));
+          
+          // Filter metricsData to only include enabled fields
+          const allReportMetrics = (report.metricsData as Record<string, any>) || {};
+          const enabledFieldKeys = new Set(enabledFields.map(f => f.key));
+          const filteredReportMetrics = Object.fromEntries(
+            Object.entries(allReportMetrics).filter(([key]) => enabledFieldKeys.has(key))
+          );
+          
           const emailData = generateDailyReportEmail({
             department: report.department,
             departmentLabel: template?.departmentLabel || report.department,
@@ -9058,8 +9092,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             overallRating: report.overallRating || undefined,
             hasCustomerConcerns: report.hasCustomerConcerns || false,
             customerConcernsSummary: report.customerConcernsSummary || undefined,
-            metricsData: (report.metricsData as Record<string, any>) || undefined,
-            metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+            metricsData: Object.keys(filteredReportMetrics).length > 0 ? filteredReportMetrics : undefined,
+            metricsConfig: enabledFields.length > 0 ? enabledFields : undefined,
             incidentCount: incidents.length,
             proceduresCompletedCount: report.proceduresCompletedCount || 0,
             proceduresTotalCount: report.proceduresTotalCount || 0
@@ -9758,6 +9792,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (notificationEmails.length > 0) {
           const reportIncidents = await storage.getDailyReportIncidents(report.id);
 
+          // Get enabled field assignments for this department to filter email content
+          const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
+          const enabledFields = fieldAssignments
+            .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+            .map(fa => ({
+              key: fa.fieldDefinition!.key,
+              label: fa.fieldDefinition!.label,
+              unit: fa.fieldDefinition!.unit || undefined
+            }));
+          
+          // Filter metricsData to only include enabled fields
+          const allPublicMetrics = (report.metricsData as Record<string, any>) || {};
+          const enabledFieldKeys = new Set(enabledFields.map(f => f.key));
+          const filteredPublicMetrics = Object.fromEntries(
+            Object.entries(allPublicMetrics).filter(([key]) => enabledFieldKeys.has(key))
+          );
+
           const emailData = generateDailyReportEmail({
             department: report.department,
             departmentLabel: template?.departmentLabel || report.department,
@@ -9772,8 +9823,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             overallRating: report.overallRating || undefined,
             hasCustomerConcerns: report.hasCustomerConcerns || false,
             customerConcernsSummary: report.customerConcernsSummary || undefined,
-            metricsData: (report.metricsData as Record<string, any>) || undefined,
-            metricsConfig: template?.metrics as Array<{ key: string; label: string; unit?: string }> || undefined,
+            metricsData: Object.keys(filteredPublicMetrics).length > 0 ? filteredPublicMetrics : undefined,
+            metricsConfig: enabledFields.length > 0 ? enabledFields : undefined,
             incidentCount: reportIncidents.length,
             proceduresCompletedCount: report.proceduresCompletedCount || 0,
             proceduresTotalCount: report.proceduresTotalCount || 0
