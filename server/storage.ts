@@ -3884,7 +3884,7 @@ export class DatabaseStorage implements IStorage {
       .from(dailyReportIncidents)
       .innerJoin(dailyReports, eq(dailyReportIncidents.reportId, dailyReports.id))
       .where(eq(dailyReportIncidents.resolved, false))
-      .orderBy(desc(dailyReportIncidents.severity), desc(dailyReportIncidents.createdAt))
+      .orderBy(desc(dailyReportIncidents.createdAt))
       .limit(limit);
     
     return incidents.map(i => ({ ...i.incident, department: i.department }));
