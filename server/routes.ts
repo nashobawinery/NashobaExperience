@@ -9117,7 +9117,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Send field-specific email notifications
         const { generateFieldSpecificEmail } = await import("./email");
-        const activeFields = await storage.getDailyReportFieldDefinitions(true);
+        
+        // Get field assignments for this department to only send notifications for enabled fields
+        const departmentFieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
+        const enabledFieldsForDepartment = departmentFieldAssignments
+          .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+          .map(fa => fa.fieldDefinition!);
+        
+        console.log(`[Daily Reports] Field-specific emails: ${enabledFieldsForDepartment.length} fields enabled for department ${report.department}`);
+        
         const metricsData = (report.metricsData as Record<string, any>) || {};
         const reportDateFormatted = new Date(report.reportDate).toLocaleDateString('en-US', {
           weekday: 'long',
@@ -9126,16 +9134,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           day: 'numeric'
         });
         
-        for (const field of activeFields) {
+        // Only iterate over fields that are enabled for this department
+        for (const field of enabledFieldsForDepartment) {
           const fieldNotificationEmails = (field.notificationEmails as Array<{ email: string; name?: string }>) || [];
           
           // Skip fields without notification emails or without a value in metricsData
-          if (fieldNotificationEmails.length === 0) continue;
+          if (fieldNotificationEmails.length === 0) {
+            console.log(`[Daily Reports] Skipping field '${field.label}' - no notification emails configured`);
+            continue;
+          }
           
           const fieldValue = metricsData[field.key];
           // Only skip if the field was not provided at all (undefined/null)
           // Allow 0, false, and empty string as valid values that should trigger notifications
-          if (fieldValue === undefined || fieldValue === null) continue;
+          if (fieldValue === undefined || fieldValue === null) {
+            console.log(`[Daily Reports] Skipping field '${field.label}' - no value in metricsData (key: ${field.key})`);
+            continue;
+          }
+          
+          console.log(`[Daily Reports] Processing field '${field.label}' with value '${fieldValue}' - sending to ${fieldNotificationEmails.length} recipients`);
           
           // Generate and send field-specific email
           const fieldEmailData = generateFieldSpecificEmail({

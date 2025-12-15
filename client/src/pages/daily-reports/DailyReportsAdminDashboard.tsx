@@ -1470,6 +1470,8 @@ export default function DailyReportsAdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports', selectedReport?.id, 'incidents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/daily-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/incidents/unresolved'] });
       setIsIncidentDialogOpen(false);
       resetIncidentForm();
       toast({ title: "Incident logged successfully" });
