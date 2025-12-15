@@ -175,6 +175,20 @@ export default function ProcedureTemplateEditor() {
   });
 
   const handleSave = async () => {
+    // Automatically add any emails typed in the input fields but not yet added
+    let finalEmailsTo = [...emailRecipientsTo];
+    let finalEmailsCc = [...emailRecipientsCc];
+    
+    if (newEmailTo.trim()) {
+      const pendingToEmails = newEmailTo.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+      finalEmailsTo = [...finalEmailsTo, ...pendingToEmails.filter(e => !finalEmailsTo.includes(e))];
+    }
+    
+    if (newEmailCc.trim()) {
+      const pendingCcEmails = newEmailCc.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+      finalEmailsCc = [...finalEmailsCc, ...pendingCcEmails.filter(e => !finalEmailsCc.includes(e))];
+    }
+    
     const templateData = {
       procedureName,
       procedureCode: procedureCode.toUpperCase().replace(/\s+/g, "_"),
@@ -185,8 +199,8 @@ export default function ProcedureTemplateEditor() {
       isActive,
       isMandatory,
       completionTime: completionTime || null,
-      emailRecipientsTo,
-      emailRecipientsCc,
+      emailRecipientsTo: finalEmailsTo,
+      emailRecipientsCc: finalEmailsCc,
       assignedStaffIds
     };
 
@@ -595,15 +609,16 @@ export default function ProcedureTemplateEditor() {
                   <Input
                     value={newEmailTo}
                     onChange={(e) => setNewEmailTo(e.target.value)}
-                    placeholder="email@example.com, another@example.com"
+                    placeholder="email@example.com"
                     onKeyDown={(e) => e.key === "Enter" && addEmailRecipient("to")}
+                    onBlur={() => newEmailTo.trim() && addEmailRecipient("to")}
                     data-testid="input-email-to"
                   />
                   <Button variant="outline" onClick={() => addEmailRecipient("to")} data-testid="button-add-email-to">
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Separate multiple emails with commas</p>
+                <p className="text-xs text-muted-foreground">Press Enter or click + to add. Separate multiple with commas.</p>
                 <div className="flex flex-wrap gap-1">
                   {emailRecipientsTo.map((email, i) => (
                     <Badge key={i} variant="secondary" className="cursor-pointer" onClick={() => setEmailRecipientsTo(emailRecipientsTo.filter((_, idx) => idx !== i))}>
@@ -621,8 +636,9 @@ export default function ProcedureTemplateEditor() {
                   <Input
                     value={newEmailCc}
                     onChange={(e) => setNewEmailCc(e.target.value)}
-                    placeholder="email@example.com, another@example.com"
+                    placeholder="email@example.com"
                     onKeyDown={(e) => e.key === "Enter" && addEmailRecipient("cc")}
+                    onBlur={() => newEmailCc.trim() && addEmailRecipient("cc")}
                     data-testid="input-email-cc"
                   />
                   <Button variant="outline" onClick={() => addEmailRecipient("cc")} data-testid="button-add-email-cc">
