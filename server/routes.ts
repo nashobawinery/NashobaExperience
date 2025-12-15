@@ -9545,6 +9545,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===============================
+  // Email Diagnostics (Admin only)
+  // ===============================
+  
+  // Test email configuration and sending
+  app.post('/api/admin/email-diagnostics/test', isAdmin, async (req: any, res) => {
+    try {
+      const { testEmail } = req.body;
+      const diagnostics: any = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'unknown',
+        sendgrid: {
+          apiKeySet: !!process.env.SENDGRID_API_KEY,
+          apiKeyPrefix: process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.substring(0, 8) + '...' : 'NOT SET',
+          fromEmail: process.env.SENDGRID_FROM_EMAIL || 'email@nashobawinery.com (default)',
+        },
+        test: {
+          requested: !!testEmail,
+          targetEmail: testEmail || null,
+          result: null,
+          error: null,
+        }
+      };
+
+      // If test email requested, actually try to send
+      if (testEmail) {
+        try {
+          const { sendEmail } = await import("./email");
+          const testSubject = `Email Test - Nashoba Operations Platform (${new Date().toLocaleString()})`;
+          const testHtml = `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+              <h2 style="color: #5C2535;">Email Test Successful!</h2>
+              <p>This is a test email from the Nashoba Valley Operations Platform.</p>
+              <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+              <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'unknown'}</p>
+              <p><strong>Requested by:</strong> ${req.user?.claims?.email || 'Unknown'}</p>
+              <p>If you received this email, the SendGrid configuration is working correctly.</p>
+            </div>
+          `;
+          const testText = `Email Test Successful!\n\nThis is a test email from the Nashoba Valley Operations Platform.\nSent at: ${new Date().toLocaleString()}\nEnvironment: ${process.env.NODE_ENV || 'unknown'}\nRequested by: ${req.user?.claims?.email || 'Unknown'}`;
+          
+          await sendEmail(testEmail, testSubject, testHtml, testText);
+          diagnostics.test.result = 'success';
+          console.log(`[Email Diagnostics] Test email sent successfully to ${testEmail}`);
+        } catch (emailError: any) {
+          diagnostics.test.result = 'failed';
+          diagnostics.test.error = emailError.message || String(emailError);
+          if (emailError.response?.body) {
+            diagnostics.test.sendgridError = emailError.response.body;
+          }
+          console.error(`[Email Diagnostics] Test email failed:`, emailError);
+        }
+      }
+
+      res.json(diagnostics);
+    } catch (error) {
+      console.error('[Email Diagnostics] Error:', error);
+      res.status(500).json({ message: 'Failed to run email diagnostics' });
+    }
+  });
+
+  // ===============================
   // Public Form Endpoints (no auth required)
   // ===============================
 
