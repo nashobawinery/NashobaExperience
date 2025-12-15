@@ -8541,11 +8541,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const reports = await storage.getDailyReports(Object.keys(filters).length > 0 ? filters : undefined);
       
-      // Get incident counts for all reports
+      // Get all templates to map department -> templateId
+      const templates = await storage.getDailyReportTemplates();
+      const templateByDepartment = new Map(templates.map(t => [t.department, t.id]));
+      
+      // Get incident counts for all reports and add templateId
       const reportsWithCounts = await Promise.all(reports.map(async (report) => {
         const incidents = await storage.getDailyReportIncidents(report.id);
         return {
           ...transformReportForFrontend(report),
+          templateId: templateByDepartment.get(report.department) || null,
           incidentsCount: incidents.length
         };
       }));
@@ -8805,7 +8810,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(transformReportForFrontend(report));
+      // Look up templateId from department
+      const template = await storage.getDailyReportTemplateByDepartment(report.department);
+      res.json({
+        ...transformReportForFrontend(report),
+        templateId: template?.id || null
+      });
     } catch (error) {
       console.error('Error fetching daily report:', error);
       res.status(500).json({ message: 'Failed to fetch report' });
@@ -8956,7 +8966,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.json(transformReportForFrontend(report));
+      // Look up templateId from department for the response
+      const templateForResponse = await storage.getDailyReportTemplateByDepartment(data.department);
+      res.json({
+        ...transformReportForFrontend(report),
+        templateId: templateForResponse?.id || null
+      });
     } catch (error: any) {
       console.error('Error creating daily report:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
@@ -9014,7 +9029,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(transformReportForFrontend(report));
+      // Look up templateId from department for the response
+      const templateForResponse = await storage.getDailyReportTemplateByDepartment(report.department);
+      res.json({
+        ...transformReportForFrontend(report),
+        templateId: templateForResponse?.id || null
+      });
     } catch (error: any) {
       console.error('Error updating daily report:', error);
       // Check for Zod validation errors
@@ -9185,7 +9205,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the submission if email fails
       }
       
-      res.json(transformReportForFrontend(report));
+      res.json({
+        ...transformReportForFrontend(report),
+        templateId: template?.id || null
+      });
     } catch (error) {
       console.error('Error submitting daily report:', error);
       res.status(500).json({ message: 'Failed to submit report' });
@@ -9219,7 +9242,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!report) {
         return res.status(404).json({ message: 'Report not found' });
       }
-      res.json(transformReportForFrontend(report));
+      // Look up templateId from department for the response
+      const templateForResponse = await storage.getDailyReportTemplateByDepartment(report.department);
+      res.json({
+        ...transformReportForFrontend(report),
+        templateId: templateForResponse?.id || null
+      });
     } catch (error: any) {
       console.error('Error reviewing daily report:', error);
       console.error('Error details:', error.message, error.stack);
