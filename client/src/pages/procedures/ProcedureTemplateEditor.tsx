@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ProceduresTemplateWithItems, ProceduresItem, ProceduresStaff } from "@shared/schema";
@@ -284,6 +284,25 @@ export default function ProcedureTemplateEditor() {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const moveItem = (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === items.length - 1) return;
+    
+    const newItems = [...items];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    
+    // Swap the items
+    [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
+    
+    // Update sortOrder for all items
+    const updatedItems = newItems.map((item, i) => ({
+      ...item,
+      sortOrder: i
+    }));
+    
+    setItems(updatedItems);
+  };
+
   const addEmailRecipient = (type: "to" | "cc") => {
     const email = type === "to" ? newEmailTo : newEmailCc;
     if (email) {
@@ -507,9 +526,33 @@ export default function ProcedureTemplateEditor() {
                   {items.map((item, index) => (
                     <Card key={index} className="p-4">
                       <div className="flex items-start gap-3">
-                        <GripVertical className="w-5 h-5 text-muted-foreground mt-2 cursor-grab" />
+                        <div className="flex flex-col gap-1 mt-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveItem(index, "up")}
+                            disabled={index === 0}
+                            data-testid={`button-move-up-${index}`}
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveItem(index, "down")}
+                            disabled={index === items.length - 1}
+                            data-testid={`button-move-down-${index}`}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </Button>
+                        </div>
                         <div className="flex-1 space-y-3">
                           <div className="flex items-start gap-2">
+                            <Badge variant="outline" className="mt-2 shrink-0">
+                              {index + 1}
+                            </Badge>
                             <div className="flex-1">
                               <Input
                                 value={item.label}
