@@ -8913,11 +8913,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Get enabled field assignments for this department to filter email content
             const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
             const enabledFields = fieldAssignments
-              .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+              .filter(fa => fa.isEnabled && fa.fieldDefinition)
               .map(fa => ({
                 key: fa.fieldDefinition!.key,
                 label: fa.fieldDefinition!.label,
-                unit: fa.fieldDefinition!.unit || undefined
+                unit: undefined
               }));
             
             // Filter metricsData to only include enabled fields
@@ -9096,11 +9096,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get enabled field assignments for this department to filter email content
           const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
           const enabledFields = fieldAssignments
-            .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+            .filter(fa => fa.isEnabled && fa.fieldDefinition)
             .map(fa => ({
               key: fa.fieldDefinition!.key,
               label: fa.fieldDefinition!.label,
-              unit: fa.fieldDefinition!.unit || undefined
+              unit: undefined
             }));
           
           // Filter metricsData to only include enabled fields
@@ -9153,7 +9153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get field assignments for this department to only send notifications for enabled fields
         const departmentFieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
         const enabledFieldsForDepartment = departmentFieldAssignments
-          .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+          .filter(fa => fa.isEnabled && fa.fieldDefinition)
           .map(fa => fa.fieldDefinition!);
         
         console.log(`[Daily Reports] Field-specific emails: ${enabledFieldsForDepartment.length} fields enabled for department ${report.department}`);
@@ -9194,7 +9194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             submitterName: userName,
             fieldLabel: field.label,
             fieldValue: fieldValue,
-            fieldUnit: field.unit || undefined,
+            fieldUnit: undefined, // Field definitions don't have a unit property
             fieldDescription: field.description || undefined
           });
           
@@ -9217,9 +9217,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the submission if email fails
       }
       
+      // Look up templateId from department for the response
+      const templateForResponse = await storage.getDailyReportTemplateByDepartment(report.department);
       res.json({
         ...transformReportForFrontend(report),
-        templateId: template?.id || null
+        templateId: templateForResponse?.id || null
       });
     } catch (error) {
       console.error('Error submitting daily report:', error);
@@ -9915,11 +9917,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get enabled field assignments for this department to filter email content
           const fieldAssignments = template ? await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id) : [];
           const enabledFields = fieldAssignments
-            .filter(fa => fa.assignment.isEnabled && fa.fieldDefinition)
+            .filter(fa => fa.isEnabled && fa.fieldDefinition)
             .map(fa => ({
               key: fa.fieldDefinition!.key,
               label: fa.fieldDefinition!.label,
-              unit: fa.fieldDefinition!.unit || undefined
+              unit: undefined
             }));
           
           // Filter metricsData to only include enabled fields
