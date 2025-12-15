@@ -9073,9 +9073,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Get department template for metrics config and notification emails
         const template = await storage.getDailyReportTemplateByDepartment(report.department);
+        console.log(`[Daily Reports] Template lookup for department '${report.department}':`, template ? `Found template ${template.id}` : 'NOT FOUND');
         
         // Get notification emails from template (department level)
         const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+        console.log(`[Daily Reports] Notification emails for ${report.department}:`, JSON.stringify(notificationEmails));
         
         if (notificationEmails.length > 0) {
           // Get incident count
