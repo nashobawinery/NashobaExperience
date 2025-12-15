@@ -87,6 +87,29 @@ export default function ProceduresAdminDashboard() {
     }
   });
 
+  const copyTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      const response = await apiRequest("POST", `/api/procedures/templates/${templateId}/copy`);
+      return response.json();
+    },
+    onSuccess: (newTemplate) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
+      toast({ 
+        title: "Procedure copied", 
+        description: `Created "${newTemplate.procedureName}". The copy is set to inactive so you can review it.` 
+      });
+      setLocation(`/procedures/templates/${newTemplate.id}`);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to copy procedure", variant: "destructive" });
+    }
+  });
+
+  const handleCopyTemplate = (e: React.MouseEvent, templateId: string) => {
+    e.stopPropagation();
+    copyTemplateMutation.mutate(templateId);
+  };
+
   const resetStaffForm = () => {
     setStaffDialogOpen(false);
     setEditingStaff(null);
@@ -408,11 +431,22 @@ export default function ProceduresAdminDashboard() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="flex items-center justify-between">
+                  <CardFooter className="flex items-center justify-between gap-2">
                     <Badge variant={template.isActive ? "default" : "secondary"}>
                       {template.isActive ? "Active" : "Inactive"}
                     </Badge>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => handleCopyTemplate(e, template.id)}
+                        disabled={copyTemplateMutation.isPending}
+                        data-testid={`button-copy-procedure-${template.id}`}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
                   </CardFooter>
                 </Card>
               ))}

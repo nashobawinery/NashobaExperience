@@ -200,6 +200,56 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/templates/:id/copy", async (req: Request, res: Response) => {
+  try {
+    const original = await storage.getProceduresTemplateWithItems(req.params.id);
+    if (!original) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    
+    // Create a copy of the template with a new name
+    const copyData = {
+      procedureName: `${original.procedureName} (Copy)`,
+      procedureCode: `${original.procedureCode}_COPY_${Date.now().toString(36).toUpperCase()}`,
+      department: original.department,
+      procedureType: original.procedureType,
+      description: original.description,
+      daysOfWeek: original.daysOfWeek,
+      isActive: false, // Start inactive so admin can review
+      isMandatory: original.isMandatory,
+      completionTime: original.completionTime,
+      emailRecipientsTo: original.emailRecipientsTo,
+      emailRecipientsCc: original.emailRecipientsCc,
+    };
+    
+    const newTemplate = await storage.createProceduresTemplate(copyData);
+    
+    // Copy all items
+    if (original.items && original.items.length > 0) {
+      for (const item of original.items) {
+        await storage.createProceduresItem({
+          templateId: newTemplate.id,
+          label: item.label,
+          description: item.description,
+          isRequired: item.isRequired,
+          requireInitials: item.requireInitials,
+          requireComment: item.requireComment,
+          responseType: item.responseType,
+          dropdownOptions: item.dropdownOptions,
+          sortOrder: item.sortOrder,
+        });
+      }
+    }
+    
+    // Fetch the complete new template with items
+    const completeTemplate = await storage.getProceduresTemplateWithItems(newTemplate.id);
+    res.status(201).json(completeTemplate);
+  } catch (error) {
+    console.error("Error copying procedure template:", error);
+    res.status(500).json({ error: "Failed to copy procedure template" });
+  }
+});
+
 // ==========================================
 // PROCEDURE ITEMS
 // ==========================================
