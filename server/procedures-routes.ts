@@ -17,7 +17,9 @@ function generateProcedureSubmissionEmail(
   submissionDate: Date,
   answers: Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
 ): { subject: string; html: string; text: string } {
-  const dateStr = submissionDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  // Use Eastern Time for all date/time formatting
+  const easternTimeZone = 'America/New_York';
+  const dateStr = submissionDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: easternTimeZone });
   const subject = `${template.procedureType.charAt(0).toUpperCase() + template.procedureType.slice(1)} Procedures Completed - ${template.procedureName}`;
 
   // Build text version
@@ -32,7 +34,7 @@ function generateProcedureSubmissionEmail(
   template.items.forEach((item, index) => {
     const answer = answers[item.id];
     const value = answer?.value ?? 'Not completed';
-    const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString() : '';
+    const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString('en-US', { timeZone: easternTimeZone }) : '';
     text += `\n${index + 1}. ${item.label}\n`;
     text += `   Response: ${value}\n`;
     if (completedTime) text += `   Completed at: ${completedTime}\n`;
@@ -92,7 +94,7 @@ function generateProcedureSubmissionEmail(
       ${template.items.map((item, index) => {
         const answer = answers[item.id];
         const value = answer?.value;
-        const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString() : null;
+        const completedTime = answer?.completedAt ? new Date(answer.completedAt).toLocaleTimeString('en-US', { timeZone: easternTimeZone }) : null;
         const isCompleted = value !== undefined && value !== null && value !== '';
         const displayValue = item.responseType === 'checkbox' 
           ? (value ? 'Completed' : 'Not completed')
