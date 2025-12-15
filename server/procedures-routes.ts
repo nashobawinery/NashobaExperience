@@ -483,6 +483,24 @@ router.get("/submissions", async (req: Request, res: Response) => {
   }
 });
 
+// Get draft submission for a template and staff member (must be before :id route)
+router.get("/submissions/draft/:templateId", async (req: Request, res: Response) => {
+  try {
+    const { staffName } = req.query;
+    if (!staffName || typeof staffName !== 'string') {
+      return res.status(400).json({ error: "staffName is required" });
+    }
+    const draft = await storage.getProceduresSubmissionDraft(req.params.templateId, staffName);
+    if (!draft) {
+      return res.status(404).json({ error: "No draft found" });
+    }
+    res.json(draft);
+  } catch (error) {
+    console.error("Error fetching draft:", error);
+    res.status(500).json({ error: "Failed to fetch draft" });
+  }
+});
+
 router.get("/submissions/:id", async (req: Request, res: Response) => {
   try {
     const submission = await storage.getProceduresSubmission(req.params.id);

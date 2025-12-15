@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut, User } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut, User, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import type { ProceduresStaff, ProceduresTemplateWithItems, ProceduresItem } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { ProceduresStaff, ProceduresTemplateWithItems, ProceduresItem, ProceduresSubmission } from "@shared/schema";
 
 type Stage = "login" | "select" | "complete" | "success";
 
@@ -60,6 +60,8 @@ export default function StaffProceduresForm() {
   const [notes, setNotes] = useState("");
   const [lateReason, setLateReason] = useState("");
   const [startTime, setStartTime] = useState<Date>(new Date());
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
   // Check if the current time is past the procedure's completion time deadline
   const isLateSubmission = (): boolean => {
@@ -94,14 +96,43 @@ export default function StaffProceduresForm() {
 
   const submitMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/procedures/submissions", data);
-      return response.json();
+      if (draftId) {
+        // Update existing draft to submitted
+        const response = await apiRequest("PATCH", `/api/procedures/submissions/${draftId}`, data);
+        return response.json();
+      } else {
+        // Create new submission
+        const response = await apiRequest("POST", "/api/procedures/submissions", data);
+        return response.json();
+      }
     },
     onSuccess: () => {
+      setDraftId(null);
       setStage("success");
     },
     onError: (error: any) => {
       toast({ title: "Error submitting procedure", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const saveDraftMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (draftId) {
+        // Update existing draft
+        const response = await apiRequest("PATCH", `/api/procedures/submissions/${draftId}`, data);
+        return response.json();
+      } else {
+        // Create new draft
+        const response = await apiRequest("POST", "/api/procedures/submissions", data);
+        return response.json();
+      }
+    },
+    onSuccess: (data: ProceduresSubmission) => {
+      setDraftId(data.id);
+      toast({ title: "Progress Saved", description: "Your progress has been saved. You can continue later." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error saving progress", description: error.message, variant: "destructive" });
     }
   });
 
@@ -118,19 +149,72 @@ export default function StaffProceduresForm() {
     setAnswers({});
     setNotes("");
     setLateReason("");
+    setDraftId(null);
     setStage("login");
   };
 
-  const handleSelectProcedure = (procedure: ProceduresTemplateWithItems) => {
+  const handleSelectProcedure = async (procedure: ProceduresTemplateWithItems) => {
     setSelectedProcedure(procedure);
-    const initialAnswers: Record<string, { value: any; initials?: string; comment?: string }> = {};
+    setIsLoadingDraft(true);
+    setDraftId(null);
+    setLateReason("");
+    setNotes("");
+    setStartTime(new Date());
+    
+    // Initialize with empty answers first
+    const initialAnswers: Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }> = {};
     procedure.items.forEach(item => {
       initialAnswers[item.id] = { value: item.responseType === "checkbox" ? false : "" };
     });
+    
+    // Check for existing draft using apiRequest pattern
+    try {
+      const response = await apiRequest("GET", `/api/procedures/submissions/draft/${procedure.id}?staffName=${encodeURIComponent(staff?.staffName || "")}`);
+      if (response.ok) {
+        const draft: ProceduresSubmission = await response.json();
+        setDraftId(draft.id);
+        // Restore answers from draft
+        const savedAnswers = draft.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>;
+        if (savedAnswers && typeof savedAnswers === 'object') {
+          // Merge saved answers with initial answers (in case new items were added)
+          Object.keys(savedAnswers).forEach(key => {
+            if (initialAnswers[key] !== undefined) {
+              initialAnswers[key] = savedAnswers[key];
+            }
+          });
+        }
+        setNotes(draft.notes || "");
+        setLateReason(draft.lateReason || "");
+        if (draft.dateTimeStarted) {
+          setStartTime(new Date(draft.dateTimeStarted));
+        }
+        toast({ title: "Draft Loaded", description: "Your previous progress has been restored." });
+      }
+    } catch (error) {
+      // No draft found or error - continue with empty form (404 is expected)
+    }
+    
     setAnswers(initialAnswers);
-    setLateReason("");
-    setStartTime(new Date()); // Capture when procedure actually starts
+    setIsLoadingDraft(false);
     setStage("complete");
+  };
+
+  const handleSaveDraft = () => {
+    if (!selectedProcedure || !staff) return;
+    
+    saveDraftMutation.mutate({
+      templateId: selectedProcedure.id,
+      procedureCode: selectedProcedure.procedureCode,
+      department: selectedProcedure.department,
+      submittedByName: staff.staffName,
+      dateTimeStarted: startTime.toISOString(),
+      dateTimeSubmitted: new Date().toISOString(),
+      submissionDate: new Date().toISOString(),
+      status: "draft",
+      answers,
+      notes: notes || null,
+      lateReason: isLateSubmission() ? lateReason : null
+    });
   };
 
   const handleSubmit = () => {
@@ -185,6 +269,7 @@ export default function StaffProceduresForm() {
     setAnswers({});
     setNotes("");
     setLateReason("");
+    setDraftId(null);
     setStage("select");
   };
 
@@ -193,6 +278,7 @@ export default function StaffProceduresForm() {
     setAnswers({});
     setNotes("");
     setLateReason("");
+    setDraftId(null);
     setStage("select");
   };
 
@@ -526,16 +612,34 @@ export default function StaffProceduresForm() {
             </CardContent>
           </Card>
 
-          <Button 
-            onClick={handleSubmit} 
-            className="w-full" 
-            size="lg"
-            disabled={submitMutation.isPending}
-            data-testid="button-submit"
-          >
-            {submitMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-            Submit Procedure
-          </Button>
+          <div className="flex flex-col gap-3">
+            <Button 
+              onClick={handleSaveDraft} 
+              variant="outline"
+              className="w-full" 
+              size="lg"
+              disabled={saveDraftMutation.isPending || submitMutation.isPending}
+              data-testid="button-save-draft"
+            >
+              {saveDraftMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Progress
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              className="w-full" 
+              size="lg"
+              disabled={submitMutation.isPending || saveDraftMutation.isPending}
+              data-testid="button-submit"
+            >
+              {submitMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              Submit Procedure
+            </Button>
+          </div>
+          {draftId && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Draft saved. Your progress will be restored when you return.
+            </p>
+          )}
         </div>
       </div>
     );

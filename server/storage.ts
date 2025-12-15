@@ -505,6 +505,7 @@ export interface IStorage {
   // Procedure Submissions
   getProceduresSubmissions(filters?: { department?: string; procedureCode?: string; startDate?: Date; endDate?: Date; userId?: string }): Promise<ProceduresSubmission[]>;
   getProceduresSubmission(id: string): Promise<ProceduresSubmission | undefined>;
+  getProceduresSubmissionDraft(templateId: string, staffName: string): Promise<ProceduresSubmission | undefined>;
   createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission>;
   updateProceduresSubmission(id: string, data: Partial<InsertProceduresSubmission>): Promise<ProceduresSubmission | undefined>;
   deleteProceduresSubmission(id: string): Promise<boolean>;
@@ -4593,6 +4594,18 @@ export class DatabaseStorage implements IStorage {
   async getProceduresSubmission(id: string): Promise<ProceduresSubmission | undefined> {
     const [submission] = await db.select().from(proceduresSubmissions).where(eq(proceduresSubmissions.id, id));
     return submission;
+  }
+
+  async getProceduresSubmissionDraft(templateId: string, staffName: string): Promise<ProceduresSubmission | undefined> {
+    const [draft] = await db.select().from(proceduresSubmissions)
+      .where(and(
+        eq(proceduresSubmissions.templateId, templateId),
+        eq(proceduresSubmissions.submittedByName, staffName),
+        eq(proceduresSubmissions.status, "draft")
+      ))
+      .orderBy(desc(proceduresSubmissions.createdAt))
+      .limit(1);
+    return draft;
   }
 
   async createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission> {
