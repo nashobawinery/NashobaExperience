@@ -8895,13 +8895,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send email notifications if report is being submitted (not draft)
       if (data.status === 'submitted') {
         try {
+          console.log(`[Daily Reports POST] Attempting to send email notifications for report ${report.id}, department: ${data.department}`);
           const { generateDailyReportEmail, sendEmail } = await import("./email");
           
           // Get department template for metrics config and notification emails
           const template = await storage.getDailyReportTemplateByDepartment(data.department);
+          console.log(`[Daily Reports POST] Template lookup for department '${data.department}':`, template ? `Found template ${template.id}` : 'NOT FOUND');
           
           // Get notification emails from template (new approach - department level)
           const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+          console.log(`[Daily Reports POST] Notification emails:`, JSON.stringify(notificationEmails));
           
           if (notificationEmails.length > 0) {
             // Get incident count
@@ -8946,24 +8949,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             // Send to all notification email recipients from template
+            console.log(`[Daily Reports POST] Sending emails to ${notificationEmails.length} recipients`);
             for (const recipient of notificationEmails) {
               try {
+                console.log(`[Daily Reports POST] Attempting to send email to ${recipient.email}...`);
                 await sendEmail(
                   recipient.email,
                   emailData.subject,
                   emailData.html,
                   emailData.text
                 );
-                console.log(`[Daily Reports] Email sent to ${recipient.email}`);
+                console.log(`[Daily Reports POST] Email sent successfully to ${recipient.email}`);
               } catch (emailError) {
-                console.error(`[Daily Reports] Failed to send email to ${recipient.email}:`, emailError);
+                console.error(`[Daily Reports POST] Failed to send email to ${recipient.email}:`, emailError);
               }
             }
+            console.log(`[Daily Reports POST] Email sending complete`);
+          } else {
+            console.log(`[Daily Reports POST] No notification emails configured for this template`);
           }
         } catch (emailError) {
-          console.error('[Daily Reports] Error sending email notifications:', emailError);
+          console.error('[Daily Reports POST] Error in email notification block:', emailError);
           // Don't fail the report creation if email fails
         }
+      } else {
+        console.log(`[Daily Reports POST] Report status is '${data.status}', skipping email notifications`);
       }
       
       // Look up templateId from department for the response
