@@ -9832,9 +9832,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { generateDailyReportEmail, sendEmail } = await import("./email");
         const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
+        console.log(`[Daily Reports Public] Template lookup for department '${accessCode.department}':`, template ? `Found template ${template.id}` : 'NOT FOUND');
         
         // Get notification emails from template (department level)
         const notificationEmails = (template?.notificationEmails as Array<{ email: string; name?: string; role?: string }>) || [];
+        console.log(`[Daily Reports Public] Notification emails:`, JSON.stringify(notificationEmails));
 
         if (notificationEmails.length > 0) {
           const reportIncidents = await storage.getDailyReportIncidents(report.id);
