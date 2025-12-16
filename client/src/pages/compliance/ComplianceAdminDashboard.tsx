@@ -40,7 +40,11 @@ import {
   CheckSquare,
   BookOpen,
   GripVertical,
-  X
+  X,
+  Image,
+  Upload,
+  Loader2,
+  ImageIcon
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -57,7 +61,7 @@ interface ComplianceTask {
   id: string;
   task_name: string;
   description: string | null;
-  steps: { order: number; instruction: string; }[] | null;
+  steps: TaskStep[] | null;
   category: string;
   subcategory: string | null;
   jurisdiction: string | null;
@@ -98,9 +102,20 @@ interface ComplianceStats {
   due_this_month: string;
 }
 
+interface StepAttachment {
+  id: string;
+  fileName: string;
+  storageKey: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+}
+
 interface TaskStep {
+  id?: string;
   order: number;
   instruction: string;
+  attachments?: StepAttachment[];
 }
 
 interface TaskFormData {
@@ -213,6 +228,8 @@ export default function ComplianceAdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [viewShowPassword, setViewShowPassword] = useState(false);
+  const [uploadingStepId, setUploadingStepId] = useState<string | null>(null);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<ComplianceStats>({
     queryKey: ['/api/compliance/stats'],
@@ -381,8 +398,10 @@ export default function ComplianceAdminDashboard() {
 
   const handleAddStep = () => {
     const newStep: TaskStep = {
+      id: crypto.randomUUID(),
       order: formData.steps.length + 1,
-      instruction: ""
+      instruction: "",
+      attachments: []
     };
     setFormData(prev => ({ ...prev, steps: [...prev.steps, newStep] }));
   };
@@ -398,6 +417,103 @@ export default function ComplianceAdminDashboard() {
     const updatedSteps = [...formData.steps];
     updatedSteps[index] = { ...updatedSteps[index], instruction };
     setFormData(prev => ({ ...prev, steps: updatedSteps }));
+  };
+
+  const handleUploadStepAttachment = async (stepId: string, stepIndex: number, file: File) => {
+    if (!selectedTask) {
+      toast({ title: "Error", description: "Please save the task first before adding screenshots", variant: "destructive" });
+      return;
+    }
+
+    // Check if this step exists on the server (was saved previously)
+    const serverStep = selectedTask.steps?.find(s => s.id === stepId);
+    if (!serverStep) {
+      toast({ title: "Save Required", description: "Please save the task to persist this step before adding screenshots", variant: "destructive" });
+      return;
+    }
+
+    setUploadingStepId(stepId);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+
+      const response = await fetch(`/api/compliance/tasks/${selectedTask.id}/steps/${stepId}/attachments`, {
+        method: 'POST',
+        body: formDataUpload,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Upload failed');
+      }
+
+      const result = await response.json();
+      
+      // Update the local form data with the new attachment
+      const updatedSteps = [...formData.steps];
+      if (!updatedSteps[stepIndex].attachments) {
+        updatedSteps[stepIndex].attachments = [];
+      }
+      updatedSteps[stepIndex].attachments!.push(result.attachment);
+      setFormData(prev => ({ ...prev, steps: updatedSteps }));
+
+      // Update selectedTask to keep server state in sync
+      const updatedServerSteps = selectedTask.steps?.map(s => 
+        s.id === stepId 
+          ? { ...s, attachments: [...(s.attachments || []), result.attachment] }
+          : s
+      ) || [];
+      setSelectedTask({ ...selectedTask, steps: updatedServerSteps });
+
+      // Invalidate cache to ensure data consistency
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/tasks'] });
+
+      toast({ title: "Success", description: "Screenshot uploaded successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to upload screenshot", variant: "destructive" });
+    } finally {
+      setUploadingStepId(null);
+    }
+  };
+
+  const handleDeleteStepAttachment = async (stepId: string, stepIndex: number, attachmentId: string) => {
+    if (!selectedTask) return;
+
+    setDeletingAttachmentId(attachmentId);
+    try {
+      const response = await fetch(`/api/compliance/tasks/${selectedTask.id}/steps/${stepId}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Delete failed');
+      }
+
+      // Update the local form data
+      const updatedSteps = [...formData.steps];
+      updatedSteps[stepIndex].attachments = updatedSteps[stepIndex].attachments?.filter(a => a.id !== attachmentId) || [];
+      setFormData(prev => ({ ...prev, steps: updatedSteps }));
+
+      // Update selectedTask to keep server state in sync
+      const updatedServerSteps = selectedTask.steps?.map(s => 
+        s.id === stepId 
+          ? { ...s, attachments: (s.attachments || []).filter(a => a.id !== attachmentId) }
+          : s
+      ) || [];
+      setSelectedTask({ ...selectedTask, steps: updatedServerSteps });
+
+      // Invalidate cache to ensure data consistency
+      queryClient.invalidateQueries({ queryKey: ['/api/compliance/tasks'] });
+
+      toast({ title: "Success", description: "Screenshot deleted successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to delete screenshot", variant: "destructive" });
+    } finally {
+      setDeletingAttachmentId(null);
+    }
   };
 
   const handleViewTask = (task: ComplianceTask) => {
@@ -955,29 +1071,126 @@ export default function ComplianceAdminDashboard() {
                 </Button>
               </div>
               {formData.steps.length > 0 ? (
-                <div className="space-y-2 mt-2">
+                <div className="space-y-4 mt-2">
                   {formData.steps.map((step, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <div className="flex items-center justify-center w-6 h-9 text-sm font-medium text-muted-foreground">
-                        {step.order}.
+                    <div key={step.id || index} className="border rounded-lg p-3 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <div className="flex items-center justify-center w-6 h-9 text-sm font-medium text-muted-foreground">
+                          {step.order}.
+                        </div>
+                        <Input
+                          value={step.instruction}
+                          onChange={(e) => handleUpdateStep(index, e.target.value)}
+                          placeholder={`Step ${step.order} instruction...`}
+                          className="flex-1"
+                          data-testid={`input-step-${index}`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveStep(index)}
+                          className="text-destructive hover:text-destructive"
+                          data-testid={`button-remove-step-${index}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <Input
-                        value={step.instruction}
-                        onChange={(e) => handleUpdateStep(index, e.target.value)}
-                        placeholder={`Step ${step.order} instruction...`}
-                        className="flex-1"
-                        data-testid={`input-step-${index}`}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveStep(index)}
-                        className="text-destructive hover:text-destructive"
-                        data-testid={`button-remove-step-${index}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+
+                      {/* Step Screenshots Section */}
+                      <div className="ml-8 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground">Screenshots</span>
+                          {(() => {
+                            const stepExistsOnServer = selectedTask?.steps?.some(s => s.id === step.id);
+                            if (!selectedTask) {
+                              return <span className="text-xs text-amber-600">Save task first to add screenshots</span>;
+                            }
+                            if (!stepExistsOnServer) {
+                              return <span className="text-xs text-amber-600">Save changes to enable screenshots for this step</span>;
+                            }
+                            return (
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && step.id) {
+                                      handleUploadStepAttachment(step.id, index, file);
+                                    }
+                                    e.target.value = '';
+                                  }}
+                                  disabled={uploadingStepId === step.id}
+                                  data-testid={`input-upload-step-${index}`}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  disabled={uploadingStepId === step.id}
+                                  asChild
+                                >
+                                  <span>
+                                    {uploadingStepId === step.id ? (
+                                      <>
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        Uploading...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Upload className="w-3 h-3 mr-1" />
+                                        Add Screenshot
+                                      </>
+                                    )}
+                                  </span>
+                                </Button>
+                              </label>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Display existing attachments */}
+                        {step.attachments && step.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {step.attachments.map((attachment) => (
+                              <div 
+                                key={attachment.id} 
+                                className="relative group border rounded-md overflow-hidden"
+                              >
+                                <img
+                                  src={`/api/compliance/tasks/${selectedTask?.id}/steps/${step.id}/attachments/${attachment.id}`}
+                                  alt={attachment.fileName}
+                                  className="w-20 h-20 object-cover"
+                                  data-testid={`img-step-attachment-${attachment.id}`}
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => step.id && handleDeleteStepAttachment(step.id, index, attachment.id)}
+                                    disabled={deletingAttachmentId === attachment.id}
+                                    data-testid={`button-delete-attachment-${attachment.id}`}
+                                  >
+                                    {deletingAttachmentId === attachment.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-3 h-3" />
+                                    )}
+                                  </Button>
+                                </div>
+                                <span className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 truncate">
+                                  {attachment.fileName}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1283,13 +1496,44 @@ export default function ComplianceAdminDashboard() {
               {selectedTask.steps && selectedTask.steps.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2">Step-by-Step Directions</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                  <div className="space-y-4">
                     {selectedTask.steps
                       .sort((a, b) => a.order - b.order)
                       .map((step, index) => (
-                        <li key={index} className="pl-2">{step.instruction}</li>
+                        <div key={step.id || index} className="border rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <span className="font-medium text-muted-foreground">{step.order}.</span>
+                            <span className="text-muted-foreground flex-1">{step.instruction}</span>
+                          </div>
+                          {step.attachments && step.attachments.length > 0 && (
+                            <div className="mt-2 ml-6 flex flex-wrap gap-2">
+                              {step.attachments.map((attachment) => (
+                                <a
+                                  key={attachment.id}
+                                  href={`/api/compliance/tasks/${selectedTask.id}/steps/${step.id}/attachments/${attachment.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="relative group border rounded-md overflow-hidden"
+                                >
+                                  <img
+                                    src={`/api/compliance/tasks/${selectedTask.id}/steps/${step.id}/attachments/${attachment.id}`}
+                                    alt={attachment.fileName}
+                                    className="w-24 h-24 object-cover"
+                                    data-testid={`view-img-step-attachment-${attachment.id}`}
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                  <span className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 truncate">
+                                    {attachment.fileName}
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
-                  </ol>
+                  </div>
                 </div>
               )}
 
