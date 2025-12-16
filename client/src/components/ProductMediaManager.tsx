@@ -1,15 +1,27 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Image as ImageIcon, X, GripVertical, Search } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Search, FolderOpen, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+interface MediaLibraryFile {
+  id: string;
+  filename: string;
+  originalFilename: string;
+  publicUrl: string;
+  category: string;
+  mimeType: string;
+}
 
 interface ProductMedia {
   id: string;
@@ -42,12 +54,46 @@ export default function ProductMediaManager() {
   const [uploadRole, setUploadRole] = useState<"primary" | "label" | "lifestyle" | "gallery">("gallery");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dialogMode, setDialogMode] = useState<"upload" | "library">("library");
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+  const [librarySearchQuery, setLibrarySearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch products with their media
   const { data: products = [], isLoading } = useQuery<ProductWithMedia[]>({
     queryKey: ['/api/admin/products-with-media'],
   });
+
+  // Fetch all media library files (uses default queryFn with proper auth)
+  const { data: allMediaLibraryFiles = [], isLoading: isLoadingLibrary } = useQuery<MediaLibraryFile[]>({
+    queryKey: ['/api/media-library'],
+    enabled: showUploadDialog,
+  });
+
+  // Filter to only show image files, with search
+  const filteredMediaFiles = allMediaLibraryFiles.filter(file => {
+    if (!file.mimeType?.startsWith('image/')) return false;
+    if (!librarySearchQuery) return true;
+    const query = librarySearchQuery.toLowerCase();
+    return (
+      file.filename?.toLowerCase().includes(query) ||
+      file.originalFilename?.toLowerCase().includes(query)
+    );
+  });
+
+  // Reset state when switching tabs
+  const handleTabChange = (newMode: "library" | "upload") => {
+    setDialogMode(newMode);
+    if (newMode === "upload") {
+      setSelectedMediaId(null);
+      setLibrarySearchQuery("");
+    } else {
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   // Filter products based on search query
   const filteredProducts = products.filter(product => {
@@ -80,9 +126,12 @@ export default function ProductMediaManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/media-library'] });
       toast({ title: "Image Uploaded", description: "Product image uploaded successfully" });
       setShowUploadDialog(false);
       setSelectedFile(null);
+      setSelectedMediaId(null);
+      setLibrarySearchQuery("");
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -117,6 +166,35 @@ export default function ProductMediaManager() {
       toast({
         title: "Delete Failed",
         description: error instanceof Error ? error.message : "Failed to delete image",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Associate existing media library item with product
+  const associateMediaMutation = useMutation({
+    mutationFn: async ({ productId, mediaId, role }: { productId: string; mediaId: string; role: string }) => {
+      const response = await apiRequest('POST', '/api/admin/product-media/associate', {
+        productId,
+        mediaId,
+        role,
+        sortOrder: 0,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/media-library'] });
+      toast({ title: "Image Assigned", description: "Image from library assigned to product successfully" });
+      setShowUploadDialog(false);
+      setSelectedFile(null);
+      setSelectedMediaId(null);
+      setLibrarySearchQuery("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Assignment Failed",
+        description: error instanceof Error ? error.message : "Failed to assign image",
         variant: "destructive"
       });
     },
@@ -158,6 +236,19 @@ export default function ProductMediaManager() {
     setShowUploadDialog(true);
     setUploadRole("gallery");
     setSelectedFile(null);
+    setSelectedMediaId(null);
+    setDialogMode("library");
+    setLibrarySearchQuery("");
+  };
+
+  const handleAssignFromLibrary = () => {
+    if (selectedProduct && selectedMediaId) {
+      associateMediaMutation.mutate({
+        productId: selectedProduct.id,
+        mediaId: selectedMediaId,
+        role: uploadRole
+      });
+    }
   };
 
   const groupMediaByRole = (media: ProductMedia[]) => {
@@ -190,12 +281,33 @@ export default function ProductMediaManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="space-y-4">
         <div>
           <h2 className="text-2xl font-medium">Product Media Management</h2>
           <p className="text-muted-foreground mt-1">
-            Manage images for each product - primary, label, lifestyle, and gallery images
+            Link images to specific products with designated roles for how they're displayed.
           </p>
+        </div>
+        <div className="text-sm bg-muted/50 p-4 rounded-lg">
+          <p className="font-medium mb-2">Image Roles Explained:</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-muted-foreground">
+            <div>
+              <Badge className="mb-1">Primary</Badge>
+              <p className="text-xs">Main product image shown in listings and cards</p>
+            </div>
+            <div>
+              <Badge variant="secondary" className="mb-1">Label</Badge>
+              <p className="text-xs">Close-up of the bottle label for detail view</p>
+            </div>
+            <div>
+              <Badge variant="outline" className="mb-1">Lifestyle</Badge>
+              <p className="text-xs">Product in use or scenic context shots</p>
+            </div>
+            <div>
+              <Badge variant="outline" className="mb-1">Gallery</Badge>
+              <p className="text-xs">Additional images for product gallery</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -300,17 +412,18 @@ export default function ProductMediaManager() {
         </div>
       )}
 
-      {/* Upload Dialog */}
+      {/* Add Image Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent data-testid="dialog-upload-image">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden" data-testid="dialog-upload-image">
           <DialogHeader>
-            <DialogTitle>Upload Product Image</DialogTitle>
+            <DialogTitle>Add Image for {selectedProduct?.name}</DialogTitle>
             <DialogDescription>
-              Add an image for {selectedProduct?.name}
+              Select an image from your Media Library or upload a new one
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Image Role Selection */}
             <div className="space-y-2">
               <Label htmlFor="role">Image Role</Label>
               <Select value={uploadRole} onValueChange={(value: any) => setUploadRole(value)}>
@@ -326,22 +439,109 @@ export default function ProductMediaManager() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="file">Image File</Label>
-              <Input
-                ref={fileInputRef}
-                id="file"
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                data-testid="input-image-file"
-              />
-              {selectedFile && (
-                <p className="text-sm text-muted-foreground">
-                  Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                </p>
-              )}
-            </div>
+            {/* Tabs for Library vs Upload */}
+            <Tabs value={dialogMode} onValueChange={(v) => handleTabChange(v as "library" | "upload")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="library" className="flex items-center gap-2" data-testid="tab-select-from-library">
+                  <FolderOpen className="w-4 h-4" />
+                  Select from Library
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="flex items-center gap-2" data-testid="tab-upload-new">
+                  <Upload className="w-4 h-4" />
+                  Upload New
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="library" className="mt-4">
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search images..."
+                      value={librarySearchQuery}
+                      onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                      className="pl-10"
+                      data-testid="input-library-search"
+                    />
+                  </div>
+
+                  <ScrollArea className="h-[300px] border rounded-lg p-2">
+                    {isLoadingLibrary ? (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        Loading images...
+                      </div>
+                    ) : filteredMediaFiles.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 py-8">
+                        <ImageIcon className="w-12 h-12 opacity-50" />
+                        <p>No images found in library</p>
+                        <p className="text-sm">Upload images via the Media Library tab first</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {filteredMediaFiles.map((file) => {
+                          const isSelected = selectedMediaId === file.id;
+                          return (
+                            <div
+                              key={file.id}
+                              className={cn(
+                                "relative border-2 rounded-lg overflow-hidden cursor-pointer hover-elevate transition-all",
+                                isSelected ? "border-primary ring-2 ring-primary" : "border-border"
+                              )}
+                              onClick={() => setSelectedMediaId(file.id)}
+                              data-testid={`library-image-${file.id}`}
+                            >
+                              <div className="aspect-square bg-muted">
+                                <img
+                                  src={`/api/media-library/${file.id}/file`}
+                                  alt={file.originalFilename}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-1">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              )}
+                              <div className="p-1.5 bg-card">
+                                <p className="text-xs truncate" title={file.originalFilename}>
+                                  {file.originalFilename}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="upload" className="mt-4">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="file">Choose an image file from your computer</Label>
+                    <Input
+                      ref={fileInputRef}
+                      id="file"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      data-testid="input-image-file"
+                    />
+                    {selectedFile && (
+                      <p className="text-sm text-muted-foreground">
+                        Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                    <p>Tip: Images uploaded here will also be added to your Media Library for future use.</p>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <DialogFooter>
@@ -352,13 +552,23 @@ export default function ProductMediaManager() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploadMediaMutation.isPending}
-              data-testid="button-confirm-upload"
-            >
-              {uploadMediaMutation.isPending ? "Uploading..." : "Upload"}
-            </Button>
+            {dialogMode === "library" ? (
+              <Button
+                onClick={handleAssignFromLibrary}
+                disabled={!selectedMediaId || associateMediaMutation.isPending}
+                data-testid="button-assign-from-library"
+              >
+                {associateMediaMutation.isPending ? "Assigning..." : "Assign Image"}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleUpload}
+                disabled={!selectedFile || uploadMediaMutation.isPending}
+                data-testid="button-confirm-upload"
+              >
+                {uploadMediaMutation.isPending ? "Uploading..." : "Upload"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -215,26 +215,35 @@ export default function ObjectStorageManager() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
-          <CardTitle>Object Storage Manager</CardTitle>
-          <div className="flex items-center gap-2">
-            {selectedFiles.size > 0 && (
+        <CardHeader className="space-y-3 pb-4">
+          <div className="flex flex-row items-center justify-between gap-2">
+            <CardTitle>Object Storage Browser</CardTitle>
+            <div className="flex items-center gap-2">
+              {selectedFiles.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  data-testid="button-delete-selected"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedFiles.size})
+                </Button>
+              )}
               <Button
-                variant="destructive"
-                onClick={() => setShowBulkDeleteDialog(true)}
-                data-testid="button-delete-selected"
+                onClick={() => setShowUploadDialog(true)}
+                data-testid="button-upload-file"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedFiles.size})
+                <Upload className="h-4 w-4 mr-2" />
+                Upload File
               </Button>
-            )}
-            <Button
-              onClick={() => setShowUploadDialog(true)}
-              data-testid="button-upload-file"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload File
-            </Button>
+            </div>
+          </div>
+          <div className="text-sm bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg">
+            <p className="font-medium text-amber-700 dark:text-amber-400 mb-1">Advanced Feature</p>
+            <p className="text-muted-foreground text-xs">
+              This is a direct view of your cloud storage bucket. For everyday image management, use the <strong>Media Library</strong> instead. 
+              Object Storage is useful for troubleshooting, cleanup, or advanced file operations.
+            </p>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

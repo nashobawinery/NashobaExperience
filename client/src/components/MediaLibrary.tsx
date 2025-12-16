@@ -292,8 +292,18 @@ export function MediaLibrary() {
       <Card>
         <CardHeader>
           <CardTitle>Media Library</CardTitle>
-          <CardDescription>
-            Upload and manage images and files. All files are stored in cloud storage and accessible from both preview and production.
+          <CardDescription className="space-y-2">
+            <p>
+              Your central hub for all images and files. Upload, organize, and manage media assets that can be used throughout the platform.
+            </p>
+            <div className="text-xs bg-muted/50 p-3 rounded-lg mt-2">
+              <p className="font-medium mb-1">How it works:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                <li>Upload images here to store them in the cloud</li>
+                <li>Organize files by category (Product Images, Slideshow, Logos, etc.)</li>
+                <li>Use these images in Product Media to assign them to specific products</li>
+              </ul>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
