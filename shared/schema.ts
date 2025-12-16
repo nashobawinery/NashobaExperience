@@ -1148,11 +1148,30 @@ export const lmsCertificates = pgTable("lms_certificates", {
 // ============================================
 
 // Compliance Tasks - Main table for tracking compliance obligations
+// Step attachment type for compliance task steps
+export interface ComplianceStepAttachment {
+  id: string;
+  fileName: string;
+  storageKey: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+  publicUrl?: string;
+}
+
+// Step type for compliance tasks
+export interface ComplianceStep {
+  id: string;
+  order: number;
+  instruction: string;
+  attachments: ComplianceStepAttachment[];
+}
+
 export const complianceTasks = pgTable("compliance_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskName: text("task_name").notNull(),
   description: text("description"),
-  steps: jsonb("steps").$type<{ order: number; instruction: string; }[]>(), // Step-by-step directions
+  steps: jsonb("steps").$type<ComplianceStep[]>(), // Step-by-step directions with attachments
   category: complianceCategoryEnum("category").notNull(),
   subcategory: text("subcategory"),
   jurisdiction: text("jurisdiction"), // e.g., "Federal", "Massachusetts", "Local"

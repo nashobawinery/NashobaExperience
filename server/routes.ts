@@ -7088,6 +7088,237 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Step attachment upload endpoint
+  app.post('/api/compliance/tasks/:taskId/steps/:stepId/attachments', isAdmin, async (req: any, res) => {
+    try {
+      const multer = (await import("multer")).default;
+      const uploadHandler = multer({ 
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+      });
+
+      uploadHandler.single('file')(req, res, async (err) => {
+        if (err) {
+          console.error('Upload error:', err);
+          return res.status(400).json({ message: 'File upload error' });
+        }
+
+        const { taskId, stepId } = req.params;
+        const file = req.file;
+
+        if (!file) {
+          return res.status(400).json({ message: 'No file provided' });
+        }
+
+        try {
+          // Get the task
+          const taskResult = await db.execute(sql`
+            SELECT * FROM compliance_tasks WHERE id = ${taskId}
+          `);
+          
+          if (taskResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Task not found' });
+          }
+
+          const task = taskResult.rows[0] as any;
+          let steps = task.steps || [];
+
+          // Find the step
+          const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+          if (stepIndex === -1) {
+            return res.status(404).json({ message: 'Step not found' });
+          }
+
+          // Generate unique storage key
+          const { randomUUID } = await import('crypto');
+          const attachmentId = randomUUID();
+          const fileExt = file.originalname.split('.').pop() || 'jpg';
+          const storageKey = `compliance/tasks/${taskId}/steps/${stepId}/${attachmentId}.${fileExt}`;
+
+          // Upload to object storage
+          const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+          if (!bucketId) {
+            return res.status(500).json({ message: 'Object storage not configured' });
+          }
+
+          const { objectStorageClient } = await import('./objectStorage');
+          const bucket = objectStorageClient.bucket(bucketId);
+          const objectFile = bucket.file(`.private/${storageKey}`);
+
+          await objectFile.save(file.buffer, {
+            metadata: {
+              contentType: file.mimetype,
+            },
+          });
+
+          // Create attachment metadata
+          const attachment = {
+            id: attachmentId,
+            fileName: file.originalname,
+            storageKey: storageKey,
+            contentType: file.mimetype,
+            size: file.size,
+            uploadedAt: new Date().toISOString(),
+          };
+
+          // Initialize attachments array if needed
+          if (!steps[stepIndex].attachments) {
+            steps[stepIndex].attachments = [];
+          }
+          steps[stepIndex].attachments.push(attachment);
+
+          // Update task with new steps
+          await db.execute(sql`
+            UPDATE compliance_tasks 
+            SET steps = ${JSON.stringify(steps)}::jsonb,
+                updated_at = NOW()
+            WHERE id = ${taskId}
+          `);
+
+          res.json({ 
+            message: 'Attachment uploaded successfully',
+            attachment
+          });
+        } catch (uploadError) {
+          console.error('Error processing attachment:', uploadError);
+          res.status(500).json({ message: 'Failed to upload attachment' });
+        }
+      });
+    } catch (error) {
+      console.error('Error uploading step attachment:', error);
+      res.status(500).json({ message: 'Failed to upload step attachment' });
+    }
+  });
+
+  // Delete step attachment
+  app.delete('/api/compliance/tasks/:taskId/steps/:stepId/attachments/:attachmentId', isAdmin, async (req: any, res) => {
+    try {
+      const { taskId, stepId, attachmentId } = req.params;
+
+      // Get the task
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${taskId}
+      `);
+      
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const task = taskResult.rows[0] as any;
+      let steps = task.steps || [];
+
+      // Find the step
+      const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+      if (stepIndex === -1) {
+        return res.status(404).json({ message: 'Step not found' });
+      }
+
+      // Find and remove the attachment
+      const attachments = steps[stepIndex].attachments || [];
+      const attachmentIndex = attachments.findIndex((a: any) => a.id === attachmentId);
+      if (attachmentIndex === -1) {
+        return res.status(404).json({ message: 'Attachment not found' });
+      }
+
+      const attachment = attachments[attachmentIndex];
+
+      // Delete from object storage
+      try {
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        if (bucketId) {
+          const { objectStorageClient } = await import('./objectStorage');
+          const bucket = objectStorageClient.bucket(bucketId);
+          const objectFile = bucket.file(`.private/${attachment.storageKey}`);
+          await objectFile.delete().catch(() => {}); // Ignore if already deleted
+        }
+      } catch (deleteError) {
+        console.error('Error deleting file from storage:', deleteError);
+        // Continue anyway to remove from database
+      }
+
+      // Remove attachment from step
+      steps[stepIndex].attachments.splice(attachmentIndex, 1);
+
+      // Update task with new steps
+      await db.execute(sql`
+        UPDATE compliance_tasks 
+        SET steps = ${JSON.stringify(steps)}::jsonb,
+            updated_at = NOW()
+        WHERE id = ${taskId}
+      `);
+
+      res.json({ message: 'Attachment deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting step attachment:', error);
+      res.status(500).json({ message: 'Failed to delete step attachment' });
+    }
+  });
+
+  // Get step attachment (serve file)
+  app.get('/api/compliance/tasks/:taskId/steps/:stepId/attachments/:attachmentId', isAdmin, async (req, res) => {
+    try {
+      const { taskId, stepId, attachmentId } = req.params;
+
+      // Get the task
+      const taskResult = await db.execute(sql`
+        SELECT * FROM compliance_tasks WHERE id = ${taskId}
+      `);
+      
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const task = taskResult.rows[0] as any;
+      const steps = task.steps || [];
+
+      // Find the step
+      const step = steps.find((s: any) => s.id === stepId);
+      if (!step) {
+        return res.status(404).json({ message: 'Step not found' });
+      }
+
+      // Find the attachment
+      const attachments = step.attachments || [];
+      const attachment = attachments.find((a: any) => a.id === attachmentId);
+      if (!attachment) {
+        return res.status(404).json({ message: 'Attachment not found' });
+      }
+
+      // Stream file from object storage
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (!bucketId) {
+        return res.status(500).json({ message: 'Object storage not configured' });
+      }
+
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketId);
+      const objectFile = bucket.file(`.private/${attachment.storageKey}`);
+
+      const [exists] = await objectFile.exists();
+      if (!exists) {
+        return res.status(404).json({ message: 'File not found in storage' });
+      }
+
+      res.set({
+        'Content-Type': attachment.contentType || 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${attachment.fileName}"`,
+        'Cache-Control': 'private, max-age=3600',
+      });
+
+      const stream = objectFile.createReadStream();
+      stream.on('error', (err) => {
+        console.error('Stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ message: 'Error streaming file' });
+        }
+      });
+      stream.pipe(res);
+    } catch (error) {
+      console.error('Error serving step attachment:', error);
+      res.status(500).json({ message: 'Failed to get step attachment' });
+    }
+  });
+
   // ============================================
   // LMS SKILL VERIFICATION ROUTES
   // Manager/peer sign-off for hands-on skills
