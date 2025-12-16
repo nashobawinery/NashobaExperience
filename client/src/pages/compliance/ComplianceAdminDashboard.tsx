@@ -34,10 +34,13 @@ import {
   Search,
   MoreVertical,
   Eye,
+  EyeOff,
   Archive,
   Copy,
   CheckSquare,
-  BookOpen
+  BookOpen,
+  GripVertical,
+  X
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -54,6 +57,7 @@ interface ComplianceTask {
   id: string;
   task_name: string;
   description: string | null;
+  steps: { order: number; instruction: string; }[] | null;
   category: string;
   subcategory: string | null;
   jurisdiction: string | null;
@@ -94,9 +98,15 @@ interface ComplianceStats {
   due_this_month: string;
 }
 
+interface TaskStep {
+  order: number;
+  instruction: string;
+}
+
 interface TaskFormData {
   taskName: string;
   description: string;
+  steps: TaskStep[];
   category: string;
   subcategory: string;
   jurisdiction: string;
@@ -164,6 +174,7 @@ const recurrenceOptions = [
 const defaultFormData: TaskFormData = {
   taskName: "",
   description: "",
+  steps: [],
   category: "tax",
   subcategory: "",
   jurisdiction: "",
@@ -200,6 +211,8 @@ export default function ComplianceAdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [viewShowPassword, setViewShowPassword] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<ComplianceStats>({
     queryKey: ['/api/compliance/stats'],
@@ -329,14 +342,17 @@ export default function ComplianceAdminDashboard() {
   const handleOpenCreateDialog = () => {
     setSelectedTask(null);
     setFormData(defaultFormData);
+    setShowPassword(false);
     setTaskDialogOpen(true);
   };
 
   const handleOpenEditDialog = (task: ComplianceTask) => {
     setSelectedTask(task);
+    setShowPassword(false);
     setFormData({
       taskName: task.task_name,
       description: task.description || "",
+      steps: task.steps || [],
       category: task.category,
       subcategory: task.subcategory || "",
       jurisdiction: task.jurisdiction || "",
@@ -363,8 +379,30 @@ export default function ComplianceAdminDashboard() {
     setTaskDialogOpen(true);
   };
 
+  const handleAddStep = () => {
+    const newStep: TaskStep = {
+      order: formData.steps.length + 1,
+      instruction: ""
+    };
+    setFormData(prev => ({ ...prev, steps: [...prev.steps, newStep] }));
+  };
+
+  const handleRemoveStep = (index: number) => {
+    const updatedSteps = formData.steps
+      .filter((_, i) => i !== index)
+      .map((step, i) => ({ ...step, order: i + 1 }));
+    setFormData(prev => ({ ...prev, steps: updatedSteps }));
+  };
+
+  const handleUpdateStep = (index: number, instruction: string) => {
+    const updatedSteps = [...formData.steps];
+    updatedSteps[index] = { ...updatedSteps[index], instruction };
+    setFormData(prev => ({ ...prev, steps: updatedSteps }));
+  };
+
   const handleViewTask = (task: ComplianceTask) => {
     setSelectedTask(task);
+    setViewShowPassword(false);
     setViewDialogOpen(true);
   };
 
@@ -902,6 +940,54 @@ export default function ComplianceAdminDashboard() {
               />
             </div>
 
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Step-by-Step Directions</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleAddStep}
+                  data-testid="button-add-step"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Step
+                </Button>
+              </div>
+              {formData.steps.length > 0 ? (
+                <div className="space-y-2 mt-2">
+                  {formData.steps.map((step, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <div className="flex items-center justify-center w-6 h-9 text-sm font-medium text-muted-foreground">
+                        {step.order}.
+                      </div>
+                      <Input
+                        value={step.instruction}
+                        onChange={(e) => handleUpdateStep(index, e.target.value)}
+                        placeholder={`Step ${step.order} instruction...`}
+                        className="flex-1"
+                        data-testid={`input-step-${index}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveStep(index)}
+                        className="text-destructive hover:text-destructive"
+                        data-testid={`button-remove-step-${index}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">
+                  No steps added. Click "Add Step" to add step-by-step directions.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Category *</Label>
@@ -1058,14 +1144,28 @@ export default function ComplianceAdminDashboard() {
 
             <div className="grid gap-2">
               <Label htmlFor="portalUrl">Portal URL</Label>
-              <Input
-                id="portalUrl"
-                type="url"
-                value={formData.portalUrl}
-                onChange={(e) => setFormData(prev => ({ ...prev, portalUrl: e.target.value }))}
-                placeholder="https://..."
-                data-testid="input-portal-url"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="portalUrl"
+                  type="url"
+                  value={formData.portalUrl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, portalUrl: e.target.value }))}
+                  placeholder="https://..."
+                  className="flex-1"
+                  data-testid="input-portal-url"
+                />
+                {formData.portalUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.open(formData.portalUrl, '_blank')}
+                    data-testid="button-launch-portal"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    Launch
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1081,14 +1181,26 @@ export default function ComplianceAdminDashboard() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="portalPassword">Portal Password</Label>
-                <Input
-                  id="portalPassword"
-                  type="password"
-                  value={formData.portalPassword}
-                  onChange={(e) => setFormData(prev => ({ ...prev, portalPassword: e.target.value }))}
-                  placeholder="Password for portal login"
-                  data-testid="input-portal-password"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="portalPassword"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.portalPassword}
+                    onChange={(e) => setFormData(prev => ({ ...prev, portalPassword: e.target.value }))}
+                    placeholder="Password for portal login"
+                    className="flex-1"
+                    data-testid="input-portal-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowPassword(!showPassword)}
+                    data-testid="button-toggle-password"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1168,6 +1280,19 @@ export default function ComplianceAdminDashboard() {
                 </div>
               )}
 
+              {selectedTask.steps && selectedTask.steps.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Step-by-Step Directions</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    {selectedTask.steps
+                      .sort((a, b) => a.order - b.order)
+                      .map((step, index) => (
+                        <li key={index} className="pl-2">{step.instruction}</li>
+                      ))}
+                  </ol>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 {selectedTask.due_date && (
                   <div>
@@ -1209,23 +1334,88 @@ export default function ComplianceAdminDashboard() {
 
               {selectedTask.portal_url && (
                 <div>
-                  <h4 className="font-semibold mb-1 flex items-center gap-2">
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
                     <ExternalLink className="h-4 w-4" />
                     Portal Access
                   </h4>
-                  <a 
-                    href={selectedTask.portal_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {selectedTask.portal_url}
-                  </a>
-                  {selectedTask.portal_username && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Username: {selectedTask.portal_username}
-                    </p>
-                  )}
+                  <div className="space-y-2 bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <a 
+                        href={selectedTask.portal_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:underline text-sm truncate flex-1 mr-2"
+                      >
+                        {selectedTask.portal_url}
+                      </a>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => window.open(selectedTask.portal_url!, '_blank')}
+                        data-testid="button-view-launch-portal"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Launch
+                      </Button>
+                    </div>
+                    {selectedTask.portal_username && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Username:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">{selectedTask.portal_username}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedTask.portal_username!);
+                              toast({ title: "Copied", description: "Username copied to clipboard" });
+                            }}
+                            data-testid="button-copy-username"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {selectedTask.portal_password && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Password:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">
+                            {viewShowPassword ? selectedTask.portal_password : '••••••••'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setViewShowPassword(!viewShowPassword)}
+                            data-testid="button-view-toggle-password"
+                          >
+                            {viewShowPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedTask.portal_password!);
+                              toast({ title: "Copied", description: "Password copied to clipboard" });
+                            }}
+                            data-testid="button-copy-password"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {selectedTask.portal_notes && (
+                      <div className="text-sm pt-2 border-t">
+                        <span className="text-muted-foreground">Notes: </span>
+                        <span>{selectedTask.portal_notes}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

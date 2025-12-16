@@ -25,7 +25,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **LMS Module**: Mobile-first microlearning with course catalog, lessons, quizzes, progress tracking, and certification.
 - **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations, shopping cart, and tasting surveys.
 - **B2B Wholesale Platform**: Customer and order management with dedicated authentication, category-specific pricing, multi-location support, and a multi-step email-based sales order workflow with secure token links. This workflow includes order creation, delivery date setting, admin approval/rejection, delivery confirmation, and payment recording. Also includes a commission system for sales reps and payroll integration.
-- **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, reminders, audit history, and cost tracking.
+- **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, reminders, audit history, cost tracking, step-by-step directions, portal credentials with password visibility toggle, and launch/copy functionality for quick portal access.
 - **Reservations Module**: Complete dining reservation system with customer-facing booking flow, experience selection, time slot booking, Stripe payments, and comprehensive availability management.
 - **Daily Reports Module**: Managers log incidents and track procedure completion using customizable templates, email notifications, and a status-based review workflow.
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.

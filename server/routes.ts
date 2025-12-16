@@ -6508,8 +6508,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create compliance task
   app.post('/api/compliance/tasks', isAdmin, async (req: any, res) => {
     try {
-      const parsed = insertComplianceTaskSchema.safeParse(req.body);
+      // Convert empty strings to null for optional fields
+      const cleanedBody = { ...req.body };
+      const optionalFields = ['description', 'subcategory', 'jurisdiction', 'regulatoryBody', 'dueDate', 
+        'assignedToName', 'assignedToEmail', 'portalUrl', 'portalUsername', 'portalPassword', 'portalNotes',
+        'estimatedCost', 'actualCost', 'penaltyAmount', 'completionNotes', 'confirmationNumber'];
+      for (const field of optionalFields) {
+        if (cleanedBody[field] === '') {
+          cleanedBody[field] = null;
+        }
+      }
+      
+      const parsed = insertComplianceTaskSchema.safeParse(cleanedBody);
       if (!parsed.success) {
+        console.error('Compliance task validation failed:', JSON.stringify(parsed.error.errors, null, 2));
         return res.status(400).json({ message: 'Invalid task data', errors: parsed.error.errors });
       }
 
@@ -6518,7 +6530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await db.execute(sql`
         INSERT INTO compliance_tasks (
-          task_name, description, category, subcategory, jurisdiction, regulatory_body,
+          task_name, description, steps, category, subcategory, jurisdiction, regulatory_body,
           recurrence, custom_recurrence_days, due_date, reminder_days,
           assigned_to_name, assigned_to_email, assigned_by_id,
           status, priority, portal_url, portal_username, portal_password, portal_notes,
@@ -6526,6 +6538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ) VALUES (
           ${parsed.data.taskName},
           ${parsed.data.description || null},
+          ${parsed.data.steps ? JSON.stringify(parsed.data.steps) : null},
           ${parsed.data.category},
           ${parsed.data.subcategory || null},
           ${parsed.data.jurisdiction || null},

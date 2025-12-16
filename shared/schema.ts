@@ -1152,6 +1152,7 @@ export const complianceTasks = pgTable("compliance_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskName: text("task_name").notNull(),
   description: text("description"),
+  steps: jsonb("steps").$type<{ order: number; instruction: string; }[]>(), // Step-by-step directions
   category: complianceCategoryEnum("category").notNull(),
   subcategory: text("subcategory"),
   jurisdiction: text("jurisdiction"), // e.g., "Federal", "Massachusetts", "Local"
