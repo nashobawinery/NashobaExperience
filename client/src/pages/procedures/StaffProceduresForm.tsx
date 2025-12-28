@@ -9,9 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut, User, Save } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut, User, Save, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 import type { ProceduresStaff, ProceduresTemplateWithItems, ProceduresItem, ProceduresSubmission } from "@shared/schema";
 
 type Stage = "login" | "select" | "complete" | "success";
@@ -52,6 +53,7 @@ function FormattedText({ text }: { text: string }) {
 
 export default function StaffProceduresForm() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [stage, setStage] = useState<Stage>("login");
   const [code, setCode] = useState("");
   const [staff, setStaff] = useState<ProceduresStaff | null>(null);
@@ -62,6 +64,29 @@ export default function StaffProceduresForm() {
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [draftId, setDraftId] = useState<string | null>(null);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [pendingProcedureId, setPendingProcedureId] = useState<string | null>(null);
+  const [cameFromPortal, setCameFromPortal] = useState(false);
+
+  // Parse query parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get("code");
+    const procedureId = params.get("procedureId");
+    
+    if (urlCode) {
+      setCode(urlCode);
+      setCameFromPortal(true);
+      if (procedureId) {
+        setPendingProcedureId(procedureId);
+      }
+      // Auto-login with URL code
+      loginMutation.mutate(urlCode);
+    }
+  }, []);
+
+  const handleBackToPortal = () => {
+    navigate("/staff");
+  };
 
   // Check if the current time is past the procedure's completion time deadline
   const isLateSubmission = (): boolean => {
@@ -198,6 +223,17 @@ export default function StaffProceduresForm() {
     setIsLoadingDraft(false);
     setStage("complete");
   };
+
+  // Auto-select procedure when coming from portal with procedureId
+  useEffect(() => {
+    if (pendingProcedureId && assignedProcedures && assignedProcedures.length > 0 && stage === "select") {
+      const targetProcedure = assignedProcedures.find(p => p.id === pendingProcedureId);
+      if (targetProcedure) {
+        handleSelectProcedure(targetProcedure);
+        setPendingProcedureId(null);
+      }
+    }
+  }, [pendingProcedureId, assignedProcedures, stage]);
 
   const handleSaveDraft = () => {
     if (!selectedProcedure || !staff) return;
@@ -427,15 +463,23 @@ export default function StaffProceduresForm() {
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 gap-2">
             <div>
               <h1 className="text-2xl font-bold">Welcome, {staff?.staffName}</h1>
               <p className="text-muted-foreground">Select a procedure to complete</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+            <div className="flex gap-2">
+              {cameFromPortal && (
+                <Button variant="outline" size="sm" onClick={handleBackToPortal} data-testid="button-back-to-portal">
+                  <Home className="w-4 h-4 mr-2" />
+                  Portal
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
 
           {proceduresLoading ? (

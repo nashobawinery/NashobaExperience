@@ -9883,6 +9883,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Invalid access code' });
       }
 
+      // Fetch assigned procedures if staff has access
+      let assignedProcedures: any[] = [];
+      if (proceduresStaff) {
+        assignedProcedures = await storage.getProceduresForStaff(proceduresStaff.id);
+      }
+
       // Build response with access to both modules
       const response: {
         staffName: string;
@@ -9894,6 +9900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           enabled: boolean;
           staffId: string | null;
           department: string | null;
+          templates: any[];
         };
       } = {
         staffName: dailyReportCodes[0]?.staffName || proceduresStaff?.staffName || '',
@@ -9904,7 +9911,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         procedures: {
           enabled: !!proceduresStaff,
           staffId: proceduresStaff?.id || null,
-          department: proceduresStaff?.department || null
+          department: proceduresStaff?.department || null,
+          templates: assignedProcedures
         }
       };
 

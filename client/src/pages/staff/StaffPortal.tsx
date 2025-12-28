@@ -9,6 +9,15 @@ import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
+interface ProcedureTemplate {
+  id: string;
+  procedureCode: string;
+  procedureName: string;
+  department: string;
+  procedureType: string;
+  items: any[];
+}
+
 interface StaffAccess {
   staffName: string;
   dailyReports: {
@@ -19,6 +28,7 @@ interface StaffAccess {
     enabled: boolean;
     staffId: string | null;
     department: string | null;
+    templates: ProcedureTemplate[];
   };
 }
 
@@ -198,7 +208,7 @@ export default function StaffPortal() {
                   <CardTitle className="text-lg">Daily Procedures</CardTitle>
                   <CardDescription>
                     {staffAccess.procedures.enabled 
-                      ? "Checklists and tasks"
+                      ? `${staffAccess.procedures.templates.length} procedure${staffAccess.procedures.templates.length !== 1 ? 's' : ''} available`
                       : "Not assigned"
                     }
                   </CardDescription>
@@ -206,16 +216,25 @@ export default function StaffPortal() {
               </div>
             </CardHeader>
             <CardContent>
-              {staffAccess.procedures.enabled ? (
-                <Button
-                  variant="outline"
-                  className="w-full justify-between"
-                  onClick={() => navigate(`/procedures/staff?code=${verifiedCode}`)}
-                  data-testid="button-daily-procedures"
-                >
-                  <span>View Procedures</span>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+              {staffAccess.procedures.enabled && staffAccess.procedures.templates.length > 0 ? (
+                <div className="space-y-2">
+                  {staffAccess.procedures.templates.map((proc) => (
+                    <Button
+                      key={proc.id}
+                      variant="outline"
+                      className="w-full justify-between"
+                      onClick={() => navigate(`/procedures/staff?code=${verifiedCode}&procedureId=${proc.id}`)}
+                      data-testid={`button-procedure-${proc.id}`}
+                    >
+                      <span>{proc.procedureName}</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  ))}
+                </div>
+              ) : staffAccess.procedures.enabled ? (
+                <p className="text-sm text-muted-foreground">
+                  No procedures available for today.
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   You are not assigned to any procedures.
