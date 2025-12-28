@@ -10,6 +10,7 @@ import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { ProceduresStaff } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProceduresTemplate } from "@shared/schema";
@@ -28,6 +29,8 @@ export default function ProceduresAdminDashboard() {
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
   const [newStaffDepartment, setNewStaffDepartment] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [procedureToDelete, setProcedureToDelete] = useState<ProceduresTemplate | null>(null);
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const staffLoginUrl = `${window.location.origin}/procedures/staff`;
@@ -108,6 +111,33 @@ export default function ProceduresAdminDashboard() {
   const handleCopyTemplate = (e: React.MouseEvent, templateId: string) => {
     e.stopPropagation();
     copyTemplateMutation.mutate(templateId);
+  };
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      await apiRequest("DELETE", `/api/procedures/templates/${templateId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/procedures/templates"] });
+      toast({ title: "Procedure deleted", description: "The procedure has been permanently deleted." });
+      setDeleteConfirmOpen(false);
+      setProcedureToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete procedure", variant: "destructive" });
+    }
+  });
+
+  const handleDeleteClick = (e: React.MouseEvent, template: ProceduresTemplate) => {
+    e.stopPropagation();
+    setProcedureToDelete(template);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (procedureToDelete) {
+      deleteTemplateMutation.mutate(procedureToDelete.id);
+    }
   };
 
   const resetStaffForm = () => {
@@ -445,6 +475,15 @@ export default function ProceduresAdminDashboard() {
                       >
                         <Copy className="w-4 h-4" />
                       </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => handleDeleteClick(e, template)}
+                        disabled={deleteTemplateMutation.isPending}
+                        data-testid={`button-delete-procedure-${template.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     </div>
                   </CardFooter>
@@ -612,6 +651,28 @@ export default function ProceduresAdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Procedure</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{procedureToDelete?.procedureName}"? This will permanently remove the procedure and all its checklist items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-procedure">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              disabled={deleteTemplateMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-procedure"
+            >
+              {deleteTemplateMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
