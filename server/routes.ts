@@ -9862,6 +9862,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===============================
+  // Unified Staff Portal Endpoint
+  // ===============================
+
+  // Validate code against both Daily Reports and Procedures systems
+  app.post('/api/public/staff-portal/validate', async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: 'Access code is required' });
+      }
+
+      // Check Daily Reports access codes
+      const dailyReportCodes = await storage.getDailyReportAccessCodesByCode(code);
+      
+      // Check Procedures staff
+      const proceduresStaff = await storage.getProceduresStaffByCode(code);
+
+      if (dailyReportCodes.length === 0 && !proceduresStaff) {
+        return res.status(404).json({ message: 'Invalid access code' });
+      }
+
+      // Build response with access to both modules
+      const response: {
+        staffName: string;
+        dailyReports: {
+          enabled: boolean;
+          departments: { department: string; departmentLabel: string; code: string }[];
+        };
+        procedures: {
+          enabled: boolean;
+          staffId: string | null;
+          department: string | null;
+        };
+      } = {
+        staffName: dailyReportCodes[0]?.staffName || proceduresStaff?.staffName || '',
+        dailyReports: {
+          enabled: dailyReportCodes.length > 0,
+          departments: []
+        },
+        procedures: {
+          enabled: !!proceduresStaff,
+          staffId: proceduresStaff?.id || null,
+          department: proceduresStaff?.department || null
+        }
+      };
+
+      // Build Daily Reports departments list
+      if (dailyReportCodes.length > 0) {
+        response.dailyReports.departments = await Promise.all(
+          dailyReportCodes.map(async (ac) => {
+            const template = await storage.getDailyReportTemplateByDepartment(ac.department);
+            return {
+              department: ac.department,
+              departmentLabel: template?.departmentLabel || ac.department,
+              code: ac.code
+            };
+          })
+        );
+        // Update last used timestamp
+        await storage.updateDailyReportAccessCodeLastUsed(code);
+      }
+
+      // Update procedures staff last used timestamp
+      if (proceduresStaff) {
+        await storage.updateProceduresStaff(proceduresStaff.id, { lastUsedAt: new Date() } as any);
+      }
+
+      res.json(response);
+    } catch (error) {
+      console.error('Staff portal validation error:', error);
+      res.status(500).json({ message: 'Failed to validate access code' });
+    }
+  });
+
+  // ===============================
   // Public Form Endpoints (no auth required)
   // ===============================
 
