@@ -48,3 +48,4 @@ defaultBucketID = "replit-objstore-bc352317-e44a-431b-a1e6-a56e47368287"
 
 [userenv.shared]
 SENDGRID_FROM_EMAIL = "email@nashobawinery.com"
+PROD_DATABASE_URL = "postgresql://neondb_owner:npg_ZwW7KqdEG6OA@ep-nameless-base-afdwzc1s.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require"
