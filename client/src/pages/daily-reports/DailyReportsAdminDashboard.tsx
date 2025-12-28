@@ -1696,12 +1696,12 @@ export default function DailyReportsAdminDashboard() {
   };
 
   const getGlobalPublicFormUrl = () => {
-    return `${window.location.origin}/daily-report`;
+    return `${window.location.origin}/staff`;
   };
 
   const copyGlobalUrlToClipboard = () => {
     navigator.clipboard.writeText(getGlobalPublicFormUrl());
-    toast({ title: "Global URL copied to clipboard" });
+    toast({ title: "Staff Portal URL copied to clipboard" });
   };
 
   const copyUrlToClipboard = (code: string) => {
@@ -2793,9 +2793,9 @@ export default function DailyReportsAdminDashboard() {
                 <div className="flex items-center gap-3">
                   <QrCode className="h-5 w-5 text-amber-500" />
                   <div>
-                    <CardTitle className="text-base">Global QR Code</CardTitle>
+                    <CardTitle className="text-base">Staff Portal</CardTitle>
                     <CardDescription>
-                      A single QR code for all staff - they enter their personal code to submit reports
+                      Unified portal for both Daily Reports and Daily Procedures
                     </CardDescription>
                   </div>
                 </div>
@@ -4347,9 +4347,9 @@ export default function DailyReportsAdminDashboard() {
       <Dialog open={showGlobalQrCode} onOpenChange={setShowGlobalQrCode}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-center">Global QR Code</DialogTitle>
+            <DialogTitle className="text-center">Staff Portal</DialogTitle>
             <DialogDescription className="text-center">
-              Staff scan this code, then enter their personal access code to submit reports
+              Staff scan this code to access both Daily Reports and Daily Procedures
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -4364,9 +4364,9 @@ export default function DailyReportsAdminDashboard() {
               </div>
             </div>
             <div className="text-center space-y-2">
-              <div className="font-medium text-lg">Daily Report Entry</div>
+              <div className="font-medium text-lg">Staff Portal</div>
               <div className="text-sm text-muted-foreground">
-                Works for all departments
+                Access both Daily Reports and Procedures
               </div>
             </div>
             <div className="flex justify-center gap-2">
@@ -4382,7 +4382,7 @@ export default function DailyReportsAdminDashboard() {
             <div className="text-center">
               <a 
                 href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&format=png&data=${encodeURIComponent(getGlobalPublicFormUrl())}`}
-                download="daily-report-global-qr.png"
+                download="staff-portal-qr.png"
                 className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                 data-testid="link-download-global-qr"
               >

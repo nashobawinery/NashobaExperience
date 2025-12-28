@@ -33,7 +33,7 @@ export default function ProceduresAdminDashboard() {
   const [procedureToDelete, setProcedureToDelete] = useState<ProceduresTemplate | null>(null);
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const staffLoginUrl = `${window.location.origin}/procedures/staff`;
+  const staffLoginUrl = `${window.location.origin}/staff`;
 
   const { data: templates, isLoading: templatesLoading } = useQuery<ProceduresTemplate[]>({
     queryKey: ["/api/procedures/templates"],
@@ -207,7 +207,7 @@ export default function ProceduresAdminDashboard() {
     try {
       await navigator.clipboard.writeText(staffLoginUrl);
       setCopied(true);
-      toast({ title: "Link copied", description: "Staff login link copied to clipboard" });
+      toast({ title: "Link copied", description: "Staff Portal link copied to clipboard" });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast({ title: "Failed to copy", description: "Please copy the link manually", variant: "destructive" });
@@ -323,10 +323,10 @@ export default function ProceduresAdminDashboard() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <QrCode className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold">Staff Access</h3>
+                  <h3 className="text-lg font-semibold">Staff Portal</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
-                  Share this link or QR code with your staff to access their assigned procedures. 
+                  Share this link or QR code with your staff to access both Daily Reports and Procedures.
                   Staff will need their access code to log in.
                 </p>
               </div>
@@ -357,10 +357,10 @@ export default function ProceduresAdminDashboard() {
                   <Printer className="w-4 h-4 mr-2" />
                   Print QR
                 </Button>
-                <Link href="/procedures/staff" target="_blank">
+                <Link href="/staff" target="_blank">
                   <Button size="sm" data-testid="button-go-to-staff-login">
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    Open Staff Login
+                    Open Staff Portal
                   </Button>
                 </Link>
               </div>
@@ -515,7 +515,7 @@ export default function ProceduresAdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold">Staff Members</h2>
-              <p className="text-sm text-muted-foreground">Manage staff who can access procedures via the Staff Login page</p>
+              <p className="text-sm text-muted-foreground">Manage staff who can access procedures via the Staff Portal</p>
             </div>
             <Button onClick={handleAddStaff} data-testid="button-add-staff">
               <UserPlus className="w-4 h-4 mr-2" />
@@ -622,7 +622,7 @@ export default function ProceduresAdminDashboard() {
                 placeholder="Enter access code (e.g., 1234)"
                 data-testid="input-staff-access-code"
               />
-              <p className="text-xs text-muted-foreground">Staff will use this code to log in at the Staff Access page</p>
+              <p className="text-xs text-muted-foreground">Staff will use this code to log in at the Staff Portal</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="staffDepartment">Department (Optional)</Label>
