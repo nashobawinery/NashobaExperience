@@ -35,7 +35,10 @@ import {
   Video,
   List,
   ChevronRight,
-  Layers
+  Layers,
+  Link,
+  Database,
+  Copy
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -379,7 +382,7 @@ export default function LmsAdminDashboard() {
 
       <main className="max-w-7xl mx-auto p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
+          <TabsList className="flex flex-wrap gap-2 w-full max-w-4xl">
             <TabsTrigger value="overview" data-testid="tab-overview">
               <BarChart3 className="h-4 w-4 mr-2" />
               Overview
@@ -392,9 +395,17 @@ export default function LmsAdminDashboard() {
               <BookOpen className="h-4 w-4 mr-2" />
               Courses
             </TabsTrigger>
+            <TabsTrigger value="question-banks" data-testid="tab-question-banks">
+              <Database className="h-4 w-4 mr-2" />
+              Question Banks
+            </TabsTrigger>
             <TabsTrigger value="enrollments" data-testid="tab-enrollments">
               <Users className="h-4 w-4 mr-2" />
               Enrollments
+            </TabsTrigger>
+            <TabsTrigger value="external-training" data-testid="tab-external-training">
+              <Link className="h-4 w-4 mr-2" />
+              External Links
             </TabsTrigger>
             <TabsTrigger value="certificates" data-testid="tab-certificates">
               <Award className="h-4 w-4 mr-2" />
@@ -904,6 +915,74 @@ export default function LmsAdminDashboard() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="question-banks" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Question Banks</h2>
+              <Button data-testid="button-add-question-bank">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Question Bank
+              </Button>
+            </div>
+
+            <Card className="p-8 text-center">
+              <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Question Bank Management</h3>
+              <p className="text-muted-foreground mb-4">Create reusable question banks that can be shared across multiple courses and quizzes.</p>
+              <div className="flex items-center justify-center gap-2">
+                <Badge variant="secondary">0 question banks</Badge>
+                <Badge variant="outline">0 questions</Badge>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="external-training" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">External Training Links</h2>
+              <Button data-testid="button-add-external-token">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Training Link
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Link className="h-5 w-5" />
+                  Public Training Access
+                </CardTitle>
+                <CardDescription>
+                  Generate unique links to allow staff members to access training without requiring a platform account.
+                  These links can be shared via email, SMS, or printed QR codes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold">0</div>
+                      <p className="text-sm text-muted-foreground">Active Links</p>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold">0</div>
+                      <p className="text-sm text-muted-foreground">Completed</p>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold">0</div>
+                      <p className="text-sm text-muted-foreground">In Progress</p>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold">0</div>
+                      <p className="text-sm text-muted-foreground">Expired</p>
+                    </Card>
+                  </div>
+                  <p className="text-center text-muted-foreground py-4">
+                    No external training links have been created yet. Click "Create Training Link" to get started.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="certificates" className="space-y-6">
