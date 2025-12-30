@@ -6419,6 +6419,716 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- LMS Lesson Pages ---
+  app.get('/api/lms/lessons/:lessonId/pages', async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_lesson_pages 
+        WHERE lesson_id = ${lessonId} AND is_active = true
+        ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching lesson pages:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson pages' });
+    }
+  });
+
+  app.get('/api/lms/pages/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const pageResult = await db.execute(sql`
+        SELECT * FROM lms_lesson_pages WHERE id = ${id}
+      `);
+      if (pageResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Page not found' });
+      }
+      
+      const blocksResult = await db.execute(sql`
+        SELECT * FROM lms_content_blocks WHERE page_id = ${id} AND is_active = true ORDER BY sort_order ASC
+      `);
+      
+      res.json({
+        ...pageResult.rows[0],
+        blocks: blocksResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching lesson page:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson page' });
+    }
+  });
+
+  app.post('/api/lms/admin/lessons/:lessonId/pages', isAdmin, async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const { title, pageNumber, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_lesson_pages (lesson_id, title, page_number, sort_order)
+        VALUES (${lessonId}, ${title}, ${pageNumber || 1}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating lesson page:', error);
+      res.status(500).json({ message: 'Failed to create lesson page' });
+    }
+  });
+
+  app.put('/api/lms/admin/pages/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, pageNumber, sortOrder, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_lesson_pages SET
+          title = ${title}, page_number = ${pageNumber}, sort_order = ${sortOrder},
+          is_active = ${isActive ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating lesson page:', error);
+      res.status(500).json({ message: 'Failed to update lesson page' });
+    }
+  });
+
+  app.delete('/api/lms/admin/pages/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_lesson_pages WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting lesson page:', error);
+      res.status(500).json({ message: 'Failed to delete lesson page' });
+    }
+  });
+
+  // --- LMS Content Blocks ---
+  app.get('/api/lms/pages/:pageId/blocks', async (req, res) => {
+    try {
+      const { pageId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_content_blocks 
+        WHERE page_id = ${pageId} AND is_active = true
+        ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching content blocks:', error);
+      res.status(500).json({ message: 'Failed to fetch content blocks' });
+    }
+  });
+
+  app.post('/api/lms/admin/pages/:pageId/blocks', isAdmin, async (req, res) => {
+    try {
+      const { pageId } = req.params;
+      const { lessonId, blockType, title, content, mediaUrl, mediaThumbnail, mediaCaption, quizData, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_content_blocks (lesson_id, page_id, block_type, title, content, media_url, media_thumbnail, media_caption, quiz_data, sort_order)
+        VALUES (${lessonId}, ${pageId}, ${blockType || 'text'}, ${title}, ${content}, ${mediaUrl}, ${mediaThumbnail}, ${mediaCaption}, ${quizData ? JSON.stringify(quizData) : null}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating content block:', error);
+      res.status(500).json({ message: 'Failed to create content block' });
+    }
+  });
+
+  app.put('/api/lms/admin/blocks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { blockType, title, content, mediaUrl, mediaThumbnail, mediaCaption, quizData, sortOrder, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_content_blocks SET
+          block_type = ${blockType}, title = ${title}, content = ${content},
+          media_url = ${mediaUrl}, media_thumbnail = ${mediaThumbnail}, media_caption = ${mediaCaption},
+          quiz_data = ${quizData ? JSON.stringify(quizData) : null}, sort_order = ${sortOrder},
+          is_active = ${isActive ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating content block:', error);
+      res.status(500).json({ message: 'Failed to update content block' });
+    }
+  });
+
+  app.delete('/api/lms/admin/blocks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_content_blocks WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting content block:', error);
+      res.status(500).json({ message: 'Failed to delete content block' });
+    }
+  });
+
+  // --- LMS Question Banks ---
+  app.get('/api/lms/admin/question-banks', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT qb.*, 
+               (SELECT COUNT(*) FROM lms_questions WHERE question_bank_id = qb.id AND is_active = true) as question_count
+        FROM lms_question_banks qb
+        WHERE qb.is_active = true
+        ORDER BY qb.name ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching question banks:', error);
+      res.status(500).json({ message: 'Failed to fetch question banks' });
+    }
+  });
+
+  app.get('/api/lms/admin/question-banks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const bankResult = await db.execute(sql`
+        SELECT * FROM lms_question_banks WHERE id = ${id}
+      `);
+      if (bankResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Question bank not found' });
+      }
+      
+      const questionsResult = await db.execute(sql`
+        SELECT * FROM lms_questions WHERE question_bank_id = ${id} AND is_active = true ORDER BY created_at ASC
+      `);
+      
+      res.json({
+        ...bankResult.rows[0],
+        questions: questionsResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching question bank:', error);
+      res.status(500).json({ message: 'Failed to fetch question bank' });
+    }
+  });
+
+  app.post('/api/lms/admin/question-banks', isAdmin, async (req, res) => {
+    try {
+      const { name, description, category, difficulty, tags } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_question_banks (name, description, category, difficulty, tags)
+        VALUES (${name}, ${description}, ${category}, ${difficulty || 'beginner'}, ${tags || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating question bank:', error);
+      res.status(500).json({ message: 'Failed to create question bank' });
+    }
+  });
+
+  app.put('/api/lms/admin/question-banks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, category, difficulty, tags, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_question_banks SET
+          name = ${name}, description = ${description}, category = ${category},
+          difficulty = ${difficulty}, tags = ${tags}, is_active = ${isActive ?? true},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating question bank:', error);
+      res.status(500).json({ message: 'Failed to update question bank' });
+    }
+  });
+
+  app.delete('/api/lms/admin/question-banks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`UPDATE lms_question_banks SET is_active = false WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting question bank:', error);
+      res.status(500).json({ message: 'Failed to delete question bank' });
+    }
+  });
+
+  // --- LMS Questions (in question banks) ---
+  app.get('/api/lms/admin/question-banks/:bankId/questions', isAdmin, async (req, res) => {
+    try {
+      const { bankId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_questions WHERE question_bank_id = ${bankId} AND is_active = true ORDER BY created_at ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      res.status(500).json({ message: 'Failed to fetch questions' });
+    }
+  });
+
+  app.post('/api/lms/admin/question-banks/:bankId/questions', isAdmin, async (req, res) => {
+    try {
+      const { bankId } = req.params;
+      const { questionText, questionType, options, explanation, difficulty, points, tags } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_questions (question_bank_id, question_text, question_type, options, explanation, difficulty, points, tags)
+        VALUES (${bankId}, ${questionText}, ${questionType || 'multiple_choice'}, ${JSON.stringify(options)}, ${explanation}, ${difficulty || 'medium'}, ${points || 1}, ${tags || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating question:', error);
+      res.status(500).json({ message: 'Failed to create question' });
+    }
+  });
+
+  app.put('/api/lms/admin/questions/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { questionText, questionType, options, explanation, difficulty, points, tags, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_questions SET
+          question_text = ${questionText}, question_type = ${questionType}, options = ${JSON.stringify(options)},
+          explanation = ${explanation}, difficulty = ${difficulty}, points = ${points},
+          tags = ${tags}, is_active = ${isActive ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating question:', error);
+      res.status(500).json({ message: 'Failed to update question' });
+    }
+  });
+
+  app.delete('/api/lms/admin/questions/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`UPDATE lms_questions SET is_active = false WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      res.status(500).json({ message: 'Failed to delete question' });
+    }
+  });
+
+  // --- LMS Advanced Quizzes ---
+  app.get('/api/lms/courses/:courseId/quizzes', async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const result = await db.execute(sql`
+        SELECT q.*,
+               (SELECT COUNT(*) FROM lms_quiz_question_links WHERE quiz_id = q.id) as question_count
+        FROM lms_quizzes q
+        WHERE q.course_id = ${courseId} AND q.is_active = true
+        ORDER BY q.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+      res.status(500).json({ message: 'Failed to fetch quizzes' });
+    }
+  });
+
+  app.get('/api/lms/quizzes/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const quizResult = await db.execute(sql`
+        SELECT * FROM lms_quizzes WHERE id = ${id}
+      `);
+      if (quizResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Quiz not found' });
+      }
+      
+      const questionsResult = await db.execute(sql`
+        SELECT qql.*, q.question_text, q.question_type, q.options, q.explanation, q.difficulty, q.points
+        FROM lms_quiz_question_links qql
+        JOIN lms_questions q ON qql.question_id = q.id
+        WHERE qql.quiz_id = ${id}
+        ORDER BY qql.sort_order ASC
+      `);
+      
+      res.json({
+        ...quizResult.rows[0],
+        questions: questionsResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching quiz:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz' });
+    }
+  });
+
+  app.post('/api/lms/admin/courses/:courseId/quizzes', isAdmin, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const { lessonId, title, description, quizType, passingScore, timeLimit, maxAttempts, shuffleQuestions, showCorrectAnswers, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_quizzes (course_id, lesson_id, title, description, quiz_type, passing_score, time_limit, max_attempts, shuffle_questions, show_correct_answers, sort_order)
+        VALUES (${courseId}, ${lessonId || null}, ${title}, ${description}, ${quizType || 'quiz'}, ${passingScore || 80}, ${timeLimit || null}, ${maxAttempts || null}, ${shuffleQuestions ?? false}, ${showCorrectAnswers ?? true}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating quiz:', error);
+      res.status(500).json({ message: 'Failed to create quiz' });
+    }
+  });
+
+  app.put('/api/lms/admin/quizzes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, quizType, passingScore, timeLimit, maxAttempts, shuffleQuestions, showCorrectAnswers, sortOrder, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_quizzes SET
+          title = ${title}, description = ${description}, quiz_type = ${quizType},
+          passing_score = ${passingScore}, time_limit = ${timeLimit}, max_attempts = ${maxAttempts},
+          shuffle_questions = ${shuffleQuestions}, show_correct_answers = ${showCorrectAnswers},
+          sort_order = ${sortOrder}, is_active = ${isActive ?? true}, updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating quiz:', error);
+      res.status(500).json({ message: 'Failed to update quiz' });
+    }
+  });
+
+  app.delete('/api/lms/admin/quizzes/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_quizzes WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      res.status(500).json({ message: 'Failed to delete quiz' });
+    }
+  });
+
+  // --- LMS Quiz Question Links ---
+  app.post('/api/lms/admin/quizzes/:quizId/questions', isAdmin, async (req, res) => {
+    try {
+      const { quizId } = req.params;
+      const { questionId, sortOrder, overridePoints } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_quiz_question_links (quiz_id, question_id, sort_order, override_points)
+        VALUES (${quizId}, ${questionId}, ${sortOrder || 0}, ${overridePoints || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error adding question to quiz:', error);
+      res.status(500).json({ message: 'Failed to add question to quiz' });
+    }
+  });
+
+  app.delete('/api/lms/admin/quiz-questions/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`DELETE FROM lms_quiz_question_links WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error removing question from quiz:', error);
+      res.status(500).json({ message: 'Failed to remove question from quiz' });
+    }
+  });
+
+  // --- LMS Badges ---
+  app.get('/api/lms/badges', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM lms_badges WHERE is_active = true ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching badges:', error);
+      res.status(500).json({ message: 'Failed to fetch badges' });
+    }
+  });
+
+  app.get('/api/lms/admin/badges', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT b.*,
+               (SELECT COUNT(*) FROM lms_user_badges WHERE badge_id = b.id) as awarded_count
+        FROM lms_badges b
+        ORDER BY b.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching badges:', error);
+      res.status(500).json({ message: 'Failed to fetch badges' });
+    }
+  });
+
+  app.post('/api/lms/admin/badges', isAdmin, async (req, res) => {
+    try {
+      const { name, description, iconUrl, badgeType, criteria, pointValue, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_badges (name, description, icon_url, badge_type, criteria, point_value, sort_order)
+        VALUES (${name}, ${description}, ${iconUrl}, ${badgeType || 'achievement'}, ${criteria ? JSON.stringify(criteria) : null}, ${pointValue || 0}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating badge:', error);
+      res.status(500).json({ message: 'Failed to create badge' });
+    }
+  });
+
+  app.put('/api/lms/admin/badges/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, iconUrl, badgeType, criteria, pointValue, sortOrder, isActive } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_badges SET
+          name = ${name}, description = ${description}, icon_url = ${iconUrl},
+          badge_type = ${badgeType}, criteria = ${criteria ? JSON.stringify(criteria) : null},
+          point_value = ${pointValue}, sort_order = ${sortOrder}, is_active = ${isActive ?? true},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating badge:', error);
+      res.status(500).json({ message: 'Failed to update badge' });
+    }
+  });
+
+  app.delete('/api/lms/admin/badges/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`UPDATE lms_badges SET is_active = false WHERE id = ${id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting badge:', error);
+      res.status(500).json({ message: 'Failed to delete badge' });
+    }
+  });
+
+  // --- LMS User Badges ---
+  app.get('/api/lms/my-badges', isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.claims?.email;
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      if (userResult.rows.length === 0) {
+        return res.json([]);
+      }
+      const userId = userResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        SELECT ub.*, b.name, b.description, b.icon_url, b.badge_type, b.point_value
+        FROM lms_user_badges ub
+        JOIN lms_badges b ON ub.badge_id = b.id
+        WHERE ub.user_id = ${userId}
+        ORDER BY ub.earned_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching user badges:', error);
+      res.status(500).json({ message: 'Failed to fetch user badges' });
+    }
+  });
+
+  app.post('/api/lms/admin/award-badge', isAdmin, async (req, res) => {
+    try {
+      const { userId, badgeId, courseId, earnedReason } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_user_badges (user_id, badge_id, course_id, earned_reason)
+        VALUES (${userId}, ${badgeId}, ${courseId || null}, ${earnedReason || null})
+        ON CONFLICT (user_id, badge_id) DO NOTHING
+        RETURNING *
+      `);
+      res.json(result.rows[0] || { message: 'Badge already awarded' });
+    } catch (error) {
+      console.error('Error awarding badge:', error);
+      res.status(500).json({ message: 'Failed to award badge' });
+    }
+  });
+
+  // --- LMS Course Ratings ---
+  app.get('/api/lms/courses/:courseId/ratings', async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      const result = await db.execute(sql`
+        SELECT cr.*, pu.first_name, pu.last_name
+        FROM lms_course_ratings cr
+        JOIN platform_users pu ON cr.user_id = pu.id
+        WHERE cr.course_id = ${courseId}
+        ORDER BY cr.created_at DESC
+      `);
+      
+      const statsResult = await db.execute(sql`
+        SELECT AVG(rating)::numeric(3,2) as avg_rating, COUNT(*)::integer as total_ratings
+        FROM lms_course_ratings WHERE course_id = ${courseId}
+      `);
+      
+      res.json({
+        ratings: result.rows,
+        stats: statsResult.rows[0]
+      });
+    } catch (error) {
+      console.error('Error fetching course ratings:', error);
+      res.status(500).json({ message: 'Failed to fetch course ratings' });
+    }
+  });
+
+  app.post('/api/lms/courses/:courseId/rate', isAuthenticated, async (req: any, res) => {
+    try {
+      const { courseId } = req.params;
+      const { rating, review } = req.body;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!userEmail) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const userResult = await db.execute(sql`SELECT id FROM platform_users WHERE email = ${userEmail}`);
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const userId = userResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        INSERT INTO lms_course_ratings (course_id, user_id, rating, review)
+        VALUES (${courseId}, ${userId}, ${rating}, ${review || null})
+        ON CONFLICT (course_id, user_id) DO UPDATE SET
+          rating = ${rating}, review = ${review || null}, updated_at = NOW()
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error rating course:', error);
+      res.status(500).json({ message: 'Failed to rate course' });
+    }
+  });
+
+  // --- LMS External Training Tokens ---
+  app.get('/api/lms/admin/external-tokens', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT et.*, c.title as course_title,
+               (SELECT COUNT(*) FROM lms_external_progress WHERE token_id = et.id) as progress_count
+        FROM lms_external_tokens et
+        JOIN lms_courses c ON et.course_id = c.id
+        ORDER BY et.created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching external tokens:', error);
+      res.status(500).json({ message: 'Failed to fetch external tokens' });
+    }
+  });
+
+  app.post('/api/lms/admin/external-tokens', isAdmin, async (req, res) => {
+    try {
+      const { courseId, staffName, staffEmail, expiresAt, notes } = req.body;
+      const token = require('crypto').randomBytes(32).toString('hex');
+      const result = await db.execute(sql`
+        INSERT INTO lms_external_tokens (course_id, token, staff_name, staff_email, expires_at, notes)
+        VALUES (${courseId}, ${token}, ${staffName}, ${staffEmail || null}, ${expiresAt || null}, ${notes || null})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating external token:', error);
+      res.status(500).json({ message: 'Failed to create external token' });
+    }
+  });
+
+  app.put('/api/lms/admin/external-tokens/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isActive, expiresAt, notes } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_external_tokens SET
+          is_active = ${isActive ?? true}, expires_at = ${expiresAt}, notes = ${notes}
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating external token:', error);
+      res.status(500).json({ message: 'Failed to update external token' });
+    }
+  });
+
+  // --- LMS External Training Access (Public) ---
+  app.get('/api/lms/external/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const tokenResult = await db.execute(sql`
+        SELECT et.*, c.title as course_title, c.description as course_description, 
+               c.thumbnail_url, c.estimated_minutes, c.difficulty
+        FROM lms_external_tokens et
+        JOIN lms_courses c ON et.course_id = c.id
+        WHERE et.token = ${token} AND et.is_active = true
+          AND (et.expires_at IS NULL OR et.expires_at > NOW())
+      `);
+      
+      if (tokenResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Invalid or expired training link' });
+      }
+      
+      const courseId = tokenResult.rows[0].course_id;
+      const lessonsResult = await db.execute(sql`
+        SELECT * FROM lms_lessons WHERE course_id = ${courseId} AND active = true ORDER BY sort_order ASC
+      `);
+      
+      const progressResult = await db.execute(sql`
+        SELECT * FROM lms_external_progress WHERE token_id = ${tokenResult.rows[0].id}
+      `);
+      
+      res.json({
+        ...tokenResult.rows[0],
+        lessons: lessonsResult.rows,
+        progress: progressResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching external training:', error);
+      res.status(500).json({ message: 'Failed to fetch training' });
+    }
+  });
+
+  app.post('/api/lms/external/:token/progress', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { lessonId, completed, timeSpentSeconds } = req.body;
+      
+      const tokenResult = await db.execute(sql`
+        SELECT id FROM lms_external_tokens 
+        WHERE token = ${token} AND is_active = true 
+          AND (expires_at IS NULL OR expires_at > NOW())
+      `);
+      
+      if (tokenResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Invalid or expired training link' });
+      }
+      const tokenId = tokenResult.rows[0].id;
+      
+      const result = await db.execute(sql`
+        INSERT INTO lms_external_progress (token_id, lesson_id, completed, time_spent_seconds, completed_at)
+        VALUES (${tokenId}, ${lessonId}, ${completed ?? false}, ${timeSpentSeconds || 0}, ${completed ? new Date().toISOString() : null})
+        ON CONFLICT (token_id, lesson_id) DO UPDATE SET
+          completed = ${completed ?? false},
+          time_spent_seconds = lms_external_progress.time_spent_seconds + ${timeSpentSeconds || 0},
+          completed_at = CASE WHEN ${completed} THEN NOW() ELSE lms_external_progress.completed_at END
+        RETURNING *
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating external progress:', error);
+      res.status(500).json({ message: 'Failed to update progress' });
+    }
+  });
+
   // ============================================
   // COMPLIANCE MODULE ROUTES
   // ============================================
