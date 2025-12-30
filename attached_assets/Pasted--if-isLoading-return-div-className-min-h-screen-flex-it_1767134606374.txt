@@ -1,0 +1,186 @@
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading training materials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Unable to Load Training</h2>
+            <p className="text-muted-foreground">{(error as Error).message}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { course, lessons, quiz, quizQuestions } = data;
+  const currentLesson = lessons[currentLessonIndex];
+  
+  // Get lesson pages if available - sort once and reuse this ordered array
+  const lessonPages = [...(currentLesson?.pages || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  const currentPage = currentPageIndex >= 0 && lessonPages[currentPageIndex] ? lessonPages[currentPageIndex] : null;
+  
+  // Sort content blocks by sortOrder - show page-specific content if a page is selected
+  const contentBlocks = currentPage 
+    ? [...(currentPage.contentBlocks || [])].sort((a, b) => a.sortOrder - b.sortOrder)
+    : [...(currentLesson?.contentBlocks || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  
+  const isLastLesson = currentLessonIndex === lessons.length - 1;
+  const isLastPage = lessonPages.length === 0 || currentPageIndex >= lessonPages.length - 1;
+  const hasPages = lessonPages.length > 0;
+  const hasQuiz = !!quiz && quizQuestions && quizQuestions.length > 0;
+  
+  // Check if current lesson has a quiz
+  const lessonQuizzes = data.lessonQuizzes || {};
+  const currentLessonQuiz = currentLesson ? lessonQuizzes[currentLesson.id] : null;
+  const hasLessonQuiz = !!currentLessonQuiz && currentLessonQuiz.questions?.length > 0;
+  
+  // Check if lesson quiz is passed (from server progress or local state)
+  const lessonQuizProgress = data.lessonQuizProgress || {};
+  const isLessonQuizPassed = currentLesson 
+    ? lessonQuizPassedMap[currentLesson.id] || lessonQuizProgress[currentLesson.id]?.passed 
+    : false;
+  
+  // Lesson can only proceed if there's no quiz or quiz is passed
+  const canProceedToNextLesson = !hasLessonQuiz || isLessonQuizPassed;
+  
+  // Check if all lesson quizzes are passed (required before course completion)
+  const allLessonQuizzesPassed = lessons.every((lesson) => {
+    const lessonHasQuiz = !!lessonQuizzes[lesson.id];
+    if (!lessonHasQuiz) return true;
+    return lessonQuizPassedMap[lesson.id] || lessonQuizProgress[lesson.id]?.passed;
+  });
+
+  const renderContentBlock = (block: ContentBlock) => {
+    // Debug log to see block data
+    console.log('[External] Rendering block:', block.id, 'Type:', block.blockType, 'Content length:', block.content?.length);
+
+    switch (block.blockType) {
+      case "text":
+        return (
+          <div 
+            key={block.id} 
+            className="prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: block.content || '' }}
+          />
+        );
+      case "image":
+        return (
+          <div key={block.id} className="my-4">
+            <img 
+              src={block.imageUrl || block.content || ''} 
+              alt={block.caption || "Training image"} 
+              className="max-w-full rounded-lg mx-auto"
+            />
+            {block.caption && (
+              <p className="text-sm text-muted-foreground text-center mt-2">{block.caption}</p>
+            )}
+          </div>
+        );
+      case "text_image":
+        const isHorizontal = block.layout === 'text_left_image_right' || block.layout === 'image_left_text_right';
+        const isImageFirst = block.layout === 'image_left_text_right' || block.layout === 'image_top_text_bottom';
+        
+        const getTextWidth = () => {
+          switch (block.imageSize) {
+            case 'small': return 'md:w-3/4';
+            case 'medium': return 'md:w-3/5';
+            case 'large': return 'md:w-1/2';
+            default: return 'w-full';
+          }
+        };
+        
+        const getImageWidth = () => {
+          switch (block.imageSize) {
+            case 'small': return 'md:w-1/4';
+            case 'medium': return 'md:w-2/5';
+            case 'large': return 'md:w-1/2';
+            default: return 'w-full';
+          }
+        };
+
+        const textElement = (
+          <div 
+            className={`prose prose-sm dark:prose-invert max-w-none ${isHorizontal ? getTextWidth() : ''}`}
+            dangerouslySetInnerHTML={{ __html: block.content || '' }}
+          />
+        );
+
+        const imageElement = block.imageUrl ? (
+          <div className={isHorizontal ? getImageWidth() : ''}>
+            <img 
+              src={block.imageUrl} 
+              alt={block.caption || "Training image"} 
+              className="w-full h-auto rounded-lg object-contain"
+            />
+          </div>
+        ) : null;
+
+        return (
+          <div key={block.id} className="my-4">
+            <div className={`
+              ${isHorizontal ? 'flex flex-col md:flex-row gap-4' : 'flex flex-col gap-4'}
+              ${block.layout === 'image_left_text_right' ? 'md:flex-row-reverse' : ''}
+            `}>
+              {isImageFirst ? (
+                <>{imageElement}{textElement}</>
+              ) : (
+                <>{textElement}{imageElement}</>
+              )}
+            </div>
+            {block.caption && (
+              <p className="text-sm text-muted-foreground text-center mt-2">{block.caption}</p>
+            )}
+          </div>
+        );
+      case "video":
+        const videoSource = block.videoUrl || block.content || '';
+        const videoId = videoSource.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
+        const vimeoId = videoSource.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+        return (
+          <div key={block.id} className="my-4">
+            <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+              {videoId ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${videoId}`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
+              ) : vimeoId ? (
+                <iframe
+                  src={`https://player.vimeo.com/video/${vimeoId}`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; fullscreen; picture-in-picture"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <Play className="h-12 w-12 mr-2" />
+                  <span>Video: {videoSource}</span>
+                </div>
+              )}
+            </div>
+            {block.caption && (
+              <p className="text-sm text-muted-foreground text-center mt-2">{block.caption}</p>
+            )}
+          </div>
+        );
+      case "divider":
+        return <Separator key={block.id} className="my-6" />;
+      default:
+        return null;
+    }
+  };
