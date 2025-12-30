@@ -1,0 +1,200 @@
+// ========================================
+// Full LMS - Question Banks
+// ========================================
+
+async getQuestionBanks(facilityId: string): Promise<QuestionBank[]> {
+  return db.select().from(schema.questionBanks)
+    .where(and(eq(schema.questionBanks.facilityId, facilityId), eq(schema.questionBanks.isActive, true)))
+    .orderBy(schema.questionBanks.name);
+}
+
+async getQuestionBank(id: string): Promise<QuestionBank | undefined> {
+  const result = await db.select().from(schema.questionBanks)
+    .where(eq(schema.questionBanks.id, id));
+  return result[0];
+}
+
+async createQuestionBank(bank: InsertQuestionBank): Promise<QuestionBank> {
+  const result = await db.insert(schema.questionBanks).values(bank).returning();
+  return result[0];
+}
+
+async updateQuestionBank(id: string, bank: Partial<InsertQuestionBank>): Promise<QuestionBank> {
+  const result = await db.update(schema.questionBanks)
+    .set({ ...bank, updatedAt: new Date() })
+    .where(eq(schema.questionBanks.id, id))
+    .returning();
+  return result[0];
+}
+
+async deleteQuestionBank(id: string): Promise<void> {
+  await db.update(schema.questionBanks)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(eq(schema.questionBanks.id, id));
+}
+
+// ========================================
+// Full LMS - Questions
+// ========================================
+
+async getQuestions(questionBankId: string): Promise<Question[]> {
+  return db.select().from(schema.questions)
+    .where(and(eq(schema.questions.questionBankId, questionBankId), eq(schema.questions.isActive, true)))
+    .orderBy(schema.questions.createdAt);
+}
+
+async getQuestion(id: string): Promise<Question | undefined> {
+  const result = await db.select().from(schema.questions)
+    .where(eq(schema.questions.id, id));
+  return result[0];
+}
+
+async getQuestionsByIds(ids: string[]): Promise<Question[]> {
+  if (ids.length === 0) return [];
+  return db.select().from(schema.questions)
+    .where(inArray(schema.questions.id, ids));
+}
+
+async createQuestion(question: InsertQuestion): Promise<Question> {
+  const result = await db.insert(schema.questions).values(question).returning();
+  return result[0];
+}
+
+async updateQuestion(id: string, question: Partial<InsertQuestion>): Promise<Question> {
+  const result = await db.update(schema.questions)
+    .set({ ...question, updatedAt: new Date() })
+    .where(eq(schema.questions.id, id))
+    .returning();
+  return result[0];
+}
+
+async deleteQuestion(id: string): Promise<void> {
+  await db.update(schema.questions)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(eq(schema.questions.id, id));
+}
+
+// ========================================
+// Full LMS - Quizzes
+// ========================================
+
+async getQuizzes(courseId: string): Promise<Quiz[]> {
+  return db.select().from(schema.quizzes)
+    .where(eq(schema.quizzes.courseId, courseId))
+    .orderBy(schema.quizzes.sortOrder);
+}
+
+async getQuiz(id: string): Promise<Quiz | undefined> {
+  const result = await db.select().from(schema.quizzes)
+    .where(eq(schema.quizzes.id, id));
+  return result[0];
+}
+
+async getQuizByLessonId(lessonId: string): Promise<Quiz | undefined> {
+  const result = await db.select().from(schema.quizzes)
+    .where(eq(schema.quizzes.lessonId, lessonId));
+  return result[0];
+}
+
+async createQuiz(quiz: InsertQuiz): Promise<Quiz> {
+  const result = await db.insert(schema.quizzes).values(quiz).returning();
+  return result[0];
+}
+
+async updateQuiz(id: string, quiz: Partial<InsertQuiz>): Promise<Quiz> {
+  const result = await db.update(schema.quizzes)
+    .set({ ...quiz, updatedAt: new Date() })
+    .where(eq(schema.quizzes.id, id))
+    .returning();
+  return result[0];
+}
+
+async deleteQuiz(id: string): Promise<void> {
+  await db.delete(schema.quizzes)
+    .where(eq(schema.quizzes.id, id));
+}
+
+// ========================================
+// Full LMS - Quiz Questions
+// ========================================
+
+async getQuizQuestions(quizId: string): Promise<QuizQuestion[]> {
+  return db.select().from(schema.quizQuestions)
+    .where(eq(schema.quizQuestions.quizId, quizId))
+    .orderBy(schema.quizQuestions.sortOrder);
+}
+
+async createQuizQuestion(quizQuestion: InsertQuizQuestion): Promise<QuizQuestion> {
+  const result = await db.insert(schema.quizQuestions).values(quizQuestion).returning();
+  return result[0];
+}
+
+async deleteQuizQuestion(id: string): Promise<void> {
+  await db.delete(schema.quizQuestions)
+    .where(eq(schema.quizQuestions.id, id));
+}
+
+async reorderQuizQuestions(quizId: string, questionIds: string[]): Promise<void> {
+  for (let i = 0; i < questionIds.length; i++) {
+    await db.update(schema.quizQuestions)
+      .set({ sortOrder: i })
+      .where(and(eq(schema.quizQuestions.quizId, quizId), eq(schema.quizQuestions.id, questionIds[i])));
+  }
+}
+
+// ========================================
+// Full LMS - Quiz Attempts
+// ========================================
+
+async getQuizAttempts(quizId: string): Promise<QuizAttempt[]> {
+  return db.select().from(schema.quizAttempts)
+    .where(eq(schema.quizAttempts.quizId, quizId))
+    .orderBy(desc(schema.quizAttempts.startedAt));
+}
+
+async getQuizAttemptsByStaff(staffId: string): Promise<QuizAttempt[]> {
+  return db.select().from(schema.quizAttempts)
+    .where(eq(schema.quizAttempts.staffId, staffId))
+    .orderBy(desc(schema.quizAttempts.startedAt));
+}
+
+async getQuizAttempt(id: string): Promise<QuizAttempt | undefined> {
+  const result = await db.select().from(schema.quizAttempts)
+    .where(eq(schema.quizAttempts.id, id));
+  return result[0];
+}
+
+async createQuizAttempt(attempt: InsertQuizAttempt): Promise<QuizAttempt> {
+  const result = await db.insert(schema.quizAttempts).values(attempt).returning();
+  return result[0];
+}
+
+async updateQuizAttempt(id: string, attempt: Partial<InsertQuizAttempt>): Promise<QuizAttempt> {
+  const result = await db.update(schema.quizAttempts)
+    .set({ ...attempt, updatedAt: new Date() })
+    .where(eq(schema.quizAttempts.id, id))
+    .returning();
+  return result[0];
+}
+
+// ========================================
+// Full LMS - Question Responses
+// ========================================
+
+async getQuestionResponses(attemptId: string): Promise<QuestionResponse[]> {
+  return db.select().from(schema.questionResponses)
+    .where(eq(schema.questionResponses.attemptId, attemptId));
+}
+
+async createQuestionResponse(response: InsertQuestionResponse): Promise<QuestionResponse> {
+  const result = await db.insert(schema.questionResponses).values(response).returning();
+  return result[0];
+}
+
+async updateQuestionResponse(id: string, response: Partial<InsertQuestionResponse>): Promise<QuestionResponse> {
+  const result = await db.update(schema.questionResponses)
+    .set(response)
+    .where(eq(schema.questionResponses.id, id))
+    .returning();
+  return result[0];
+}
