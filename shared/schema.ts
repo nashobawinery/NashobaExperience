@@ -1144,6 +1144,242 @@ export const lmsCertificates = pgTable("lms_certificates", {
 ]);
 
 // ============================================
+// LMS ENHANCED - Lesson Pages & Content Blocks
+// ============================================
+
+// LMS Lesson Pages - sub-sections within a lesson (e.g., 1.1, 1.2, 1.3)
+export const lmsLessonPages = pgTable("lms_lesson_pages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  lessonId: varchar("lesson_id").notNull().references(() => lmsLessons.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  pageNumber: integer("page_number").notNull().default(1),
+  sortOrder: integer("sort_order").notNull().default(0),
+  estimatedMinutes: integer("estimated_minutes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_pages_lesson").on(table.lessonId),
+]);
+
+// LMS Content Blocks - rich content within lessons or pages
+export const lmsContentBlocks = pgTable("lms_content_blocks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  lessonId: varchar("lesson_id").notNull().references(() => lmsLessons.id, { onDelete: "cascade" }),
+  pageId: varchar("page_id").references(() => lmsLessonPages.id, { onDelete: "cascade" }),
+  blockType: text("block_type").notNull(), // text, video, image, file, embed, divider
+  content: text("content"), // For text blocks - HTML/rich text
+  videoUrl: text("video_url"),
+  imageUrl: text("image_url"),
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  embedCode: text("embed_code"),
+  layout: text("layout").default("full_width"), // full_width, text_left_image_right, etc.
+  imageSize: text("image_size").default("medium"), // small, medium, large, full
+  caption: text("caption"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_blocks_lesson").on(table.lessonId),
+  index("idx_lms_blocks_page").on(table.pageId),
+]);
+
+// ============================================
+// LMS ENHANCED - Question Banks & Quizzes
+// ============================================
+
+// LMS Question Banks - reusable question pools
+export const lmsQuestionBanks = pgTable("lms_question_banks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => platformUsers.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// LMS Questions - individual quiz questions (can belong to question bank)
+export const lmsQuestions = pgTable("lms_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  questionBankId: varchar("question_bank_id").references(() => lmsQuestionBanks.id, { onDelete: "set null" }),
+  questionType: text("question_type").notNull(), // multiple_choice, true_false, multiple_select, short_answer, matching
+  questionText: text("question_text").notNull(),
+  questionExplanation: text("question_explanation"),
+  answerOptions: jsonb("answer_options"), // [{id, text, isCorrect}] for multiple choice
+  correctAnswers: text("correct_answers").array(), // For short_answer questions
+  points: integer("points").notNull().default(1),
+  difficulty: text("difficulty"), // easy, medium, hard
+  tags: text("tags").array(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => platformUsers.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_questions_bank").on(table.questionBankId),
+]);
+
+// LMS Quizzes - assessments attached to courses or lessons
+export const lmsQuizzes = pgTable("lms_quizzes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => lmsCourses.id, { onDelete: "cascade" }),
+  lessonId: varchar("lesson_id").references(() => lmsLessons.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  instructions: text("instructions"),
+  passingScore: integer("passing_score").notNull().default(70),
+  timeLimitMinutes: integer("time_limit_minutes"),
+  maxAttempts: integer("max_attempts"),
+  shuffleQuestions: boolean("shuffle_questions").notNull().default(false),
+  shuffleAnswers: boolean("shuffle_answers").notNull().default(false),
+  questionsToShow: integer("questions_to_show"),
+  showCorrectAnswers: boolean("show_correct_answers").notNull().default(true),
+  showExplanations: boolean("show_explanations").notNull().default(true),
+  showScoreImmediately: boolean("show_score_immediately").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isFinalExam: boolean("is_final_exam").notNull().default(false),
+  isPublished: boolean("is_published").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_quizzes_course").on(table.courseId),
+  index("idx_lms_quizzes_lesson").on(table.lessonId),
+]);
+
+// LMS Quiz Question Links - links questions to quizzes
+export const lmsQuizQuestionLinks = pgTable("lms_quiz_question_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quizId: varchar("quiz_id").notNull().references(() => lmsQuizzes.id, { onDelete: "cascade" }),
+  questionId: varchar("question_id").notNull().references(() => lmsQuestions.id, { onDelete: "cascade" }),
+  pointsOverride: integer("points_override"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_quiz_links_quiz").on(table.quizId),
+]);
+
+// LMS Question Responses - individual answers in an attempt
+export const lmsQuestionResponses = pgTable("lms_question_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  attemptId: varchar("attempt_id").notNull().references(() => lmsQuizAttempts.id, { onDelete: "cascade" }),
+  questionId: varchar("question_id").notNull().references(() => lmsQuestions.id),
+  responseValue: text("response_value"),
+  responseJson: jsonb("response_json"),
+  isCorrect: boolean("is_correct"),
+  pointsEarned: integer("points_earned"),
+  pointsPossible: integer("points_possible"),
+  needsManualGrading: boolean("needs_manual_grading").notNull().default(false),
+  manualScore: integer("manual_score"),
+  graderFeedback: text("grader_feedback"),
+  answeredAt: timestamp("answered_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_responses_attempt").on(table.attemptId),
+]);
+
+// ============================================
+// LMS ENHANCED - Badges & Gamification
+// ============================================
+
+// LMS Badges - achievement definitions
+export const lmsBadges = pgTable("lms_badges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  iconName: text("icon_name"), // Lucide icon name
+  iconColor: text("icon_color"),
+  criteriaType: text("criteria_type").notNull(), // course_completion, courses_count, quiz_score, streak, custom
+  criteriaValue: jsonb("criteria_value"),
+  tier: text("tier").notNull().default("bronze"), // bronze, silver, gold, platinum
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// LMS User Badges - earned badges
+export const lmsUserBadges = pgTable("lms_user_badges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  badgeId: varchar("badge_id").notNull().references(() => lmsBadges.id, { onDelete: "cascade" }),
+  earnedAt: timestamp("earned_at").notNull().defaultNow(),
+  earnedReason: text("earned_reason"),
+  courseId: varchar("course_id").references(() => lmsCourses.id),
+  enrollmentId: varchar("enrollment_id").references(() => lmsEnrollments.id),
+}, (table) => [
+  index("idx_lms_user_badges_user").on(table.userId),
+]);
+
+// LMS Course Ratings - user feedback on courses
+export const lmsCourseRatings = pgTable("lms_course_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => lmsCourses.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  enrollmentId: varchar("enrollment_id").references(() => lmsEnrollments.id),
+  rating: integer("rating").notNull(), // 1-5 stars
+  review: text("review"),
+  wouldRecommend: boolean("would_recommend"),
+  difficultyRating: integer("difficulty_rating"), // 1-5
+  isApproved: boolean("is_approved").notNull().default(true),
+  moderatedBy: varchar("moderated_by").references(() => platformUsers.id),
+  moderatedAt: timestamp("moderated_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_ratings_course").on(table.courseId),
+  index("idx_lms_ratings_user").on(table.userId),
+]);
+
+// ============================================
+// LMS ENHANCED - External Training Access
+// ============================================
+
+// LMS External Training Tokens - For email-based training access without login
+export const lmsExternalTokens = pgTable("lms_external_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => platformUsers.id, { onDelete: "cascade" }),
+  courseId: varchar("course_id").notNull().references(() => lmsCourses.id, { onDelete: "cascade" }),
+  quizId: varchar("quiz_id").references(() => lmsQuizzes.id, { onDelete: "set null" }),
+  token: varchar("token").notNull().unique(),
+  recipientEmail: text("recipient_email").notNull(),
+  recipientName: text("recipient_name").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  attemptsRemaining: integer("attempts_remaining").notNull().default(3),
+  status: text("status").notNull().default("pending"), // pending, accessed, completed, expired, revoked
+  isActive: boolean("is_active").notNull().default(true),
+  sentAt: timestamp("sent_at"),
+  sentBy: varchar("sent_by").references(() => platformUsers.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_ext_tokens_user").on(table.userId),
+  index("idx_lms_ext_tokens_course").on(table.courseId),
+  index("idx_lms_ext_tokens_token").on(table.token),
+]);
+
+// LMS External Lesson Progress - tracks lesson progress for external training
+export const lmsExternalProgress = pgTable("lms_external_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  externalTokenId: varchar("external_token_id").notNull().references(() => lmsExternalTokens.id, { onDelete: "cascade" }),
+  lessonId: varchar("lesson_id").notNull().references(() => lmsLessons.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, quiz_required, completed
+  contentViewed: boolean("content_viewed").default(false),
+  quizPassed: boolean("quiz_passed").default(false),
+  quizScore: integer("quiz_score"),
+  quizAttempts: integer("quiz_attempts").default(0),
+  lastQuizAttemptAt: timestamp("last_quiz_attempt_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  timeSpentSeconds: integer("time_spent_seconds").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_ext_progress_token").on(table.externalTokenId),
+  index("idx_lms_ext_progress_lesson").on(table.lessonId),
+]);
+
+// ============================================
 // COMPLIANCE MODULE TABLES
 // ============================================
 
@@ -1357,6 +1593,20 @@ export const insertLmsEnrollmentSchema = createInsertSchema(lmsEnrollments).omit
 export const insertLmsLessonProgressSchema = createInsertSchema(lmsLessonProgress).omit({ id: true, startedAt: true, completedAt: true });
 export const insertLmsQuizAttemptSchema = createInsertSchema(lmsQuizAttempts).omit({ id: true, startedAt: true, completedAt: true });
 export const insertLmsCertificateSchema = createInsertSchema(lmsCertificates).omit({ id: true, issuedAt: true });
+
+// LMS Enhanced Insert schemas
+export const insertLmsLessonPageSchema = createInsertSchema(lmsLessonPages).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsContentBlockSchema = createInsertSchema(lmsContentBlocks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsQuestionBankSchema = createInsertSchema(lmsQuestionBanks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsQuestionSchema = createInsertSchema(lmsQuestions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsQuizSchema = createInsertSchema(lmsQuizzes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsQuizQuestionLinkSchema = createInsertSchema(lmsQuizQuestionLinks).omit({ id: true, createdAt: true });
+export const insertLmsQuestionResponseSchema = createInsertSchema(lmsQuestionResponses).omit({ id: true, answeredAt: true });
+export const insertLmsBadgeSchema = createInsertSchema(lmsBadges).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsUserBadgeSchema = createInsertSchema(lmsUserBadges).omit({ id: true, earnedAt: true });
+export const insertLmsCourseRatingSchema = createInsertSchema(lmsCourseRatings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsExternalTokenSchema = createInsertSchema(lmsExternalTokens).omit({ id: true, createdAt: true });
+export const insertLmsExternalProgressSchema = createInsertSchema(lmsExternalProgress).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Compliance Insert schemas
 export const insertComplianceTaskSchema = createInsertSchema(complianceTasks).omit({ 
@@ -1576,6 +1826,43 @@ export type LmsQuizAttempt = typeof lmsQuizAttempts.$inferSelect;
 
 export type InsertLmsCertificate = z.infer<typeof insertLmsCertificateSchema>;
 export type LmsCertificate = typeof lmsCertificates.$inferSelect;
+
+// LMS Enhanced Types
+export type InsertLmsLessonPage = z.infer<typeof insertLmsLessonPageSchema>;
+export type LmsLessonPage = typeof lmsLessonPages.$inferSelect;
+
+export type InsertLmsContentBlock = z.infer<typeof insertLmsContentBlockSchema>;
+export type LmsContentBlock = typeof lmsContentBlocks.$inferSelect;
+
+export type InsertLmsQuestionBank = z.infer<typeof insertLmsQuestionBankSchema>;
+export type LmsQuestionBank = typeof lmsQuestionBanks.$inferSelect;
+
+export type InsertLmsQuestion = z.infer<typeof insertLmsQuestionSchema>;
+export type LmsQuestion = typeof lmsQuestions.$inferSelect;
+
+export type InsertLmsQuiz = z.infer<typeof insertLmsQuizSchema>;
+export type LmsQuiz = typeof lmsQuizzes.$inferSelect;
+
+export type InsertLmsQuizQuestionLink = z.infer<typeof insertLmsQuizQuestionLinkSchema>;
+export type LmsQuizQuestionLink = typeof lmsQuizQuestionLinks.$inferSelect;
+
+export type InsertLmsQuestionResponse = z.infer<typeof insertLmsQuestionResponseSchema>;
+export type LmsQuestionResponse = typeof lmsQuestionResponses.$inferSelect;
+
+export type InsertLmsBadge = z.infer<typeof insertLmsBadgeSchema>;
+export type LmsBadge = typeof lmsBadges.$inferSelect;
+
+export type InsertLmsUserBadge = z.infer<typeof insertLmsUserBadgeSchema>;
+export type LmsUserBadge = typeof lmsUserBadges.$inferSelect;
+
+export type InsertLmsCourseRating = z.infer<typeof insertLmsCourseRatingSchema>;
+export type LmsCourseRating = typeof lmsCourseRatings.$inferSelect;
+
+export type InsertLmsExternalToken = z.infer<typeof insertLmsExternalTokenSchema>;
+export type LmsExternalToken = typeof lmsExternalTokens.$inferSelect;
+
+export type InsertLmsExternalProgress = z.infer<typeof insertLmsExternalProgressSchema>;
+export type LmsExternalProgress = typeof lmsExternalProgress.$inferSelect;
 
 // Extended LMS types with relations
 export type LmsCourseWithDetails = LmsCourse & {
