@@ -1,0 +1,211 @@
+// LMS SCHEMA - Add these imports at top of your schema.ts:
+// import { sql } from "drizzle-orm";
+// import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+// import { createInsertSchema } from "drizzle-zod";
+// import { z } from "zod";
+
+// ========================================
+// Training LMS (Learning Management System)
+// ========================================
+
+// Course catalog - Training courses available at the facility
+export const staffCourses = pgTable("staff_courses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  facilityId: varchar("facility_id").references(() => facilities.id).notNull(),
+  
+  // Course details
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // clinical, safety, compliance, orientation, skills
+  
+  // Course type and structure
+  courseType: text("course_type").notNull().default("self_paced"), // self_paced, instructor_led, external
+  duration: integer("duration"), // Duration in minutes
+  passingScore: integer("passing_score"), // Required score to pass (0-100)
+  
+  // Regulatory requirements (EOEA 651 CMR 12)
+  isRequired: boolean("is_required").notNull().default(false),
+  requiredForRoles: text("required_for_roles").array(), // Array of role types that must complete
+  renewalFrequencyDays: integer("renewal_frequency_days"), // Days until recertification required
+  regulatoryReference: text("regulatory_reference"), // e.g., "651 CMR 12.07(3)"
+  
+  // Content
+  contentUrl: text("content_url"), // Link to external content or uploaded file
+  contentType: text("content_type"), // video, document, scorm, external_link
+  
+  // Metadata
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdById: varchar("created_by_id").references(() => staff.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Course assignments - Track which staff are assigned to which courses
+export const staffCourseAssignments = pgTable("staff_course_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").references(() => staff.id).notNull(),
+  courseId: varchar("course_id").references(() => staffCourses.id).notNull(),
+  
+  // Assignment details
+  assignedById: varchar("assigned_by_id").references(() => staff.id),
+  assignedDate: timestamp("assigned_date").defaultNow().notNull(),
+  dueDate: timestamp("due_date"),
+  
+  // Progress tracking
+  status: text("status").notNull().default("assigned"), // assigned, in_progress, completed, expired, waived
+  progress: integer("progress").notNull().default(0), // 0-100 percentage
+  score: integer("score"), // Test/quiz score if applicable
+  
+  // Completion tracking
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Certification
+  certificationNumber: text("certification_number"),
+  certificationExpiresAt: timestamp("certification_expires_at"),
+  
+  // Notes
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Course progress logs - Track detailed progress within a course
+export const courseProgressLogs = pgTable("course_progress_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignmentId: varchar("assignment_id").references(() => staffCourseAssignments.id).notNull(),
+  
+  // Progress details
+  eventType: text("event_type").notNull(), // started, module_completed, quiz_attempted, completed
+  eventData: jsonb("event_data"), // Additional data like module name, quiz answers, etc.
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Zod schemas for Training LMS
+export const insertStaffCourseSchema = createInsertSchema(staffCourses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStaffCourseAssignmentSchema = createInsertSchema(staffCourseAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCourseProgressLogSchema = createInsertSchema(courseProgressLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type exports for Training LMS
+export type StaffCourse = typeof staffCourses.$inferSelect;
+export type InsertStaffCourse = z.infer<typeof insertStaffCourseSchema>;
+
+export type StaffCourseAssignment = typeof staffCourseAssignments.$inferSelect;
+export type InsertStaffCourseAssignment = z.infer<typeof insertStaffCourseAssignmentSchema>;
+
+export type CourseProgressLog = typeof courseProgressLogs.$inferSelect;
+export type InsertCourseProgressLog = z.infer<typeof insertCourseProgressLogSchema>;
+
+// ========================================
+// Full LMS System - Course Content & Delivery
+// ========================================
+
+// Course Lessons - ordered content units within a course
+export const courseLessons = pgTable("course_lessons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").references(() => staffCourses.id, { onDelete: "cascade" }).notNull(),
+  
+  // Lesson details
+  title: text("title").notNull(),
+  description: text("description"),
+  
+  // Ordering
+  sortOrder: integer("sort_order").notNull().default(0),
+  
+  // Lesson settings
+  estimatedMinutes: integer("estimated_minutes"), // Estimated time to complete
+  isMandatory: boolean("is_mandatory").notNull().default(true), // Must complete to finish course
+  
+  // Status
+  isPublished: boolean("is_published").notNull().default(false),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Lesson Pages - sub-sections within a lesson (e.g., 1.1, 1.2, 1.3)
+export const lessonPages = pgTable("lesson_pages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  lessonId: varchar("lesson_id").references(() => courseLessons.id, { onDelete: "cascade" }).notNull(),
+  
+  // Page details
+  title: text("title").notNull(),
+  description: text("description"),
+  
+  // Page number within the lesson (1, 2, 3...)
+  pageNumber: integer("page_number").notNull().default(1),
+  
+  // Ordering
+  sortOrder: integer("sort_order").notNull().default(0),
+  
+  // Estimated time for this page
+  estimatedMinutes: integer("estimated_minutes"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Lesson Content Blocks - rich content within lessons or pages
+export const lessonContentBlocks = pgTable("lesson_content_blocks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  lessonId: varchar("lesson_id").references(() => courseLessons.id, { onDelete: "cascade" }).notNull(),
+  
+  // Optional page reference - if null, belongs directly to lesson (legacy/default behavior)
+  pageId: varchar("page_id").references(() => lessonPages.id, { onDelete: "cascade" }),
+  
+  // Block type: text, video, image, file, embed, divider, text_image (combined layout)
+  blockType: text("block_type").notNull(),
+  
+  // Content based on type
+  content: text("content"), // For text blocks - HTML/rich text content
+  videoUrl: text("video_url"), // For video blocks - YouTube/Vimeo embed URL
+  imageUrl: text("image_url"), // For image blocks
+  fileUrl: text("file_url"), // For file blocks - downloadable file
+  fileName: text("file_name"), // Original filename for downloads
+  embedCode: text("embed_code"), // For custom embed blocks
+  
+  // Layout options for multi-column/combined blocks
+  // layout: "text_left_image_right", "image_left_text_right", "text_top_image_bottom", "image_top_text_bottom", "full_width"
+  layout: text("layout").default("full_width"),
+  
+  // Image sizing: "small", "medium", "large", "full"
+  imageSize: text("image_size").default("medium"),
+  
+  // Optional caption/description
+  caption: text("caption"),
+  
+  // Ordering
+  sortOrder: integer("sort_order").notNull().default(0),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Course Prerequisites - learning path dependencies
+export const coursePrerequisites = pgTable("course_prerequisites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").references(() => staffCourses.id, { onDelete: "cascade" }).notNull(),
+  prerequisiteCourseId: varchar("prerequisite_course_id").references(() => staffCourses.id, { onDelete: "cascade" }).notNull(),
+  
+  // Requirement type
+  requirementType: text("requirement_type").notNull().default("completion"), // completion, passing_score
+  minimumScore: integer("minimum_score"), // Required if requirementType is passing_score
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
