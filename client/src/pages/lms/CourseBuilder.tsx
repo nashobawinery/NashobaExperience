@@ -87,6 +87,7 @@ interface ContentBlock {
 interface Quiz {
   id: string;
   title: string;
+  description: string | null;
   lesson_id: string | null;
   passing_score: number;
 }
@@ -242,13 +243,13 @@ export default function CourseBuilder() {
   });
 
   const createQuizMutation = useMutation({
-    mutationFn: async (data: { title: string; description?: string; passingScore: number; lessonId: string | null }) => {
+    mutationFn: async (data: { title: string; description?: string; passing_score: number; lesson_id: string | null }) => {
       return apiRequest('POST', `/api/lms/admin/courses/${selectedCourse!.id}/quizzes`, {
         title: data.title,
         description: data.description,
-        lessonId: data.lessonId,
-        passingScore: data.passingScore,
-        quizType: 'standard'
+        lesson_id: data.lesson_id,
+        passing_score: data.passing_score,
+        quiz_type: 'standard'
       });
     },
     onSuccess: () => {
@@ -261,11 +262,11 @@ export default function CourseBuilder() {
   });
 
   const updateQuizMutation = useMutation({
-    mutationFn: async (data: { id: string; title: string; description?: string; passingScore: number }) => {
+    mutationFn: async (data: { id: string; title: string; description?: string; passing_score: number }) => {
       return apiRequest('PUT', `/api/lms/admin/quizzes/${data.id}`, {
         title: data.title,
         description: data.description,
-        passingScore: data.passingScore
+        passing_score: data.passing_score
       });
     },
     onSuccess: () => {
@@ -1079,21 +1080,21 @@ export default function CourseBuilder() {
             const formData = new FormData(e.currentTarget);
             const title = formData.get('title') as string;
             const description = formData.get('description') as string;
-            const passingScore = parseInt(formData.get('passingScore') as string) || 70;
+            const passing_score = parseInt(formData.get('passingScore') as string) || 70;
             
             if (quizDialog.quiz?.id) {
               updateQuizMutation.mutate({ 
                 id: quizDialog.quiz.id, 
                 title, 
                 description, 
-                passingScore 
+                passing_score 
               });
             } else {
               createQuizMutation.mutate({ 
                 title, 
                 description, 
-                passingScore, 
-                lessonId: quizDialog.lessonId 
+                passing_score, 
+                lesson_id: quizDialog.lessonId 
               });
             }
           }}>
@@ -1114,6 +1115,7 @@ export default function CourseBuilder() {
                 <Textarea 
                   id="quiz-description" 
                   name="description" 
+                  defaultValue={quizDialog.quiz?.description || ''}
                   rows={3}
                   placeholder="Brief description of the quiz"
                   data-testid="input-quiz-description"
@@ -1133,10 +1135,19 @@ export default function CourseBuilder() {
               </div>
             </div>
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setQuizDialog({ open: false, quiz: null, lessonId: null })}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setQuizDialog({ open: false, quiz: null, lessonId: null })}
+                data-testid="button-quiz-cancel"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createQuizMutation.isPending || updateQuizMutation.isPending}>
+              <Button 
+                type="submit" 
+                disabled={createQuizMutation.isPending || updateQuizMutation.isPending}
+                data-testid="button-quiz-submit"
+              >
                 {quizDialog.quiz?.id ? 'Update' : 'Create'}
               </Button>
             </DialogFooter>
