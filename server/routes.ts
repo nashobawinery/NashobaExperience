@@ -5946,16 +5946,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/lms/admin/courses', isAdmin, async (req, res) => {
     try {
-      const { title, description } = req.body;
-      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url;
-      const categoryId = req.body.categoryId || req.body.category_id;
-      const difficulty = req.body.difficulty;
-      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes;
-      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles;
-      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids;
-      const passingScore = req.body.passingScore || req.body.passing_score;
-      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled;
-      const sortOrder = req.body.sortOrder || req.body.sort_order;
+      const { title } = req.body;
+      const description = req.body.description || null;
+      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url || null;
+      const categoryId = req.body.categoryId || req.body.category_id || null;
+      const difficulty = req.body.difficulty || 'beginner';
+      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes || 15;
+      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles || null;
+      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids || null;
+      const passingScore = req.body.passingScore || req.body.passing_score || 80;
+      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled ?? false;
+      const sortOrder = req.body.sortOrder || req.body.sort_order || 0;
       
       const result = await db.execute(sql`
         INSERT INTO lms_courses (
@@ -5963,9 +5964,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           required_for_roles, prerequisite_course_ids, passing_score, certificate_enabled, sort_order
         )
         VALUES (
-          ${title}, ${description}, ${thumbnailUrl}, ${categoryId}, ${difficulty || 'beginner'}, 
-          ${estimatedMinutes || 15}, ${requiredForRoles || null}, ${prerequisiteCourseIds || null},
-          ${passingScore || 80}, ${certificateEnabled ?? false}, ${sortOrder || 0}
+          ${title}, ${description}, ${thumbnailUrl}, ${categoryId}, ${difficulty}, 
+          ${estimatedMinutes}, ${requiredForRoles}, ${prerequisiteCourseIds},
+          ${passingScore}, ${certificateEnabled}, ${sortOrder}
         )
         RETURNING *
       `);
@@ -5979,17 +5980,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/lms/admin/courses/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, description } = req.body;
-      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url;
-      const categoryId = req.body.categoryId || req.body.category_id;
-      const status = req.body.status;
-      const difficulty = req.body.difficulty;
-      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes;
-      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles;
-      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids;
-      const passingScore = req.body.passingScore || req.body.passing_score;
-      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled;
-      const sortOrder = req.body.sortOrder || req.body.sort_order;
+      const { title } = req.body;
+      const description = req.body.description || null;
+      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url || null;
+      const categoryId = req.body.categoryId || req.body.category_id || null;
+      const status = req.body.status || 'draft';
+      const difficulty = req.body.difficulty || 'beginner';
+      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes || 15;
+      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles || null;
+      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids || null;
+      const passingScore = req.body.passingScore || req.body.passing_score || 80;
+      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled ?? false;
+      const sortOrder = req.body.sortOrder || req.body.sort_order || 0;
       
       let publishedAt = null;
       if (status === 'published') {
@@ -6000,10 +6002,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute(sql`
         UPDATE lms_courses SET
           title = ${title}, description = ${description}, thumbnail_url = ${thumbnailUrl},
-          category_id = ${categoryId}, status = ${status || 'draft'}, difficulty = ${difficulty || 'beginner'},
-          estimated_minutes = ${estimatedMinutes || 15}, required_for_roles = ${requiredForRoles || null},
-          prerequisite_course_ids = ${prerequisiteCourseIds || null}, passing_score = ${passingScore || 80},
-          certificate_enabled = ${certificateEnabled ?? false}, sort_order = ${sortOrder || 0},
+          category_id = ${categoryId}, status = ${status}, difficulty = ${difficulty},
+          estimated_minutes = ${estimatedMinutes}, required_for_roles = ${requiredForRoles},
+          prerequisite_course_ids = ${prerequisiteCourseIds}, passing_score = ${passingScore},
+          certificate_enabled = ${certificateEnabled}, sort_order = ${sortOrder},
           published_at = ${publishedAt}, updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
