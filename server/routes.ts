@@ -5828,11 +5828,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/lms/admin/categories', isAdmin, async (req, res) => {
     try {
-      const { name, description, icon, color } = req.body;
-      const sortOrder = req.body.sortOrder || req.body.sort_order;
+      const { name, description } = req.body;
+      const icon = req.body.icon || null;
+      const color = req.body.color || null;
+      const sortOrder = req.body.sortOrder || req.body.sort_order || 0;
       const result = await db.execute(sql`
         INSERT INTO lms_categories (name, description, icon, color, sort_order)
-        VALUES (${name}, ${description}, ${icon}, ${color}, ${sortOrder || 0})
+        VALUES (${name}, ${description || null}, ${icon}, ${color}, ${sortOrder})
         RETURNING *
       `);
       res.json(result.rows[0]);
