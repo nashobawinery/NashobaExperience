@@ -5828,7 +5828,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/lms/admin/categories', isAdmin, async (req, res) => {
     try {
-      const { name, description, icon, color, sortOrder } = req.body;
+      const { name, description, icon, color } = req.body;
+      const sortOrder = req.body.sortOrder || req.body.sort_order;
       const result = await db.execute(sql`
         INSERT INTO lms_categories (name, description, icon, color, sort_order)
         VALUES (${name}, ${description}, ${icon}, ${color}, ${sortOrder || 0})
@@ -5844,7 +5845,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/lms/admin/categories/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, icon, color, sortOrder, active } = req.body;
+      const { name, description, icon, color, active } = req.body;
+      const sortOrder = req.body.sortOrder || req.body.sort_order;
       const result = await db.execute(sql`
         UPDATE lms_categories 
         SET name = ${name}, description = ${description}, icon = ${icon}, 
@@ -5942,8 +5944,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/lms/admin/courses', isAdmin, async (req, res) => {
     try {
-      const { title, description, thumbnailUrl, categoryId, difficulty, estimatedMinutes, 
-              requiredForRoles, prerequisiteCourseIds, passingScore, certificateEnabled, sortOrder } = req.body;
+      const { title, description } = req.body;
+      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url;
+      const categoryId = req.body.categoryId || req.body.category_id;
+      const difficulty = req.body.difficulty;
+      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes;
+      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles;
+      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids;
+      const passingScore = req.body.passingScore || req.body.passing_score;
+      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled;
+      const sortOrder = req.body.sortOrder || req.body.sort_order;
+      
       const result = await db.execute(sql`
         INSERT INTO lms_courses (
           title, description, thumbnail_url, category_id, difficulty, estimated_minutes,
@@ -5966,8 +5977,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/lms/admin/courses/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, description, thumbnailUrl, categoryId, status, difficulty, estimatedMinutes,
-              requiredForRoles, prerequisiteCourseIds, passingScore, certificateEnabled, sortOrder } = req.body;
+      const { title, description } = req.body;
+      const thumbnailUrl = req.body.thumbnailUrl || req.body.thumbnail_url;
+      const categoryId = req.body.categoryId || req.body.category_id;
+      const status = req.body.status;
+      const difficulty = req.body.difficulty;
+      const estimatedMinutes = req.body.estimatedMinutes || req.body.estimated_minutes;
+      const requiredForRoles = req.body.requiredForRoles || req.body.required_for_roles;
+      const prerequisiteCourseIds = req.body.prerequisiteCourseIds || req.body.prerequisite_course_ids;
+      const passingScore = req.body.passingScore || req.body.passing_score;
+      const certificateEnabled = req.body.certificateEnabled ?? req.body.certificate_enabled;
+      const sortOrder = req.body.sortOrder || req.body.sort_order;
       
       let publishedAt = null;
       if (status === 'published') {
