@@ -141,7 +141,7 @@ function AdminRoute() {
 
   return (
     <Suspense fallback={<PageLoader />}>
-      <AdminDashboard onBackToGuest={() => setLocation("/")} />
+      <AdminDashboard onBackToGuest={() => setLocation("/tasting")} />
     </Suspense>
   );
 }
@@ -192,7 +192,7 @@ function AdminHubRoute() {
           <div className="bg-card border rounded-lg p-6 space-y-4">
             <Button 
               className="w-full" 
-              onClick={() => window.location.href = '/api/login?returnTo=/hub'}
+              onClick={() => window.location.href = '/api/login?returnTo=/'}
               data-testid="button-login"
             >
               Sign in with Replit
@@ -209,7 +209,7 @@ function AdminHubRoute() {
   // User is authenticated - pass to AdminHub which will handle RBAC filtering
   return (
     <Suspense fallback={<PageLoader />}>
-      <AdminHub onBackToGuest={() => setLocation("/")} user={user} rbac={rbac} isAdmin={isAdmin} />
+      <AdminHub onBackToGuest={() => setLocation("/tasting")} user={user} rbac={rbac} isAdmin={isAdmin} />
     </Suspense>
   );
 }
@@ -844,22 +844,13 @@ function Router() {
 
   return (
     <div className="relative">
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAdminClick}
-          data-testid="button-admin-mode"
-        >
-          Admin
-        </Button>
-      </div>
       <Switch>
-        <Route path="/" component={GuestApp} />
+        <Route path="/" component={AdminHubRoute} />
+        <Route path="/tasting" component={GuestApp} />
         <Route path="/daily-report/:code" component={PublicDailyReportRoute} />
         <Route path="/daily-report" component={PublicDailyReportRoute} />
-        <Route path="/hub" component={AdminHubRoute} />
-        <Route path="/admin-hub" component={AdminHubRoute} />
+        <Route path="/hub">{() => <Redirect to="/" />}</Route>
+        <Route path="/admin-hub">{() => <Redirect to="/" />}</Route>
         <Route path="/admin" component={AdminRoute} />
         <Route path="/admin/database-sync" component={DatabaseSyncRoute} />
         <Route path="/modules" component={ModuleDirectoryRoute} />
