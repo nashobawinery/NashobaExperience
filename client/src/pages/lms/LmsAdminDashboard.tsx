@@ -43,6 +43,7 @@ import {
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/lms";
+import CourseBuilder from "./CourseBuilder";
 
 interface LmsCategory {
   id: string;
@@ -394,6 +395,10 @@ export default function LmsAdminDashboard() {
             <TabsTrigger value="courses" data-testid="tab-courses">
               <BookOpen className="h-4 w-4 mr-2" />
               Courses
+            </TabsTrigger>
+            <TabsTrigger value="course-builder" data-testid="tab-course-builder">
+              <Layers className="h-4 w-4 mr-2" />
+              Course Builder
             </TabsTrigger>
             <TabsTrigger value="question-banks" data-testid="tab-question-banks">
               <Database className="h-4 w-4 mr-2" />
@@ -915,6 +920,10 @@ export default function LmsAdminDashboard() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="course-builder" className="space-y-6">
+            <CourseBuilder />
           </TabsContent>
 
           <TabsContent value="question-banks" className="space-y-6">

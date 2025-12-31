@@ -6567,6 +6567,239 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get content blocks directly for a lesson (Main Content - blocks without a page)
+  app.get('/api/lms/lessons/:lessonId/blocks', async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const result = await db.execute(sql`
+        SELECT * FROM lms_content_blocks 
+        WHERE lesson_id = ${lessonId} AND page_id IS NULL
+        ORDER BY sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching lesson content blocks:', error);
+      res.status(500).json({ message: 'Failed to fetch content blocks' });
+    }
+  });
+
+  // Get all content blocks for a lesson (including all pages)
+  app.get('/api/lms/lessons/:lessonId/all-blocks', async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const result = await db.execute(sql`
+        SELECT cb.*, lp.title as page_title, lp.page_number
+        FROM lms_content_blocks cb
+        LEFT JOIN lms_lesson_pages lp ON cb.page_id = lp.id
+        WHERE cb.lesson_id = ${lessonId}
+        ORDER BY lp.sort_order NULLS FIRST, cb.sort_order ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching all lesson content blocks:', error);
+      res.status(500).json({ message: 'Failed to fetch content blocks' });
+    }
+  });
+
+  // Create content block directly on a lesson (Main Content)
+  app.post('/api/lms/admin/lessons/:lessonId/blocks', isAdmin, async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const { blockType, content, videoUrl, imageUrl, layout, imageSize, caption, sortOrder } = req.body;
+      const result = await db.execute(sql`
+        INSERT INTO lms_content_blocks (lesson_id, page_id, block_type, content, video_url, image_url, layout, image_size, caption, sort_order)
+        VALUES (${lessonId}, NULL, ${blockType || 'text'}, ${content}, ${videoUrl}, ${imageUrl}, ${layout || 'full_width'}, ${imageSize || 'medium'}, ${caption}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating lesson content block:', error);
+      res.status(500).json({ message: 'Failed to create content block' });
+    }
+  });
+
+  // Update content block with all fields
+  app.patch('/api/lms/admin/blocks/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { blockType, content, videoUrl, imageUrl, layout, imageSize, caption, sortOrder, pageId } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_content_blocks SET
+          block_type = COALESCE(${blockType}, block_type),
+          content = COALESCE(${content}, content),
+          video_url = COALESCE(${videoUrl}, video_url),
+          image_url = COALESCE(${imageUrl}, image_url),
+          layout = COALESCE(${layout}, layout),
+          image_size = COALESCE(${imageSize}, image_size),
+          caption = COALESCE(${caption}, caption),
+          sort_order = COALESCE(${sortOrder}, sort_order),
+          page_id = ${pageId},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating content block:', error);
+      res.status(500).json({ message: 'Failed to update content block' });
+    }
+  });
+
+  // Get lesson with pages and content blocks for course builder
+  app.get('/api/lms/admin/lessons/:lessonId/full', isAdmin, async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      
+      const lessonResult = await db.execute(sql`
+        SELECT l.*, 
+          (SELECT COUNT(*) FROM lms_quizzes WHERE lesson_id = l.id) as quiz_count
+        FROM lms_lessons l
+        WHERE l.id = ${lessonId}
+      `);
+      if (lessonResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Lesson not found' });
+      }
+      
+      const pagesResult = await db.execute(sql`
+        SELECT * FROM lms_lesson_pages 
+        WHERE lesson_id = ${lessonId}
+        ORDER BY sort_order ASC
+      `);
+      
+      const mainBlocksResult = await db.execute(sql`
+        SELECT * FROM lms_content_blocks 
+        WHERE lesson_id = ${lessonId} AND page_id IS NULL
+        ORDER BY sort_order ASC
+      `);
+      
+      const pageBlocksResult = await db.execute(sql`
+        SELECT * FROM lms_content_blocks 
+        WHERE lesson_id = ${lessonId} AND page_id IS NOT NULL
+        ORDER BY sort_order ASC
+      `);
+      
+      const pages = pagesResult.rows.map((page: any) => ({
+        ...page,
+        contentBlocks: pageBlocksResult.rows.filter((block: any) => block.page_id === page.id)
+      }));
+      
+      const quizzesResult = await db.execute(sql`
+        SELECT * FROM lms_quizzes WHERE lesson_id = ${lessonId}
+      `);
+      
+      res.json({
+        ...lessonResult.rows[0],
+        pages,
+        mainContentBlocks: mainBlocksResult.rows,
+        quizzes: quizzesResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching full lesson:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson' });
+    }
+  });
+
+  // Get course with lessons for course builder
+  app.get('/api/lms/admin/courses/:courseId/full', isAdmin, async (req, res) => {
+    try {
+      const { courseId } = req.params;
+      
+      const courseResult = await db.execute(sql`
+        SELECT c.*, cat.name as category_name
+        FROM lms_courses c
+        LEFT JOIN lms_categories cat ON c.category_id = cat.id
+        WHERE c.id = ${courseId}
+      `);
+      if (courseResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      
+      const lessonsResult = await db.execute(sql`
+        SELECT l.*,
+          (SELECT COUNT(*) FROM lms_quizzes WHERE lesson_id = l.id) as quiz_count,
+          (SELECT title FROM lms_quizzes WHERE lesson_id = l.id LIMIT 1) as quiz_title
+        FROM lms_lessons l
+        WHERE l.course_id = ${courseId} AND l.active = true
+        ORDER BY l.sort_order ASC
+      `);
+      
+      const courseQuizzesResult = await db.execute(sql`
+        SELECT * FROM lms_quizzes WHERE course_id = ${courseId} AND lesson_id IS NULL
+      `);
+      
+      res.json({
+        ...courseResult.rows[0],
+        lessons: lessonsResult.rows,
+        courseQuizzes: courseQuizzesResult.rows
+      });
+    } catch (error) {
+      console.error('Error fetching full course:', error);
+      res.status(500).json({ message: 'Failed to fetch course' });
+    }
+  });
+
+  // Update page with description and estimated minutes
+  app.patch('/api/lms/admin/pages/:id', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, pageNumber, sortOrder, estimatedMinutes } = req.body;
+      const result = await db.execute(sql`
+        UPDATE lms_lesson_pages SET
+          title = COALESCE(${title}, title),
+          description = COALESCE(${description}, description),
+          page_number = COALESCE(${pageNumber}, page_number),
+          sort_order = COALESCE(${sortOrder}, sort_order),
+          estimated_minutes = COALESCE(${estimatedMinutes}, estimated_minutes),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating lesson page:', error);
+      res.status(500).json({ message: 'Failed to update lesson page' });
+    }
+  });
+
+  // Reorder pages
+  app.post('/api/lms/admin/lessons/:lessonId/reorder-pages', isAdmin, async (req, res) => {
+    try {
+      const { lessonId } = req.params;
+      const { pageIds } = req.body;
+      
+      for (let i = 0; i < pageIds.length; i++) {
+        await db.execute(sql`
+          UPDATE lms_lesson_pages SET sort_order = ${i}, page_number = ${i + 1}, updated_at = NOW()
+          WHERE id = ${pageIds[i]} AND lesson_id = ${lessonId}
+        `);
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error reordering pages:', error);
+      res.status(500).json({ message: 'Failed to reorder pages' });
+    }
+  });
+
+  // Reorder content blocks
+  app.post('/api/lms/admin/reorder-blocks', isAdmin, async (req, res) => {
+    try {
+      const { blockIds } = req.body;
+      
+      for (let i = 0; i < blockIds.length; i++) {
+        await db.execute(sql`
+          UPDATE lms_content_blocks SET sort_order = ${i}, updated_at = NOW()
+          WHERE id = ${blockIds[i]}
+        `);
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error reordering blocks:', error);
+      res.status(500).json({ message: 'Failed to reorder blocks' });
+    }
+  });
+
   // --- LMS Question Banks ---
   app.get('/api/lms/admin/question-banks', isAdmin, async (req, res) => {
     try {
