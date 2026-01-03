@@ -1558,13 +1558,17 @@ export const departmentTasks = pgTable("department_tasks", {
   
   // Deadline management
   dueDate: timestamp("due_date"),
-  reminderDays: integer("reminder_days").array(), // e.g., [7, 3, 1] days before
+  reminderDays: integer("reminder_days").array(), // e.g., [14, 7, 1] days before
   lastReminderSent: timestamp("last_reminder_sent"),
   
   // Assignment
   assignedToName: text("assigned_to_name"),
   assignedToEmail: text("assigned_to_email"),
   assignedById: varchar("assigned_by_id").references(() => users.id),
+  
+  // Manager for escalations and delinquent notifications
+  managerName: text("manager_name"),
+  managerEmail: text("manager_email"),
   
   // Status and priority
   status: departmentTaskStatusEnum("status").notNull().default("pending"),
