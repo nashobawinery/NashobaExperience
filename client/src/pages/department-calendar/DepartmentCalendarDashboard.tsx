@@ -32,7 +32,10 @@ import {
   Archive,
   Copy,
   Building2,
-  Layers
+  Layers,
+  Pencil,
+  User,
+  Check
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -519,6 +522,10 @@ export default function DepartmentCalendarDashboard() {
               <Calendar className="h-4 w-4 mr-2" />
               Tasks
             </TabsTrigger>
+            <TabsTrigger value="delinquent" data-testid="tab-delinquent">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Delinquent
+            </TabsTrigger>
             <TabsTrigger value="departments" data-testid="tab-departments">
               <Layers className="h-4 w-4 mr-2" />
               Departments
@@ -705,6 +712,141 @@ export default function DepartmentCalendarDashboard() {
                     ))}
                   </div>
                 </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="delinquent">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delinquent Tasks
+              </CardTitle>
+              <CardDescription>
+                Tasks that are past their due date and not yet completed. Both the assigned person and their manager will be notified.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+                </div>
+              ) : (
+                (() => {
+                  const delinquentTasks = tasks.filter(task => {
+                    if (!task.due_date || task.status === 'completed') return false;
+                    return isPast(new Date(task.due_date));
+                  });
+                  
+                  if (delinquentTasks.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No Delinquent Tasks</h3>
+                        <p className="text-muted-foreground">All tasks are on track. Great job!</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <ScrollArea className="h-[500px]">
+                      <div className="space-y-4">
+                        {delinquentTasks.map((task) => {
+                          const daysPastDue = task.due_date 
+                            ? Math.floor((new Date().getTime() - new Date(task.due_date).getTime()) / (1000 * 60 * 60 * 24))
+                            : 0;
+                          
+                          return (
+                            <Card key={task.id} className="border-l-4 border-l-red-500" data-testid={`card-delinquent-task-${task.id}`}>
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge 
+                                        variant="outline" 
+                                        style={{ 
+                                          backgroundColor: task.department_color ? `${task.department_color}20` : undefined,
+                                          borderColor: task.department_color || undefined 
+                                        }}
+                                      >
+                                        {task.department_name}
+                                      </Badge>
+                                      <Badge variant="destructive">
+                                        {daysPastDue} day{daysPastDue !== 1 ? 's' : ''} overdue
+                                      </Badge>
+                                      <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'default' : 'secondary'}>
+                                        {task.priority}
+                                      </Badge>
+                                    </div>
+                                    <h4 className="font-medium text-base mb-1" data-testid={`text-delinquent-task-name-${task.id}`}>
+                                      {task.task_name}
+                                    </h4>
+                                    {task.description && (
+                                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{task.description}</p>
+                                    )}
+                                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                                      {task.due_date && (
+                                        <span className="flex items-center gap-1 text-red-600">
+                                          <Clock className="h-3 w-3" />
+                                          Due: {format(new Date(task.due_date), 'MMM d, yyyy')}
+                                        </span>
+                                      )}
+                                      {task.assigned_to_name && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="h-3 w-3" />
+                                          Assigned: {task.assigned_to_name}
+                                        </span>
+                                      )}
+                                      {task.manager_name && (
+                                        <span className="flex items-center gap-1">
+                                          <User className="h-3 w-3" />
+                                          Manager: {task.manager_name}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEditTask(task)}
+                                      data-testid={`button-edit-delinquent-${task.id}`}
+                                    >
+                                      <Pencil className="h-4 w-4 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => completeTaskMutation.mutate(task.id)}
+                                      data-testid={`button-complete-delinquent-${task.id}`}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" />
+                                      Complete
+                                    </Button>
+                                    {(task.assigned_to_email || task.manager_email) && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => sendReminderMutation.mutate(task.id)}
+                                        data-testid={`button-notify-delinquent-${task.id}`}
+                                      >
+                                        <Mail className="h-4 w-4 mr-1" />
+                                        Notify
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  );
+                })()
               )}
             </CardContent>
           </Card>
