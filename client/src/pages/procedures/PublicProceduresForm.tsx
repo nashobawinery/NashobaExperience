@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardCheck, Loader2, CheckCircle, Sunrise, Sunset, Calendar, LogOut, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ProceduresUser, ProceduresTemplateWithItems, ProceduresItem } from "@shared/schema";
@@ -60,6 +60,8 @@ export default function PublicProceduresForm() {
   const [notes, setNotes] = useState("");
   const [lateReason, setLateReason] = useState("");
   const [startTime, setStartTime] = useState<Date>(new Date());
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Check if the current time is past the procedure's completion time deadline
   const isLateSubmission = (): boolean => {
@@ -99,11 +101,56 @@ export default function PublicProceduresForm() {
     },
     onSuccess: () => {
       setStage("success");
+      setDraftId(null); // Clear draft after successful submission
     },
     onError: (error: any) => {
       toast({ title: "Error submitting procedure", description: error.message, variant: "destructive" });
     }
   });
+
+  // Save draft mutation
+  const saveDraftMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const url = draftId 
+        ? `/api/procedures/submissions/${draftId}` 
+        : "/api/procedures/submissions";
+      const method = draftId ? "PATCH" : "POST";
+      const response = await apiRequest(method, url, data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.id) {
+        setDraftId(data.id);
+      }
+      toast({ title: "Progress Saved", description: "Your progress has been saved. You can return later to continue." });
+      setIsSavingDraft(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error saving progress", description: error.message, variant: "destructive" });
+      setIsSavingDraft(false);
+    }
+  });
+
+  // Function to save current progress as a draft
+  const handleSaveDraft = () => {
+    if (!selectedProcedure || !user) return;
+    setIsSavingDraft(true);
+    
+    saveDraftMutation.mutate({
+      templateId: selectedProcedure.id,
+      procedureCode: selectedProcedure.procedureCode,
+      department: selectedProcedure.department,
+      submittedByUserId: user.id,
+      submittedByName: user.displayName,
+      submissionDate: new Date().toISOString(),
+      dateTimeStarted: startTime.toISOString(),
+      dateTimeSubmitted: new Date().toISOString(),
+      status: "draft",
+      answers,
+      notes: notes || null,
+      lateReason: isLateSubmission() ? lateReason : null
+    });
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -127,15 +174,51 @@ export default function PublicProceduresForm() {
     setStage("pin");
   };
 
-  const handleSelectProcedure = (procedure: ProceduresTemplateWithItems) => {
+  const handleSelectProcedure = async (procedure: ProceduresTemplateWithItems) => {
     setSelectedProcedure(procedure);
+    
+    // Initialize with empty answers first
     const initialAnswers: Record<string, { value: any; initials?: string; comment?: string }> = {};
     procedure.items.forEach(item => {
       initialAnswers[item.id] = { value: item.responseType === "checkbox" ? false : "" };
     });
+    
+    // Try to load an existing draft for this procedure
+    if (user) {
+      try {
+        const response = await fetch(`/api/procedures/submissions/draft/${procedure.id}?staffName=${encodeURIComponent(user.displayName)}`);
+        if (response.ok) {
+          const draft = await response.json();
+          if (draft && draft.status === "draft") {
+            // Restore saved answers from draft
+            const savedAnswers = draft.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>;
+            if (savedAnswers && typeof savedAnswers === 'object') {
+              // Merge saved answers with initial structure
+              Object.keys(savedAnswers).forEach(itemId => {
+                if (initialAnswers[itemId]) {
+                  initialAnswers[itemId] = { ...initialAnswers[itemId], ...savedAnswers[itemId] };
+                }
+              });
+            }
+            // Restore notes and late reason
+            if (draft.notes) setNotes(draft.notes);
+            if (draft.lateReason) setLateReason(draft.lateReason);
+            if (draft.dateTimeStarted) setStartTime(new Date(draft.dateTimeStarted));
+            setDraftId(draft.id);
+            toast({ title: "Draft Loaded", description: "Your previous progress has been restored." });
+          }
+        }
+      } catch (error) {
+        // No draft found or error loading - continue with empty form
+        console.log("No existing draft found for this procedure");
+      }
+    }
+    
     setAnswers(initialAnswers);
-    setLateReason("");
-    setStartTime(new Date()); // Capture when procedure actually starts
+    if (!draftId) {
+      setLateReason("");
+      setStartTime(new Date()); // Capture when procedure actually starts
+    }
     setStage("complete");
   };
 
@@ -544,16 +627,29 @@ export default function PublicProceduresForm() {
           </div>
         </Card>
 
-        <Button 
-          className="w-full" 
-          size="lg"
-          onClick={handleSubmit}
-          disabled={submitMutation.isPending}
-          data-testid="button-submit"
-        >
-          {submitMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-          Submit Procedure
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline"
+            className="flex-1" 
+            size="lg"
+            onClick={handleSaveDraft}
+            disabled={isSavingDraft || saveDraftMutation.isPending}
+            data-testid="button-save-draft"
+          >
+            {isSavingDraft || saveDraftMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save Progress
+          </Button>
+          <Button 
+            className="flex-1" 
+            size="lg"
+            onClick={handleSubmit}
+            disabled={submitMutation.isPending}
+            data-testid="button-submit"
+          >
+            {submitMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+            Submit Procedure
+          </Button>
+        </div>
       </div>
     </div>
   );
