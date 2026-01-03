@@ -8459,7 +8459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const {
         departmentId, taskName, description, recurrence, dueDate,
-        reminderDays, assignedToName, assignedToEmail, managerName, managerEmail, priority, tags
+        reminderDays, assignees, managers, priority, tags
       } = req.body;
       
       if (!departmentId || !taskName?.trim()) {
@@ -8468,17 +8468,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user?.claims?.sub;
       
+      // Filter out empty entries from assignees and managers
+      const validAssignees = (assignees || []).filter((a: any) => a.name?.trim() || a.email?.trim());
+      const validManagers = (managers || []).filter((m: any) => m.name?.trim() || m.email?.trim());
+      
+      // For backward compatibility, also set legacy single fields with first entry
+      const assignedToName = validAssignees.length > 0 ? validAssignees[0].name : null;
+      const assignedToEmail = validAssignees.length > 0 ? validAssignees[0].email : null;
+      const managerName = validManagers.length > 0 ? validManagers[0].name : null;
+      const managerEmail = validManagers.length > 0 ? validManagers[0].email : null;
+      
       const result = await db.execute(sql`
         INSERT INTO department_tasks (
           department_id, task_name, description, recurrence, due_date,
-          reminder_days, assigned_to_name, assigned_to_email, manager_name, manager_email, priority, 
+          reminder_days, assigned_to_name, assigned_to_email, assignees, manager_name, manager_email, managers, priority, 
           tags, created_by_id, status
         ) VALUES (
           ${departmentId}, ${taskName.trim()}, ${description || null}, 
           ${recurrence || 'one_time'}, ${dueDate || null},
           ${reminderDays ? JSON.stringify(reminderDays) : null},
           ${assignedToName || null}, ${assignedToEmail || null}, 
+          ${validAssignees.length > 0 ? JSON.stringify(validAssignees) : '[]'},
           ${managerName || null}, ${managerEmail || null},
+          ${validManagers.length > 0 ? JSON.stringify(validManagers) : '[]'},
           ${priority || 'medium'}, ${tags ? JSON.stringify(tags) : null},
           ${userId || null}, 'pending'
         )
@@ -8504,7 +8516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const {
         departmentId, taskName, description, recurrence, dueDate,
-        reminderDays, assignedToName, assignedToEmail, managerName, managerEmail, priority, status, tags, completionNotes
+        reminderDays, assignees, managers, priority, status, tags, completionNotes
       } = req.body;
       
       const userId = req.user?.claims?.sub;
@@ -8515,6 +8527,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Task not found' });
       }
       
+      // Filter out empty entries from assignees and managers
+      const validAssignees = (assignees || []).filter((a: any) => a.name?.trim() || a.email?.trim());
+      const validManagers = (managers || []).filter((m: any) => m.name?.trim() || m.email?.trim());
+      
+      // For backward compatibility, also set legacy single fields with first entry
+      const assignedToName = validAssignees.length > 0 ? validAssignees[0].name : null;
+      const assignedToEmail = validAssignees.length > 0 ? validAssignees[0].email : null;
+      const managerName = validManagers.length > 0 ? validManagers[0].name : null;
+      const managerEmail = validManagers.length > 0 ? validManagers[0].email : null;
+      
       const result = await db.execute(sql`
         UPDATE department_tasks SET
           department_id = COALESCE(${departmentId}, department_id),
@@ -8523,10 +8545,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recurrence = COALESCE(${recurrence}, recurrence),
           due_date = COALESCE(${dueDate}, due_date),
           reminder_days = COALESCE(${reminderDays ? JSON.stringify(reminderDays) : null}, reminder_days),
-          assigned_to_name = COALESCE(${assignedToName}, assigned_to_name),
-          assigned_to_email = COALESCE(${assignedToEmail}, assigned_to_email),
-          manager_name = COALESCE(${managerName}, manager_name),
-          manager_email = COALESCE(${managerEmail}, manager_email),
+          assigned_to_name = ${assignedToName},
+          assigned_to_email = ${assignedToEmail},
+          assignees = ${validAssignees.length > 0 ? JSON.stringify(validAssignees) : '[]'},
+          manager_name = ${managerName},
+          manager_email = ${managerEmail},
+          managers = ${validManagers.length > 0 ? JSON.stringify(validManagers) : '[]'},
           priority = COALESCE(${priority}, priority),
           status = COALESCE(${status}, status),
           tags = COALESCE(${tags ? JSON.stringify(tags) : null}, tags),
