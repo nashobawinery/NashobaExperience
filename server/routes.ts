@@ -10,6 +10,7 @@ import b2bRouter from "./b2b-routes";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
+import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -12099,6 +12100,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch staff dashboard modules' });
     }
   });
+
+  // Initialize department calendar reminders scheduler
+  initDepartmentCalendarReminders();
 
   const httpServer = createServer(app);
   return httpServer;
