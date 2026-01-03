@@ -64,6 +64,99 @@ const statusLabels: Record<ModuleStatus, string> = {
   inactive: "Inactive",
 };
 
+interface UserGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  is_system_group: boolean;
+  member_count: number;
+  active: boolean;
+}
+
+function UserGroupsSection() {
+  const [, setLocation] = useLocation();
+  
+  const { data: groups, isLoading } = useQuery<UserGroup[]>({
+    queryKey: ['/api/rbac/groups'],
+  });
+
+  const activeGroups = groups?.filter(g => g.active) || [];
+
+  return (
+    <section className="mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Users & Groups</h2>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setLocation('/access-control')}
+          data-testid="button-manage-users-groups"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Manage All
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-6 w-12" />
+              </CardContent>
+            </Card>
+          ))
+        ) : activeGroups.length === 0 ? (
+          <Card className="col-span-full border-dashed">
+            <CardContent className="py-8 text-center">
+              <Users className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">No user groups created yet</p>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setLocation('/access-control')}
+                data-testid="button-create-first-group"
+              >
+                Create your first group
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          activeGroups.map((group) => (
+            <Card 
+              key={group.id} 
+              className="hover-elevate cursor-pointer"
+              onClick={() => setLocation('/access-control')}
+              data-testid={`group-card-${group.id}`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  {group.color && (
+                    <div 
+                      className="h-3 w-3 rounded-full" 
+                      style={{ backgroundColor: group.color }}
+                    />
+                  )}
+                  <span className="text-sm font-medium truncate">{group.name}</span>
+                </div>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="text-lg font-bold">{group.member_count}</span>
+                  <span className="text-xs">members</span>
+                </div>
+                {group.is_system_group && (
+                  <Badge variant="secondary" className="mt-2 text-xs">System</Badge>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 interface AdminHubProps {
   onBackToGuest: () => void;
   user: UserWithRbac;
@@ -395,6 +488,11 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
                   )}
                 </div>
               </section>
+            )}
+
+            {/* Users & Groups Section - Only for admins */}
+            {isAdmin && (
+              <UserGroupsSection />
             )}
 
             <section>
