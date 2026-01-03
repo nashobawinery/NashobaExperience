@@ -7,6 +7,11 @@ if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
+interface PersonEntry {
+  name: string;
+  email: string;
+}
+
 interface TaskWithReminder {
   id: number;
   task_name: string;
@@ -15,8 +20,10 @@ interface TaskWithReminder {
   due_date: string;
   assigned_to_name: string | null;
   assigned_to_email: string | null;
+  assignees: PersonEntry[] | string | null;
   manager_name: string | null;
   manager_email: string | null;
+  managers: PersonEntry[] | string | null;
   priority: string;
   reminder_days: number[] | null;
   last_reminder_sent: string | null;
@@ -33,8 +40,8 @@ async function sendDepartmentReminders() {
   try {
     const result = await db.execute(sql`
       SELECT dt.id, dt.task_name, dt.description, dt.due_date, 
-             dt.assigned_to_name, dt.assigned_to_email, 
-             dt.manager_name, dt.manager_email,
+             dt.assigned_to_name, dt.assigned_to_email, dt.assignees,
+             dt.manager_name, dt.manager_email, dt.managers,
              dt.priority, dt.reminder_days, dt.last_reminder_sent,
              d.name as department_name
       FROM department_tasks dt
@@ -42,8 +49,8 @@ async function sendDepartmentReminders() {
       WHERE dt.is_active = true 
         AND dt.status IN ('pending', 'in_progress')
         AND dt.due_date IS NOT NULL
-        AND dt.assigned_to_email IS NOT NULL
         AND dt.reminder_days IS NOT NULL
+        AND (dt.assigned_to_email IS NOT NULL OR (dt.assignees IS NOT NULL AND dt.assignees::text != '[]'))
     `);
     
     const tasks = result.rows as unknown as TaskWithReminder[];
@@ -73,59 +80,92 @@ async function sendDepartmentReminders() {
         if (shouldSendReminder && !alreadySentToday) {
           const dueDateFormatted = format(dueDate, 'MMMM d, yyyy');
           
-          // Send to assigned person
-          const assigneeMsg = {
-            to: task.assigned_to_email!,
-            from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
-            subject: `Task Reminder: ${task.task_name} - Due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #333;">Scheduled Task Reminder</h2>
-                <p>Hello ${task.assigned_to_name || 'Team Member'},</p>
-                <p>This is a scheduled reminder about the following upcoming task:</p>
-                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
-                  <p style="margin: 5px 0;"><strong>Department:</strong> ${task.department_name}</p>
-                  <p style="margin: 5px 0;"><strong>Due Date:</strong> ${dueDateFormatted}</p>
-                  <p style="margin: 5px 0;"><strong>Days Until Due:</strong> ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</p>
-                  <p style="margin: 5px 0;"><strong>Priority:</strong> ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</p>
-                  ${task.description ? `<p style="margin: 15px 0 0 0;">${task.description}</p>` : ''}
-                </div>
-                <p>Please ensure this task is completed by the due date.</p>
-                <p style="color: #666; font-size: 12px; margin-top: 30px;">This is an automated reminder from Nashoba Valley Operations Platform.</p>
-              </div>
-            `,
-          };
+          // Get all assignees - from array or fall back to legacy single field
+          let allAssignees: PersonEntry[] = [];
+          if (task.assignees) {
+            const parsed = typeof task.assignees === 'string' ? JSON.parse(task.assignees) : task.assignees;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              allAssignees = parsed.filter((a: PersonEntry) => a.email?.trim());
+            }
+          }
+          // Fall back to legacy single assignee if no array entries
+          if (allAssignees.length === 0 && task.assigned_to_email) {
+            allAssignees = [{ name: task.assigned_to_name || '', email: task.assigned_to_email }];
+          }
           
-          await sgMail.send(assigneeMsg);
-          sentCount++;
+          // Get all managers - from array or fall back to legacy single field
+          let allManagers: PersonEntry[] = [];
+          if (task.managers) {
+            const parsed = typeof task.managers === 'string' ? JSON.parse(task.managers) : task.managers;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              allManagers = parsed.filter((m: PersonEntry) => m.email?.trim());
+            }
+          }
+          // Fall back to legacy single manager if no array entries
+          if (allManagers.length === 0 && task.manager_email) {
+            allManagers = [{ name: task.manager_name || '', email: task.manager_email }];
+          }
           
-          await db.execute(sql`
-            INSERT INTO department_task_reminders (task_id, sent_to_email, sent_to_name, subject, status, days_before_due)
-            VALUES (${task.id}, ${task.assigned_to_email}, ${task.assigned_to_name || null}, ${assigneeMsg.subject}, 'sent', ${daysUntilDue})
-          `);
+          // Format list of all assignee names for manager emails
+          const assigneeNamesList = allAssignees.map(a => a.name || a.email).join(', ');
           
-          // Also send reminder to manager if configured
-          if (task.manager_email) {
-            const managerReminderMsg = {
-              to: task.manager_email,
+          // Send to all assignees
+          for (const assignee of allAssignees) {
+            const assigneeMsg = {
+              to: assignee.email,
               from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
-              subject: `Manager FYI: Task Reminder - ${task.task_name} (Due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''})`,
+              subject: `Task Reminder: ${task.task_name} - Due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #333;">Manager Task Reminder</h2>
-                  <p>Hello ${task.manager_name || 'Manager'},</p>
-                  <p>This is a reminder that the following task assigned to <strong>${task.assigned_to_name || 'your team member'}</strong> is due soon:</p>
+                  <h2 style="color: #333;">Scheduled Task Reminder</h2>
+                  <p>Hello ${assignee.name || 'Team Member'},</p>
+                  <p>This is a scheduled reminder about the following upcoming task:</p>
                   <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
                     <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
                     <p style="margin: 5px 0;"><strong>Department:</strong> ${task.department_name}</p>
-                    <p style="margin: 5px 0;"><strong>Assigned To:</strong> ${task.assigned_to_name || 'Unassigned'} ${task.assigned_to_email ? `(${task.assigned_to_email})` : ''}</p>
                     <p style="margin: 5px 0;"><strong>Due Date:</strong> ${dueDateFormatted}</p>
                     <p style="margin: 5px 0;"><strong>Days Until Due:</strong> ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</p>
                     <p style="margin: 5px 0;"><strong>Priority:</strong> ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</p>
                     ${task.description ? `<p style="margin: 15px 0 0 0;">${task.description}</p>` : ''}
                   </div>
-                  <p>This notification is for your awareness. The assigned team member has also received a reminder.</p>
+                  <p>Please ensure this task is completed by the due date.</p>
+                  <p style="color: #666; font-size: 12px; margin-top: 30px;">This is an automated reminder from Nashoba Valley Operations Platform.</p>
+                </div>
+              `,
+            };
+            
+            await sgMail.send(assigneeMsg);
+            sentCount++;
+            
+            await db.execute(sql`
+              INSERT INTO department_task_reminders (task_id, sent_to_email, sent_to_name, subject, status, days_before_due)
+              VALUES (${task.id}, ${assignee.email}, ${assignee.name || null}, ${assigneeMsg.subject}, 'sent', ${daysUntilDue})
+            `);
+            
+            console.log(`[Dept Calendar Reminders] Sent reminder for task "${task.task_name}" to ${assignee.email}`);
+          }
+          
+          // Send to all managers
+          for (const manager of allManagers) {
+            const managerReminderMsg = {
+              to: manager.email,
+              from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
+              subject: `Manager FYI: Task Reminder - ${task.task_name} (Due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''})`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #333;">Manager Task Reminder</h2>
+                  <p>Hello ${manager.name || 'Manager'},</p>
+                  <p>This is a reminder that the following task assigned to <strong>${assigneeNamesList || 'your team members'}</strong> is due soon:</p>
+                  <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
+                    <p style="margin: 5px 0;"><strong>Department:</strong> ${task.department_name}</p>
+                    <p style="margin: 5px 0;"><strong>Assigned To:</strong> ${assigneeNamesList || 'Unassigned'}</p>
+                    <p style="margin: 5px 0;"><strong>Due Date:</strong> ${dueDateFormatted}</p>
+                    <p style="margin: 5px 0;"><strong>Days Until Due:</strong> ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</p>
+                    <p style="margin: 5px 0;"><strong>Priority:</strong> ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</p>
+                    ${task.description ? `<p style="margin: 15px 0 0 0;">${task.description}</p>` : ''}
+                  </div>
+                  <p>This notification is for your awareness. The assigned team members have also received reminders.</p>
                   <p style="color: #666; font-size: 12px; margin-top: 30px;">This is an automated reminder from Nashoba Valley Operations Platform.</p>
                 </div>
               `,
@@ -136,17 +176,15 @@ async function sendDepartmentReminders() {
             
             await db.execute(sql`
               INSERT INTO department_task_reminders (task_id, sent_to_email, sent_to_name, subject, status, days_before_due)
-              VALUES (${task.id}, ${task.manager_email}, ${task.manager_name || null}, ${managerReminderMsg.subject}, 'sent', ${daysUntilDue})
+              VALUES (${task.id}, ${manager.email}, ${manager.name || null}, ${managerReminderMsg.subject}, 'sent', ${daysUntilDue})
             `);
             
-            console.log(`[Dept Calendar Reminders] Sent manager reminder for task "${task.task_name}" to ${task.manager_email}`);
+            console.log(`[Dept Calendar Reminders] Sent manager reminder for task "${task.task_name}" to ${manager.email}`);
           }
           
           await db.execute(sql`
             UPDATE department_tasks SET last_reminder_sent = NOW() WHERE id = ${task.id}
           `);
-          
-          console.log(`[Dept Calendar Reminders] Sent reminder for task "${task.task_name}" to ${task.assigned_to_email}`);
         }
         
         if (daysUntilDue < 0) {
@@ -154,15 +192,42 @@ async function sendDepartmentReminders() {
           const shouldSendOverdueReminder = !alreadySentToday && (daysPastDue === 1 || daysPastDue % 3 === 0);
           
           if (shouldSendOverdueReminder) {
-            if (task.assigned_to_email) {
+            // Get all assignees - from array or fall back to legacy single field
+            let allAssignees: PersonEntry[] = [];
+            if (task.assignees) {
+              const parsed = typeof task.assignees === 'string' ? JSON.parse(task.assignees) : task.assignees;
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                allAssignees = parsed.filter((a: PersonEntry) => a.email?.trim());
+              }
+            }
+            if (allAssignees.length === 0 && task.assigned_to_email) {
+              allAssignees = [{ name: task.assigned_to_name || '', email: task.assigned_to_email }];
+            }
+            
+            // Get all managers - from array or fall back to legacy single field
+            let allManagers: PersonEntry[] = [];
+            if (task.managers) {
+              const parsed = typeof task.managers === 'string' ? JSON.parse(task.managers) : task.managers;
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                allManagers = parsed.filter((m: PersonEntry) => m.email?.trim());
+              }
+            }
+            if (allManagers.length === 0 && task.manager_email) {
+              allManagers = [{ name: task.manager_name || '', email: task.manager_email }];
+            }
+            
+            const assigneeNamesList = allAssignees.map(a => a.name || a.email).join(', ');
+            
+            // Send overdue alerts to all assignees
+            for (const assignee of allAssignees) {
               const overdueMsg = {
-                to: task.assigned_to_email,
+                to: assignee.email,
                 from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
                 subject: `OVERDUE: ${task.task_name} - ${daysPastDue} day${daysPastDue !== 1 ? 's' : ''} past due`,
                 html: `
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #dc2626;">Overdue Task Alert</h2>
-                    <p>Hello ${task.assigned_to_name || 'Team Member'},</p>
+                    <p>Hello ${assignee.name || 'Team Member'},</p>
                     <p>The following task is now overdue and requires immediate attention:</p>
                     <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
                       <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
@@ -179,41 +244,42 @@ async function sendDepartmentReminders() {
               };
               await sgMail.send(overdueMsg);
               sentCount++;
+              console.log(`[Dept Calendar Reminders] Sent overdue alert for task "${task.task_name}" to ${assignee.email}`);
             }
             
-            if (task.manager_email) {
+            // Send overdue alerts to all managers
+            for (const manager of allManagers) {
               const managerMsg = {
-                to: task.manager_email,
+                to: manager.email,
                 from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
                 subject: `Manager Alert: Overdue Task - ${task.task_name}`,
                 html: `
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #dc2626;">Manager Alert: Delinquent Task</h2>
-                    <p>Hello ${task.manager_name || 'Manager'},</p>
-                    <p>The following task assigned to <strong>${task.assigned_to_name || 'a team member'}</strong> is now overdue:</p>
+                    <p>Hello ${manager.name || 'Manager'},</p>
+                    <p>The following task assigned to <strong>${assigneeNamesList || 'your team members'}</strong> is now overdue:</p>
                     <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
                       <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
                       <p style="margin: 5px 0;"><strong>Department:</strong> ${task.department_name}</p>
-                      <p style="margin: 5px 0;"><strong>Assigned To:</strong> ${task.assigned_to_name || 'Unassigned'} ${task.assigned_to_email ? `(${task.assigned_to_email})` : ''}</p>
+                      <p style="margin: 5px 0;"><strong>Assigned To:</strong> ${assigneeNamesList || 'Unassigned'}</p>
                       <p style="margin: 5px 0;"><strong>Due Date:</strong> ${format(dueDate, 'MMMM d, yyyy')}</p>
                       <p style="margin: 5px 0; color: #dc2626; font-weight: bold;"><strong>Status:</strong> ${daysPastDue} day${daysPastDue !== 1 ? 's' : ''} overdue</p>
                       <p style="margin: 5px 0;"><strong>Priority:</strong> ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</p>
                       ${task.description ? `<p style="margin: 15px 0 0 0;">${task.description}</p>` : ''}
                     </div>
-                    <p>Please follow up with the assigned team member to ensure this task is completed promptly.</p>
+                    <p>Please follow up with the assigned team members to ensure this task is completed promptly.</p>
                     <p style="color: #666; font-size: 12px; margin-top: 30px;">This is an automated notification from Nashoba Valley Operations Platform.</p>
                   </div>
                 `,
               };
               await sgMail.send(managerMsg);
               sentCount++;
+              console.log(`[Dept Calendar Reminders] Sent overdue manager alert for task "${task.task_name}" to ${manager.email}`);
             }
             
             await db.execute(sql`
               UPDATE department_tasks SET last_reminder_sent = NOW() WHERE id = ${task.id}
             `);
-            
-            console.log(`[Dept Calendar Reminders] Sent overdue alerts for task "${task.task_name}"`);
           }
         }
       } catch (taskError) {

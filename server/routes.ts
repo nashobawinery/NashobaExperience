@@ -8527,15 +8527,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Task not found' });
       }
       
-      // Filter out empty entries from assignees and managers
-      const validAssignees = (assignees || []).filter((a: any) => a.name?.trim() || a.email?.trim());
-      const validManagers = (managers || []).filter((m: any) => m.name?.trim() || m.email?.trim());
+      // Only process assignees/managers if they were explicitly provided in the request
+      const hasAssigneesUpdate = 'assignees' in req.body;
+      const hasManagersUpdate = 'managers' in req.body;
       
-      // For backward compatibility, also set legacy single fields with first entry
-      const assignedToName = validAssignees.length > 0 ? validAssignees[0].name : null;
-      const assignedToEmail = validAssignees.length > 0 ? validAssignees[0].email : null;
-      const managerName = validManagers.length > 0 ? validManagers[0].name : null;
-      const managerEmail = validManagers.length > 0 ? validManagers[0].email : null;
+      // Build dynamic update query parts based on what fields are provided
+      let assigneesJson = null;
+      let assignedToName = null;
+      let assignedToEmail = null;
+      
+      if (hasAssigneesUpdate) {
+        const validAssignees = (assignees || []).filter((a: any) => a.name?.trim() || a.email?.trim());
+        assigneesJson = validAssignees.length > 0 ? JSON.stringify(validAssignees) : '[]';
+        assignedToName = validAssignees.length > 0 ? validAssignees[0].name : null;
+        assignedToEmail = validAssignees.length > 0 ? validAssignees[0].email : null;
+      }
+      
+      let managersJson = null;
+      let managerName = null;
+      let managerEmail = null;
+      
+      if (hasManagersUpdate) {
+        const validManagers = (managers || []).filter((m: any) => m.name?.trim() || m.email?.trim());
+        managersJson = validManagers.length > 0 ? JSON.stringify(validManagers) : '[]';
+        managerName = validManagers.length > 0 ? validManagers[0].name : null;
+        managerEmail = validManagers.length > 0 ? validManagers[0].email : null;
+      }
       
       const result = await db.execute(sql`
         UPDATE department_tasks SET
@@ -8545,12 +8562,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recurrence = COALESCE(${recurrence}, recurrence),
           due_date = COALESCE(${dueDate}, due_date),
           reminder_days = COALESCE(${reminderDays ? JSON.stringify(reminderDays) : null}, reminder_days),
-          assigned_to_name = ${assignedToName},
-          assigned_to_email = ${assignedToEmail},
-          assignees = ${validAssignees.length > 0 ? JSON.stringify(validAssignees) : '[]'},
-          manager_name = ${managerName},
-          manager_email = ${managerEmail},
-          managers = ${validManagers.length > 0 ? JSON.stringify(validManagers) : '[]'},
+          assigned_to_name = ${hasAssigneesUpdate ? sql`${assignedToName}` : sql`assigned_to_name`},
+          assigned_to_email = ${hasAssigneesUpdate ? sql`${assignedToEmail}` : sql`assigned_to_email`},
+          assignees = ${hasAssigneesUpdate ? sql`${assigneesJson}` : sql`assignees`},
+          manager_name = ${hasManagersUpdate ? sql`${managerName}` : sql`manager_name`},
+          manager_email = ${hasManagersUpdate ? sql`${managerEmail}` : sql`manager_email`},
+          managers = ${hasManagersUpdate ? sql`${managersJson}` : sql`managers`},
           priority = COALESCE(${priority}, priority),
           status = COALESCE(${status}, status),
           tags = COALESCE(${tags ? JSON.stringify(tags) : null}, tags),
