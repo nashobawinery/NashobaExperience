@@ -64,6 +64,8 @@ interface DepartmentTask {
   reminder_days: number[] | null;
   assigned_to_name: string | null;
   assigned_to_email: string | null;
+  manager_name: string | null;
+  manager_email: string | null;
   status: string;
   priority: string;
   completion_notes: string | null;
@@ -95,6 +97,8 @@ interface TaskFormData {
   reminderDays: number[];
   assignedToName: string;
   assignedToEmail: string;
+  managerName: string;
+  managerEmail: string;
   priority: string;
   tags: string[];
 }
@@ -148,12 +152,22 @@ const emptyTaskForm: TaskFormData = {
   description: "",
   recurrence: "one_time",
   dueDate: "",
-  reminderDays: [7, 3, 1],
+  reminderDays: [14, 7, 1],
   assignedToName: "",
   assignedToEmail: "",
+  managerName: "",
+  managerEmail: "",
   priority: "medium",
   tags: [],
 };
+
+const reminderDayOptions = [
+  { value: 30, label: "30 days before" },
+  { value: 14, label: "14 days before" },
+  { value: 7, label: "7 days before" },
+  { value: 3, label: "3 days before" },
+  { value: 1, label: "1 day before" },
+];
 
 const emptyDepartmentForm: DepartmentFormData = {
   name: "",
@@ -384,9 +398,11 @@ export default function DepartmentCalendarDashboard() {
       description: task.description || "",
       recurrence: task.recurrence,
       dueDate: task.due_date ? task.due_date.split("T")[0] : "",
-      reminderDays: task.reminder_days || [7, 3, 1],
+      reminderDays: task.reminder_days || [14, 7, 1],
       assignedToName: task.assigned_to_name || "",
       assignedToEmail: task.assigned_to_email || "",
+      managerName: task.manager_name || "",
+      managerEmail: task.manager_email || "",
       priority: task.priority,
       tags: task.tags || [],
     });
@@ -775,108 +791,221 @@ export default function DepartmentCalendarDashboard() {
               {selectedTask ? "Update the task details below" : "Fill in the details for your new task"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 md:col-span-1">
-                <Label htmlFor="departmentId">Department *</Label>
-                <Select 
-                  value={taskForm.departmentId?.toString() || ""} 
-                  onValueChange={(v) => setTaskForm({ ...taskForm, departmentId: parseInt(v) })}
-                >
-                  <SelectTrigger data-testid="select-task-department">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <Label htmlFor="priority">Priority</Label>
-                <Select value={taskForm.priority} onValueChange={(v) => setTaskForm({ ...taskForm, priority: v })}>
-                  <SelectTrigger data-testid="select-task-priority">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {priorityOptions.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="taskName">Task Name *</Label>
-              <Input
-                id="taskName"
-                value={taskForm.taskName}
-                onChange={(e) => setTaskForm({ ...taskForm, taskName: e.target.value })}
-                placeholder="Enter task name"
-                data-testid="input-task-name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={taskForm.description}
-                onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
-                placeholder="Enter task description"
-                rows={3}
-                data-testid="textarea-task-description"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="recurrence">Recurrence</Label>
-                <Select value={taskForm.recurrence} onValueChange={(v) => setTaskForm({ ...taskForm, recurrence: v })}>
-                  <SelectTrigger data-testid="select-task-recurrence">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {recurrenceOptions.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <Tabs defaultValue="details" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="details" data-testid="tab-task-details">Details</TabsTrigger>
+              <TabsTrigger value="assignment" data-testid="tab-task-assignment">Assignment</TabsTrigger>
+              <TabsTrigger value="notifications" data-testid="tab-task-notifications">
+                <Bell className="h-4 w-4 mr-1" />
+                Notifications
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 md:col-span-1">
+                  <Label htmlFor="departmentId">Department *</Label>
+                  <Select 
+                    value={taskForm.departmentId?.toString() || ""} 
+                    onValueChange={(v) => setTaskForm({ ...taskForm, departmentId: parseInt(v) })}
+                  >
+                    <SelectTrigger data-testid="select-task-department">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <Label htmlFor="priority">Priority</Label>
+                  <Select value={taskForm.priority} onValueChange={(v) => setTaskForm({ ...taskForm, priority: v })}>
+                    <SelectTrigger data-testid="select-task-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorityOptions.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
-                <Label htmlFor="dueDate">Due Date</Label>
+                <Label htmlFor="taskName">Task Name *</Label>
                 <Input
-                  id="dueDate"
-                  type="date"
-                  value={taskForm.dueDate}
-                  onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
-                  data-testid="input-task-duedate"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="assignedToName">Assigned To (Name)</Label>
-                <Input
-                  id="assignedToName"
-                  value={taskForm.assignedToName}
-                  onChange={(e) => setTaskForm({ ...taskForm, assignedToName: e.target.value })}
-                  placeholder="Name"
-                  data-testid="input-assigned-name"
+                  id="taskName"
+                  value={taskForm.taskName}
+                  onChange={(e) => setTaskForm({ ...taskForm, taskName: e.target.value })}
+                  placeholder="Enter task name"
+                  data-testid="input-task-name"
                 />
               </div>
               <div>
-                <Label htmlFor="assignedToEmail">Assigned To (Email)</Label>
-                <Input
-                  id="assignedToEmail"
-                  type="email"
-                  value={taskForm.assignedToEmail}
-                  onChange={(e) => setTaskForm({ ...taskForm, assignedToEmail: e.target.value })}
-                  placeholder="email@example.com"
-                  data-testid="input-assigned-email"
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                  placeholder="Enter task description"
+                  rows={3}
+                  data-testid="textarea-task-description"
                 />
               </div>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="recurrence">Recurrence</Label>
+                  <Select value={taskForm.recurrence} onValueChange={(v) => setTaskForm({ ...taskForm, recurrence: v })}>
+                    <SelectTrigger data-testid="select-task-recurrence">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recurrenceOptions.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={taskForm.dueDate}
+                    onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
+                    data-testid="input-task-duedate"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="assignment" className="space-y-4 py-4">
+              <div className="space-y-4">
+                <div className="border-b pb-3">
+                  <h4 className="font-medium mb-2">Assigned Person</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    The person responsible for completing this task. They will receive reminder notifications.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="assignedToName">Name</Label>
+                      <Input
+                        id="assignedToName"
+                        value={taskForm.assignedToName}
+                        onChange={(e) => setTaskForm({ ...taskForm, assignedToName: e.target.value })}
+                        placeholder="Assigned person's name"
+                        data-testid="input-assigned-name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="assignedToEmail">Email</Label>
+                      <Input
+                        id="assignedToEmail"
+                        type="email"
+                        value={taskForm.assignedToEmail}
+                        onChange={(e) => setTaskForm({ ...taskForm, assignedToEmail: e.target.value })}
+                        placeholder="email@example.com"
+                        data-testid="input-assigned-email"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium mb-2">Manager / Supervisor</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    The manager receives delinquent task alerts when tasks are overdue.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="managerName">Manager Name</Label>
+                      <Input
+                        id="managerName"
+                        value={taskForm.managerName}
+                        onChange={(e) => setTaskForm({ ...taskForm, managerName: e.target.value })}
+                        placeholder="Manager's name"
+                        data-testid="input-manager-name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="managerEmail">Manager Email</Label>
+                      <Input
+                        id="managerEmail"
+                        type="email"
+                        value={taskForm.managerEmail}
+                        onChange={(e) => setTaskForm({ ...taskForm, managerEmail: e.target.value })}
+                        placeholder="manager@example.com"
+                        data-testid="input-manager-email"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="notifications" className="space-y-4 py-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Reminder Notifications
+                  </h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Select when to send email reminders to the assigned person before the due date. 
+                    Reminders include all task details and days remaining.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {reminderDayOptions.map((option) => (
+                      <label 
+                        key={option.value} 
+                        className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${
+                          taskForm.reminderDays.includes(option.value) 
+                            ? 'bg-primary/10 border-primary' 
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={taskForm.reminderDays.includes(option.value)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTaskForm({ 
+                                ...taskForm, 
+                                reminderDays: [...taskForm.reminderDays, option.value].sort((a, b) => b - a) 
+                              });
+                            } else {
+                              setTaskForm({ 
+                                ...taskForm, 
+                                reminderDays: taskForm.reminderDays.filter(d => d !== option.value) 
+                              });
+                            }
+                          }}
+                          className="h-4 w-4"
+                          data-testid={`checkbox-reminder-${option.value}`}
+                        />
+                        <span className="text-sm">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    Delinquent Task Alerts
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    When a task becomes overdue (past due date and not completed), both the assigned person 
+                    and the manager will receive a delinquent notification email. Overdue tasks will also 
+                    appear in the Delinquent Tasks tab for tracking.
+                  </p>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTaskDialog(false)} data-testid="button-cancel-task">
               Cancel

@@ -8458,7 +8458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const {
         departmentId, taskName, description, recurrence, dueDate,
-        reminderDays, assignedToName, assignedToEmail, priority, tags
+        reminderDays, assignedToName, assignedToEmail, managerName, managerEmail, priority, tags
       } = req.body;
       
       if (!departmentId || !taskName?.trim()) {
@@ -8470,13 +8470,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute(sql`
         INSERT INTO department_tasks (
           department_id, task_name, description, recurrence, due_date,
-          reminder_days, assigned_to_name, assigned_to_email, priority, 
+          reminder_days, assigned_to_name, assigned_to_email, manager_name, manager_email, priority, 
           tags, created_by_id, status
         ) VALUES (
           ${departmentId}, ${taskName.trim()}, ${description || null}, 
           ${recurrence || 'one_time'}, ${dueDate || null},
           ${reminderDays ? JSON.stringify(reminderDays) : null},
           ${assignedToName || null}, ${assignedToEmail || null}, 
+          ${managerName || null}, ${managerEmail || null},
           ${priority || 'medium'}, ${tags ? JSON.stringify(tags) : null},
           ${userId || null}, 'pending'
         )
@@ -8502,7 +8503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const {
         departmentId, taskName, description, recurrence, dueDate,
-        reminderDays, assignedToName, assignedToEmail, priority, status, tags, completionNotes
+        reminderDays, assignedToName, assignedToEmail, managerName, managerEmail, priority, status, tags, completionNotes
       } = req.body;
       
       const userId = req.user?.claims?.sub;
@@ -8523,6 +8524,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reminder_days = COALESCE(${reminderDays ? JSON.stringify(reminderDays) : null}, reminder_days),
           assigned_to_name = COALESCE(${assignedToName}, assigned_to_name),
           assigned_to_email = COALESCE(${assignedToEmail}, assigned_to_email),
+          manager_name = COALESCE(${managerName}, manager_name),
+          manager_email = COALESCE(${managerEmail}, manager_email),
           priority = COALESCE(${priority}, priority),
           status = COALESCE(${status}, status),
           tags = COALESCE(${tags ? JSON.stringify(tags) : null}, tags),
