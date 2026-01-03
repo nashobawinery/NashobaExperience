@@ -35,7 +35,8 @@ import {
   Layers,
   Pencil,
   User,
-  Check
+  Check,
+  X
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -67,8 +68,10 @@ interface DepartmentTask {
   reminder_days: number[] | null;
   assigned_to_name: string | null;
   assigned_to_email: string | null;
+  assignees: Array<{name: string; email: string}> | null;
   manager_name: string | null;
   manager_email: string | null;
+  managers: Array<{name: string; email: string}> | null;
   status: string;
   priority: string;
   completion_notes: string | null;
@@ -91,6 +94,11 @@ interface DepartmentStats {
   due_this_month: string;
 }
 
+interface PersonEntry {
+  name: string;
+  email: string;
+}
+
 interface TaskFormData {
   departmentId: number | null;
   taskName: string;
@@ -98,10 +106,8 @@ interface TaskFormData {
   recurrence: string;
   dueDate: string;
   reminderDays: number[];
-  assignedToName: string;
-  assignedToEmail: string;
-  managerName: string;
-  managerEmail: string;
+  assignees: PersonEntry[];
+  managers: PersonEntry[];
   priority: string;
   tags: string[];
 }
@@ -156,10 +162,8 @@ const emptyTaskForm: TaskFormData = {
   recurrence: "one_time",
   dueDate: "",
   reminderDays: [14, 7, 1],
-  assignedToName: "",
-  assignedToEmail: "",
-  managerName: "",
-  managerEmail: "",
+  assignees: [{ name: "", email: "" }],
+  managers: [{ name: "", email: "" }],
   priority: "medium",
   tags: [],
 };
@@ -395,6 +399,26 @@ export default function DepartmentCalendarDashboard() {
 
   const handleEditTask = (task: DepartmentTask) => {
     setSelectedTask(task);
+    // Build assignees array from new format or legacy fields
+    let assignees: PersonEntry[] = [];
+    if (task.assignees && task.assignees.length > 0) {
+      assignees = task.assignees;
+    } else if (task.assigned_to_name || task.assigned_to_email) {
+      assignees = [{ name: task.assigned_to_name || "", email: task.assigned_to_email || "" }];
+    } else {
+      assignees = [{ name: "", email: "" }];
+    }
+    
+    // Build managers array from new format or legacy fields
+    let managers: PersonEntry[] = [];
+    if (task.managers && task.managers.length > 0) {
+      managers = task.managers;
+    } else if (task.manager_name || task.manager_email) {
+      managers = [{ name: task.manager_name || "", email: task.manager_email || "" }];
+    } else {
+      managers = [{ name: "", email: "" }];
+    }
+    
     setTaskForm({
       departmentId: task.department_id,
       taskName: task.task_name,
@@ -402,10 +426,8 @@ export default function DepartmentCalendarDashboard() {
       recurrence: task.recurrence,
       dueDate: task.due_date ? task.due_date.split("T")[0] : "",
       reminderDays: task.reminder_days || [14, 7, 1],
-      assignedToName: task.assigned_to_name || "",
-      assignedToEmail: task.assigned_to_email || "",
-      managerName: task.manager_name || "",
-      managerEmail: task.manager_email || "",
+      assignees,
+      managers,
       priority: task.priority,
       tags: task.tags || [],
     });
@@ -1024,64 +1046,146 @@ export default function DepartmentCalendarDashboard() {
             </TabsContent>
             
             <TabsContent value="assignment" className="space-y-4 py-4">
-              <div className="space-y-4">
-                <div className="border-b pb-3">
-                  <h4 className="font-medium mb-2">Assigned Person</h4>
+              <div className="space-y-6">
+                <div className="border-b pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">Assigned People</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTaskForm({
+                        ...taskForm,
+                        assignees: [...taskForm.assignees, { name: "", email: "" }]
+                      })}
+                      data-testid="button-add-assignee"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Person
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground mb-3">
-                    The person responsible for completing this task. They will receive reminder notifications.
+                    People responsible for completing this task. They will receive reminder notifications.
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="assignedToName">Name</Label>
-                      <Input
-                        id="assignedToName"
-                        value={taskForm.assignedToName}
-                        onChange={(e) => setTaskForm({ ...taskForm, assignedToName: e.target.value })}
-                        placeholder="Assigned person's name"
-                        data-testid="input-assigned-name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="assignedToEmail">Email</Label>
-                      <Input
-                        id="assignedToEmail"
-                        type="email"
-                        value={taskForm.assignedToEmail}
-                        onChange={(e) => setTaskForm({ ...taskForm, assignedToEmail: e.target.value })}
-                        placeholder="email@example.com"
-                        data-testid="input-assigned-email"
-                      />
-                    </div>
+                  <div className="space-y-3">
+                    {taskForm.assignees.map((assignee, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <Label htmlFor={`assignee-name-${index}`}>Name</Label>
+                          <Input
+                            id={`assignee-name-${index}`}
+                            value={assignee.name}
+                            onChange={(e) => {
+                              const updated = [...taskForm.assignees];
+                              updated[index] = { ...updated[index], name: e.target.value };
+                              setTaskForm({ ...taskForm, assignees: updated });
+                            }}
+                            placeholder="Person's name"
+                            data-testid={`input-assignee-name-${index}`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label htmlFor={`assignee-email-${index}`}>Email</Label>
+                          <Input
+                            id={`assignee-email-${index}`}
+                            type="email"
+                            value={assignee.email}
+                            onChange={(e) => {
+                              const updated = [...taskForm.assignees];
+                              updated[index] = { ...updated[index], email: e.target.value };
+                              setTaskForm({ ...taskForm, assignees: updated });
+                            }}
+                            placeholder="email@example.com"
+                            data-testid={`input-assignee-email-${index}`}
+                          />
+                        </div>
+                        {taskForm.assignees.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const updated = taskForm.assignees.filter((_, i) => i !== index);
+                              setTaskForm({ ...taskForm, assignees: updated });
+                            }}
+                            data-testid={`button-remove-assignee-${index}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium mb-2">Manager / Supervisor</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">Managers / Supervisors</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTaskForm({
+                        ...taskForm,
+                        managers: [...taskForm.managers, { name: "", email: "" }]
+                      })}
+                      data-testid="button-add-manager"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Manager
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground mb-3">
-                    The manager receives delinquent task alerts when tasks are overdue.
+                    Managers receive all reminders and delinquent task alerts when tasks are overdue.
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="managerName">Manager Name</Label>
-                      <Input
-                        id="managerName"
-                        value={taskForm.managerName}
-                        onChange={(e) => setTaskForm({ ...taskForm, managerName: e.target.value })}
-                        placeholder="Manager's name"
-                        data-testid="input-manager-name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="managerEmail">Manager Email</Label>
-                      <Input
-                        id="managerEmail"
-                        type="email"
-                        value={taskForm.managerEmail}
-                        onChange={(e) => setTaskForm({ ...taskForm, managerEmail: e.target.value })}
-                        placeholder="manager@example.com"
-                        data-testid="input-manager-email"
-                      />
-                    </div>
+                  <div className="space-y-3">
+                    {taskForm.managers.map((manager, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <Label htmlFor={`manager-name-${index}`}>Name</Label>
+                          <Input
+                            id={`manager-name-${index}`}
+                            value={manager.name}
+                            onChange={(e) => {
+                              const updated = [...taskForm.managers];
+                              updated[index] = { ...updated[index], name: e.target.value };
+                              setTaskForm({ ...taskForm, managers: updated });
+                            }}
+                            placeholder="Manager's name"
+                            data-testid={`input-manager-name-${index}`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label htmlFor={`manager-email-${index}`}>Email</Label>
+                          <Input
+                            id={`manager-email-${index}`}
+                            type="email"
+                            value={manager.email}
+                            onChange={(e) => {
+                              const updated = [...taskForm.managers];
+                              updated[index] = { ...updated[index], email: e.target.value };
+                              setTaskForm({ ...taskForm, managers: updated });
+                            }}
+                            placeholder="manager@example.com"
+                            data-testid={`input-manager-email-${index}`}
+                          />
+                        </div>
+                        {taskForm.managers.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const updated = taskForm.managers.filter((_, i) => i !== index);
+                              setTaskForm({ ...taskForm, managers: updated });
+                            }}
+                            data-testid={`button-remove-manager-${index}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
