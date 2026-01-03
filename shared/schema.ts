@@ -1561,14 +1561,16 @@ export const departmentTasks = pgTable("department_tasks", {
   reminderDays: integer("reminder_days").array(), // e.g., [14, 7, 1] days before
   lastReminderSent: timestamp("last_reminder_sent"),
   
-  // Assignment
-  assignedToName: text("assigned_to_name"),
-  assignedToEmail: text("assigned_to_email"),
+  // Assignment - supports multiple assignees
+  assignedToName: text("assigned_to_name"), // Legacy single assignee
+  assignedToEmail: text("assigned_to_email"), // Legacy single assignee
+  assignees: jsonb("assignees").$type<Array<{name: string; email: string}>>(), // Multiple assignees
   assignedById: varchar("assigned_by_id").references(() => users.id),
   
-  // Manager for escalations and delinquent notifications
-  managerName: text("manager_name"),
-  managerEmail: text("manager_email"),
+  // Manager for escalations and delinquent notifications - supports multiple managers
+  managerName: text("manager_name"), // Legacy single manager
+  managerEmail: text("manager_email"), // Legacy single manager
+  managers: jsonb("managers").$type<Array<{name: string; email: string}>>(), // Multiple managers
   
   // Status and priority
   status: departmentTaskStatusEnum("status").notNull().default("pending"),
