@@ -258,6 +258,10 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
           <div className="container py-2">
             <div className="flex items-center gap-4 text-sm">
               <span className="text-muted-foreground font-medium">Quick Links:</span>
+              <Link href="/access-control" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-access-control">
+                <Users className="h-4 w-4 text-primary" />
+                Users & Groups
+              </Link>
               <Link href="/future-concepts" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-future-concepts">
                 <Lightbulb className="h-4 w-4 text-yellow-500" />
                 Future Concepts
