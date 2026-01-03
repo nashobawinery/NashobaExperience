@@ -1026,6 +1026,16 @@ export async function seedPlatformModules(): Promise<void> {
       sortOrder: 4
     },
     {
+      moduleKey: 'department_calendar',
+      moduleName: 'Department Calendar',
+      description: 'Department-based task management with recurring schedules and email notifications',
+      icon: 'Building2',
+      color: 'bg-chart-4',
+      routePrefix: '/department-calendar',
+      status: 'active',
+      sortOrder: 5
+    },
+    {
       moduleKey: 'sop',
       moduleName: 'Standard Operating Procedures',
       description: 'Document management for SOPs, policies, and operational procedures',
@@ -1033,7 +1043,7 @@ export async function seedPlatformModules(): Promise<void> {
       color: 'bg-blue-500',
       routePrefix: '/sop',
       status: 'development',
-      sortOrder: 5
+      sortOrder: 6
     },
     {
       moduleKey: 'operations',
