@@ -56,6 +56,22 @@ export const compliancePriorityEnum = pgEnum("compliance_priority", ["low", "med
 
 export const complianceStatusEnum = pgEnum("compliance_status", ["pending", "in_progress", "completed", "overdue", "cancelled"]);
 
+// Department Calendar enums
+export const departmentRecurrenceEnum = pgEnum("department_recurrence", [
+  "one_time",
+  "daily",
+  "weekly",
+  "bi_weekly",
+  "monthly",
+  "bi_monthly",
+  "quarterly",
+  "annual"
+]);
+
+export const departmentTaskStatusEnum = pgEnum("department_task_status", ["pending", "in_progress", "completed", "overdue", "cancelled"]);
+
+export const departmentTaskPriorityEnum = pgEnum("department_task_priority", ["low", "medium", "high", "critical"]);
+
 // Session storage table for authentication
 export const sessions = pgTable(
   "sessions",
@@ -1512,6 +1528,100 @@ export const complianceAttachments = pgTable("compliance_attachments", {
   index("idx_compliance_attachments_task").on(table.taskId),
 ]);
 
+// ============================================
+// DEPARTMENT CALENDAR MODULE TABLES
+// ============================================
+
+// Departments - list of company departments
+export const departments = pgTable("departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color"), // Color for calendar display
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_departments_active").on(table.isActive),
+]);
+
+// Department Tasks - tasks assigned to departments with recurrence
+export const departmentTasks = pgTable("department_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  departmentId: varchar("department_id").notNull().references(() => departments.id, { onDelete: 'cascade' }),
+  taskName: text("task_name").notNull(),
+  description: text("description"),
+  
+  // Recurrence settings
+  recurrence: departmentRecurrenceEnum("recurrence").notNull().default("one_time"),
+  
+  // Deadline management
+  dueDate: timestamp("due_date"),
+  reminderDays: integer("reminder_days").array(), // e.g., [7, 3, 1] days before
+  lastReminderSent: timestamp("last_reminder_sent"),
+  
+  // Assignment
+  assignedToName: text("assigned_to_name"),
+  assignedToEmail: text("assigned_to_email"),
+  assignedById: varchar("assigned_by_id").references(() => users.id),
+  
+  // Status and priority
+  status: departmentTaskStatusEnum("status").notNull().default("pending"),
+  priority: departmentTaskPriorityEnum("priority").notNull().default("medium"),
+  
+  // Completion tracking
+  completedAt: timestamp("completed_at"),
+  completedById: varchar("completed_by_id").references(() => users.id),
+  completionNotes: text("completion_notes"),
+  
+  // Tags for flexible categorization
+  tags: text("tags").array(),
+  
+  // Metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdById: varchar("created_by_id").references(() => users.id),
+  isActive: boolean("is_active").notNull().default(true),
+  archivedAt: timestamp("archived_at"),
+}, (table) => [
+  index("idx_dept_tasks_department").on(table.departmentId),
+  index("idx_dept_tasks_status").on(table.status),
+  index("idx_dept_tasks_due_date").on(table.dueDate),
+  index("idx_dept_tasks_assigned").on(table.assignedToEmail),
+]);
+
+// Department Task Reminders - Log of sent reminders
+export const departmentTaskReminders = pgTable("department_task_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => departmentTasks.id, { onDelete: 'cascade' }),
+  sentToEmail: text("sent_to_email").notNull(),
+  sentToName: text("sent_to_name"),
+  subject: text("subject"),
+  status: text("status").notNull().default("sent"), // sent, failed
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  daysBeforeDue: integer("days_before_due"),
+}, (table) => [
+  index("idx_dept_task_reminders_task").on(table.taskId),
+  index("idx_dept_task_reminders_date").on(table.sentAt),
+]);
+
+// Department Task History - Audit log
+export const departmentTaskHistory = pgTable("department_task_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => departmentTasks.id, { onDelete: 'cascade' }),
+  changedById: varchar("changed_by_id").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  action: text("action").notNull(),
+  fieldChanged: text("field_changed"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_dept_task_history_task").on(table.taskId),
+  index("idx_dept_task_history_date").on(table.createdAt),
+]);
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWhitelistedEmailSchema = createInsertSchema(whitelistedEmails).omit({ id: true, createdAt: true });
@@ -1620,6 +1730,19 @@ export const insertComplianceTaskSchema = createInsertSchema(complianceTasks).om
 export const insertComplianceTaskHistorySchema = createInsertSchema(complianceTaskHistory).omit({ id: true, createdAt: true });
 export const insertComplianceReminderSchema = createInsertSchema(complianceReminders).omit({ id: true, sentAt: true });
 export const insertComplianceAttachmentSchema = createInsertSchema(complianceAttachments).omit({ id: true, createdAt: true });
+
+// Department Calendar Insert schemas
+export const insertDepartmentSchema = createInsertSchema(departments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDepartmentTaskSchema = createInsertSchema(departmentTasks).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  completedAt: true,
+  lastReminderSent: true,
+  archivedAt: true
+});
+export const insertDepartmentTaskReminderSchema = createInsertSchema(departmentTaskReminders).omit({ id: true, sentAt: true });
+export const insertDepartmentTaskHistorySchema = createInsertSchema(departmentTaskHistory).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -1889,6 +2012,18 @@ export type ComplianceReminder = typeof complianceReminders.$inferSelect;
 
 export type InsertComplianceAttachment = z.infer<typeof insertComplianceAttachmentSchema>;
 export type ComplianceAttachment = typeof complianceAttachments.$inferSelect;
+
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type Department = typeof departments.$inferSelect;
+
+export type InsertDepartmentTask = z.infer<typeof insertDepartmentTaskSchema>;
+export type DepartmentTask = typeof departmentTasks.$inferSelect;
+
+export type InsertDepartmentTaskReminder = z.infer<typeof insertDepartmentTaskReminderSchema>;
+export type DepartmentTaskReminder = typeof departmentTaskReminders.$inferSelect;
+
+export type InsertDepartmentTaskHistory = z.infer<typeof insertDepartmentTaskHistorySchema>;
+export type DepartmentTaskHistory = typeof departmentTaskHistory.$inferSelect;
 
 // Extended Compliance types with relations
 export type ComplianceTaskWithDetails = ComplianceTask & {
