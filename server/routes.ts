@@ -8287,6 +8287,502 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // DEPARTMENT CALENDAR MODULE ROUTES
+  // ============================================
+
+  // Get all departments
+  app.get('/api/departments', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT d.*, 
+          (SELECT COUNT(*) FROM department_tasks WHERE department_id = d.id AND is_active = true) as task_count
+        FROM departments d
+        WHERE d.is_active = true
+        ORDER BY d.sort_order ASC, d.name ASC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      res.status(500).json({ message: 'Failed to fetch departments' });
+    }
+  });
+
+  // Create department
+  app.post('/api/departments', isAdmin, async (req: any, res) => {
+    try {
+      const { name, description, color, sortOrder } = req.body;
+      
+      if (!name || !name.trim()) {
+        return res.status(400).json({ message: 'Department name is required' });
+      }
+
+      const result = await db.execute(sql`
+        INSERT INTO departments (name, description, color, sort_order)
+        VALUES (${name.trim()}, ${description || null}, ${color || null}, ${sortOrder || 0})
+        RETURNING *
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating department:', error);
+      res.status(500).json({ message: 'Failed to create department' });
+    }
+  });
+
+  // Update department
+  app.patch('/api/departments/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, color, sortOrder, isActive } = req.body;
+      
+      const result = await db.execute(sql`
+        UPDATE departments 
+        SET 
+          name = COALESCE(${name}, name),
+          description = COALESCE(${description}, description),
+          color = COALESCE(${color}, color),
+          sort_order = COALESCE(${sortOrder}, sort_order),
+          is_active = COALESCE(${isActive}, is_active),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Department not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating department:', error);
+      res.status(500).json({ message: 'Failed to update department' });
+    }
+  });
+
+  // Delete department
+  app.delete('/api/departments/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Soft delete - set inactive
+      const result = await db.execute(sql`
+        UPDATE departments SET is_active = false, updated_at = NOW() WHERE id = ${id} RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Department not found' });
+      }
+      
+      res.json({ message: 'Department deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting department:', error);
+      res.status(500).json({ message: 'Failed to delete department' });
+    }
+  });
+
+  // Get department calendar stats
+  app.get('/api/department-calendar/stats', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE is_active = true) as total_tasks,
+          COUNT(*) FILTER (WHERE status = 'pending' AND is_active = true) as pending,
+          COUNT(*) FILTER (WHERE status = 'in_progress' AND is_active = true) as in_progress,
+          COUNT(*) FILTER (WHERE status = 'completed' AND is_active = true) as completed,
+          COUNT(*) FILTER (WHERE status = 'overdue' AND is_active = true) as overdue,
+          COUNT(*) FILTER (WHERE status = 'pending' AND due_date < NOW() AND is_active = true) as past_due,
+          COUNT(*) FILTER (WHERE due_date >= NOW() AND due_date < NOW() + INTERVAL '7 days' AND is_active = true) as due_this_week,
+          COUNT(*) FILTER (WHERE due_date >= NOW() AND due_date < NOW() + INTERVAL '30 days' AND is_active = true) as due_this_month
+        FROM department_tasks
+      `);
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching department calendar stats:', error);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // Get all department tasks
+  app.get('/api/department-calendar/tasks', isAdmin, async (req, res) => {
+    try {
+      const { departmentId, status, priority } = req.query;
+      
+      let query = sql`
+        SELECT dt.*, d.name as department_name, d.color as department_color
+        FROM department_tasks dt
+        JOIN departments d ON dt.department_id = d.id
+        WHERE dt.is_active = true
+        ${departmentId ? sql` AND dt.department_id = ${departmentId}` : sql``}
+        ${status ? sql` AND dt.status = ${status}` : sql``}
+        ${priority ? sql` AND dt.priority = ${priority}` : sql``}
+        ORDER BY 
+          CASE WHEN dt.status = 'overdue' THEN 1
+               WHEN dt.status = 'pending' AND dt.due_date < NOW() THEN 2
+               WHEN dt.status = 'in_progress' THEN 3
+               WHEN dt.status = 'pending' THEN 4
+               ELSE 5 END,
+          dt.due_date ASC NULLS LAST
+      `;
+      
+      const result = await db.execute(query);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching department tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch department tasks' });
+    }
+  });
+
+  // Get upcoming department tasks
+  app.get('/api/department-calendar/upcoming', isAdmin, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT dt.*, d.name as department_name, d.color as department_color
+        FROM department_tasks dt
+        JOIN departments d ON dt.department_id = d.id
+        WHERE dt.is_active = true 
+          AND dt.status IN ('pending', 'in_progress')
+          AND dt.due_date IS NOT NULL
+          AND dt.due_date <= NOW() + INTERVAL '14 days'
+        ORDER BY dt.due_date ASC
+        LIMIT 10
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching upcoming department tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch upcoming tasks' });
+    }
+  });
+
+  // Create department task
+  app.post('/api/department-calendar/tasks', isAdmin, async (req: any, res) => {
+    try {
+      const {
+        departmentId, taskName, description, recurrence, dueDate,
+        reminderDays, assignedToName, assignedToEmail, priority, tags
+      } = req.body;
+      
+      if (!departmentId || !taskName?.trim()) {
+        return res.status(400).json({ message: 'Department and task name are required' });
+      }
+
+      const userId = req.user?.claims?.sub;
+      
+      const result = await db.execute(sql`
+        INSERT INTO department_tasks (
+          department_id, task_name, description, recurrence, due_date,
+          reminder_days, assigned_to_name, assigned_to_email, priority, 
+          tags, created_by_id, status
+        ) VALUES (
+          ${departmentId}, ${taskName.trim()}, ${description || null}, 
+          ${recurrence || 'one_time'}, ${dueDate || null},
+          ${reminderDays ? JSON.stringify(reminderDays) : null},
+          ${assignedToName || null}, ${assignedToEmail || null}, 
+          ${priority || 'medium'}, ${tags ? JSON.stringify(tags) : null},
+          ${userId || null}, 'pending'
+        )
+        RETURNING *
+      `);
+      
+      // Log history
+      await db.execute(sql`
+        INSERT INTO department_task_history (task_id, action, changed_by_id, changed_by_name)
+        VALUES (${result.rows[0].id}, 'created', ${userId || null}, ${req.user?.claims?.email || 'Admin'})
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating department task:', error);
+      res.status(500).json({ message: 'Failed to create department task' });
+    }
+  });
+
+  // Update department task
+  app.patch('/api/department-calendar/tasks/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        departmentId, taskName, description, recurrence, dueDate,
+        reminderDays, assignedToName, assignedToEmail, priority, status, tags, completionNotes
+      } = req.body;
+      
+      const userId = req.user?.claims?.sub;
+      
+      // Get current task for history
+      const currentResult = await db.execute(sql`SELECT * FROM department_tasks WHERE id = ${id}`);
+      if (currentResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const result = await db.execute(sql`
+        UPDATE department_tasks SET
+          department_id = COALESCE(${departmentId}, department_id),
+          task_name = COALESCE(${taskName}, task_name),
+          description = COALESCE(${description}, description),
+          recurrence = COALESCE(${recurrence}, recurrence),
+          due_date = COALESCE(${dueDate}, due_date),
+          reminder_days = COALESCE(${reminderDays ? JSON.stringify(reminderDays) : null}, reminder_days),
+          assigned_to_name = COALESCE(${assignedToName}, assigned_to_name),
+          assigned_to_email = COALESCE(${assignedToEmail}, assigned_to_email),
+          priority = COALESCE(${priority}, priority),
+          status = COALESCE(${status}, status),
+          tags = COALESCE(${tags ? JSON.stringify(tags) : null}, tags),
+          completion_notes = COALESCE(${completionNotes}, completion_notes),
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `);
+      
+      // Log history
+      await db.execute(sql`
+        INSERT INTO department_task_history (task_id, action, changed_by_id, changed_by_name)
+        VALUES (${id}, 'updated', ${userId || null}, ${req.user?.claims?.email || 'Admin'})
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating department task:', error);
+      res.status(500).json({ message: 'Failed to update department task' });
+    }
+  });
+
+  // Delete department task
+  app.delete('/api/department-calendar/tasks/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await db.execute(sql`
+        UPDATE department_tasks SET is_active = false, updated_at = NOW() WHERE id = ${id} RETURNING *
+      `);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      res.json({ message: 'Task deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting department task:', error);
+      res.status(500).json({ message: 'Failed to delete department task' });
+    }
+  });
+
+  // Complete department task (handles recurrence)
+  app.post('/api/department-calendar/tasks/:id/complete', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { completionNotes } = req.body;
+      const userId = req.user?.claims?.sub;
+      
+      const taskResult = await db.execute(sql`SELECT * FROM department_tasks WHERE id = ${id}`);
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const task = taskResult.rows[0] as any;
+      
+      // Calculate next due date based on recurrence
+      let nextDueDate = null;
+      if (task.recurrence !== 'one_time' && task.due_date) {
+        const currentDue = new Date(task.due_date);
+        switch (task.recurrence) {
+          case 'daily':
+            nextDueDate = new Date(currentDue.setDate(currentDue.getDate() + 1));
+            break;
+          case 'weekly':
+            nextDueDate = new Date(currentDue.setDate(currentDue.getDate() + 7));
+            break;
+          case 'bi_weekly':
+            nextDueDate = new Date(currentDue.setDate(currentDue.getDate() + 14));
+            break;
+          case 'monthly':
+            nextDueDate = new Date(currentDue.setMonth(currentDue.getMonth() + 1));
+            break;
+          case 'bi_monthly':
+            nextDueDate = new Date(currentDue.setMonth(currentDue.getMonth() + 2));
+            break;
+          case 'quarterly':
+            nextDueDate = new Date(currentDue.setMonth(currentDue.getMonth() + 3));
+            break;
+          case 'annual':
+            nextDueDate = new Date(currentDue.setFullYear(currentDue.getFullYear() + 1));
+            break;
+        }
+      }
+      
+      if (nextDueDate) {
+        // Recurring task - update to next cycle
+        await db.execute(sql`
+          UPDATE department_tasks SET
+            due_date = ${nextDueDate.toISOString()},
+            status = 'pending',
+            completion_notes = ${completionNotes || null},
+            updated_at = NOW()
+          WHERE id = ${id}
+        `);
+        
+        // Log completion
+        await db.execute(sql`
+          INSERT INTO department_task_history (task_id, action, changed_by_id, changed_by_name, new_value)
+          VALUES (${id}, 'completed_cycle', ${userId || null}, ${req.user?.claims?.email || 'Admin'}, ${`Next due: ${nextDueDate.toISOString()}`})
+        `);
+        
+        res.json({ 
+          message: 'Task completed and moved to next cycle', 
+          nextCycle: true, 
+          nextDueDate: nextDueDate.toISOString() 
+        });
+      } else {
+        // One-time task - mark as completed
+        await db.execute(sql`
+          UPDATE department_tasks SET
+            status = 'completed',
+            completed_at = NOW(),
+            completed_by_id = ${userId || null},
+            completion_notes = ${completionNotes || null},
+            updated_at = NOW()
+          WHERE id = ${id}
+        `);
+        
+        await db.execute(sql`
+          INSERT INTO department_task_history (task_id, action, changed_by_id, changed_by_name)
+          VALUES (${id}, 'completed', ${userId || null}, ${req.user?.claims?.email || 'Admin'})
+        `);
+        
+        res.json({ message: 'Task completed', nextCycle: false });
+      }
+    } catch (error) {
+      console.error('Error completing department task:', error);
+      res.status(500).json({ message: 'Failed to complete department task' });
+    }
+  });
+
+  // Send reminder email for department task
+  app.post('/api/department-calendar/tasks/:id/send-reminder', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const taskResult = await db.execute(sql`
+        SELECT dt.*, d.name as department_name
+        FROM department_tasks dt
+        JOIN departments d ON dt.department_id = d.id
+        WHERE dt.id = ${id}
+      `);
+      
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const task = taskResult.rows[0] as any;
+      
+      if (!task.assigned_to_email) {
+        return res.status(400).json({ message: 'No email address assigned to this task' });
+      }
+      
+      if (!process.env.SENDGRID_API_KEY) {
+        return res.status(500).json({ message: 'Email service not configured' });
+      }
+      
+      const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date set';
+      const daysUntilDue = task.due_date ? Math.ceil((new Date(task.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+      
+      const msg = {
+        to: task.assigned_to_email,
+        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobavalley.com',
+        subject: `Task Reminder: ${task.task_name} - ${task.department_name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Department Task Reminder</h2>
+            <p>Hello ${task.assigned_to_name || 'Team Member'},</p>
+            <p>This is a reminder about the following task:</p>
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin: 0 0 10px 0; color: #333;">${task.task_name}</h3>
+              <p style="margin: 5px 0;"><strong>Department:</strong> ${task.department_name}</p>
+              <p style="margin: 5px 0;"><strong>Due Date:</strong> ${dueDate}</p>
+              ${daysUntilDue !== null ? `<p style="margin: 5px 0;"><strong>Days Until Due:</strong> ${daysUntilDue < 0 ? `${Math.abs(daysUntilDue)} days overdue` : `${daysUntilDue} days`}</p>` : ''}
+              <p style="margin: 5px 0;"><strong>Priority:</strong> ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</p>
+              ${task.description ? `<p style="margin: 15px 0 0 0;">${task.description}</p>` : ''}
+            </div>
+            <p>Please complete this task by the due date.</p>
+            <p style="color: #666; font-size: 12px; margin-top: 30px;">This is an automated reminder from Nashoba Valley Operations Platform.</p>
+          </div>
+        `,
+      };
+      
+      await sgMail.send(msg);
+      
+      // Log the reminder
+      await db.execute(sql`
+        INSERT INTO department_task_reminders (task_id, sent_to_email, sent_to_name, subject, status, days_before_due)
+        VALUES (${id}, ${task.assigned_to_email}, ${task.assigned_to_name || null}, ${msg.subject}, 'sent', ${daysUntilDue})
+      `);
+      
+      // Update last reminder sent
+      await db.execute(sql`
+        UPDATE department_tasks SET last_reminder_sent = NOW() WHERE id = ${id}
+      `);
+      
+      res.json({ message: 'Reminder sent successfully' });
+    } catch (error) {
+      console.error('Error sending department task reminder:', error);
+      res.status(500).json({ message: 'Failed to send reminder' });
+    }
+  });
+
+  // Duplicate department task
+  app.post('/api/department-calendar/tasks/:id/duplicate', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.claims?.sub;
+      
+      const taskResult = await db.execute(sql`SELECT * FROM department_tasks WHERE id = ${id}`);
+      if (taskResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      
+      const task = taskResult.rows[0] as any;
+      
+      const result = await db.execute(sql`
+        INSERT INTO department_tasks (
+          department_id, task_name, description, recurrence, due_date,
+          reminder_days, assigned_to_name, assigned_to_email, priority, tags, created_by_id
+        ) VALUES (
+          ${task.department_id}, ${task.task_name + ' (Copy)'}, ${task.description},
+          ${task.recurrence}, ${task.due_date}, ${task.reminder_days ? JSON.stringify(task.reminder_days) : null},
+          ${task.assigned_to_name}, ${task.assigned_to_email}, ${task.priority},
+          ${task.tags ? JSON.stringify(task.tags) : null}, ${userId || null}
+        )
+        RETURNING *
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error duplicating department task:', error);
+      res.status(500).json({ message: 'Failed to duplicate task' });
+    }
+  });
+
+  // Archive department task
+  app.post('/api/department-calendar/tasks/:id/archive', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.claims?.sub;
+      
+      await db.execute(sql`
+        UPDATE department_tasks SET archived_at = NOW(), is_active = false, updated_at = NOW() WHERE id = ${id}
+      `);
+      
+      await db.execute(sql`
+        INSERT INTO department_task_history (task_id, action, changed_by_id, changed_by_name)
+        VALUES (${id}, 'archived', ${userId || null}, ${req.user?.claims?.email || 'Admin'})
+      `);
+      
+      res.json({ message: 'Task archived successfully' });
+    } catch (error) {
+      console.error('Error archiving department task:', error);
+      res.status(500).json({ message: 'Failed to archive task' });
+    }
+  });
+
+  // ============================================
   // LMS SKILL VERIFICATION ROUTES
   // Manager/peer sign-off for hands-on skills
   // ============================================
