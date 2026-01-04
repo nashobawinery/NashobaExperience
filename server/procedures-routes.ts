@@ -517,14 +517,82 @@ router.get("/submissions/:id", async (req: Request, res: Response) => {
 router.post("/submissions", async (req: Request, res: Response) => {
   try {
     // Convert date strings to Date objects
+    const submissionDate = req.body.submissionDate ? new Date(req.body.submissionDate) : new Date();
     const body = {
       ...req.body,
-      submissionDate: req.body.submissionDate ? new Date(req.body.submissionDate) : new Date(),
+      submissionDate,
       dateTimeStarted: req.body.dateTimeStarted ? new Date(req.body.dateTimeStarted) : undefined,
       dateTimeSubmitted: req.body.dateTimeSubmitted ? new Date(req.body.dateTimeSubmitted) : new Date(),
     };
+    
+    // Check if a submission already exists for this template, date, and staff member
+    const existingSubmission = await storage.getProceduresSubmissionByDateAndStaff(
+      req.body.templateId,
+      submissionDate,
+      req.body.submittedByName
+    );
+    
+    if (existingSubmission) {
+      // If existing submission is already submitted (not draft), prevent duplicate submission
+      if (existingSubmission.status === 'submitted' && req.body.status === 'submitted') {
+        console.log(`[Procedures] Submission already exists and submitted for ${req.body.submittedByName} on ${submissionDate.toISOString().split('T')[0]}`);
+        return res.status(409).json({ 
+          error: "A submission for this procedure has already been submitted today",
+          existingSubmission 
+        });
+      }
+      
+      // Update existing submission instead of creating duplicate
+      const updateData: any = {};
+      if (req.body.answers) updateData.answers = req.body.answers;
+      if (req.body.notes !== undefined) updateData.notes = req.body.notes;
+      if (req.body.lateReason !== undefined) updateData.lateReason = req.body.lateReason;
+      if (req.body.status) updateData.status = req.body.status;
+      if (req.body.dateTimeStarted) updateData.dateTimeStarted = new Date(req.body.dateTimeStarted);
+      if (req.body.dateTimeSubmitted) updateData.dateTimeSubmitted = new Date(req.body.dateTimeSubmitted);
+      
+      const updatedSubmission = await storage.updateProceduresSubmission(existingSubmission.id, updateData);
+      console.log(`[Procedures] Updated existing submission ${existingSubmission.id} for ${req.body.submittedByName}`);
+      
+      // If updating to submitted status, send email
+      if (req.body.status === 'submitted' && existingSubmission.status === 'draft') {
+        // Trigger email sending for newly submitted
+        const submission = updatedSubmission!;
+        (async () => {
+          try {
+            const template = await storage.getProceduresTemplateWithItems(submission.templateId);
+            if (!template) return;
+            const emailTo = template.emailRecipientsTo as string[] | null;
+            if (!emailTo || emailTo.length === 0) {
+              await storage.updateProceduresSubmissionEmailStatus(submission.id, 'no_recipients');
+              return;
+            }
+            const { subject, html, text } = generateProcedureSubmissionEmail(
+              template,
+              submission.submittedByName,
+              new Date(submission.submissionDate),
+              submission.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
+            );
+            for (const recipient of emailTo) {
+              try {
+                await sendEmail(recipient, subject, html, text);
+              } catch (err) {
+                console.error(`[Procedures Email] Failed to send to ${recipient}:`, err);
+              }
+            }
+            await storage.updateProceduresSubmissionEmailStatus(submission.id, 'success');
+          } catch (emailError) {
+            console.error("[Procedures Email] Error sending notification:", emailError);
+          }
+        })();
+      }
+      
+      return res.json(updatedSubmission);
+    }
+    
     const validated = insertProceduresSubmissionSchema.parse(body);
     const submission = await storage.createProceduresSubmission(validated);
+    console.log(`[Procedures] Created new submission ${submission.id} for ${req.body.submittedByName}`);
 
     // Send email notifications asynchronously (don't block the response)
     (async () => {

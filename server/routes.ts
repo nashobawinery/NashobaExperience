@@ -10653,7 +10653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a new daily report
+  // Create a new daily report (or update existing one for same date/department)
   app.post('/api/daily-reports', isAuthenticated, async (req: any, res) => {
     try {
       // Use staff name from form if provided, otherwise fall back to logged-in user
@@ -10668,6 +10668,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reportDateValue = req.body.reportDate 
         ? new Date(req.body.reportDate + 'T12:00:00Z') 
         : new Date();
+      
+      // Check if a report already exists for this date and department
+      const existingReport = await storage.getDailyReportByDateAndDepartment(reportDateValue, req.body.department);
+      
+      if (existingReport) {
+        // Update existing report instead of creating duplicate
+        const updateData = {
+          metricsData: req.body.metrics || req.body.metricsData || existingReport.metricsData,
+          performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || existingReport.performanceSummary,
+          hasCustomerConcerns: req.body.hasCustomerConcerns ?? existingReport.hasCustomerConcerns,
+          customerConcernsSummary: req.body.customerConcernsSummary || existingReport.customerConcernsSummary,
+          status: req.body.status || existingReport.status,
+          submittedByName: userName
+        };
+        
+        const updatedReport = await storage.updateDailyReport(existingReport.id, updateData);
+        console.log(`[Daily Reports] Updated existing report ${existingReport.id} for ${req.body.department} on ${reportDateValue.toISOString().split('T')[0]}`);
+        return res.json(updatedReport);
+      }
       
       const bodyData = {
         department: req.body.department,
@@ -10685,6 +10704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = insertDailyReportSchema.parse(bodyData);
       
       const report = await storage.createDailyReport(data);
+      console.log(`[Daily Reports] Created new report ${report.id} for ${data.department} on ${reportDateValue.toISOString().split('T')[0]}`);
       
       // Initialize procedure completions
       await storage.initializeProcedureCompletionsForReport(report.id, data.department);

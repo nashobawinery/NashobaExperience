@@ -3852,6 +3852,24 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(dailyReports.reportDate));
   }
 
+  async getDailyReportByDateAndDepartment(reportDate: Date, department: string): Promise<DailyReport | undefined> {
+    // Get start and end of the day for the report date
+    const startOfDay = new Date(reportDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(reportDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const [report] = await db.select().from(dailyReports)
+      .where(and(
+        sql`${dailyReports.reportDate} >= ${startOfDay}`,
+        sql`${dailyReports.reportDate} <= ${endOfDay}`,
+        eq(dailyReports.department, department as any)
+      ))
+      .orderBy(desc(dailyReports.createdAt))
+      .limit(1);
+    return report;
+  }
+
   async createDailyReport(data: InsertDailyReport): Promise<DailyReport> {
     const [report] = await db.insert(dailyReports).values(data).returning();
     return report;
@@ -4606,6 +4624,25 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(proceduresSubmissions.createdAt))
       .limit(1);
     return draft;
+  }
+
+  async getProceduresSubmissionByDateAndStaff(templateId: string, submissionDate: Date, staffName: string): Promise<ProceduresSubmission | undefined> {
+    // Get start and end of the day
+    const startOfDay = new Date(submissionDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(submissionDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const [submission] = await db.select().from(proceduresSubmissions)
+      .where(and(
+        eq(proceduresSubmissions.templateId, templateId),
+        eq(proceduresSubmissions.submittedByName, staffName),
+        sql`${proceduresSubmissions.submissionDate} >= ${startOfDay}`,
+        sql`${proceduresSubmissions.submissionDate} <= ${endOfDay}`
+      ))
+      .orderBy(desc(proceduresSubmissions.createdAt))
+      .limit(1);
+    return submission;
   }
 
   async createProceduresSubmission(data: InsertProceduresSubmission): Promise<ProceduresSubmission> {
