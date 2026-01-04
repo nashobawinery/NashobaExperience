@@ -73,6 +73,10 @@ export default function PublicDailyReportForm() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   
+  // Get department from URL query params (when coming from Staff Portal)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlDepartment = urlParams.get('department');
+  
   const [enteredCode, setEnteredCode] = useState(urlCode || "");
   const [validatedCode, setValidatedCode] = useState<string | null>(null); // Don't pre-set - let validation set it
   const [isValidating, setIsValidating] = useState(false);
@@ -194,6 +198,13 @@ export default function PublicDailyReportForm() {
             procedures: data.procedures || []
           });
           setSelectedDepartment(data.department);
+        } else if (data.multipleDepartments && urlDepartment) {
+          // If department was provided in URL (from Staff Portal), auto-select it
+          const matchingDept = data.availableDepartments?.find(d => d.department === urlDepartment);
+          if (matchingDept) {
+            // Load form data for the pre-selected department
+            handleSelectDepartmentFromUrl(urlDepartment, data.staffName);
+          }
         }
       } else {
         const error = await response.json();
@@ -213,6 +224,34 @@ export default function PublicDailyReportForm() {
     try {
       const response = await fetch(
         `/api/public/daily-reports/department/${department}/form?staffName=${encodeURIComponent(validationData.staffName)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setFormData({
+          staffName: data.staffName,
+          department: data.department,
+          departmentLabel: data.departmentLabel,
+          code: data.code,
+          metrics: data.metrics || [],
+          procedures: data.procedures || []
+        });
+        setSelectedDepartment(department);
+      } else {
+        const error = await response.json();
+        toast({ title: error.message || "Failed to load form", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Failed to load department form", variant: "destructive" });
+    } finally {
+      setIsLoadingForm(false);
+    }
+  };
+  
+  const handleSelectDepartmentFromUrl = async (department: string, staffName: string) => {
+    setIsLoadingForm(true);
+    try {
+      const response = await fetch(
+        `/api/public/daily-reports/department/${department}/form?staffName=${encodeURIComponent(staffName)}`
       );
       if (response.ok) {
         const data = await response.json();

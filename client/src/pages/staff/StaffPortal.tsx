@@ -181,7 +181,7 @@ export default function StaffPortal() {
                       key={dept.department}
                       variant="outline"
                       className="w-full justify-between"
-                      onClick={() => navigate(`/daily-report/${dept.code}`)}
+                      onClick={() => navigate(`/daily-report/${dept.code}?department=${encodeURIComponent(dept.department)}`)}
                       data-testid={`button-daily-report-${dept.department}`}
                     >
                       <span>{dept.departmentLabel}</span>
