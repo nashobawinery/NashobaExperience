@@ -128,6 +128,68 @@ function generateProcedureSubmissionEmail(
   return { subject, html, text };
 }
 
+// Helper function to send procedure submission emails (with full CC support)
+async function sendProcedureSubmissionEmails(submission: { id: string; templateId: string; submittedByName: string; submissionDate: Date; answers: any }): Promise<void> {
+  try {
+    const template = await storage.getProceduresTemplateWithItems(submission.templateId);
+    if (!template) {
+      console.error(`[Procedures Email] Template not found: ${submission.templateId}`);
+      return;
+    }
+
+    const emailTo = template.emailRecipientsTo as string[] | null;
+    const emailCc = template.emailRecipientsCc as string[] | null;
+
+    if (!emailTo || emailTo.length === 0) {
+      console.log(`[Procedures Email] No email recipients configured for template: ${template.procedureName}`);
+      await storage.updateProceduresSubmissionEmailStatus(submission.id, 'no_recipients');
+      return;
+    }
+
+    const { subject, html, text } = generateProcedureSubmissionEmail(
+      template,
+      submission.submittedByName,
+      new Date(submission.submissionDate),
+      submission.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
+    );
+
+    // Send to each recipient
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const recipient of emailTo) {
+      try {
+        await sendEmail(recipient, subject, html, text);
+        successCount++;
+        console.log(`[Procedures Email] Sent to ${recipient}`);
+      } catch (err) {
+        failCount++;
+        console.error(`[Procedures Email] Failed to send to ${recipient}:`, err);
+      }
+    }
+
+    // Send CC copies
+    if (emailCc && emailCc.length > 0) {
+      for (const ccRecipient of emailCc) {
+        try {
+          await sendEmail(ccRecipient, subject, html, text);
+          console.log(`[Procedures Email] Sent CC to ${ccRecipient}`);
+        } catch (err) {
+          console.error(`[Procedures Email] Failed to send CC to ${ccRecipient}:`, err);
+        }
+      }
+    }
+
+    // Update email status
+    const status = failCount === 0 ? 'success' : (successCount > 0 ? 'partial' : 'failed');
+    await storage.updateProceduresSubmissionEmailStatus(submission.id, status);
+    console.log(`[Procedures Email] Status updated to: ${status}`);
+  } catch (emailError) {
+    console.error("[Procedures Email] Error sending notification:", emailError);
+    await storage.updateProceduresSubmissionEmailStatus(submission.id, 'failed');
+  }
+}
+
 // ==========================================
 // PROCEDURE TEMPLATES
 // ==========================================
@@ -554,37 +616,10 @@ router.post("/submissions", async (req: Request, res: Response) => {
       const updatedSubmission = await storage.updateProceduresSubmission(existingSubmission.id, updateData);
       console.log(`[Procedures] Updated existing submission ${existingSubmission.id} for ${req.body.submittedByName}`);
       
-      // If updating to submitted status, send email
-      if (req.body.status === 'submitted' && existingSubmission.status === 'draft') {
-        // Trigger email sending for newly submitted
-        const submission = updatedSubmission!;
-        (async () => {
-          try {
-            const template = await storage.getProceduresTemplateWithItems(submission.templateId);
-            if (!template) return;
-            const emailTo = template.emailRecipientsTo as string[] | null;
-            if (!emailTo || emailTo.length === 0) {
-              await storage.updateProceduresSubmissionEmailStatus(submission.id, 'no_recipients');
-              return;
-            }
-            const { subject, html, text } = generateProcedureSubmissionEmail(
-              template,
-              submission.submittedByName,
-              new Date(submission.submissionDate),
-              submission.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
-            );
-            for (const recipient of emailTo) {
-              try {
-                await sendEmail(recipient, subject, html, text);
-              } catch (err) {
-                console.error(`[Procedures Email] Failed to send to ${recipient}:`, err);
-              }
-            }
-            await storage.updateProceduresSubmissionEmailStatus(submission.id, 'success');
-          } catch (emailError) {
-            console.error("[Procedures Email] Error sending notification:", emailError);
-          }
-        })();
+      // If updating to submitted status, send email using the shared helper
+      if (req.body.status === 'submitted' && existingSubmission.status === 'draft' && updatedSubmission) {
+        // Trigger email sending asynchronously (don't block the response)
+        sendProcedureSubmissionEmails(updatedSubmission);
       }
       
       return res.json(updatedSubmission);
@@ -594,67 +629,10 @@ router.post("/submissions", async (req: Request, res: Response) => {
     const submission = await storage.createProceduresSubmission(validated);
     console.log(`[Procedures] Created new submission ${submission.id} for ${req.body.submittedByName}`);
 
-    // Send email notifications asynchronously (don't block the response)
-    (async () => {
-      try {
-        const template = await storage.getProceduresTemplateWithItems(submission.templateId);
-        if (!template) {
-          console.error(`[Procedures Email] Template not found: ${submission.templateId}`);
-          return;
-        }
-
-        const emailTo = template.emailRecipientsTo as string[] | null;
-        const emailCc = template.emailRecipientsCc as string[] | null;
-
-        if (!emailTo || emailTo.length === 0) {
-          console.log(`[Procedures Email] No email recipients configured for template: ${template.procedureName}`);
-          await storage.updateProceduresSubmissionEmailStatus(submission.id, 'no_recipients');
-          return;
-        }
-
-        const { subject, html, text } = generateProcedureSubmissionEmail(
-          template,
-          submission.submittedByName,
-          new Date(submission.submissionDate),
-          submission.answers as Record<string, { value: any; initials?: string; comment?: string; completedAt?: string }>
-        );
-
-        // Send to each recipient
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const recipient of emailTo) {
-          try {
-            await sendEmail(recipient, subject, html, text);
-            successCount++;
-            console.log(`[Procedures Email] Sent to ${recipient}`);
-          } catch (err) {
-            failCount++;
-            console.error(`[Procedures Email] Failed to send to ${recipient}:`, err);
-          }
-        }
-
-        // Send CC copies
-        if (emailCc && emailCc.length > 0) {
-          for (const ccRecipient of emailCc) {
-            try {
-              await sendEmail(ccRecipient, subject, html, text);
-              console.log(`[Procedures Email] Sent CC to ${ccRecipient}`);
-            } catch (err) {
-              console.error(`[Procedures Email] Failed to send CC to ${ccRecipient}:`, err);
-            }
-          }
-        }
-
-        // Update email status
-        const status = failCount === 0 ? 'success' : (successCount > 0 ? 'partial' : 'failed');
-        await storage.updateProceduresSubmissionEmailStatus(submission.id, status);
-        console.log(`[Procedures Email] Status updated to: ${status}`);
-      } catch (emailError) {
-        console.error("[Procedures Email] Error sending notification:", emailError);
-        await storage.updateProceduresSubmissionEmailStatus(submission.id, 'failed');
-      }
-    })();
+    // Send email notifications asynchronously using the shared helper (don't block the response)
+    if (submission.status === 'submitted') {
+      sendProcedureSubmissionEmails(submission);
+    }
 
     res.status(201).json(submission);
   } catch (error) {

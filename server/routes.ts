@@ -10672,22 +10672,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if a report already exists for this date and department
       const existingReport = await storage.getDailyReportByDateAndDepartment(reportDateValue, req.body.department);
       
+      // If existing report found, update it instead of creating a duplicate
       if (existingReport) {
-        // Update existing report instead of creating duplicate
-        const updateData = {
-          metricsData: req.body.metrics || req.body.metricsData || existingReport.metricsData,
-          performanceSummary: req.body.customerServiceSummary || req.body.performanceSummary || existingReport.performanceSummary,
-          hasCustomerConcerns: req.body.hasCustomerConcerns ?? existingReport.hasCustomerConcerns,
-          customerConcernsSummary: req.body.customerConcernsSummary || existingReport.customerConcernsSummary,
-          status: req.body.status || existingReport.status,
+        // Merge with existing data - only update fields that were provided in the request
+        // Do NOT use schema parsing here - we want to preserve existing data for fields not provided
+        const updateData: any = {
           submittedByName: userName
         };
+        
+        // Only update status if explicitly provided
+        if (req.body.status !== undefined) {
+          updateData.status = req.body.status;
+        }
+        
+        // Only update these fields if they were explicitly provided in the request
+        if (req.body.metrics !== undefined || req.body.metricsData !== undefined) {
+          updateData.metricsData = req.body.metrics || req.body.metricsData;
+        }
+        if (req.body.customerServiceSummary !== undefined || req.body.performanceSummary !== undefined) {
+          updateData.performanceSummary = req.body.customerServiceSummary || req.body.performanceSummary;
+        }
+        if (req.body.hasCustomerConcerns !== undefined) {
+          updateData.hasCustomerConcerns = req.body.hasCustomerConcerns;
+        }
+        if (req.body.customerConcernsSummary !== undefined) {
+          updateData.customerConcernsSummary = req.body.customerConcernsSummary;
+        }
+        if (req.body.overallRating !== undefined) {
+          updateData.overallRating = req.body.overallRating;
+        }
+        if (req.body.proceduresCompletedCount !== undefined) {
+          updateData.proceduresCompletedCount = req.body.proceduresCompletedCount;
+        }
+        if (req.body.proceduresTotalCount !== undefined) {
+          updateData.proceduresTotalCount = req.body.proceduresTotalCount;
+        }
+        if (req.body.staffingNotes !== undefined) {
+          updateData.staffingNotes = req.body.staffingNotes;
+        }
+        if (req.body.operationalNotes !== undefined) {
+          updateData.operationalNotes = req.body.operationalNotes;
+        }
         
         const updatedReport = await storage.updateDailyReport(existingReport.id, updateData);
         console.log(`[Daily Reports] Updated existing report ${existingReport.id} for ${req.body.department} on ${reportDateValue.toISOString().split('T')[0]}`);
         return res.json(updatedReport);
       }
       
+      // Prepare the full data object for new report only
       const bodyData = {
         department: req.body.department,
         reportDate: reportDateValue,
