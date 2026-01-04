@@ -599,7 +599,7 @@ router.post("/submissions", async (req: Request, res: Response) => {
       if (existingSubmission.status === 'submitted' && req.body.status === 'submitted') {
         console.log(`[Procedures] Submission already exists and submitted for ${req.body.submittedByName} on ${submissionDate.toISOString().split('T')[0]}`);
         return res.status(409).json({ 
-          error: "A submission for this procedure has already been submitted today",
+          error: "This report has already been started for the day. Please check with your team to determine who has started and assist with the completion of the report under their name.",
           existingSubmission 
         });
       }

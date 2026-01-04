@@ -10837,7 +10837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check for duplicate key constraint (report already exists for department+date)
       if (error?.code === '23505' && error?.constraint === 'uq_daily_reports_dept_date') {
         return res.status(409).json({ 
-          message: 'A report for this department on this date already exists. Please edit the existing report instead.' 
+          message: 'This report has already been started for the day. Please check with your team to determine who has started and assist with the completion of the report under their name.' 
         });
       }
       // Check for Zod validation errors
