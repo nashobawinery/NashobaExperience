@@ -646,10 +646,31 @@ router.post("/submissions", async (req: Request, res: Response) => {
 
 router.patch("/submissions/:id", async (req: Request, res: Response) => {
   try {
-    const submission = await storage.updateProceduresSubmission(req.params.id, req.body);
+    // Convert date strings to Date objects
+    const updateData: any = { ...req.body };
+    if (updateData.submissionDate) {
+      updateData.submissionDate = new Date(updateData.submissionDate);
+    }
+    if (updateData.dateTimeStarted) {
+      updateData.dateTimeStarted = new Date(updateData.dateTimeStarted);
+    }
+    if (updateData.dateTimeSubmitted) {
+      updateData.dateTimeSubmitted = new Date(updateData.dateTimeSubmitted);
+    }
+    
+    // Get current submission to check status for email sending
+    const existingSubmission = await storage.getProceduresSubmission(req.params.id);
+    
+    const submission = await storage.updateProceduresSubmission(req.params.id, updateData);
     if (!submission) {
       return res.status(404).json({ error: "Submission not found" });
     }
+    
+    // If updating from draft to submitted, send email notifications
+    if (existingSubmission?.status === 'draft' && updateData.status === 'submitted') {
+      sendProcedureSubmissionEmails(submission);
+    }
+    
     res.json(submission);
   } catch (error) {
     console.error("Error updating submission:", error);
