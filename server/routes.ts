@@ -11553,6 +11553,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public Form Endpoints (no auth required)
   // ===============================
 
+  // Get all active departments from Daily Report templates (for staff work order form)
+  app.get('/api/public/daily-reports/departments', async (req, res) => {
+    try {
+      const templates = await storage.getDailyReportTemplates(true);
+      const departments = templates.map(t => ({
+        id: t.id,
+        department: t.department,
+        departmentLabel: t.departmentLabel,
+        isActive: t.isActive
+      }));
+      res.json(departments);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      res.status(500).json({ message: 'Failed to fetch departments' });
+    }
+  });
+
+  // Staff work order submission (no auth required - for staff portal)
+  app.post('/api/maintenance/work-orders/staff', async (req, res) => {
+    try {
+      const { title, description, department, workOrderType, priority, requestedByName } = req.body;
+      
+      if (!title || !department) {
+        return res.status(400).json({ message: 'Title and department are required' });
+      }
+      
+      // Generate work order number using same pattern as admin endpoint
+      const workOrderNumber = await generateWorkOrderNumber();
+      
+      // Build notes string with department and submitter info
+      const noteParts = [];
+      if (department) noteParts.push(`Department: ${department}`);
+      if (requestedByName) noteParts.push(`Submitted by: ${requestedByName}`);
+      const completionNotes = noteParts.length > 0 ? noteParts.join(' | ') : null;
+      
+      // Insert directly using SQL (consistent with other maintenance endpoints)
+      // Note: department column may not exist in production yet, so storing in completion_notes
+      const result = await db.execute(sql`
+        INSERT INTO maintenance_work_orders (
+          work_order_number, title, description, 
+          work_order_type, priority, status, completion_notes
+        )
+        VALUES (
+          ${workOrderNumber}, ${title}, ${description || null}, 
+          ${workOrderType || 'repair'}, ${priority || 'medium'}, 'open', 
+          ${completionNotes}
+        )
+        RETURNING id, work_order_number
+      `);
+      
+      const workOrder = result.rows[0] as any;
+      res.json({ id: workOrder.id, workOrderNumber: workOrder.work_order_number });
+    } catch (error) {
+      console.error('Error creating staff work order:', error);
+      res.status(500).json({ message: 'Failed to create work order' });
+    }
+  });
+
   // Get all draft daily reports for a staff member (for Staff Portal)
   app.get('/api/public/daily-reports/staff-drafts', async (req, res) => {
     try {

@@ -49,6 +49,7 @@ const ProceduresSubmissions = lazy(() => import("@/pages/procedures/ProceduresSu
 const PublicProceduresForm = lazy(() => import("@/pages/procedures/PublicProceduresForm"));
 const StaffProceduresForm = lazy(() => import("@/pages/procedures/StaffProceduresForm"));
 const StaffPortal = lazy(() => import("@/pages/staff/StaffPortal"));
+const StaffWorkOrderForm = lazy(() => import("@/pages/staff/StaffWorkOrderForm"));
 
 // Lazy load Maintenance module
 const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
@@ -365,6 +366,14 @@ function StaffPortalRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <StaffPortal />
+    </Suspense>
+  );
+}
+
+function StaffWorkOrderRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StaffWorkOrderForm />
     </Suspense>
   );
 }
@@ -886,6 +895,7 @@ function Router() {
         <Route path="/procedures/public" component={PublicProceduresRoute} />
         <Route path="/procedures/staff" component={StaffProceduresRoute} />
         <Route path="/staff" component={StaffPortalRoute} />
+        <Route path="/staff/work-order" component={StaffWorkOrderRoute} />
         <Route path="/support" component={SupportComingSoonRoute} />
         <Route path="/support/admin" component={SupportComingSoonRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />

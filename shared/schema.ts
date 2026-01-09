@@ -3134,7 +3134,7 @@ export const workOrderStatusEnum = pgEnum("work_order_status", [
 ]);
 
 // Work order type enum
-export const workOrderTypeEnum = pgEnum("work_order_type", ["corrective", "preventive", "inspection", "emergency", "project"]);
+export const workOrderTypeEnum = pgEnum("work_order_type", ["corrective", "preventive", "inspection", "emergency", "project", "repair"]);
 
 // Maintenance frequency enum
 export const maintenanceFrequencyEnum = pgEnum("maintenance_frequency", ["daily", "weekly", "biweekly", "monthly", "quarterly", "semiannual", "annual", "custom"]);
@@ -3281,6 +3281,7 @@ export const maintenanceWorkOrders = pgTable("maintenance_work_orders", {
   assetId: varchar("asset_id").references(() => maintenanceAssets.id),
   locationId: varchar("location_id").references(() => sharedLocations.id),
   maintenanceLocationId: varchar("maintenance_location_id").references(() => maintenanceLocations.id),
+  department: varchar("department"), // Department (linked to daily reports departments)
   workOrderType: workOrderTypeEnum("work_order_type").notNull().default("corrective"),
   priority: workOrderPriorityEnum("priority").notNull().default("medium"),
   status: workOrderStatusEnum("status").notNull().default("new"),

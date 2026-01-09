@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle } from "lucide-react";
+import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -357,6 +357,34 @@ export default function StaffPortal() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Work Order Section - Always available */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                <Wrench className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Maintenance Request</CardTitle>
+                <CardDescription>
+                  Submit a work order for repairs or maintenance needs
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="w-full justify-between"
+              onClick={() => navigate(`/staff/work-order?staffName=${encodeURIComponent(staffAccess.staffName)}`)}
+              data-testid="button-submit-work-order"
+            >
+              <span>Submit Work Order</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Access Summary */}
         <Card>

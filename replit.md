@@ -29,7 +29,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Reservations Module**: Complete dining reservation system with customer-facing booking flow, experience selection, time slot booking, Stripe payments, and comprehensive availability management.
 - **Daily Reports Module**: Managers log incidents and track procedure completion using customizable templates, email notifications, and a status-based review workflow.
 - **Daily Procedures Module**: Mobile-first checklist completion system with opening/closing procedures, draft saving, late submission tracking, and comprehensive submissions management.
-- **Unified Staff Portal**: Single entry point at `/staff` where staff enter their access code once to see both Daily Reports and Daily Procedures they have access to. Validates against both `daily_report_access_codes` and `procedures_staff` tables.
+- **Unified Staff Portal**: Single entry point at `/staff` where staff enter their access code once to see both Daily Reports and Daily Procedures they have access to. Validates against both `daily_report_access_codes` and `procedures_staff` tables. Includes staff-accessible Maintenance Work Order submission (`/staff/work-order`) integrated with Daily Reports departments.
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, and granular feature permissions.
 - **Module Management**: Admin UI for managing platform module metadata.
