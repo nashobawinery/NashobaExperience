@@ -72,12 +72,16 @@ export default function StaffProceduresForm() {
     const params = new URLSearchParams(window.location.search);
     const urlCode = params.get("code");
     const procedureId = params.get("procedureId");
+    const urlDraftId = params.get("draftId");
     
     if (urlCode) {
       setCode(urlCode);
       setCameFromPortal(true);
       if (procedureId) {
         setPendingProcedureId(procedureId);
+      }
+      if (urlDraftId) {
+        setDraftId(urlDraftId);
       }
       // Auto-login with URL code
       loginMutation.mutate(urlCode);
@@ -178,10 +182,13 @@ export default function StaffProceduresForm() {
     setStage("login");
   };
 
-  const handleSelectProcedure = async (procedure: ProceduresTemplateWithItems) => {
+  const handleSelectProcedure = async (procedure: ProceduresTemplateWithItems, urlDraftId?: string | null) => {
     setSelectedProcedure(procedure);
     setIsLoadingDraft(true);
-    setDraftId(null);
+    // Keep the URL draft ID if provided, otherwise reset
+    if (!urlDraftId) {
+      setDraftId(null);
+    }
     setLateReason("");
     setNotes("");
     setStartTime(new Date());
@@ -192,9 +199,17 @@ export default function StaffProceduresForm() {
       initialAnswers[item.id] = { value: item.responseType === "checkbox" ? false : "" };
     });
     
-    // Check for existing draft using apiRequest pattern
+    // Load draft - either by specific ID (from URL) or by staffName lookup
     try {
-      const response = await apiRequest("GET", `/api/procedures/submissions/draft/${procedure.id}?staffName=${encodeURIComponent(staff?.staffName || "")}`);
+      let response: Response;
+      if (urlDraftId) {
+        // Load specific draft by ID using staff-accessible endpoint
+        response = await apiRequest("GET", `/api/procedures/submissions/staff-draft/${urlDraftId}?staffName=${encodeURIComponent(staff?.staffName || "")}`);
+      } else {
+        // Check for existing draft by staffName
+        response = await apiRequest("GET", `/api/procedures/submissions/draft/${procedure.id}?staffName=${encodeURIComponent(staff?.staffName || "")}`);
+      }
+      
       if (response.ok) {
         const draft: ProceduresSubmission = await response.json();
         setDraftId(draft.id);
@@ -229,11 +244,12 @@ export default function StaffProceduresForm() {
     if (pendingProcedureId && assignedProcedures && assignedProcedures.length > 0 && stage === "select") {
       const targetProcedure = assignedProcedures.find(p => p.id === pendingProcedureId);
       if (targetProcedure) {
-        handleSelectProcedure(targetProcedure);
+        // Pass draftId if we have one from the URL
+        handleSelectProcedure(targetProcedure, draftId);
         setPendingProcedureId(null);
       }
     }
-  }, [pendingProcedureId, assignedProcedures, stage]);
+  }, [pendingProcedureId, assignedProcedures, stage, draftId]);
 
   const handleSaveDraft = () => {
     if (!selectedProcedure || !staff) return;

@@ -11553,6 +11553,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public Form Endpoints (no auth required)
   // ===============================
 
+  // Get all draft daily reports for a staff member (for Staff Portal)
+  app.get('/api/public/daily-reports/staff-drafts', async (req, res) => {
+    try {
+      const { staffName } = req.query;
+      if (!staffName || typeof staffName !== 'string' || staffName.trim().length === 0) {
+        return res.status(400).json({ message: 'staffName is required' });
+      }
+      
+      const normalizedStaffName = staffName.trim().toLowerCase();
+      
+      // Get all draft reports for this staff member
+      const allReports = await storage.getDailyReports();
+      const drafts = allReports.filter(r => 
+        r.status === 'draft' && 
+        r.submittedBy && 
+        r.submittedBy.trim().toLowerCase() === normalizedStaffName
+      );
+      
+      // Enrich with template info - return minimal DTO
+      const enrichedDrafts = await Promise.all(drafts.map(async (draft) => {
+        const template = await storage.getDailyReportTemplate(draft.templateId);
+        return {
+          id: draft.id,
+          templateId: draft.templateId,
+          department: template?.department || 'Unknown',
+          departmentLabel: template?.departmentLabel || 'Unknown Department',
+          reportDate: draft.reportDate,
+          createdAt: draft.createdAt
+        };
+      }));
+      
+      res.json(enrichedDrafts);
+    } catch (error) {
+      console.error('Error fetching staff drafts:', error);
+      res.status(500).json({ message: 'Failed to fetch drafts' });
+    }
+  });
+
   // Validate access code and get form data (public)
   app.get('/api/public/daily-reports/validate/:code', async (req, res) => {
     try {

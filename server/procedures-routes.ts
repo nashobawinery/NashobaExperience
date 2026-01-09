@@ -528,6 +528,46 @@ router.get("/today/:userId", async (req: Request, res: Response) => {
 // SUBMISSIONS
 // ==========================================
 
+// Get all drafts for a staff member (for Staff Portal)
+router.get("/submissions/staff-drafts", async (req: Request, res: Response) => {
+  try {
+    const { staffName } = req.query;
+    if (!staffName || typeof staffName !== 'string' || staffName.trim().length === 0) {
+      return res.status(400).json({ error: "staffName is required" });
+    }
+    
+    const normalizedStaffName = staffName.trim().toLowerCase();
+    
+    // Get all procedure submissions that are drafts for this staff member
+    const allSubmissions = await storage.getProceduresSubmissions({});
+    const drafts = allSubmissions.filter((s: any) => 
+      s.status === 'draft' && 
+      s.submittedByName && 
+      s.submittedByName.trim().toLowerCase() === normalizedStaffName
+    );
+    
+    // Enrich with template info and return minimal DTO
+    const templates = await storage.getProceduresTemplates({});
+    const enrichedDrafts = drafts.map((draft: any) => {
+      const template = templates.find((t: any) => t.id === draft.templateId);
+      return {
+        id: draft.id,
+        templateId: draft.templateId,
+        procedureName: template?.procedureName || 'Unknown Procedure',
+        procedureType: template?.procedureType || 'general',
+        submissionDate: draft.submissionDate,
+        dateTimeStarted: draft.dateTimeStarted,
+        createdAt: draft.createdAt
+      };
+    });
+    
+    res.json(enrichedDrafts);
+  } catch (error) {
+    console.error("Error fetching staff drafts:", error);
+    res.status(500).json({ error: "Failed to fetch drafts" });
+  }
+});
+
 router.get("/submissions", async (req: Request, res: Response) => {
   try {
     const { department, procedureCode, startDate, endDate, userId } = req.query;
@@ -559,6 +599,38 @@ router.get("/submissions/draft/:templateId", async (req: Request, res: Response)
     res.json(draft);
   } catch (error) {
     console.error("Error fetching draft:", error);
+    res.status(500).json({ error: "Failed to fetch draft" });
+  }
+});
+
+// Staff-accessible endpoint to get a specific draft by ID (for Staff Portal resume)
+router.get("/submissions/staff-draft/:id", async (req: Request, res: Response) => {
+  try {
+    const { staffName } = req.query;
+    if (!staffName || typeof staffName !== 'string' || staffName.trim().length === 0) {
+      return res.status(400).json({ error: "staffName is required for verification" });
+    }
+    
+    const submission = await storage.getProceduresSubmission(req.params.id);
+    if (!submission) {
+      return res.status(404).json({ error: "Draft not found" });
+    }
+    
+    // Only allow staff to access their own drafts
+    const normalizedStaffName = staffName.trim().toLowerCase();
+    const submissionStaffName = submission.submittedByName?.trim().toLowerCase() || '';
+    if (submissionStaffName !== normalizedStaffName) {
+      return res.status(403).json({ error: "You can only access your own drafts" });
+    }
+    
+    // Only allow access to drafts (not submitted/reviewed submissions)
+    if (submission.status !== 'draft') {
+      return res.status(403).json({ error: "This submission is not a draft" });
+    }
+    
+    res.json(submission);
+  } catch (error) {
+    console.error("Error fetching staff draft:", error);
     res.status(500).json({ error: "Failed to fetch draft" });
   }
 });

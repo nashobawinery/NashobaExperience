@@ -11,6 +11,39 @@ const DAY_MAP: Record<number, string> = {
   6: "saturday"
 };
 
+// Helper to get current Eastern time
+function getEasternTime(): { hour: number; minute: number } {
+  const easternFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = easternFormatter.formatToParts(new Date());
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '0';
+  return {
+    hour: parseInt(getPart('hour')),
+    minute: parseInt(getPart('minute'))
+  };
+}
+
+// Check if deadline has passed for a template
+function isDeadlinePassed(completionTime: string | null): boolean {
+  const eastern = getEasternTime();
+  const currentMinutes = eastern.hour * 60 + eastern.minute;
+  
+  // If no completion time specified, default to 11:30 PM deadline
+  if (!completionTime) {
+    return currentMinutes >= (23 * 60 + 30);
+  }
+  
+  // Parse completion time (format: "HH:MM")
+  const [hours, minutes] = completionTime.split(':').map(Number);
+  const deadlineMinutes = hours * 60 + minutes;
+  
+  return currentMinutes >= deadlineMinutes;
+}
+
 async function checkMissedMandatoryProcedures(): Promise<void> {
   console.log("[Mandatory Procedures] Starting missed procedure check...");
   
@@ -44,6 +77,13 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
         continue;
       }
       
+      // Check if the template's deadline has passed
+      const completionTime = (template as any).completionTime || null;
+      if (!isDeadlinePassed(completionTime)) {
+        console.log(`[Mandatory Procedures] ${template.procedureCode} deadline (${completionTime || '23:30'}) has not passed yet`);
+        continue;
+      }
+      
       const todaySubmissions = submissions.filter((s: any) => {
         const submissionDate = new Date(s.submissionDate);
         return s.templateId === template.id && 
@@ -57,7 +97,7 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
         continue;
       }
       
-      console.log(`[Mandatory Procedures] MISSING: ${template.procedureCode} - creating NO REPORT FILED entry`);
+      console.log(`[Mandatory Procedures] MISSING: ${template.procedureCode} (deadline: ${completionTime || '23:30'}) - creating NO REPORT FILED entry`);
       
       const noReportSubmission = await storage.createProceduresSubmission({
         templateId: template.id,
@@ -192,16 +232,40 @@ Please follow up with the responsible staff to understand why this procedure was
 function scheduleMandatoryCheck(): void {
   const runAtEndOfDay = () => {
     const now = new Date();
-    const target = new Date();
-    target.setHours(23, 30, 0, 0);
     
-    if (now >= target) {
-      target.setDate(target.getDate() + 1);
+    // Calculate 11:30 PM Eastern Time
+    // Get current time in Eastern timezone
+    const easternFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const parts = easternFormatter.formatToParts(now);
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '0';
+    
+    const easternHour = parseInt(getPart('hour'));
+    const easternMinute = parseInt(getPart('minute'));
+    const easternTime = easternHour * 60 + easternMinute;
+    const targetTime = 23 * 60 + 30; // 11:30 PM = 1410 minutes
+    
+    let minutesUntilRun: number;
+    if (easternTime >= targetTime) {
+      // Already past 11:30 PM Eastern, schedule for tomorrow
+      minutesUntilRun = (24 * 60 - easternTime) + targetTime;
+    } else {
+      minutesUntilRun = targetTime - easternTime;
     }
     
-    const msUntilRun = target.getTime() - now.getTime();
+    const msUntilRun = minutesUntilRun * 60 * 1000;
+    const targetDate = new Date(now.getTime() + msUntilRun);
     
-    console.log(`[Mandatory Procedures] Next check scheduled for ${target.toLocaleString()} (in ${Math.round(msUntilRun / 60000)} minutes)`);
+    console.log(`[Mandatory Procedures] Next check scheduled for ${targetDate.toLocaleString('en-US', { timeZone: 'America/New_York' })} Eastern (in ${minutesUntilRun} minutes)`);
     
     setTimeout(() => {
       checkMissedMandatoryProcedures()

@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck } from "lucide-react";
+import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { format } from "date-fns";
 
 interface ProcedureTemplate {
   id: string;
@@ -32,12 +33,57 @@ interface StaffAccess {
   };
 }
 
+interface ProcedureDraft {
+  id: string;
+  templateId: string;
+  procedureName: string;
+  procedureType: string;
+  submissionDate: string;
+  dateTimeStarted: string | null;
+  createdAt: string;
+}
+
+interface DailyReportDraft {
+  id: string;
+  templateId: string;
+  department: string;
+  departmentLabel: string;
+  reportDate: string;
+  createdAt: string;
+}
+
 export default function StaffPortal() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [code, setCode] = useState("");
   const [verifiedCode, setVerifiedCode] = useState("");
   const [staffAccess, setStaffAccess] = useState<StaffAccess | null>(null);
+
+  // Query for procedure drafts
+  const { data: procedureDrafts = [] } = useQuery<ProcedureDraft[]>({
+    queryKey: ["/api/procedures/submissions/staff-drafts", staffAccess?.staffName],
+    queryFn: async () => {
+      if (!staffAccess?.staffName) return [];
+      const response = await fetch(`/api/procedures/submissions/staff-drafts?staffName=${encodeURIComponent(staffAccess.staffName)}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!staffAccess?.staffName,
+  });
+
+  // Query for daily report drafts
+  const { data: reportDrafts = [] } = useQuery<DailyReportDraft[]>({
+    queryKey: ["/api/public/daily-reports/staff-drafts", staffAccess?.staffName],
+    queryFn: async () => {
+      if (!staffAccess?.staffName) return [];
+      const response = await fetch(`/api/public/daily-reports/staff-drafts?staffName=${encodeURIComponent(staffAccess.staffName)}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!staffAccess?.staffName,
+  });
+
+  const hasDrafts = procedureDrafts.length > 0 || reportDrafts.length > 0;
 
   const validateMutation = useMutation({
     mutationFn: async (accessCode: string) => {
@@ -152,6 +198,74 @@ export default function StaffPortal() {
             Log Out
           </Button>
         </div>
+
+        {/* Saved Drafts Section - Only show if there are drafts */}
+        {hasDrafts && (
+          <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Saved Drafts</CardTitle>
+                  <CardDescription>
+                    You have {procedureDrafts.length + reportDrafts.length} saved draft{procedureDrafts.length + reportDrafts.length !== 1 ? 's' : ''} to complete
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Procedure Drafts */}
+              {procedureDrafts.map((draft) => (
+                <Button
+                  key={draft.id}
+                  variant="outline"
+                  className="w-full justify-between bg-white dark:bg-background"
+                  onClick={() => navigate(`/procedures/staff?code=${verifiedCode}&procedureId=${draft.templateId}&draftId=${draft.id}`)}
+                  data-testid={`button-resume-procedure-${draft.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4 text-green-600" />
+                    <div className="text-left">
+                      <div className="font-medium">{draft.procedureName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Started {draft.dateTimeStarted ? format(new Date(draft.dateTimeStarted), 'MMM d, h:mm a') : format(new Date(draft.createdAt), 'MMM d, h:mm a')}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
+                    Resume
+                  </Badge>
+                </Button>
+              ))}
+              
+              {/* Daily Report Drafts */}
+              {reportDrafts.map((draft) => (
+                <Button
+                  key={draft.id}
+                  variant="outline"
+                  className="w-full justify-between bg-white dark:bg-background"
+                  onClick={() => navigate(`/daily-report/${draft.templateId}?draftId=${draft.id}`)}
+                  data-testid={`button-resume-report-${draft.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <div className="text-left">
+                      <div className="font-medium">{draft.departmentLabel || draft.department}</div>
+                      <div className="text-xs text-muted-foreground">
+                        For {format(new Date(draft.reportDate), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
+                    Resume
+                  </Badge>
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Module Cards */}
         <div className="grid gap-6 md:grid-cols-2">
