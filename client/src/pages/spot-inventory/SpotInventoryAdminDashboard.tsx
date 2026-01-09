@@ -31,7 +31,8 @@ import {
   Image as ImageIcon,
   MoreVertical,
   QrCode,
-  Download
+  Download,
+  Home
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -313,12 +314,13 @@ export default function SpotInventoryAdminDashboard() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setLocation("/admin-hub")}
-              data-testid="button-back"
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/admin")}
+              data-testid="button-return-hub"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <Home className="h-4 w-4 mr-2" />
+              Return to Hub
             </Button>
             <div>
               <h1 className="text-2xl font-bold">Spot Inventory Check</h1>

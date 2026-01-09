@@ -2158,12 +2158,13 @@ export default function DailyReportsAdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setLocation("/admin-hub")}
-              data-testid="button-back"
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLocation("/admin")}
+              data-testid="button-return-hub"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <Home className="h-4 w-4 mr-2" />
+              Return to Hub
             </Button>
             <div className="flex items-center gap-2">
               <img src={dailyReportIcon} alt="Daily Reports" className="h-8 w-8 object-contain" />

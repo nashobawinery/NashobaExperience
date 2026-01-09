@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Users, Pause, Play, Settings, ArrowRight, Copy, Home } from "lucide-react";
 import type { Location, LocationTable, InsertLocationTable, InsertLocation } from "@shared/schema";
 import { insertLocationTableSchema, insertLocationSchema } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -123,9 +123,20 @@ export default function AdminLocations() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Locations & Tables</h1>
-          <p className="text-muted-foreground">Manage dining locations and their table inventory</p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate("/admin")}
+            data-testid="button-return-hub"
+          >
+            <Home className="h-4 w-4 mr-2" />
+            Return to Hub
+          </Button>
+          <div>
+            <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Locations & Tables</h1>
+            <p className="text-muted-foreground">Manage dining locations and their table inventory</p>
+          </div>
         </div>
         <Button
           onClick={handleCreateLocation}

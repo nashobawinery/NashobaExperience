@@ -2468,19 +2468,12 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
-            onClick={() => setLocation('/admin-hub')} 
-            data-testid="button-go-to-hub"
+            size="sm"
+            onClick={() => setLocation('/admin')} 
+            data-testid="button-return-hub"
           >
             <Home className="w-4 h-4 mr-2" />
-            Hub
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setLocation('/admin')} 
-            data-testid="button-switch-to-base-app"
-          >
-            <Wine className="w-4 h-4 mr-2" />
-            Base App Admin
+            Return to Hub
           </Button>
           <Button 
             variant="outline" 

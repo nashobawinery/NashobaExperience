@@ -44,7 +44,8 @@ import {
   Image,
   Upload,
   Loader2,
-  ImageIcon
+  ImageIcon,
+  Home
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -570,12 +571,13 @@ export default function ComplianceAdminDashboard() {
         <div className="container flex h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => setLocation('/admin-hub')}
-              data-testid="button-back-to-hub"
+              variant="outline" 
+              size="sm"
+              onClick={() => setLocation('/admin')}
+              data-testid="button-return-hub"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <Home className="h-4 w-4 mr-2" />
+              Return to Hub
             </Button>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white">
               <Scale className="h-5 w-5" />

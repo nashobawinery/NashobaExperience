@@ -354,11 +354,12 @@ export default function LmsAdminDashboard() {
           <div className="flex items-center gap-4">
             <Button 
               variant="outline" 
-              size="icon" 
-              onClick={() => setLocation("/admin-hub")}
-              data-testid="button-back-to-hub"
+              size="sm" 
+              onClick={() => setLocation("/admin")}
+              data-testid="button-return-hub"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <Home className="h-4 w-4 mr-2" />
+              Return to Hub
             </Button>
             <div className="flex items-center gap-2">
               <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg">

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar, QrCode, Download, Printer, ExternalLink, Copy, Check, UserPlus, Trash2, Pencil } from "lucide-react";
+import { Plus, ClipboardList, Users, FileText, Settings, ChevronRight, Sunrise, Sunset, Calendar, QrCode, Download, Printer, ExternalLink, Copy, Check, UserPlus, Trash2, Pencil, Home } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -299,11 +299,22 @@ export default function ProceduresAdminDashboard() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Daily Procedures</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage opening, closing, and general task checklists for your team
-          </p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setLocation("/admin")}
+            data-testid="button-return-hub"
+          >
+            <Home className="w-4 h-4 mr-2" />
+            Return to Hub
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Daily Procedures</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage opening, closing, and general task checklists for your team
+            </p>
+          </div>
         </div>
         <Link href="/procedures/templates/new">
           <Button data-testid="button-create-procedure">
