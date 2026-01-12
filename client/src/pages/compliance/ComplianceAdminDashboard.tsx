@@ -45,7 +45,8 @@ import {
   Upload,
   Loader2,
   ImageIcon,
-  Home
+  Home,
+  Clipboard
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
@@ -475,6 +476,48 @@ export default function ComplianceAdminDashboard() {
       toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to upload screenshot", variant: "destructive" });
     } finally {
       setUploadingStepId(null);
+    }
+  };
+
+  const handlePasteScreenshot = async (stepId: string, stepIndex: number) => {
+    if (!selectedTask) {
+      toast({ title: "Error", description: "Please save the task first before adding screenshots", variant: "destructive" });
+      return;
+    }
+
+    const serverStep = selectedTask.steps?.find(s => s.id === stepId);
+    if (!serverStep) {
+      toast({ title: "Save Required", description: "Please save the task to persist this step before adding screenshots", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      let imageBlob: Blob | null = null;
+
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            imageBlob = await item.getType(type);
+            break;
+          }
+        }
+        if (imageBlob) break;
+      }
+
+      if (!imageBlob) {
+        toast({ title: "No Image Found", description: "No image found in clipboard. Copy a screenshot first (use Print Screen or Snipping Tool).", variant: "destructive" });
+        return;
+      }
+
+      const file = new File([imageBlob], `screenshot-${Date.now()}.png`, { type: imageBlob.type });
+      await handleUploadStepAttachment(stepId, stepIndex, file);
+    } catch (error: any) {
+      if (error.name === 'NotAllowedError') {
+        toast({ title: "Permission Denied", description: "Please allow clipboard access to paste screenshots.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: "Failed to paste from clipboard. Try using the upload button instead.", variant: "destructive" });
+      }
     }
   };
 
@@ -1112,44 +1155,58 @@ export default function ComplianceAdminDashboard() {
                               return <span className="text-xs text-amber-600">Save changes to enable screenshots for this step</span>;
                             }
                             return (
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file && step.id) {
-                                      handleUploadStepAttachment(step.id, index, file);
-                                    }
-                                    e.target.value = '';
-                                  }}
-                                  disabled={uploadingStepId === step.id}
-                                  data-testid={`input-upload-step-${index}`}
-                                />
+                              <div className="flex gap-1">
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   className="h-7"
                                   disabled={uploadingStepId === step.id}
-                                  asChild
+                                  onClick={() => step.id && handlePasteScreenshot(step.id, index)}
+                                  data-testid={`button-paste-step-${index}`}
                                 >
-                                  <span>
-                                    {uploadingStepId === step.id ? (
-                                      <>
-                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                        Uploading...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Upload className="w-3 h-3 mr-1" />
-                                        Add Screenshot
-                                      </>
-                                    )}
-                                  </span>
+                                  {uploadingStepId === step.id ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                      Uploading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clipboard className="w-3 h-3 mr-1" />
+                                      Paste Screenshot
+                                    </>
+                                  )}
                                 </Button>
-                              </label>
+                                <label className="cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file && step.id) {
+                                        handleUploadStepAttachment(step.id, index, file);
+                                      }
+                                      e.target.value = '';
+                                    }}
+                                    disabled={uploadingStepId === step.id}
+                                    data-testid={`input-upload-step-${index}`}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7"
+                                    disabled={uploadingStepId === step.id}
+                                    asChild
+                                  >
+                                    <span>
+                                      <Upload className="w-3 h-3 mr-1" />
+                                      Upload
+                                    </span>
+                                  </Button>
+                                </label>
+                              </div>
                             );
                           })()}
                         </div>
