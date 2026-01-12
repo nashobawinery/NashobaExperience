@@ -946,15 +946,19 @@ export default function ComplianceAdminDashboard() {
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
-                                  {task.assigned_to_email && (
-                                    <DropdownMenuItem 
-                                      onClick={() => sendReminderMutation.mutate(task.id)}
-                                      disabled={sendReminderMutation.isPending}
-                                    >
-                                      <Mail className="h-4 w-4 mr-2" />
-                                      Send Reminder
-                                    </DropdownMenuItem>
-                                  )}
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      if (!task.assigned_to_email) {
+                                        toast({ title: "No Email", description: "Set an assigned email first to send reminders", variant: "destructive" });
+                                        return;
+                                      }
+                                      sendReminderMutation.mutate(task.id);
+                                    }}
+                                    disabled={sendReminderMutation.isPending}
+                                  >
+                                    <Mail className="h-4 w-4 mr-2" />
+                                    Send Reminder Now
+                                  </DropdownMenuItem>
                                   {task.portal_url && (
                                     <DropdownMenuItem onClick={() => window.open(task.portal_url!, '_blank')}>
                                       <ExternalLink className="h-4 w-4 mr-2" />
@@ -1348,8 +1352,8 @@ export default function ComplianceAdminDashboard() {
                 <Label htmlFor="reminderDays">Email Reminder Days (before due date)</Label>
                 <Input
                   id="reminderDays"
-                  value={formData.reminderDays.join(', ')}
-                  onChange={(e) => {
+                  defaultValue={formData.reminderDays.join(', ')}
+                  onBlur={(e) => {
                     const days = e.target.value
                       .split(',')
                       .map(d => parseInt(d.trim()))
