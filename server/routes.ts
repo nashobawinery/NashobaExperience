@@ -7501,6 +7501,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.claims?.sub;
       const userName = req.user?.claims?.email || 'Admin';
       
+      // Handle arrays properly for PostgreSQL - empty arrays become null
+      const reminderDaysValue = parsed.data.reminderDays && parsed.data.reminderDays.length > 0 
+        ? parsed.data.reminderDays 
+        : null;
+      const tagsValue = parsed.data.tags && parsed.data.tags.length > 0 
+        ? parsed.data.tags 
+        : null;
+      
       const result = await db.execute(sql`
         INSERT INTO compliance_tasks (
           task_name, description, steps, category, subcategory, jurisdiction, regulatory_body,
@@ -7519,7 +7527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${parsed.data.recurrence || 'one_time'},
           ${parsed.data.customRecurrenceDays || null},
           ${parsed.data.dueDate || null},
-          ${parsed.data.reminderDays || null},
+          ${reminderDaysValue},
           ${parsed.data.assignedToName || null},
           ${parsed.data.assignedToEmail || null},
           ${userId || null},
@@ -7532,7 +7540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${parsed.data.estimatedCost || null},
           ${parsed.data.actualCost || null},
           ${parsed.data.penaltyAmount || null},
-          ${parsed.data.tags || null},
+          ${tagsValue},
           ${userId || null}
         ) RETURNING *
       `);
@@ -7673,15 +7681,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         setFragments.push(sql`completed_by_id = ${completedById}`);
       }
 
-      // Handle array fields - convert to PostgreSQL array format
-      if (updates.reminderDays !== undefined && Array.isArray(updates.reminderDays)) {
-        const arrayStr = `{${updates.reminderDays.join(',')}}`;
-        setFragments.push(sql`reminder_days = ${arrayStr}::integer[]`);
+      // Handle array fields - empty arrays become null
+      if (updates.reminderDays !== undefined) {
+        if (Array.isArray(updates.reminderDays) && updates.reminderDays.length > 0) {
+          setFragments.push(sql`reminder_days = ${updates.reminderDays}`);
+        } else {
+          setFragments.push(sql`reminder_days = NULL`);
+        }
       }
 
-      if (updates.tags !== undefined && Array.isArray(updates.tags)) {
-        const arrayStr = `{${updates.tags.map((t: string) => `"${t.replace(/"/g, '\\"')}"`).join(',')}}`;
-        setFragments.push(sql`tags = ${arrayStr}::text[]`);
+      if (updates.tags !== undefined) {
+        if (Array.isArray(updates.tags) && updates.tags.length > 0) {
+          setFragments.push(sql`tags = ${updates.tags}`);
+        } else {
+          setFragments.push(sql`tags = NULL`);
+        }
       }
 
       // Always update timestamp
