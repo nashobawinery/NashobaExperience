@@ -7501,12 +7501,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.claims?.sub;
       const userName = req.user?.claims?.email || 'Admin';
       
-      // Handle arrays properly for PostgreSQL - empty arrays become null
+      // Handle arrays properly for PostgreSQL - format as PostgreSQL array literals
       const reminderDaysValue = parsed.data.reminderDays && parsed.data.reminderDays.length > 0 
-        ? parsed.data.reminderDays 
+        ? `{${parsed.data.reminderDays.join(',')}}` 
         : null;
       const tagsValue = parsed.data.tags && parsed.data.tags.length > 0 
-        ? parsed.data.tags 
+        ? `{${parsed.data.tags.map((t: string) => `"${t.replace(/"/g, '\\"')}"`).join(',')}}` 
         : null;
       
       const result = await db.execute(sql`
