@@ -1528,6 +1528,24 @@ export const complianceAttachments = pgTable("compliance_attachments", {
   index("idx_compliance_attachments_task").on(table.taskId),
 ]);
 
+// Compliance Action Tokens - Secure one-time tokens for email-based task completion
+export const complianceActionTokens = pgTable("compliance_action_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => complianceTasks.id, { onDelete: 'cascade' }),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  action: text("action").notNull().default("complete"), // complete, acknowledge, etc.
+  recipientEmail: text("recipient_email").notNull(),
+  recipientName: text("recipient_name"),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  usedByName: text("used_by_name"),
+  usedByEmail: text("used_by_email"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_compliance_action_tokens_task").on(table.taskId),
+  index("idx_compliance_action_tokens_token").on(table.token),
+]);
+
 // ============================================
 // DEPARTMENT CALENDAR MODULE TABLES
 // ============================================
@@ -2018,6 +2036,8 @@ export type ComplianceReminder = typeof complianceReminders.$inferSelect;
 
 export type InsertComplianceAttachment = z.infer<typeof insertComplianceAttachmentSchema>;
 export type ComplianceAttachment = typeof complianceAttachments.$inferSelect;
+
+export type ComplianceActionToken = typeof complianceActionTokens.$inferSelect;
 
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type Department = typeof departments.$inferSelect;

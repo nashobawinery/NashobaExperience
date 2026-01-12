@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { randomUUID } from "crypto";
+import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
@@ -7760,15 +7760,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dueDate = task.due_date ? new Date(task.due_date) : null;
       const daysUntilDue = dueDate ? Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
+      // Generate secure completion token (72 hour expiry)
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+      
+      await db.execute(sql`
+        INSERT INTO compliance_action_tokens (task_id, token, action, recipient_email, recipient_name, expires_at)
+        VALUES (${id}, ${token}, 'complete', ${task.assigned_to_email}, ${task.assigned_to_name || null}, ${expiresAt})
+      `);
+      
+      // Build completion URL
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://localhost:5000';
+      const completionUrl = `${baseUrl}/compliance/complete?token=${token}`;
+
       const subject = `Compliance Reminder: ${task.task_name}`;
-      const html = generateComplianceReminderEmail(task, daysUntilDue);
+      const html = generateComplianceReminderEmail(task, daysUntilDue, completionUrl);
 
       const msg = {
         to: task.assigned_to_email,
         from: 'support@nasobawinery.com',
         subject,
         html,
-        text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}`
+        text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
       };
 
       await sgMail.send(msg);
@@ -11558,6 +11575,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public Form Endpoints (no auth required)
   // ===============================
 
+  // Complete compliance task via secure token (from email link)
+  app.get('/api/public/compliance/complete', async (req, res) => {
+    try {
+      const { token } = req.query;
+      
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ success: false, message: 'Invalid or missing token' });
+      }
+      
+      // Find the token
+      const tokenResult = await db.execute(sql`
+        SELECT cat.*, ct.task_name, ct.status as task_status
+        FROM compliance_action_tokens cat
+        JOIN compliance_tasks ct ON cat.task_id = ct.id
+        WHERE cat.token = ${token}
+      `);
+      
+      if (tokenResult.rows.length === 0) {
+        return res.json({ success: false, message: 'Invalid or expired token' });
+      }
+      
+      const actionToken = tokenResult.rows[0] as any;
+      
+      // Check if already used
+      if (actionToken.used_at) {
+        return res.json({ 
+          success: false, 
+          message: 'This task has already been marked as complete',
+          taskName: actionToken.task_name,
+          completedAt: actionToken.used_at,
+          completedBy: actionToken.used_by_name || actionToken.used_by_email
+        });
+      }
+      
+      // Check if expired
+      if (new Date(actionToken.expires_at) < new Date()) {
+        return res.json({ success: false, message: 'This link has expired. Please request a new reminder email.' });
+      }
+      
+      // Check if task is already completed
+      if (actionToken.task_status === 'completed') {
+        return res.json({ 
+          success: false, 
+          message: 'This task has already been completed',
+          taskName: actionToken.task_name
+        });
+      }
+      
+      // Mark the token as used
+      await db.execute(sql`
+        UPDATE compliance_action_tokens 
+        SET used_at = NOW(), 
+            used_by_email = ${actionToken.recipient_email},
+            used_by_name = ${actionToken.recipient_name || actionToken.recipient_email}
+        WHERE id = ${actionToken.id}
+      `);
+      
+      // Mark the task as completed
+      await db.execute(sql`
+        UPDATE compliance_tasks 
+        SET status = 'completed', 
+            completed_at = NOW(),
+            completion_notes = COALESCE(completion_notes, '') || 'Completed via email link by ' || ${actionToken.recipient_name || actionToken.recipient_email},
+            updated_at = NOW()
+        WHERE id = ${actionToken.task_id}
+      `);
+      
+      // Log the history
+      await db.execute(sql`
+        INSERT INTO compliance_task_history (task_id, changed_by_name, action, field_changed, new_value)
+        VALUES (${actionToken.task_id}, ${actionToken.recipient_name || actionToken.recipient_email}, 'status_change', 'status', 'completed')
+      `);
+      
+      res.json({ 
+        success: true, 
+        message: 'Task marked as complete!',
+        taskName: actionToken.task_name,
+        completedAt: new Date().toISOString(),
+        completedBy: actionToken.recipient_name || actionToken.recipient_email
+      });
+    } catch (error) {
+      console.error('Error completing compliance task via token:', error);
+      res.status(500).json({ success: false, message: 'Failed to complete task' });
+    }
+  });
+
   // Get all active departments from Daily Report templates (for staff work order form)
   app.get('/api/public/daily-reports/departments', async (req, res) => {
     try {
@@ -12395,7 +12498,7 @@ async function seedDailyReportTemplates(): Promise<void> {
 }
 
 // Helper function to generate compliance reminder email
-function generateComplianceReminderEmail(task: any, daysUntilDue: number | null): string {
+function generateComplianceReminderEmail(task: any, daysUntilDue: number | null, completionUrl?: string): string {
   const priorityColors: Record<string, string> = {
     low: '#22c55e',
     medium: '#f59e0b',
@@ -12469,6 +12572,13 @@ function generateComplianceReminderEmail(task: any, daysUntilDue: number | null)
     </div>
     
     <p>Please ensure this task is completed before the deadline to maintain compliance.</p>
+    
+    ${completionUrl ? `
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${completionUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Mark Task as Complete</a>
+      <p style="font-size: 12px; color: #666; margin-top: 10px;">Click the button above when you have completed this task</p>
+    </div>
+    ` : ''}
     
     <div class="footer">
       <p>Nashoba Valley Winery Compliance System</p>

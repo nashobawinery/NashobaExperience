@@ -33,6 +33,7 @@ const ExternalTrainingPage = lazy(() => import("@/pages/lms/ExternalTrainingPage
 
 // Lazy load Compliance module
 const ComplianceAdminDashboard = lazy(() => import("@/pages/compliance/ComplianceAdminDashboard"));
+const ComplianceComplete = lazy(() => import("@/pages/compliance/ComplianceComplete"));
 
 // Lazy load Department Calendar module
 const DepartmentCalendarDashboard = lazy(() => import("@/pages/department-calendar/DepartmentCalendarDashboard"));
@@ -408,6 +409,14 @@ function ComplianceAdminRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ComplianceAdminDashboard />
+    </Suspense>
+  );
+}
+
+function ComplianceCompleteRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ComplianceComplete />
     </Suspense>
   );
 }
@@ -906,6 +915,7 @@ function Router() {
         <Route path="/lms/admin" component={LmsAdminRoute} />
         <Route path="/training/:token" component={ExternalTrainingRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
+        <Route path="/compliance/complete" component={ComplianceCompleteRoute} />
         <Route path="/department-calendar" component={DepartmentCalendarRoute} />
         <Route path="/department-calendar/admin" component={DepartmentCalendarRoute} />
         <Route path="/maintenance" component={MaintenanceAdminRoute} />
