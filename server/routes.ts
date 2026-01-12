@@ -7681,10 +7681,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         setFragments.push(sql`completed_by_id = ${completedById}`);
       }
 
-      // Handle array fields - empty arrays become null
+      // Handle array fields - format as PostgreSQL array literals
       if (updates.reminderDays !== undefined) {
         if (Array.isArray(updates.reminderDays) && updates.reminderDays.length > 0) {
-          setFragments.push(sql`reminder_days = ${updates.reminderDays}`);
+          const arrayLiteral = `{${updates.reminderDays.join(',')}}`;
+          setFragments.push(sql`reminder_days = ${arrayLiteral}::integer[]`);
         } else {
           setFragments.push(sql`reminder_days = NULL`);
         }
@@ -7692,7 +7693,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (updates.tags !== undefined) {
         if (Array.isArray(updates.tags) && updates.tags.length > 0) {
-          setFragments.push(sql`tags = ${updates.tags}`);
+          const arrayLiteral = `{${updates.tags.join(',')}}`;
+          setFragments.push(sql`tags = ${arrayLiteral}::text[]`);
         } else {
           setFragments.push(sql`tags = NULL`);
         }
