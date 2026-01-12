@@ -7487,6 +7487,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Convert date strings to Date objects
+      if (cleanedBody.dueDate && typeof cleanedBody.dueDate === 'string') {
+        cleanedBody.dueDate = new Date(cleanedBody.dueDate);
+      }
+      
       const parsed = insertComplianceTaskSchema.safeParse(cleanedBody);
       if (!parsed.success) {
         console.error('Compliance task validation failed:', JSON.stringify(parsed.error.errors, null, 2));
