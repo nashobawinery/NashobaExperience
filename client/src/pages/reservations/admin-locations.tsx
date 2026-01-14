@@ -127,7 +127,7 @@ export default function AdminLocations() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => navigate("/admin")}
+            onClick={() => navigate("/")}
             data-testid="button-return-hub"
           >
             <Home className="h-4 w-4 mr-2" />

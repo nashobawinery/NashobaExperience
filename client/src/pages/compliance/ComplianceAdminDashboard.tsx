@@ -616,7 +616,7 @@ export default function ComplianceAdminDashboard() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setLocation('/admin')}
+              onClick={() => setLocation('/')}
               data-testid="button-return-hub"
             >
               <Home className="h-4 w-4 mr-2" />

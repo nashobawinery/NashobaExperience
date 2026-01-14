@@ -303,7 +303,7 @@ export default function ProceduresAdminDashboard() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setLocation("/admin")}
+            onClick={() => setLocation("/")}
             data-testid="button-return-hub"
           >
             <Home className="w-4 h-4 mr-2" />
