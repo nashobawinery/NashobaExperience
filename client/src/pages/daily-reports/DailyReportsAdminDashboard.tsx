@@ -4847,7 +4847,7 @@ export default function DailyReportsAdminDashboard() {
           </DialogHeader>
           
           {previewingTemplate && (
-            <ScrollArea className="flex-1 pr-4">
+            <ScrollArea className="flex-1 max-h-[60vh] pr-4">
               <div className="space-y-6 py-4">
                 <div className="bg-muted/50 rounded-lg p-4 border">
                   <h3 className="font-medium text-sm text-muted-foreground mb-3">REPORT FIELDS</h3>
