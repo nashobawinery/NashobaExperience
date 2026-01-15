@@ -1005,6 +1005,9 @@ export default function DailyReportsAdminDashboard() {
   const [managingIncident, setManagingIncident] = useState<DailyReportIncident | null>(null);
   const [newIncidentNote, setNewIncidentNote] = useState("");
 
+  // Template preview state
+  const [previewingTemplate, setPreviewingTemplate] = useState<DailyReportTemplate | null>(null);
+
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
   });
@@ -2859,14 +2862,24 @@ export default function DailyReportsAdminDashboard() {
                               </CardDescription>
                             </div>
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleEditDepartment(template)}
-                            data-testid={`button-edit-template-${template.department}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => setPreviewingTemplate(template)}
+                              data-testid={`button-preview-template-${template.department}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleEditDepartment(template)}
+                              data-testid={`button-edit-template-${template.department}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="border-b pb-3">
@@ -4815,6 +4828,154 @@ export default function DailyReportsAdminDashboard() {
               data-testid="button-submit-revision-request"
             >
               {createRevisionRequestMutation.isPending ? "Sending..." : "Send Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Preview Dialog */}
+      <Dialog open={!!previewingTemplate} onOpenChange={(open) => !open && setPreviewingTemplate(null)}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Template Preview: {previewingTemplate?.departmentLabel}
+            </DialogTitle>
+            <DialogDescription>
+              This is how the daily report form will appear to staff members
+            </DialogDescription>
+          </DialogHeader>
+          
+          {previewingTemplate && (
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-6 py-4">
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-3">REPORT FIELDS</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {(allFieldAssignments[previewingTemplate.id] || [])
+                      .filter(a => a.isEnabled)
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map(assignment => (
+                        <div key={assignment.fieldDefinitionId} className="space-y-1">
+                          <Label className="text-sm">{assignment.fieldDefinition?.label || 'Unknown Field'}</Label>
+                          <Input 
+                            placeholder={`Enter ${assignment.fieldDefinition?.label?.toLowerCase() || 'value'}...`}
+                            disabled 
+                            className="bg-background"
+                          />
+                        </div>
+                      ))}
+                  </div>
+                  {(allFieldAssignments[previewingTemplate.id] || []).filter(a => a.isEnabled).length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">No fields enabled for this template</p>
+                  )}
+                </div>
+
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-3">PROCEDURE CHECKLISTS</h3>
+                  {(() => {
+                    const procedures = getProceduresForDepartment(previewingTemplate.department);
+                    const openingProcs = procedures.filter(p => p.procedureType === 'opening');
+                    const closingProcs = procedures.filter(p => p.procedureType === 'closing');
+                    const generalProcs = procedures.filter(p => p.procedureType === 'general');
+                    
+                    if (procedures.length === 0) {
+                      return <p className="text-sm text-muted-foreground italic">No procedures configured for this template</p>;
+                    }
+                    
+                    return (
+                      <div className="space-y-4">
+                        {openingProcs.length > 0 && (
+                          <div>
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 mb-2">Opening</Badge>
+                            <div className="space-y-2 ml-2">
+                              {openingProcs.map(proc => (
+                                <label key={proc.id} className="flex items-center gap-2">
+                                  <Checkbox disabled />
+                                  <span className="text-sm">{proc.procedureName}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {closingProcs.length > 0 && (
+                          <div>
+                            <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100 mb-2">Closing</Badge>
+                            <div className="space-y-2 ml-2">
+                              {closingProcs.map(proc => (
+                                <label key={proc.id} className="flex items-center gap-2">
+                                  <Checkbox disabled />
+                                  <span className="text-sm">{proc.procedureName}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {generalProcs.length > 0 && (
+                          <div>
+                            <Badge variant="secondary" className="mb-2">General</Badge>
+                            <div className="space-y-2 ml-2">
+                              {generalProcs.map(proc => (
+                                <label key={proc.id} className="flex items-center gap-2">
+                                  <Checkbox disabled />
+                                  <span className="text-sm">{proc.procedureName}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-3">NOTES SECTIONS</h3>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm">Customer Service Summary</Label>
+                      <Textarea placeholder="Enter customer service notes..." disabled className="bg-background resize-none" rows={2} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm">Operational Notes</Label>
+                      <Textarea placeholder="Enter operational notes..." disabled className="bg-background resize-none" rows={2} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm">Staffing Notes</Label>
+                      <Textarea placeholder="Enter staffing notes..." disabled className="bg-background resize-none" rows={2} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-muted/50 rounded-lg p-4 border">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-3">NOTIFICATION RECIPIENTS</h3>
+                  {(previewingTemplate.notificationEmails?.length || 0) > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {previewingTemplate.notificationEmails?.map((email, idx) => (
+                        <Badge key={idx} variant="outline" className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          {email.email}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No notification recipients configured</p>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewingTemplate(null)} data-testid="button-close-preview">
+              Close Preview
+            </Button>
+            <Button onClick={() => {
+              setPreviewingTemplate(null);
+              if (previewingTemplate) handleEditDepartment(previewingTemplate);
+            }} data-testid="button-edit-from-preview">
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Template
             </Button>
           </DialogFooter>
         </DialogContent>
