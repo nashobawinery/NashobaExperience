@@ -17,7 +17,8 @@ import {
   BookOpen,
   Globe,
   AlertCircle,
-  Pencil
+  Pencil,
+  BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -440,6 +441,14 @@ export default function SupportAdminDashboard() {
             >
               <BookOpen className="h-4 w-4 mr-2" />
               Knowledge Base
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/admin/support/analytics")}
+              data-testid="button-analytics"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
             </Button>
           </div>
         </div>

@@ -66,9 +66,11 @@ const StaffDashboardAdmin = lazy(() => import("@/pages/StaffDashboardAdmin"));
 // Lazy load Customer Support module
 const SupportAdminDashboard = lazy(() => import("@/pages/support/SupportAdminDashboard"));
 const SupportKnowledgeBase = lazy(() => import("@/pages/support/SupportKnowledgeBase"));
+const SupportAnalytics = lazy(() => import("@/pages/support/SupportAnalytics"));
 const SupportWidget = lazy(() => import("@/pages/support/SupportWidget"));
 const SupportContactForm = lazy(() => import("@/pages/support/SupportContactForm"));
 const FAQPage = lazy(() => import("@/pages/support/FAQPage"));
+const FAQWidgetPage = lazy(() => import("@/pages/support/FAQWidgetPage"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
@@ -441,6 +443,32 @@ function FAQPageRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <FAQPage />
+    </Suspense>
+  );
+}
+
+function FAQWidgetPageRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <FAQWidgetPage />
+    </Suspense>
+  );
+}
+
+function SupportAnalyticsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SupportAnalytics />
     </Suspense>
   );
 }
@@ -969,6 +997,8 @@ function Router() {
         <Route path="/support/widget" component={SupportWidgetRoute} />
         <Route path="/contact" component={SupportContactFormRoute} />
         <Route path="/faq" component={FAQPageRoute} />
+        <Route path="/faq-widget" component={FAQWidgetPageRoute} />
+        <Route path="/admin/support/analytics" component={SupportAnalyticsRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
