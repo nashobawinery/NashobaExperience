@@ -385,14 +385,6 @@ export default function SupportAdminDashboard() {
               <BookOpen className="h-4 w-4 mr-2" />
               Knowledge Base
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/support/settings")}
-              data-testid="button-settings"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
           </div>
         </div>
       </header>
