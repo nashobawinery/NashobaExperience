@@ -13029,6 +13029,199 @@ ${webSourcesContext}`
     }
   });
 
+  // ============ Knowledge Base - Categories ============
+  app.get('/api/admin/support/categories', isAdmin, async (req, res) => {
+    try {
+      const categories = await storage.getSupportCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.post('/api/admin/support/categories', isAdmin, async (req, res) => {
+    try {
+      const category = await storage.createSupportCategory(req.body);
+      res.json(category);
+    } catch (error) {
+      console.error('Error creating category:', error);
+      res.status(500).json({ message: 'Failed to create category' });
+    }
+  });
+
+  app.patch('/api/admin/support/categories/:id', isAdmin, async (req, res) => {
+    try {
+      const category = await storage.updateSupportCategory(req.params.id, req.body);
+      if (!category) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+      res.json(category);
+    } catch (error) {
+      console.error('Error updating category:', error);
+      res.status(500).json({ message: 'Failed to update category' });
+    }
+  });
+
+  app.delete('/api/admin/support/categories/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportCategory(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      res.status(500).json({ message: 'Failed to delete category' });
+    }
+  });
+
+  // ============ Knowledge Base - Articles ============
+  app.get('/api/admin/support/articles', isAdmin, async (req, res) => {
+    try {
+      const { status, categoryId } = req.query;
+      const articles = await storage.getSupportArticles({
+        status: status as string | undefined,
+        categoryId: categoryId as string | undefined
+      });
+      res.json(articles);
+    } catch (error) {
+      console.error('Error fetching articles:', error);
+      res.status(500).json({ message: 'Failed to fetch articles' });
+    }
+  });
+
+  app.get('/api/admin/support/articles/:id', isAdmin, async (req, res) => {
+    try {
+      const article = await storage.getSupportArticle(req.params.id);
+      if (!article) {
+        return res.status(404).json({ message: 'Article not found' });
+      }
+      res.json(article);
+    } catch (error) {
+      console.error('Error fetching article:', error);
+      res.status(500).json({ message: 'Failed to fetch article' });
+    }
+  });
+
+  app.post('/api/admin/support/articles', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { tagIds, ...articleData } = req.body;
+      const article = await storage.createSupportArticle({
+        ...articleData,
+        createdById: user?.id,
+        createdByName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      }, tagIds);
+      res.json(article);
+    } catch (error) {
+      console.error('Error creating article:', error);
+      res.status(500).json({ message: 'Failed to create article' });
+    }
+  });
+
+  app.patch('/api/admin/support/articles/:id', isAdmin, async (req, res) => {
+    try {
+      const { tagIds, ...articleData } = req.body;
+      const article = await storage.updateSupportArticle(req.params.id, articleData, tagIds);
+      if (!article) {
+        return res.status(404).json({ message: 'Article not found' });
+      }
+      res.json(article);
+    } catch (error) {
+      console.error('Error updating article:', error);
+      res.status(500).json({ message: 'Failed to update article' });
+    }
+  });
+
+  app.delete('/api/admin/support/articles/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportArticle(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting article:', error);
+      res.status(500).json({ message: 'Failed to delete article' });
+    }
+  });
+
+  // ============ Knowledge Base - Tags ============
+  app.get('/api/admin/support/tags', isAdmin, async (req, res) => {
+    try {
+      const tags = await storage.getSupportTags();
+      res.json(tags);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      res.status(500).json({ message: 'Failed to fetch tags' });
+    }
+  });
+
+  app.post('/api/admin/support/tags', isAdmin, async (req, res) => {
+    try {
+      const tag = await storage.createSupportTag(req.body);
+      res.json(tag);
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      res.status(500).json({ message: 'Failed to create tag' });
+    }
+  });
+
+  app.patch('/api/admin/support/tags/:id', isAdmin, async (req, res) => {
+    try {
+      const tag = await storage.updateSupportTag(req.params.id, req.body);
+      if (!tag) {
+        return res.status(404).json({ message: 'Tag not found' });
+      }
+      res.json(tag);
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      res.status(500).json({ message: 'Failed to update tag' });
+    }
+  });
+
+  app.delete('/api/admin/support/tags/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportTag(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      res.status(500).json({ message: 'Failed to delete tag' });
+    }
+  });
+
+  // ============ Public FAQ API ============
+  app.get('/api/public/faq', async (req, res) => {
+    try {
+      const faqData = await storage.getPublicFAQArticles();
+      res.json(faqData);
+    } catch (error) {
+      console.error('Error fetching FAQ:', error);
+      res.status(500).json({ message: 'Failed to fetch FAQ' });
+    }
+  });
+
+  app.get('/api/public/articles/:slug', async (req, res) => {
+    try {
+      const article = await storage.getSupportArticleBySlug(req.params.slug);
+      if (!article || article.status !== 'published' || !article.isPublic) {
+        return res.status(404).json({ message: 'Article not found' });
+      }
+      // Increment view count
+      await storage.incrementArticleViewCount(article.id);
+      res.json(article);
+    } catch (error) {
+      console.error('Error fetching article:', error);
+      res.status(500).json({ message: 'Failed to fetch article' });
+    }
+  });
+
+  app.post('/api/public/articles/:id/feedback', async (req, res) => {
+    try {
+      const { helpful } = req.body;
+      await storage.recordArticleFeedback(req.params.id, helpful);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error recording feedback:', error);
+      res.status(500).json({ message: 'Failed to record feedback' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
 
