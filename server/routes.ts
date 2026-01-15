@@ -12534,6 +12534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerEmail: email || null,
         customerName: name || null,
         subject,
+        initialMessage,
         status: 'new',
         metadata: metadata || null
       });

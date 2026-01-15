@@ -20,7 +20,6 @@ const ModuleDirectory = lazy(() => import("@/pages/ModuleDirectory"));
 const AccessControl = lazy(() => import("@/pages/AccessControl"));
 const ModuleManagement = lazy(() => import("@/pages/ModuleManagement"));
 const ProceduresComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.ProceduresComingSoon })));
-const SupportComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.SupportComingSoon })));
 const AppleGameComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.AppleGameComingSoon })));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
@@ -63,6 +62,11 @@ const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInve
 // Lazy load Staff Dashboard
 const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
 const StaffDashboardAdmin = lazy(() => import("@/pages/StaffDashboardAdmin"));
+
+// Lazy load Customer Support module
+const SupportAdminDashboard = lazy(() => import("@/pages/support/SupportAdminDashboard"));
+const SupportKnowledgeBase = lazy(() => import("@/pages/support/SupportKnowledgeBase"));
+const SupportWidget = lazy(() => import("@/pages/support/SupportWidget"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
@@ -379,10 +383,46 @@ function StaffWorkOrderRoute() {
   );
 }
 
-function SupportComingSoonRoute() {
+function SupportAdminRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
   return (
     <Suspense fallback={<PageLoader />}>
-      <SupportComingSoon />
+      <SupportAdminDashboard />
+    </Suspense>
+  );
+}
+
+function SupportKnowledgeBaseRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SupportKnowledgeBase />
+    </Suspense>
+  );
+}
+
+function SupportWidgetRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SupportWidget />
     </Suspense>
   );
 }
@@ -905,8 +945,10 @@ function Router() {
         <Route path="/procedures/staff" component={StaffProceduresRoute} />
         <Route path="/staff" component={StaffPortalRoute} />
         <Route path="/staff/work-order" component={StaffWorkOrderRoute} />
-        <Route path="/support" component={SupportComingSoonRoute} />
-        <Route path="/support/admin" component={SupportComingSoonRoute} />
+        <Route path="/support" component={SupportAdminRoute} />
+        <Route path="/support/admin" component={SupportAdminRoute} />
+        <Route path="/support/knowledge-base" component={SupportKnowledgeBaseRoute} />
+        <Route path="/support/widget" component={SupportWidgetRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />

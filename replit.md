@@ -33,6 +33,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, and granular feature permissions.
 - **Module Management**: Admin UI for managing platform module metadata.
+- **Customer Support Module**: AI-powered customer support chatbot with knowledge base management. Features include: public chat widget for customers, admin dashboard for managing support requests, canned responses and web sources for training the AI, OpenAI GPT-4o-mini integration for intelligent responses, conversation history and status tracking.
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Independent module concerns within a monolithic structure.
