@@ -12517,6 +12517,389 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // CUSTOMER SUPPORT MODULE ROUTES
+  // ============================================
+
+  // Public: Create a new support request (starts a conversation)
+  app.post('/api/support/requests', async (req, res) => {
+    try {
+      const { email, name, subject, initialMessage, metadata } = req.body;
+      
+      if (!subject || !initialMessage) {
+        return res.status(400).json({ message: 'Subject and initial message are required' });
+      }
+
+      const request = await storage.createSupportRequest({
+        customerEmail: email || null,
+        customerName: name || null,
+        subject,
+        status: 'new',
+        metadata: metadata || null
+      });
+
+      // Create the initial customer message
+      await storage.createSupportMessage({
+        requestId: request.id,
+        content: initialMessage,
+        senderType: 'customer',
+        senderName: name || 'Anonymous',
+        senderEmail: email || null
+      });
+
+      res.json(request);
+    } catch (error) {
+      console.error('Error creating support request:', error);
+      res.status(500).json({ message: 'Failed to create support request' });
+    }
+  });
+
+  // Public: Get a support request with messages (by ID)
+  app.get('/api/support/requests/:id', async (req, res) => {
+    try {
+      const request = await storage.getSupportRequestWithMessages(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+      res.json(request);
+    } catch (error) {
+      console.error('Error fetching support request:', error);
+      res.status(500).json({ message: 'Failed to fetch support request' });
+    }
+  });
+
+  // Public: Add a customer message to an existing request
+  app.post('/api/support/requests/:id/messages', async (req, res) => {
+    try {
+      const { content, senderName, senderEmail } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ message: 'Message content is required' });
+      }
+
+      const request = await storage.getSupportRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+
+      const message = await storage.createSupportMessage({
+        requestId: req.params.id,
+        content,
+        senderType: 'customer',
+        senderName: senderName || 'Anonymous',
+        senderEmail: senderEmail || null
+      });
+
+      // Update request status to indicate new customer message
+      await storage.updateSupportRequest(req.params.id, { status: 'customer_replied' });
+
+      res.json(message);
+    } catch (error) {
+      console.error('Error adding support message:', error);
+      res.status(500).json({ message: 'Failed to add message' });
+    }
+  });
+
+  // Public: Generate AI response for a support request
+  app.post('/api/support/requests/:id/ai-response', async (req, res) => {
+    try {
+      const request = await storage.getSupportRequestWithMessages(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+
+      // Get knowledge base (canned responses + web sources)
+      const cannedResponses = await storage.getSupportCannedResponses(true);
+      const webSources = await storage.getSupportWebSources(true);
+      const settings = await storage.getSupportSettings();
+
+      // Build context for AI
+      const knowledgeBaseContext = cannedResponses.map(r => 
+        `Topic: ${r.title}\nKeywords: ${r.keywords?.join(', ') || ''}\nResponse: ${r.content}`
+      ).join('\n\n---\n\n');
+
+      const webSourcesContext = webSources.map(s => 
+        `Source: ${s.title}\nURL: ${s.url}\nContent: ${s.content || 'No content extracted'}`
+      ).join('\n\n---\n\n');
+
+      const conversationHistory = request.messages.map(m => 
+        `${m.senderType === 'customer' ? 'Customer' : m.senderType === 'bot' ? 'AI Assistant' : 'Support Agent'}: ${m.content}`
+      ).join('\n\n');
+
+      // Get AI system prompt from settings
+      const systemPromptSetting = settings.find(s => s.settingKey === 'ai_system_prompt');
+      const systemPrompt = systemPromptSetting?.settingValue || 
+        `You are a helpful customer support assistant for Nashoba Valley Winery. Be friendly, professional, and helpful. Answer questions based on the knowledge base provided. If you don't know the answer, politely say so and offer to connect the customer with a human agent.`;
+
+      // Call OpenAI
+      const openai = (await import('openai')).default;
+      const client = new openai();
+      
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: `${systemPrompt}
+
+KNOWLEDGE BASE:
+${knowledgeBaseContext}
+
+WEBSITE INFORMATION:
+${webSourcesContext}` 
+          },
+          { 
+            role: 'user', 
+            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message.` 
+          }
+        ],
+        max_tokens: 500
+      });
+
+      const aiResponse = completion.choices[0]?.message?.content;
+      
+      if (!aiResponse) {
+        throw new Error('No response from AI');
+      }
+
+      // Save the AI response as a bot message
+      const message = await storage.createSupportMessage({
+        requestId: req.params.id,
+        content: aiResponse,
+        senderType: 'bot',
+        senderName: 'AI Assistant'
+      });
+
+      res.json({ message, aiResponse });
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      res.status(500).json({ message: 'Failed to generate AI response' });
+    }
+  });
+
+  // Admin: Get all support requests
+  app.get('/api/admin/support/requests', isAdmin, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      
+      const requests = await storage.getSupportRequests({ status, limit });
+      res.json(requests);
+    } catch (error) {
+      console.error('Error fetching support requests:', error);
+      res.status(500).json({ message: 'Failed to fetch support requests' });
+    }
+  });
+
+  // Admin: Get a single support request with messages
+  app.get('/api/admin/support/requests/:id', isAdmin, async (req, res) => {
+    try {
+      const request = await storage.getSupportRequestWithMessages(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+      res.json(request);
+    } catch (error) {
+      console.error('Error fetching support request:', error);
+      res.status(500).json({ message: 'Failed to fetch support request' });
+    }
+  });
+
+  // Admin: Update support request (assign, change status, etc.)
+  app.patch('/api/admin/support/requests/:id', isAdmin, async (req, res) => {
+    try {
+      const request = await storage.updateSupportRequest(req.params.id, req.body);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+      res.json(request);
+    } catch (error) {
+      console.error('Error updating support request:', error);
+      res.status(500).json({ message: 'Failed to update support request' });
+    }
+  });
+
+  // Admin: Close a support request
+  app.post('/api/admin/support/requests/:id/close', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const request = await storage.closeSupportRequest(
+        req.params.id, 
+        user?.id || 'unknown',
+        user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      );
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+      res.json(request);
+    } catch (error) {
+      console.error('Error closing support request:', error);
+      res.status(500).json({ message: 'Failed to close support request' });
+    }
+  });
+
+  // Admin: Send a message as an agent
+  app.post('/api/admin/support/requests/:id/messages', isAdmin, async (req, res) => {
+    try {
+      const { content } = req.body;
+      const user = req.user as any;
+      
+      if (!content) {
+        return res.status(400).json({ message: 'Message content is required' });
+      }
+
+      const request = await storage.getSupportRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+
+      const message = await storage.createSupportMessage({
+        requestId: req.params.id,
+        content,
+        senderType: 'agent',
+        senderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Support Agent',
+        senderEmail: user?.email
+      });
+
+      res.json(message);
+    } catch (error) {
+      console.error('Error adding agent message:', error);
+      res.status(500).json({ message: 'Failed to add message' });
+    }
+  });
+
+  // Admin: Get all canned responses
+  app.get('/api/admin/support/canned-responses', isAdmin, async (req, res) => {
+    try {
+      const responses = await storage.getSupportCannedResponses();
+      res.json(responses);
+    } catch (error) {
+      console.error('Error fetching canned responses:', error);
+      res.status(500).json({ message: 'Failed to fetch canned responses' });
+    }
+  });
+
+  // Admin: Create a canned response
+  app.post('/api/admin/support/canned-responses', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const response = await storage.createSupportCannedResponse({
+        ...req.body,
+        createdById: user?.id,
+        createdByName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      });
+      res.json(response);
+    } catch (error) {
+      console.error('Error creating canned response:', error);
+      res.status(500).json({ message: 'Failed to create canned response' });
+    }
+  });
+
+  // Admin: Update a canned response
+  app.patch('/api/admin/support/canned-responses/:id', isAdmin, async (req, res) => {
+    try {
+      const response = await storage.updateSupportCannedResponse(req.params.id, req.body);
+      if (!response) {
+        return res.status(404).json({ message: 'Canned response not found' });
+      }
+      res.json(response);
+    } catch (error) {
+      console.error('Error updating canned response:', error);
+      res.status(500).json({ message: 'Failed to update canned response' });
+    }
+  });
+
+  // Admin: Delete a canned response
+  app.delete('/api/admin/support/canned-responses/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportCannedResponse(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting canned response:', error);
+      res.status(500).json({ message: 'Failed to delete canned response' });
+    }
+  });
+
+  // Admin: Get all web sources
+  app.get('/api/admin/support/web-sources', isAdmin, async (req, res) => {
+    try {
+      const sources = await storage.getSupportWebSources();
+      res.json(sources);
+    } catch (error) {
+      console.error('Error fetching web sources:', error);
+      res.status(500).json({ message: 'Failed to fetch web sources' });
+    }
+  });
+
+  // Admin: Create a web source
+  app.post('/api/admin/support/web-sources', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const source = await storage.createSupportWebSource({
+        ...req.body,
+        createdById: user?.id,
+        createdByName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      });
+      res.json(source);
+    } catch (error) {
+      console.error('Error creating web source:', error);
+      res.status(500).json({ message: 'Failed to create web source' });
+    }
+  });
+
+  // Admin: Update a web source
+  app.patch('/api/admin/support/web-sources/:id', isAdmin, async (req, res) => {
+    try {
+      const source = await storage.updateSupportWebSource(req.params.id, req.body);
+      if (!source) {
+        return res.status(404).json({ message: 'Web source not found' });
+      }
+      res.json(source);
+    } catch (error) {
+      console.error('Error updating web source:', error);
+      res.status(500).json({ message: 'Failed to update web source' });
+    }
+  });
+
+  // Admin: Delete a web source
+  app.delete('/api/admin/support/web-sources/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportWebSource(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting web source:', error);
+      res.status(500).json({ message: 'Failed to delete web source' });
+    }
+  });
+
+  // Admin: Get support settings
+  app.get('/api/admin/support/settings', isAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getSupportSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error('Error fetching support settings:', error);
+      res.status(500).json({ message: 'Failed to fetch support settings' });
+    }
+  });
+
+  // Admin: Update a support setting
+  app.put('/api/admin/support/settings/:key', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const setting = await storage.upsertSupportSetting(
+        req.params.key,
+        req.body.value,
+        user?.id,
+        user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      );
+      res.json(setting);
+    } catch (error) {
+      console.error('Error updating support setting:', error);
+      res.status(500).json({ message: 'Failed to update support setting' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
 
