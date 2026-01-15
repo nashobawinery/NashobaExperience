@@ -984,6 +984,9 @@ export default function DailyReportsAdminDashboard() {
   const [inlineEditingEmailsTemplateId, setInlineEditingEmailsTemplateId] = useState<string | null>(null);
   const [inlineEmailsText, setInlineEmailsText] = useState("");
   
+  // Sort order editing state - tracks temp values while user is typing
+  const [editingSortOrder, setEditingSortOrder] = useState<{ fieldId: string; templateId: string; value: string } | null>(null);
+  
   const [isProcedureTemplateDialogOpen, setIsProcedureTemplateDialogOpen] = useState(false);
   const [editingProcedureTemplate, setEditingProcedureTemplate] = useState<DailyProcedureTemplate | null>(null);
   const [procedureTemplateFormData, setProcedureTemplateFormData] = useState({
@@ -3033,14 +3036,49 @@ export default function DailyReportsAdminDashboard() {
                                     <Input
                                       type="number"
                                       min="0"
-                                      value={assignment.sortOrder}
+                                      value={
+                                        editingSortOrder?.fieldId === assignment.fieldDefinitionId && 
+                                        editingSortOrder?.templateId === template.id
+                                          ? editingSortOrder.value
+                                          : assignment.sortOrder
+                                      }
                                       onChange={(e) => {
-                                        const newOrder = parseInt(e.target.value) || 0;
-                                        updateFieldSortOrderMutation.mutate({
+                                        setEditingSortOrder({
+                                          fieldId: assignment.fieldDefinitionId,
                                           templateId: template.id,
-                                          fieldDefinitionId: assignment.fieldDefinitionId,
-                                          sortOrder: newOrder
+                                          value: e.target.value
                                         });
+                                      }}
+                                      onFocus={(e) => {
+                                        e.target.select();
+                                        setEditingSortOrder({
+                                          fieldId: assignment.fieldDefinitionId,
+                                          templateId: template.id,
+                                          value: String(assignment.sortOrder)
+                                        });
+                                      }}
+                                      onBlur={() => {
+                                        if (editingSortOrder && 
+                                            editingSortOrder.fieldId === assignment.fieldDefinitionId &&
+                                            editingSortOrder.templateId === template.id) {
+                                          const newOrder = parseInt(editingSortOrder.value) || 0;
+                                          if (newOrder !== assignment.sortOrder) {
+                                            updateFieldSortOrderMutation.mutate({
+                                              templateId: template.id,
+                                              fieldDefinitionId: assignment.fieldDefinitionId,
+                                              sortOrder: newOrder
+                                            });
+                                          }
+                                          setEditingSortOrder(null);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.currentTarget.blur();
+                                        } else if (e.key === 'Escape') {
+                                          setEditingSortOrder(null);
+                                          e.currentTarget.blur();
+                                        }
                                       }}
                                       className="w-16 h-7 text-center text-sm"
                                       disabled={updateFieldSortOrderMutation.isPending}
