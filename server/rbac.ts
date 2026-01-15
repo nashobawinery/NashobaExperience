@@ -1152,7 +1152,7 @@ export async function seedPlatformModules(): Promise<void> {
       icon: 'MessageCircle',
       color: 'bg-violet-500',
       routePrefix: '/support',
-      status: 'development',
+      status: 'active',
       sortOrder: 16
     },
     {
