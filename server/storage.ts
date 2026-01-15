@@ -5024,7 +5024,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async updateSupportWebSource(id: string, data: Partial<InsertSupportWebSource>): Promise<SupportWebSource | undefined> {
+  async updateSupportWebSource(id: string, data: Partial<InsertSupportWebSource> & { lastFetchedAt?: Date }): Promise<SupportWebSource | undefined> {
     const [result] = await db.update(supportWebSources)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(supportWebSources.id, id))

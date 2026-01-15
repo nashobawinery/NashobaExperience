@@ -11,7 +11,9 @@ import {
   Globe, 
   Search,
   Check,
-  X
+  X,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -384,6 +386,24 @@ function WebSourcesTab() {
     },
   });
 
+  const [fetchingId, setFetchingId] = useState<string | null>(null);
+  const fetchMutation = useMutation({
+    mutationFn: async (id: string) => {
+      setFetchingId(id);
+      const response = await apiRequest("POST", `/api/admin/support/web-sources/${id}/fetch`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/web-sources"] });
+      setFetchingId(null);
+      toast({ title: "Content fetched", description: `Retrieved ${data.contentLength?.toLocaleString() || 0} characters` });
+    },
+    onError: (error: any) => {
+      setFetchingId(null);
+      toast({ title: "Failed to fetch content", description: error?.message || "Could not retrieve page content", variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       title: "",
@@ -460,6 +480,22 @@ function WebSourcesTab() {
                     </a>
                   </div>
                   <div className="flex gap-1">
+                    {source.url && (
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        onClick={() => fetchMutation.mutate(source.id)}
+                        disabled={fetchingId === source.id}
+                        title="Fetch content from URL"
+                        data-testid={`button-fetch-source-${source.id}`}
+                      >
+                        {fetchingId === source.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                     <Button size="icon" variant="ghost" onClick={() => openEditDialog(source)} data-testid={`button-edit-source-${source.id}`}>
                       <Edit2 className="h-4 w-4" />
                     </Button>
@@ -469,11 +505,18 @@ function WebSourcesTab() {
                   </div>
                 </div>
               </CardHeader>
-              {source.content && (
-                <CardContent>
+              <CardContent className="pt-0">
+                {source.lastFetchedAt && (
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Last fetched: {format(new Date(source.lastFetchedAt), "MMM d, yyyy 'at' h:mm a")}
+                  </p>
+                )}
+                {source.content ? (
                   <p className="text-sm text-muted-foreground line-clamp-2">{source.content}</p>
-                </CardContent>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No content yet - click the refresh icon to fetch</p>
+                )}
+              </CardContent>
             </Card>
           ))}
         </div>

@@ -12535,8 +12535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerName: name || null,
         subject,
         initialMessage,
-        status: 'new',
-        metadata: metadata || null
+        status: 'new'
       });
 
       // Create the initial customer message
@@ -12544,8 +12543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requestId: request.id,
         content: initialMessage,
         senderType: 'customer',
-        senderName: name || 'Anonymous',
-        senderEmail: email || null
+        senderName: name || 'Anonymous'
       });
 
       res.json(request);
@@ -12587,8 +12585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requestId: req.params.id,
         content,
         senderType: 'customer',
-        senderName: senderName || 'Anonymous',
-        senderEmail: senderEmail || null
+        senderName: senderName || 'Anonymous'
       });
 
       // Update request status to indicate new customer message
@@ -12616,7 +12613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Build context for AI
       const knowledgeBaseContext = cannedResponses.map(r => 
-        `Topic: ${r.title}\nKeywords: ${r.keywords?.join(', ') || ''}\nResponse: ${r.content}`
+        `Topic: ${r.title}\nKeywords: ${r.keywords?.join(', ') || ''}\nResponse: ${r.answer}`
       ).join('\n\n---\n\n');
 
       const webSourcesContext = webSources.map(s => 
@@ -12759,7 +12756,7 @@ ${webSourcesContext}`
         content,
         senderType: 'agent',
         senderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Support Agent',
-        senderEmail: user?.email
+        senderId: user?.id
       });
 
       res.json(message);
@@ -12870,6 +12867,137 @@ ${webSourcesContext}`
     } catch (error) {
       console.error('Error deleting web source:', error);
       res.status(500).json({ message: 'Failed to delete web source' });
+    }
+  });
+
+  // Admin: Fetch/crawl content from a web source URL
+  app.post('/api/admin/support/web-sources/:id/fetch', isAdmin, async (req, res) => {
+    try {
+      const source = await storage.getSupportWebSource(req.params.id);
+      if (!source) {
+        return res.status(404).json({ message: 'Web source not found' });
+      }
+
+      if (!source.url) {
+        return res.status(400).json({ message: 'No URL specified for this web source' });
+      }
+
+      // Validate URL - only allow https for security
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(source.url);
+        if (parsedUrl.protocol !== 'https:') {
+          return res.status(400).json({ message: 'Only HTTPS URLs are allowed for security' });
+        }
+        
+        // Comprehensive SSRF protection - block private/reserved addresses
+        const hostname = parsedUrl.hostname.toLowerCase();
+        
+        // Block common local hostnames
+        if (hostname === 'localhost' || hostname.endsWith('.local') || 
+            hostname.endsWith('.localhost') || hostname.endsWith('.internal')) {
+          return res.status(400).json({ message: 'Cannot fetch from local addresses' });
+        }
+        
+        // Block IPv6 loopback and link-local
+        if (hostname === '::1' || hostname.startsWith('[::1]') || 
+            hostname.startsWith('[fe80:') || hostname.startsWith('[fc') || hostname.startsWith('[fd')) {
+          return res.status(400).json({ message: 'Cannot fetch from local/private addresses' });
+        }
+        
+        // Block IPv4 private/reserved ranges
+        const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+        if (ipv4Match) {
+          const [_, a, b] = ipv4Match.map(Number);
+          // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 0.0.0.0/8
+          if (a === 10 || a === 127 || a === 0 ||
+              (a === 172 && b >= 16 && b <= 31) ||
+              (a === 192 && b === 168) ||
+              (a === 169 && b === 254)) {
+            return res.status(400).json({ message: 'Cannot fetch from private IP addresses' });
+          }
+        }
+      } catch {
+        return res.status(400).json({ message: 'Invalid URL format' });
+      }
+
+      // Fetch the webpage with timeout and size limit
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      try {
+        const response = await fetch(source.url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'NashobaBot/1.0 (Knowledge Base Crawler)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          }
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          return res.status(400).json({ message: `Failed to fetch URL: ${response.status} ${response.statusText}` });
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+          return res.status(400).json({ message: 'URL must return HTML or text content' });
+        }
+
+        // Get content with size limit (1MB max)
+        const text = await response.text();
+        if (text.length > 1024 * 1024) {
+          return res.status(400).json({ message: 'Page content exceeds maximum size (1MB)' });
+        }
+
+        // Extract text content from HTML
+        let extractedContent = text;
+        if (contentType.includes('text/html')) {
+          // Remove script and style tags and their content
+          extractedContent = text
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+            // Remove HTML tags
+            .replace(/<[^>]+>/g, ' ')
+            // Decode HTML entities
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            // Clean up whitespace
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+
+        // Limit content to reasonable size for AI context
+        if (extractedContent.length > 50000) {
+          extractedContent = extractedContent.substring(0, 50000) + '...';
+        }
+
+        // Update the web source with fetched content
+        const updated = await storage.updateSupportWebSource(req.params.id, {
+          content: extractedContent,
+          lastFetchedAt: new Date()
+        });
+
+        res.json({
+          success: true,
+          source: updated,
+          contentLength: extractedContent.length
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError.name === 'AbortError') {
+          return res.status(400).json({ message: 'Request timed out - page took too long to load' });
+        }
+        throw fetchError;
+      }
+    } catch (error) {
+      console.error('Error fetching web source content:', error);
+      res.status(500).json({ message: 'Failed to fetch web source content' });
     }
   });
 
