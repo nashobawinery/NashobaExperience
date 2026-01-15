@@ -10226,21 +10226,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update a single field assignment (toggle enabled status)
+  // Update a single field assignment (toggle enabled status or update sort order)
   app.patch('/api/daily-reports/templates/:templateId/fields/:fieldId', isAdmin, async (req, res) => {
     try {
       const { templateId, fieldId } = req.params;
-      const { isEnabled } = req.body;
+      const { isEnabled, sortOrder } = req.body;
       
-      const updated = await storage.updateDepartmentFieldEnabled(templateId, fieldId, isEnabled);
-      if (!updated) {
-        return res.status(404).json({ message: 'Field assignment not found' });
+      // Build the update data based on what's provided
+      const updateData: { isEnabled?: boolean; sortOrder?: number } = {};
+      if (typeof isEnabled === 'boolean') {
+        updateData.isEnabled = isEnabled;
       }
+      if (typeof sortOrder === 'number') {
+        updateData.sortOrder = sortOrder;
+      }
+      
+      // If only isEnabled is being updated, use the dedicated function
+      if (Object.keys(updateData).length === 1 && typeof isEnabled === 'boolean') {
+        const updated = await storage.updateDepartmentFieldEnabled(templateId, fieldId, isEnabled);
+        if (!updated) {
+          return res.status(404).json({ message: 'Field assignment not found' });
+        }
+        await storage.syncFieldDefinitionsToTemplates();
+        return res.json(updated);
+      }
+      
+      // Otherwise use the bulk update for flexibility with sortOrder
+      await storage.bulkUpdateDepartmentFieldAssignments(templateId, [{
+        fieldDefinitionId: fieldId,
+        isEnabled: updateData.isEnabled ?? true,
+        sortOrder: updateData.sortOrder
+      }]);
       
       // Sync the inline metrics for backward compatibility
       await storage.syncFieldDefinitionsToTemplates();
       
-      res.json(updated);
+      res.json({ success: true });
     } catch (error) {
       console.error('Error updating field assignment:', error);
       res.status(500).json({ message: 'Failed to update field assignment' });

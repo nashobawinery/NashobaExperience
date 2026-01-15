@@ -1274,6 +1274,20 @@ export default function DailyReportsAdminDashboard() {
       toast({ title: "Failed to update field configuration", description: error.message, variant: "destructive" });
     }
   });
+
+  const updateFieldSortOrderMutation = useMutation({
+    mutationFn: async ({ templateId, fieldDefinitionId, sortOrder }: { templateId: string; fieldDefinitionId: string; sortOrder: number }) => {
+      return await apiRequest('PATCH', `/api/daily-reports/templates/${templateId}/fields/${fieldDefinitionId}`, {
+        sortOrder
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-assignments'] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update field order", description: error.message, variant: "destructive" });
+    }
+  });
   
   const createProcedureTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -2922,11 +2936,11 @@ export default function DailyReportsAdminDashboard() {
                                 </Button>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {(allFieldAssignments[template.id] || []).sort((a, b) => a.sortOrder - b.sortOrder).map(assignment => (
-                                <label 
+                                <div 
                                   key={assignment.fieldDefinitionId} 
-                                  className="flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                                  className="flex items-center gap-2 p-2 rounded-md hover-elevate"
                                   data-testid={`metric-toggle-${template.department}-${assignment.fieldDefinition?.key}`}
                                 >
                                   <Checkbox
@@ -2941,10 +2955,28 @@ export default function DailyReportsAdminDashboard() {
                                     disabled={toggleMetricMutation.isPending}
                                     data-testid={`checkbox-metric-${assignment.fieldDefinition?.key}`}
                                   />
-                                  <span className={`text-sm ${!assignment.isEnabled ? 'text-muted-foreground line-through' : ''}`}>
+                                  <span className={`text-sm flex-1 ${!assignment.isEnabled ? 'text-muted-foreground line-through' : ''}`}>
                                     {assignment.fieldDefinition?.label || 'Unknown Field'}
                                   </span>
-                                </label>
+                                  {assignment.isEnabled && (
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={assignment.sortOrder}
+                                      onChange={(e) => {
+                                        const newOrder = parseInt(e.target.value) || 0;
+                                        updateFieldSortOrderMutation.mutate({
+                                          templateId: template.id,
+                                          fieldDefinitionId: assignment.fieldDefinitionId,
+                                          sortOrder: newOrder
+                                        });
+                                      }}
+                                      className="w-16 h-7 text-center text-sm"
+                                      disabled={updateFieldSortOrderMutation.isPending}
+                                      data-testid={`input-sort-order-${assignment.fieldDefinition?.key}`}
+                                    />
+                                  )}
+                                </div>
                               ))}
                             </div>
                           </div>
