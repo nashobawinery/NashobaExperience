@@ -2620,6 +2620,34 @@ export default function AdminDashboard() {
           </Card>
           )}
 
+          {/* Product Management - Links to Tasting Admin */}
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Product Management</h3>
+              <p className="text-xs text-muted-foreground">Products are shared with the Tasting Experience app</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/admin?tab=products'}
+                  data-testid="button-link-products"
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Package className="w-4 h-4" />
+                  <span>Products</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/admin?tab=product-media'}
+                  data-testid="button-link-product-media"
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Image className="w-4 h-4" />
+                  <span>Product Media</span>
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           {/* Help & Documentation */}
           <Card className="p-4">
             <div className="space-y-3">

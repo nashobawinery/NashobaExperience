@@ -69,6 +69,14 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // Get initial tab from URL query parameter
+  const getInitialTab = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'products';
+  };
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -804,7 +812,7 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="products" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="space-y-4">
             <Card className="p-4">
               <div className="space-y-3">
