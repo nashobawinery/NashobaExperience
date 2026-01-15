@@ -2914,24 +2914,23 @@ export default function DailyReportsAdminDashboard() {
                         className="border rounded-lg px-4"
                         data-testid={`card-template-${template.department}`}
                       >
-                        <AccordionTrigger className="hover:no-underline py-4">
-                          <div className="flex items-center gap-3 flex-1">
-                            <Icon className="h-5 w-5 text-amber-500" />
-                            <div className="text-left">
-                              <div className="font-medium">{template.departmentLabel}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}
+                        <div className="flex items-center justify-between py-4">
+                          <AccordionTrigger className="hover:no-underline flex-1 py-0 [&>svg]:ml-2">
+                            <div className="flex items-center gap-3">
+                              <Icon className="h-5 w-5 text-amber-500" />
+                              <div className="text-left">
+                                <div className="font-medium">{template.departmentLabel}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                          </AccordionTrigger>
+                          <div className="flex items-center gap-1 ml-2">
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewingTemplate(template);
-                              }}
+                              onClick={() => setPreviewingTemplate(template)}
                               title="Preview"
                               data-testid={`button-preview-template-${template.department}`}
                             >
@@ -2940,8 +2939,7 @@ export default function DailyReportsAdminDashboard() {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
                                 setDuplicatingTemplate(template);
                                 setDuplicateFormData({
                                   departmentLabel: `${template.departmentLabel} (Copy)`,
@@ -2958,17 +2956,14 @@ export default function DailyReportsAdminDashboard() {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditDepartment(template);
-                              }}
+                              onClick={() => handleEditDepartment(template)}
                               title="Edit"
                               data-testid={`button-edit-template-${template.department}`}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                           </div>
-                        </AccordionTrigger>
+                        </div>
                         <AccordionContent className="space-y-4 pb-4">
                           <div className="border-b pb-3">
                             <div className="flex items-center justify-between mb-3">
