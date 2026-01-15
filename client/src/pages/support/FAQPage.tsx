@@ -30,10 +30,9 @@ interface FAQArticle {
   isFeatured: boolean;
 }
 
-interface FAQData {
-  categories: FAQCategory[];
+interface CategoryWithArticles {
+  category: FAQCategory;
   articles: FAQArticle[];
-  featuredArticles: FAQArticle[];
 }
 
 export default function FAQPage() {
@@ -42,7 +41,7 @@ export default function FAQPage() {
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
-  const { data: faqData, isLoading } = useQuery<FAQData>({
+  const { data: faqData = [], isLoading } = useQuery<CategoryWithArticles[]>({
     queryKey: ["/api/public/faq"],
   });
 
@@ -70,21 +69,24 @@ export default function FAQPage() {
     }
   };
 
-  const filteredArticles = faqData?.articles.filter(article => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      article.title.toLowerCase().includes(query) ||
-      article.content.toLowerCase().includes(query) ||
-      article.summary?.toLowerCase().includes(query)
-    );
-  }) || [];
-
-  const getArticlesByCategory = (categoryId: string | null) => {
-    return filteredArticles.filter(article => article.categoryId === categoryId);
-  };
-
-  const uncategorizedArticles = getArticlesByCategory(null);
+  // Flatten all articles and apply search filter
+  const allArticles = faqData.flatMap(group => group.articles);
+  
+  const filteredData = searchQuery
+    ? faqData.map(group => ({
+        ...group,
+        articles: group.articles.filter(article => {
+          const query = searchQuery.toLowerCase();
+          return (
+            article.title.toLowerCase().includes(query) ||
+            article.content.toLowerCase().includes(query) ||
+            article.summary?.toLowerCase().includes(query)
+          );
+        })
+      })).filter(group => group.articles.length > 0)
+    : faqData;
+  
+  const featuredArticles = allArticles.filter(a => a.isFeatured);
 
   if (isLoading) {
     return (
@@ -125,14 +127,14 @@ export default function FAQPage() {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 space-y-6">
-        {faqData?.featuredArticles && faqData.featuredArticles.length > 0 && !searchQuery && (
+        {featuredArticles.length > 0 && !searchQuery && (
           <section>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
               Featured Articles
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
-              {faqData.featuredArticles.map((article) => (
+              {featuredArticles.map((article) => (
                 <Card key={article.id} className="hover-elevate cursor-pointer" data-testid={`featured-article-${article.id}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{article.title}</CardTitle>
@@ -157,7 +159,16 @@ export default function FAQPage() {
           </section>
         )}
 
-        {searchQuery && filteredArticles.length === 0 && (
+        {faqData.length === 0 && !searchQuery && (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              <p>No FAQ articles are available yet.</p>
+              <p className="text-sm mt-2">Please check back later or contact us with your questions.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {searchQuery && filteredData.length === 0 && (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               <p>No articles found matching "{searchQuery}"</p>
@@ -166,11 +177,13 @@ export default function FAQPage() {
           </Card>
         )}
 
-        {searchQuery && filteredArticles.length > 0 && (
+        {searchQuery && filteredData.length > 0 && (
           <section>
-            <h2 className="text-lg font-semibold mb-3">Search Results ({filteredArticles.length})</h2>
+            <h2 className="text-lg font-semibold mb-3">
+              Search Results ({filteredData.reduce((sum, group) => sum + group.articles.length, 0)})
+            </h2>
             <div className="space-y-2">
-              {filteredArticles.map((article) => (
+              {filteredData.flatMap(group => group.articles).map((article) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
@@ -184,46 +197,23 @@ export default function FAQPage() {
           </section>
         )}
 
-        {!searchQuery && faqData?.categories.map((category) => {
-          const categoryArticles = getArticlesByCategory(category.id);
-          if (categoryArticles.length === 0) return null;
-          
-          return (
-            <section key={category.id} data-testid={`category-section-${category.id}`}>
-              <div className="flex items-center gap-2 mb-3">
-                <div 
-                  className="h-6 w-6 rounded flex items-center justify-center text-white text-xs"
-                  style={{ backgroundColor: category.color || "#6b7280" }}
-                >
-                  {category.name.charAt(0).toUpperCase()}
-                </div>
-                <h2 className="text-lg font-semibold">{category.name}</h2>
-                <Badge variant="secondary">{categoryArticles.length}</Badge>
+        {!searchQuery && filteredData.map((group) => (
+          <section key={group.category.id} data-testid={`category-section-${group.category.id}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <div 
+                className="h-6 w-6 rounded flex items-center justify-center text-white text-xs"
+                style={{ backgroundColor: group.category.color || "#6b7280" }}
+              >
+                {group.category.name.charAt(0).toUpperCase()}
               </div>
-              {category.description && (
-                <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
-              )}
-              <div className="space-y-2">
-                {categoryArticles.map((article) => (
-                  <ArticleCard
-                    key={article.id}
-                    article={article}
-                    isOpen={openArticles.has(article.id)}
-                    onToggle={() => toggleArticle(article.id)}
-                    onFeedback={(helpful) => handleFeedback(article.id, helpful)}
-                    hasFeedback={feedbackGiven.has(article.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-
-        {!searchQuery && uncategorizedArticles.length > 0 && (
-          <section data-testid="category-section-uncategorized">
-            <h2 className="text-lg font-semibold mb-3">Other Questions</h2>
+              <h2 className="text-lg font-semibold">{group.category.name}</h2>
+              <Badge variant="secondary">{group.articles.length}</Badge>
+            </div>
+            {group.category.description && (
+              <p className="text-sm text-muted-foreground mb-3">{group.category.description}</p>
+            )}
             <div className="space-y-2">
-              {uncategorizedArticles.map((article) => (
+              {group.articles.map((article) => (
                 <ArticleCard
                   key={article.id}
                   article={article}
@@ -235,7 +225,7 @@ export default function FAQPage() {
               ))}
             </div>
           </section>
-        )}
+        ))}
 
         <section className="pt-6 border-t">
           <Card>
