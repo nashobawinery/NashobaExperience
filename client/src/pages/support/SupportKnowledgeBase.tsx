@@ -611,7 +611,7 @@ export default function SupportKnowledgeBase() {
     <div className="min-h-screen bg-background">
       <header className="border-b p-4">
         <div className="flex items-center gap-3">
-          <Link href="/admin/support">
+          <Link href="/support/admin">
             <Button variant="ghost" size="icon" data-testid="button-back">
               <ArrowLeft className="h-4 w-4" />
             </Button>

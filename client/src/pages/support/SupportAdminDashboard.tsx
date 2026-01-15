@@ -366,7 +366,7 @@ export default function SupportAdminDashboard() {
       <header className="border-b p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href="/admin">
+            <Link href="/admin-hub">
               <Button variant="ghost" size="icon" data-testid="button-back-admin">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -379,7 +379,7 @@ export default function SupportAdminDashboard() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => setLocation("/admin/support/knowledge-base")}
+              onClick={() => setLocation("/support/knowledge-base")}
               data-testid="button-knowledge-base"
             >
               <BookOpen className="h-4 w-4 mr-2" />
@@ -387,7 +387,7 @@ export default function SupportAdminDashboard() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => setLocation("/admin/support/settings")}
+              onClick={() => setLocation("/support/settings")}
               data-testid="button-settings"
             >
               <Settings className="h-4 w-4 mr-2" />
