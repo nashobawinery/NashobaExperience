@@ -5328,6 +5328,63 @@ export class DatabaseStorage implements IStorage {
 
     return result;
   }
+
+  // Get support analytics data
+  async getSupportAnalytics(): Promise<{
+    topArticles: SupportArticle[];
+    articleStats: { total: number; published: number; draft: number; totalViews: number; totalHelpful: number; totalNotHelpful: number };
+    requestStats: { total: number; new: number; inProgress: number; closed: number };
+    recentRequests: SupportRequest[];
+  }> {
+    // Top articles by views
+    const topArticles = await db.select()
+      .from(supportArticles)
+      .where(eq(supportArticles.status, 'published'))
+      .orderBy(desc(supportArticles.viewCount))
+      .limit(10);
+
+    // Article stats
+    const allArticles = await db.select().from(supportArticles);
+    const articleStats = {
+      total: allArticles.length,
+      published: allArticles.filter(a => a.status === 'published').length,
+      draft: allArticles.filter(a => a.status === 'draft').length,
+      totalViews: allArticles.reduce((sum, a) => sum + (a.viewCount || 0), 0),
+      totalHelpful: allArticles.reduce((sum, a) => sum + (a.helpfulCount || 0), 0),
+      totalNotHelpful: allArticles.reduce((sum, a) => sum + (a.notHelpfulCount || 0), 0)
+    };
+
+    // Request stats
+    const allRequests = await db.select().from(supportRequests);
+    const requestStats = {
+      total: allRequests.length,
+      new: allRequests.filter(r => r.status === 'new' || r.status === 'customer_replied').length,
+      inProgress: allRequests.filter(r => r.status === 'in_progress' || r.status === 'bot_responded' || r.status === 'human_responded').length,
+      closed: allRequests.filter(r => r.status === 'closed').length
+    };
+
+    // Recent requests
+    const recentRequests = await db.select()
+      .from(supportRequests)
+      .orderBy(desc(supportRequests.createdAt))
+      .limit(5);
+
+    return { topArticles, articleStats, requestStats, recentRequests };
+  }
+
+  // Get top FAQ articles for widget
+  async getTopFAQArticles(limit: number = 5): Promise<SupportArticle[]> {
+    return db.select()
+      .from(supportArticles)
+      .where(
+        and(
+          eq(supportArticles.status, 'published'),
+          eq(supportArticles.isPublic, true)
+        )
+      )
+      .orderBy(desc(supportArticles.viewCount), desc(supportArticles.helpfulCount))
+      .limit(limit);
+  }
 }
 
 export const storage = new DatabaseStorage();

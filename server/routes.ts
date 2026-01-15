@@ -13242,6 +13242,35 @@ ${webSourcesContext}`
     }
   });
 
+  // Public: Get top FAQ articles for widget (sorted by popularity)
+  app.get('/api/public/faq-widget', async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
+      const articles = await storage.getTopFAQArticles(limit);
+      
+      // Set CORS headers for external embedding
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET');
+      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      
+      res.json(articles);
+    } catch (error) {
+      console.error('Error fetching FAQ widget data:', error);
+      res.status(500).json({ message: 'Failed to fetch FAQ widget data' });
+    }
+  });
+
+  // Admin: Get support analytics dashboard data
+  app.get('/api/admin/support/analytics', isAdmin, async (req, res) => {
+    try {
+      const analytics = await storage.getSupportAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching support analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics' });
+    }
+  });
+
   app.get('/api/public/articles/:slug', async (req, res) => {
     try {
       const article = await storage.getSupportArticleBySlug(req.params.slug);
