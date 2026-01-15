@@ -2628,7 +2628,7 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 gap-2">
                 <Button 
                   variant="outline" 
-                  onClick={() => window.location.href = '/admin?tab=products'}
+                  onClick={() => window.location.href = '/admin?tab=products&from=b2b'}
                   data-testid="button-link-products"
                   className="flex items-center justify-center gap-2"
                 >
@@ -2637,7 +2637,7 @@ export default function AdminDashboard() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => window.location.href = '/admin?tab=product-media'}
+                  onClick={() => window.location.href = '/admin?tab=product-media&from=b2b'}
                   data-testid="button-link-product-media"
                   className="flex items-center justify-center gap-2"
                 >

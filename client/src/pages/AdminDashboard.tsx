@@ -70,12 +70,15 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  // Get initial tab from URL query parameter
+  // Get initial tab and source from URL query parameters
   const getInitialTab = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get('tab') || 'products';
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
+  
+  // Check if user came from B2B dashboard
+  const cameFromB2B = new URLSearchParams(window.location.search).get('from') === 'b2b';
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors?: string[] } | null>(null);
@@ -764,6 +767,28 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
               <p className="text-muted-foreground">Manage your tasting experience</p>
             </div>
             <div className="flex items-center gap-2">
+              {cameFromB2B && (
+                <Button 
+                  variant="default"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/b2b/bridge-login', { method: 'POST' });
+                      if (response.ok) {
+                        window.location.href = '/b2b/admin';
+                      } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to return to B2B dashboard');
+                      }
+                    } catch (error) {
+                      alert('Error returning to B2B dashboard');
+                    }
+                  }}
+                  data-testid="button-return-to-b2b"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Return to B2B Dashboard
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={() => window.location.href = '/admin-hub'}
@@ -778,26 +803,28 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   Guest View
                 </Button>
               )}
-              <Button 
-                variant="outline" 
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/b2b/bridge-login', { method: 'POST' });
-                    if (response.ok) {
-                      window.location.href = '/b2b/admin';
-                    } else {
-                      const error = await response.json();
-                      alert(error.error || 'Failed to switch to B2B dashboard');
+              {!cameFromB2B && (
+                <Button 
+                  variant="outline" 
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/b2b/bridge-login', { method: 'POST' });
+                      if (response.ok) {
+                        window.location.href = '/b2b/admin';
+                      } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to switch to B2B dashboard');
+                      }
+                    } catch (error) {
+                      alert('Error switching to B2B dashboard');
                     }
-                  } catch (error) {
-                    alert('Error switching to B2B dashboard');
-                  }
-                }}
-                data-testid="button-switch-to-b2b"
-              >
-                <Building className="w-4 h-4 mr-2" />
-                B2B Dashboard
-              </Button>
+                  }}
+                  data-testid="button-switch-to-b2b"
+                >
+                  <Building className="w-4 h-4 mr-2" />
+                  B2B Dashboard
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={() => window.location.href = '/api/logout'} 
