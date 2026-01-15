@@ -14,7 +14,9 @@ if (!databaseUrlToUse) {
   );
 }
 
-console.log(`[DB] Connected to database`);
+// Log the database host (not credentials) to help debug connection issues
+const dbHost = databaseUrlToUse.match(/@([^/]+)\//)?.[1] || 'unknown';
+console.log(`[DB] Connected to database host: ${dbHost}`);
 
 export const databaseUrl = databaseUrlToUse;
 export const pool = new Pool({ connectionString: databaseUrl });
