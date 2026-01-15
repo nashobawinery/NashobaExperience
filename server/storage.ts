@@ -189,6 +189,10 @@ import {
   supportCannedResponses,
   supportWebSources,
   supportSettings,
+  supportCategories,
+  supportArticles,
+  supportTags,
+  supportArticleTags,
   type InsertSupportRequest,
   type SupportRequest,
   type SupportRequestWithMessages,
@@ -200,6 +204,13 @@ import {
   type SupportWebSource,
   type InsertSupportSetting,
   type SupportSetting,
+  type InsertSupportCategory,
+  type SupportCategory,
+  type InsertSupportArticle,
+  type SupportArticle,
+  type SupportArticleWithRelations,
+  type InsertSupportTag,
+  type SupportTag,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -5063,6 +5074,258 @@ export class DatabaseStorage implements IStorage {
         }
       })
       .returning();
+    return result;
+  }
+
+  // Knowledge Base - Categories
+  async getSupportCategories(activeOnly: boolean = false): Promise<SupportCategory[]> {
+    if (activeOnly) {
+      return await db.select()
+        .from(supportCategories)
+        .where(eq(supportCategories.isActive, true))
+        .orderBy(supportCategories.sortOrder, supportCategories.name);
+    }
+    return await db.select()
+      .from(supportCategories)
+      .orderBy(supportCategories.sortOrder, supportCategories.name);
+  }
+
+  async getSupportCategory(id: string): Promise<SupportCategory | undefined> {
+    const [result] = await db.select().from(supportCategories).where(eq(supportCategories.id, id));
+    return result;
+  }
+
+  async getSupportCategoryBySlug(slug: string): Promise<SupportCategory | undefined> {
+    const [result] = await db.select().from(supportCategories).where(eq(supportCategories.slug, slug));
+    return result;
+  }
+
+  async createSupportCategory(data: InsertSupportCategory): Promise<SupportCategory> {
+    const [result] = await db.insert(supportCategories).values(data).returning();
+    return result;
+  }
+
+  async updateSupportCategory(id: string, data: Partial<InsertSupportCategory>): Promise<SupportCategory | undefined> {
+    const [result] = await db.update(supportCategories)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportCategories.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSupportCategory(id: string): Promise<void> {
+    await db.delete(supportCategories).where(eq(supportCategories.id, id));
+  }
+
+  // Knowledge Base - Articles
+  async getSupportArticles(filters?: { status?: string; categoryId?: string; isPublic?: boolean }): Promise<SupportArticleWithRelations[]> {
+    let query = db.select().from(supportArticles);
+    const conditions: SQL[] = [];
+
+    if (filters?.status) {
+      conditions.push(eq(supportArticles.status, filters.status));
+    }
+    if (filters?.categoryId) {
+      conditions.push(eq(supportArticles.categoryId, filters.categoryId));
+    }
+    if (filters?.isPublic !== undefined) {
+      conditions.push(eq(supportArticles.isPublic, filters.isPublic));
+    }
+
+    const articles = conditions.length > 0
+      ? await db.select().from(supportArticles).where(and(...conditions)).orderBy(desc(supportArticles.priority), desc(supportArticles.updatedAt))
+      : await db.select().from(supportArticles).orderBy(desc(supportArticles.priority), desc(supportArticles.updatedAt));
+
+    // Fetch categories and tags for each article
+    const result: SupportArticleWithRelations[] = [];
+    for (const article of articles) {
+      const category = article.categoryId 
+        ? await this.getSupportCategory(article.categoryId)
+        : null;
+      const tags = await this.getSupportArticleTags(article.id);
+      result.push({ ...article, category, tags });
+    }
+    return result;
+  }
+
+  async getSupportArticle(id: string): Promise<SupportArticleWithRelations | undefined> {
+    const [article] = await db.select().from(supportArticles).where(eq(supportArticles.id, id));
+    if (!article) return undefined;
+    
+    const category = article.categoryId 
+      ? await this.getSupportCategory(article.categoryId)
+      : null;
+    const tags = await this.getSupportArticleTags(article.id);
+    return { ...article, category, tags };
+  }
+
+  async getSupportArticleBySlug(slug: string): Promise<SupportArticleWithRelations | undefined> {
+    const [article] = await db.select().from(supportArticles).where(eq(supportArticles.slug, slug));
+    if (!article) return undefined;
+    
+    const category = article.categoryId 
+      ? await this.getSupportCategory(article.categoryId)
+      : null;
+    const tags = await this.getSupportArticleTags(article.id);
+    return { ...article, category, tags };
+  }
+
+  async createSupportArticle(data: InsertSupportArticle, tagIds?: string[]): Promise<SupportArticle> {
+    const [result] = await db.insert(supportArticles).values(data).returning();
+    
+    if (tagIds && tagIds.length > 0) {
+      await this.setSupportArticleTags(result.id, tagIds);
+    }
+    
+    return result;
+  }
+
+  async updateSupportArticle(id: string, data: Partial<InsertSupportArticle>, tagIds?: string[]): Promise<SupportArticle | undefined> {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    
+    // If publishing, set publishedAt
+    if (data.status === 'published') {
+      const existing = await this.getSupportArticle(id);
+      if (existing && !existing.publishedAt) {
+        updateData.publishedAt = new Date();
+      }
+    }
+    
+    const [result] = await db.update(supportArticles)
+      .set(updateData)
+      .where(eq(supportArticles.id, id))
+      .returning();
+    
+    if (tagIds !== undefined) {
+      await this.setSupportArticleTags(id, tagIds);
+    }
+    
+    return result;
+  }
+
+  async deleteSupportArticle(id: string): Promise<void> {
+    await db.delete(supportArticles).where(eq(supportArticles.id, id));
+  }
+
+  async incrementArticleViewCount(id: string): Promise<void> {
+    await db.update(supportArticles)
+      .set({ viewCount: sql`${supportArticles.viewCount} + 1` })
+      .where(eq(supportArticles.id, id));
+  }
+
+  async recordArticleFeedback(id: string, helpful: boolean): Promise<void> {
+    if (helpful) {
+      await db.update(supportArticles)
+        .set({ helpfulCount: sql`${supportArticles.helpfulCount} + 1` })
+        .where(eq(supportArticles.id, id));
+    } else {
+      await db.update(supportArticles)
+        .set({ notHelpfulCount: sql`${supportArticles.notHelpfulCount} + 1` })
+        .where(eq(supportArticles.id, id));
+    }
+  }
+
+  // Knowledge Base - Tags
+  async getSupportTags(): Promise<SupportTag[]> {
+    return await db.select().from(supportTags).orderBy(supportTags.name);
+  }
+
+  async getSupportTag(id: string): Promise<SupportTag | undefined> {
+    const [result] = await db.select().from(supportTags).where(eq(supportTags.id, id));
+    return result;
+  }
+
+  async createSupportTag(data: InsertSupportTag): Promise<SupportTag> {
+    const [result] = await db.insert(supportTags).values(data).returning();
+    return result;
+  }
+
+  async updateSupportTag(id: string, data: Partial<InsertSupportTag>): Promise<SupportTag | undefined> {
+    const [result] = await db.update(supportTags)
+      .set(data)
+      .where(eq(supportTags.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSupportTag(id: string): Promise<void> {
+    await db.delete(supportTags).where(eq(supportTags.id, id));
+  }
+
+  // Article-Tag associations
+  async getSupportArticleTags(articleId: string): Promise<SupportTag[]> {
+    const result = await db.select({ tag: supportTags })
+      .from(supportArticleTags)
+      .innerJoin(supportTags, eq(supportArticleTags.tagId, supportTags.id))
+      .where(eq(supportArticleTags.articleId, articleId));
+    return result.map(r => r.tag);
+  }
+
+  async setSupportArticleTags(articleId: string, tagIds: string[]): Promise<void> {
+    // Remove existing tags
+    await db.delete(supportArticleTags).where(eq(supportArticleTags.articleId, articleId));
+    
+    // Add new tags
+    if (tagIds.length > 0) {
+      await db.insert(supportArticleTags).values(
+        tagIds.map(tagId => ({ articleId, tagId }))
+      );
+    }
+  }
+
+  // Search articles for AI chatbot
+  async searchSupportArticles(searchTerm: string, limit: number = 5): Promise<SupportArticleWithRelations[]> {
+    const lowerSearch = `%${searchTerm.toLowerCase()}%`;
+    
+    const articles = await db.select()
+      .from(supportArticles)
+      .where(
+        and(
+          eq(supportArticles.status, 'published'),
+          or(
+            sql`LOWER(${supportArticles.title}) LIKE ${lowerSearch}`,
+            sql`LOWER(${supportArticles.summary}) LIKE ${lowerSearch}`,
+            sql`LOWER(${supportArticles.content}) LIKE ${lowerSearch}`,
+            sql`${searchTerm} = ANY(${supportArticles.searchKeywords})`
+          )
+        )
+      )
+      .orderBy(desc(supportArticles.priority))
+      .limit(limit);
+
+    const result: SupportArticleWithRelations[] = [];
+    for (const article of articles) {
+      const category = article.categoryId 
+        ? await this.getSupportCategory(article.categoryId)
+        : null;
+      const tags = await this.getSupportArticleTags(article.id);
+      result.push({ ...article, category, tags });
+    }
+    return result;
+  }
+
+  // Get articles grouped by category for FAQ page
+  async getPublicFAQArticles(): Promise<{ category: SupportCategory; articles: SupportArticle[] }[]> {
+    const categories = await this.getSupportCategories(true);
+    const result: { category: SupportCategory; articles: SupportArticle[] }[] = [];
+
+    for (const category of categories) {
+      const articles = await db.select()
+        .from(supportArticles)
+        .where(
+          and(
+            eq(supportArticles.categoryId, category.id),
+            eq(supportArticles.status, 'published'),
+            eq(supportArticles.isPublic, true)
+          )
+        )
+        .orderBy(desc(supportArticles.priority), supportArticles.title);
+      
+      if (articles.length > 0) {
+        result.push({ category, articles });
+      }
+    }
+
     return result;
   }
 }
