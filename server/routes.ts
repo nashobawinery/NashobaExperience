@@ -12606,10 +12606,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Support request not found' });
       }
 
-      // Get knowledge base (canned responses + web sources)
+      // Get knowledge base (canned responses + web sources + articles)
       const cannedResponses = await storage.getSupportCannedResponses(true);
       const webSources = await storage.getSupportWebSources(true);
       const settings = await storage.getSupportSettings();
+
+      // Get the latest customer message for article search
+      const latestCustomerMessage = request.messages
+        .filter(m => m.senderType === 'customer')
+        .pop();
+      
+      // Search for relevant articles based on the customer's message
+      let relevantArticles: any[] = [];
+      if (latestCustomerMessage) {
+        relevantArticles = await storage.searchSupportArticles(latestCustomerMessage.content, 5);
+      }
 
       // Build context for AI
       const knowledgeBaseContext = cannedResponses.map(r => 
@@ -12618,6 +12629,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const webSourcesContext = webSources.map(s => 
         `Source: ${s.title}\nURL: ${s.url}\nContent: ${s.content || 'No content extracted'}`
+      ).join('\n\n---\n\n');
+
+      // Build article context from Knowledge Base
+      const articlesContext = relevantArticles.map(a => 
+        `FAQ Article: ${a.title}\nSummary: ${a.summary || ''}\nContent: ${a.content}`
       ).join('\n\n---\n\n');
 
       const conversationHistory = request.messages.map(m => 
@@ -12640,15 +12656,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: 'system', 
             content: `${systemPrompt}
 
-KNOWLEDGE BASE:
+KNOWLEDGE BASE (Canned Responses):
 ${knowledgeBaseContext}
+
+FAQ ARTICLES (Relevant to this conversation):
+${articlesContext || 'No specific articles found for this query.'}
 
 WEBSITE INFORMATION:
 ${webSourcesContext}` 
           },
           { 
             role: 'user', 
-            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message.` 
+            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message. Use the FAQ articles and knowledge base to give accurate information.` 
           }
         ],
         max_tokens: 500
