@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -2854,7 +2855,7 @@ export default function DailyReportsAdminDashboard() {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <Accordion type="single" collapsible className="space-y-2">
                   {sortedTemplates.map(template => {
                     const Icon = departmentIcons[template.department] || Building;
                     const emailCount = template.notificationEmails?.length || 0;
@@ -2865,22 +2866,30 @@ export default function DailyReportsAdminDashboard() {
                     const generalProcs = procedures.filter(p => p.procedureType === 'general');
                     
                     return (
-                      <Card key={template.id} data-testid={`card-template-${template.department}`}>
-                        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
-                          <div className="flex items-center gap-3">
+                      <AccordionItem 
+                        key={template.id} 
+                        value={template.id}
+                        className="border rounded-lg px-4"
+                        data-testid={`card-template-${template.department}`}
+                      >
+                        <AccordionTrigger className="hover:no-underline py-4">
+                          <div className="flex items-center gap-3 flex-1">
                             <Icon className="h-5 w-5 text-amber-500" />
-                            <div>
-                              <CardTitle className="text-base">{template.departmentLabel}</CardTitle>
-                              <CardDescription>
+                            <div className="text-left">
+                              <div className="font-medium">{template.departmentLabel}</div>
+                              <div className="text-sm text-muted-foreground">
                                 {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}
-                              </CardDescription>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={() => setPreviewingTemplate(template)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewingTemplate(template);
+                              }}
                               data-testid={`button-preview-template-${template.department}`}
                             >
                               <Eye className="h-4 w-4" />
@@ -2888,14 +2897,17 @@ export default function DailyReportsAdminDashboard() {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              onClick={() => handleEditDepartment(template)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditDepartment(template);
+                              }}
                               data-testid={`button-edit-template-${template.department}`}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                           </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-4 pb-4">
                           <div className="border-b pb-3">
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="text-sm font-medium flex items-center gap-2">
@@ -3220,11 +3232,11 @@ export default function DailyReportsAdminDashboard() {
                               </div>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
+                        </AccordionContent>
+                      </AccordionItem>
                     );
                   })}
-                </div>
+                </Accordion>
               </CardContent>
             </Card>
           </TabsContent>
