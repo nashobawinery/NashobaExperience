@@ -68,6 +68,7 @@ const SupportAdminDashboard = lazy(() => import("@/pages/support/SupportAdminDas
 const SupportKnowledgeBase = lazy(() => import("@/pages/support/SupportKnowledgeBase"));
 const SupportWidget = lazy(() => import("@/pages/support/SupportWidget"));
 const SupportContactForm = lazy(() => import("@/pages/support/SupportContactForm"));
+const FAQPage = lazy(() => import("@/pages/support/FAQPage"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
@@ -432,6 +433,14 @@ function SupportContactFormRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <SupportContactForm />
+    </Suspense>
+  );
+}
+
+function FAQPageRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <FAQPage />
     </Suspense>
   );
 }
@@ -959,6 +968,7 @@ function Router() {
         <Route path="/support/knowledge-base" component={SupportKnowledgeBaseRoute} />
         <Route path="/support/widget" component={SupportWidgetRoute} />
         <Route path="/contact" component={SupportContactFormRoute} />
+        <Route path="/faq" component={FAQPageRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
