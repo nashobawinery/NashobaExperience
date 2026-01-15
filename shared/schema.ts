@@ -4009,6 +4009,103 @@ export type SupportRequestWithMessages = SupportRequest & {
   messages: SupportMessage[];
 };
 
+// Knowledge Base Categories
+export const supportCategories = pgTable("support_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  icon: varchar("icon", { length: 100 }), // Lucide icon name
+  color: varchar("color", { length: 50 }), // Tailwind color class
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_categories_active").on(table.isActive),
+  index("idx_support_categories_slug").on(table.slug),
+]);
+
+export const insertSupportCategorySchema = createInsertSchema(supportCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportCategory = z.infer<typeof insertSupportCategorySchema>;
+export type SupportCategory = typeof supportCategories.$inferSelect;
+
+// Knowledge Base Articles
+export const supportArticles = pgTable("support_articles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 500 }).notNull(),
+  slug: varchar("slug", { length: 500 }).notNull().unique(),
+  summary: text("summary"), // Brief excerpt for previews
+  content: text("content").notNull(), // Full article content (markdown or HTML)
+  categoryId: varchar("category_id").references(() => supportCategories.id, { onDelete: "set null" }),
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // draft, published, archived
+  isFeatured: boolean("is_featured").notNull().default(false),
+  isPublic: boolean("is_public").notNull().default(true), // Show on public FAQ
+  searchKeywords: text("search_keywords").array().default([]), // Keywords for AI search
+  priority: integer("priority").notNull().default(0), // Higher = more likely to be used by AI
+  viewCount: integer("view_count").notNull().default(0),
+  helpfulCount: integer("helpful_count").notNull().default(0),
+  notHelpfulCount: integer("not_helpful_count").notNull().default(0),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  publishedAt: timestamp("published_at"),
+}, (table) => [
+  index("idx_support_articles_status").on(table.status),
+  index("idx_support_articles_category").on(table.categoryId),
+  index("idx_support_articles_slug").on(table.slug),
+  index("idx_support_articles_featured").on(table.isFeatured),
+]);
+
+export const insertSupportArticleSchema = createInsertSchema(supportArticles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  viewCount: true,
+  helpfulCount: true,
+  notHelpfulCount: true,
+});
+export type InsertSupportArticle = z.infer<typeof insertSupportArticleSchema>;
+export type SupportArticle = typeof supportArticles.$inferSelect;
+
+// Knowledge Base Tags
+export const supportTags = pgTable("support_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  color: varchar("color", { length: 50 }), // Optional color for display
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_tags_slug").on(table.slug),
+]);
+
+export const insertSupportTagSchema = createInsertSchema(supportTags).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportTag = z.infer<typeof insertSupportTagSchema>;
+export type SupportTag = typeof supportTags.$inferSelect;
+
+// Article-Tag Junction Table
+export const supportArticleTags = pgTable("support_article_tags", {
+  articleId: varchar("article_id").notNull().references(() => supportArticles.id, { onDelete: "cascade" }),
+  tagId: varchar("tag_id").notNull().references(() => supportTags.id, { onDelete: "cascade" }),
+}, (table) => [
+  index("idx_support_article_tags_article").on(table.articleId),
+  index("idx_support_article_tags_tag").on(table.tagId),
+]);
+
+// Article with category and tags for frontend
+export type SupportArticleWithRelations = SupportArticle & {
+  category?: SupportCategory | null;
+  tags?: SupportTag[];
+};
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;
