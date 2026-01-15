@@ -183,6 +183,23 @@ import {
   type PlatformModule,
   type InsertStaffDashboardModule,
   type StaffDashboardModule,
+  // Customer Support Module
+  supportRequests,
+  supportMessages,
+  supportCannedResponses,
+  supportWebSources,
+  supportSettings,
+  type InsertSupportRequest,
+  type SupportRequest,
+  type SupportRequestWithMessages,
+  type InsertSupportMessage,
+  type SupportMessage,
+  type InsertSupportCannedResponse,
+  type SupportCannedResponse,
+  type InsertSupportWebSource,
+  type SupportWebSource,
+  type InsertSupportSetting,
+  type SupportSetting,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -4856,6 +4873,197 @@ export class DatabaseStorage implements IStorage {
         }).onConflictDoNothing();
       }
     }
+  }
+
+  // ============================================
+  // CUSTOMER SUPPORT MODULE
+  // ============================================
+
+  async getSupportRequests(filters?: { status?: string; limit?: number }): Promise<SupportRequest[]> {
+    let query = db.select().from(supportRequests).orderBy(desc(supportRequests.createdAt));
+    
+    if (filters?.status) {
+      query = query.where(eq(supportRequests.status, filters.status)) as typeof query;
+    }
+    
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as typeof query;
+    }
+    
+    return await query;
+  }
+
+  async getSupportRequest(id: string): Promise<SupportRequest | undefined> {
+    const [result] = await db.select().from(supportRequests).where(eq(supportRequests.id, id));
+    return result;
+  }
+
+  async getSupportRequestWithMessages(id: string): Promise<SupportRequestWithMessages | undefined> {
+    const request = await this.getSupportRequest(id);
+    if (!request) return undefined;
+    
+    const messages = await db.select()
+      .from(supportMessages)
+      .where(eq(supportMessages.requestId, id))
+      .orderBy(supportMessages.createdAt);
+    
+    return { ...request, messages };
+  }
+
+  async createSupportRequest(data: InsertSupportRequest): Promise<SupportRequest> {
+    const [result] = await db.insert(supportRequests).values(data).returning();
+    return result;
+  }
+
+  async updateSupportRequest(id: string, data: Partial<InsertSupportRequest>): Promise<SupportRequest | undefined> {
+    const [result] = await db.update(supportRequests)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportRequests.id, id))
+      .returning();
+    return result;
+  }
+
+  async closeSupportRequest(id: string, closedById: string, closedByName: string): Promise<SupportRequest | undefined> {
+    const [result] = await db.update(supportRequests)
+      .set({ 
+        status: 'closed', 
+        closedAt: new Date(), 
+        closedById, 
+        closedByName,
+        updatedAt: new Date() 
+      })
+      .where(eq(supportRequests.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSupportMessages(requestId: string): Promise<SupportMessage[]> {
+    return await db.select()
+      .from(supportMessages)
+      .where(eq(supportMessages.requestId, requestId))
+      .orderBy(supportMessages.createdAt);
+  }
+
+  async createSupportMessage(data: InsertSupportMessage): Promise<SupportMessage> {
+    const [result] = await db.insert(supportMessages).values(data).returning();
+    
+    if (data.senderType === 'bot') {
+      await db.update(supportRequests)
+        .set({ status: 'bot_responded', updatedAt: new Date() })
+        .where(eq(supportRequests.id, data.requestId));
+    } else if (data.senderType === 'agent') {
+      await db.update(supportRequests)
+        .set({ status: 'human_responded', updatedAt: new Date() })
+        .where(eq(supportRequests.id, data.requestId));
+    }
+    
+    return result;
+  }
+
+  async getSupportCannedResponses(activeOnly: boolean = false): Promise<SupportCannedResponse[]> {
+    if (activeOnly) {
+      return await db.select()
+        .from(supportCannedResponses)
+        .where(eq(supportCannedResponses.isActive, true))
+        .orderBy(desc(supportCannedResponses.priority), supportCannedResponses.title);
+    }
+    return await db.select()
+      .from(supportCannedResponses)
+      .orderBy(desc(supportCannedResponses.priority), supportCannedResponses.title);
+  }
+
+  async getSupportCannedResponse(id: string): Promise<SupportCannedResponse | undefined> {
+    const [result] = await db.select().from(supportCannedResponses).where(eq(supportCannedResponses.id, id));
+    return result;
+  }
+
+  async createSupportCannedResponse(data: InsertSupportCannedResponse): Promise<SupportCannedResponse> {
+    const [result] = await db.insert(supportCannedResponses).values(data).returning();
+    return result;
+  }
+
+  async updateSupportCannedResponse(id: string, data: Partial<InsertSupportCannedResponse>): Promise<SupportCannedResponse | undefined> {
+    const [result] = await db.update(supportCannedResponses)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportCannedResponses.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSupportCannedResponse(id: string): Promise<void> {
+    await db.delete(supportCannedResponses).where(eq(supportCannedResponses.id, id));
+  }
+
+  async incrementCannedResponseUsage(id: string): Promise<void> {
+    await db.update(supportCannedResponses)
+      .set({ 
+        usageCount: sql`${supportCannedResponses.usageCount} + 1`,
+        lastUsedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(supportCannedResponses.id, id));
+  }
+
+  async getSupportWebSources(activeOnly: boolean = false): Promise<SupportWebSource[]> {
+    if (activeOnly) {
+      return await db.select()
+        .from(supportWebSources)
+        .where(eq(supportWebSources.isActive, true))
+        .orderBy(supportWebSources.title);
+    }
+    return await db.select().from(supportWebSources).orderBy(supportWebSources.title);
+  }
+
+  async getSupportWebSource(id: string): Promise<SupportWebSource | undefined> {
+    const [result] = await db.select().from(supportWebSources).where(eq(supportWebSources.id, id));
+    return result;
+  }
+
+  async createSupportWebSource(data: InsertSupportWebSource): Promise<SupportWebSource> {
+    const [result] = await db.insert(supportWebSources).values(data).returning();
+    return result;
+  }
+
+  async updateSupportWebSource(id: string, data: Partial<InsertSupportWebSource>): Promise<SupportWebSource | undefined> {
+    const [result] = await db.update(supportWebSources)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportWebSources.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSupportWebSource(id: string): Promise<void> {
+    await db.delete(supportWebSources).where(eq(supportWebSources.id, id));
+  }
+
+  async getSupportSetting(key: string): Promise<SupportSetting | undefined> {
+    const [result] = await db.select().from(supportSettings).where(eq(supportSettings.settingKey, key));
+    return result;
+  }
+
+  async getSupportSettings(): Promise<SupportSetting[]> {
+    return await db.select().from(supportSettings);
+  }
+
+  async upsertSupportSetting(key: string, value: string, updatedById?: string, updatedByName?: string): Promise<SupportSetting> {
+    const [result] = await db.insert(supportSettings)
+      .values({
+        settingKey: key,
+        settingValue: value,
+        updatedById,
+        updatedByName,
+      })
+      .onConflictDoUpdate({
+        target: supportSettings.settingKey,
+        set: {
+          settingValue: value,
+          updatedById,
+          updatedByName,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return result;
   }
 }
 
