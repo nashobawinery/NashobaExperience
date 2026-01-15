@@ -3864,6 +3864,151 @@ export type SpotInventoryAreaWithLocation = SpotInventoryArea & {
   location?: SpotInventoryLocation;
 };
 
+// ============================================
+// CUSTOMER SUPPORT MODULE
+// ============================================
+
+// Support Requests - Customer inquiries submitted via the support widget
+export const supportRequests = pgTable("support_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerName: varchar("customer_name"),
+  customerEmail: varchar("customer_email"),
+  customerPhone: varchar("customer_phone"),
+  subject: text("subject"),
+  initialMessage: text("initial_message").notNull(),
+  status: varchar("status").notNull().default("new"), // new, bot_responded, human_responded, closed
+  priority: varchar("priority").default("normal"), // low, normal, high, urgent
+  assignedToId: varchar("assigned_to_id"),
+  assignedToName: varchar("assigned_to_name"),
+  botResponseConfidence: decimal("bot_response_confidence", { precision: 5, scale: 2 }), // 0-100
+  sourcesUsed: jsonb("sources_used").default([]), // Array of source IDs/URLs used for bot response
+  tags: text("tags").array().default([]),
+  closedAt: timestamp("closed_at"),
+  closedById: varchar("closed_by_id"),
+  closedByName: varchar("closed_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_req_status").on(table.status),
+  index("idx_support_req_email").on(table.customerEmail),
+  index("idx_support_req_created").on(table.createdAt),
+  index("idx_support_req_assigned").on(table.assignedToId),
+]);
+
+export const insertSupportRequestSchema = createInsertSchema(supportRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  closedAt: true,
+});
+export type InsertSupportRequest = z.infer<typeof insertSupportRequestSchema>;
+export type SupportRequest = typeof supportRequests.$inferSelect;
+
+// Support Messages - Thread of messages for each request (bot + human responses)
+export const supportMessages = pgTable("support_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requestId: varchar("request_id").notNull().references(() => supportRequests.id, { onDelete: 'cascade' }),
+  senderType: varchar("sender_type").notNull(), // customer, bot, agent
+  senderName: varchar("sender_name"),
+  senderId: varchar("sender_id"), // User ID if agent
+  content: text("content").notNull(),
+  isInternal: boolean("is_internal").notNull().default(false), // Internal notes not visible to customer
+  metadata: jsonb("metadata").default({}), // Additional data like confidence scores, sources
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_msg_request").on(table.requestId),
+  index("idx_support_msg_created").on(table.createdAt),
+]);
+
+export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
+export type SupportMessage = typeof supportMessages.$inferSelect;
+
+// Support Canned Responses - Pre-written Q&A pairs for the bot
+export const supportCannedResponses = pgTable("support_canned_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(), // Short title for admin reference
+  keywords: text("keywords").array().default([]), // Keywords to match against
+  questionPatterns: text("question_patterns").array().default([]), // Example questions this answers
+  answer: text("answer").notNull(), // The response content
+  category: varchar("category"), // Optional category grouping
+  priority: integer("priority").notNull().default(0), // Higher = more likely to be used
+  isActive: boolean("is_active").notNull().default(true),
+  usageCount: integer("usage_count").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_canned_active").on(table.isActive),
+  index("idx_support_canned_category").on(table.category),
+]);
+
+export const insertSupportCannedResponseSchema = createInsertSchema(supportCannedResponses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  usageCount: true,
+  lastUsedAt: true,
+});
+export type InsertSupportCannedResponse = z.infer<typeof insertSupportCannedResponseSchema>;
+export type SupportCannedResponse = typeof supportCannedResponses.$inferSelect;
+
+// Support Web Sources - Website URLs/content for the bot to reference
+export const supportWebSources = pgTable("support_web_sources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  url: text("url"), // Website URL to reference
+  content: text("content"), // Manual content/snippet (for when URL isn't available)
+  summary: text("summary"), // Brief summary for quick matching
+  category: varchar("category"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastFetchedAt: timestamp("last_fetched_at"),
+  createdById: varchar("created_by_id"),
+  createdByName: varchar("created_by_name"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_web_active").on(table.isActive),
+  index("idx_support_web_category").on(table.category),
+]);
+
+export const insertSupportWebSourceSchema = createInsertSchema(supportWebSources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastFetchedAt: true,
+});
+export type InsertSupportWebSource = z.infer<typeof insertSupportWebSourceSchema>;
+export type SupportWebSource = typeof supportWebSources.$inferSelect;
+
+// Support Settings - Module configuration
+export const supportSettings = pgTable("support_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  settingKey: varchar("setting_key").notNull().unique(),
+  settingValue: text("setting_value"),
+  description: text("description"),
+  updatedById: varchar("updated_by_id"),
+  updatedByName: varchar("updated_by_name"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSupportSettingSchema = createInsertSchema(supportSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertSupportSetting = z.infer<typeof insertSupportSettingSchema>;
+export type SupportSetting = typeof supportSettings.$inferSelect;
+
+// Type for request with messages
+export type SupportRequestWithMessages = SupportRequest & {
+  messages: SupportMessage[];
+};
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;
