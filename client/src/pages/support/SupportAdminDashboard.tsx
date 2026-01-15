@@ -16,7 +16,8 @@ import {
   Settings,
   BookOpen,
   Globe,
-  AlertCircle
+  AlertCircle,
+  Pencil
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { SupportRequest, SupportMessage } from "@shared/schema";
@@ -171,6 +173,8 @@ function RequestList({
 
 function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void }) {
   const [newMessage, setNewMessage] = useState("");
+  const [aiDraftOpen, setAiDraftOpen] = useState(false);
+  const [aiDraftContent, setAiDraftContent] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -194,17 +198,33 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     },
   });
 
-  const generateAiResponseMutation = useMutation({
+  const generateAiDraftMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", `/api/support/requests/${requestId}/ai-response`);
+      const res = await apiRequest("POST", `/api/support/requests/${requestId}/ai-draft`);
+      return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
-      toast({ title: "AI response generated" });
+    onSuccess: (data: { draft: string }) => {
+      setAiDraftContent(data.draft);
+      setAiDraftOpen(true);
     },
     onError: () => {
       toast({ title: "Failed to generate AI response", variant: "destructive" });
+    },
+  });
+
+  const sendAiResponseMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return apiRequest("POST", `/api/support/requests/${requestId}/ai-response`, { content });
+    },
+    onSuccess: () => {
+      setAiDraftOpen(false);
+      setAiDraftContent("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
+      toast({ title: "Response sent from Nashoba Team" });
+    },
+    onError: () => {
+      toast({ title: "Failed to send response", variant: "destructive" });
     },
   });
 
@@ -267,12 +287,12 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
           <Button
             size="sm"
             variant="outline"
-            onClick={() => generateAiResponseMutation.mutate()}
-            disabled={generateAiResponseMutation.isPending || request.status === "closed"}
+            onClick={() => generateAiDraftMutation.mutate()}
+            disabled={generateAiDraftMutation.isPending || request.status === "closed"}
             data-testid="button-generate-ai"
           >
             <Bot className="h-4 w-4 mr-2" />
-            {generateAiResponseMutation.isPending ? "Generating..." : "Generate AI Response"}
+            {generateAiDraftMutation.isPending ? "Generating..." : "Generate AI Response"}
           </Button>
           {request.status !== "closed" && (
             <Button
@@ -287,6 +307,42 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </Button>
           )}
         </div>
+
+        <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-4 w-4" />
+                Edit Response Before Sending
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This response will be sent from the Nashoba Team. Edit the message below before sending.
+              </p>
+              <Textarea
+                value={aiDraftContent}
+                onChange={(e) => setAiDraftContent(e.target.value)}
+                rows={10}
+                className="resize-none"
+                data-testid="textarea-ai-draft"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiDraftOpen(false)} data-testid="button-cancel-ai">
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => sendAiResponseMutation.mutate(aiDraftContent)}
+                disabled={sendAiResponseMutation.isPending || !aiDraftContent.trim()}
+                data-testid="button-send-ai"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {sendAiResponseMutation.isPending ? "Sending..." : "Send from Nashoba Team"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardHeader>
       
       <ScrollArea className="flex-1 p-4">

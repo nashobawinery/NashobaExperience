@@ -12598,8 +12598,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public: Generate AI response for a support request
-  app.post('/api/support/requests/:id/ai-response', async (req, res) => {
+  // Generate AI draft response (returns without saving - for preview/edit)
+  app.post('/api/support/requests/:id/ai-draft', isAdmin, async (req, res) => {
     try {
       const request = await storage.getSupportRequestWithMessages(req.params.id);
       if (!request) {
@@ -12637,7 +12637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ).join('\n\n---\n\n');
 
       const conversationHistory = request.messages.map(m => 
-        `${m.senderType === 'customer' ? 'Customer' : m.senderType === 'bot' ? 'AI Assistant' : 'Support Agent'}: ${m.content}`
+        `${m.senderType === 'customer' ? 'Customer' : m.senderType === 'bot' ? 'Nashoba Team' : 'Support Agent'}: ${m.content}`
       ).join('\n\n');
 
       // Get AI system prompt from settings
@@ -12656,6 +12656,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: 'system', 
             content: `${systemPrompt}
 
+IMPORTANT: Always start your response with a warm, friendly greeting such as "Thank you for reaching out!" or "We appreciate you contacting us!" before addressing their question.
+
 KNOWLEDGE BASE (Canned Responses):
 ${knowledgeBaseContext}
 
@@ -12667,7 +12669,7 @@ ${webSourcesContext}`
           },
           { 
             role: 'user', 
-            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message. Use the FAQ articles and knowledge base to give accurate information.` 
+            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message. Start with a friendly greeting and use the FAQ articles and knowledge base to give accurate information.` 
           }
         ],
         max_tokens: 500
@@ -12679,18 +12681,43 @@ ${webSourcesContext}`
         throw new Error('No response from AI');
       }
 
-      // Save the AI response as a bot message
+      // Return the draft without saving
+      res.json({ draft: aiResponse });
+    } catch (error) {
+      console.error('Error generating AI draft:', error);
+      res.status(500).json({ message: 'Failed to generate AI draft' });
+    }
+  });
+
+  // Send AI response (saves edited content from Nashoba Team)
+  app.post('/api/support/requests/:id/ai-response', isAdmin, async (req, res) => {
+    try {
+      const { content } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ message: 'Response content is required' });
+      }
+
+      const request = await storage.getSupportRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: 'Support request not found' });
+      }
+
+      // Save the response as a bot message from Nashoba Team
       const message = await storage.createSupportMessage({
         requestId: req.params.id,
-        content: aiResponse,
+        content,
         senderType: 'bot',
-        senderName: 'AI Assistant'
+        senderName: 'Nashoba Team'
       });
 
-      res.json({ message, aiResponse });
+      // Update request status
+      await storage.updateSupportRequest(req.params.id, { status: 'in_progress' });
+
+      res.json({ message });
     } catch (error) {
-      console.error('Error generating AI response:', error);
-      res.status(500).json({ message: 'Failed to generate AI response' });
+      console.error('Error sending AI response:', error);
+      res.status(500).json({ message: 'Failed to send response' });
     }
   });
 
