@@ -1008,6 +1008,15 @@ export default function DailyReportsAdminDashboard() {
 
   // Template preview state
   const [previewingTemplate, setPreviewingTemplate] = useState<DailyReportTemplate | null>(null);
+  
+  // Template duplicate state
+  const [duplicatingTemplate, setDuplicatingTemplate] = useState<DailyReportTemplate | null>(null);
+  const [duplicateFormData, setDuplicateFormData] = useState({
+    departmentLabel: "",
+    departmentKey: "",
+    copyProcedures: true,
+    copyAccessCodes: false
+  });
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<DailyReportTemplate[]>({
     queryKey: ['/api/daily-reports/templates']
@@ -1239,6 +1248,36 @@ export default function DailyReportsAdminDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to create department", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const duplicateTemplateMutation = useMutation({
+    mutationFn: async (data: { 
+      sourceTemplateId: string; 
+      departmentKey: string; 
+      departmentLabel: string;
+      copyProcedures: boolean;
+      copyAccessCodes: boolean;
+    }) => {
+      const response = await apiRequest('POST', `/api/daily-reports/templates/${data.sourceTemplateId}/duplicate`, {
+        departmentKey: data.departmentKey,
+        departmentLabel: data.departmentLabel,
+        copyProcedures: data.copyProcedures,
+        copyAccessCodes: data.copyAccessCodes
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/field-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/procedures'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-reports/access-codes'] });
+      setDuplicatingTemplate(null);
+      setDuplicateFormData({ departmentLabel: "", departmentKey: "", copyProcedures: true, copyAccessCodes: false });
+      toast({ title: "Template duplicated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to duplicate template", description: error.message, variant: "destructive" });
     }
   });
 
@@ -2890,6 +2929,7 @@ export default function DailyReportsAdminDashboard() {
                                 e.stopPropagation();
                                 setPreviewingTemplate(template);
                               }}
+                              title="Preview"
                               data-testid={`button-preview-template-${template.department}`}
                             >
                               <Eye className="h-4 w-4" />
@@ -2899,8 +2939,27 @@ export default function DailyReportsAdminDashboard() {
                               size="icon"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setDuplicatingTemplate(template);
+                                setDuplicateFormData({
+                                  departmentLabel: `${template.departmentLabel} (Copy)`,
+                                  departmentKey: `${template.department}-copy`,
+                                  copyProcedures: true,
+                                  copyAccessCodes: false
+                                });
+                              }}
+                              title="Duplicate"
+                              data-testid={`button-duplicate-template-${template.department}`}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleEditDepartment(template);
                               }}
+                              title="Edit"
                               data-testid={`button-edit-template-${template.department}`}
                             >
                               <Edit className="h-4 w-4" />
@@ -5022,6 +5081,142 @@ export default function DailyReportsAdminDashboard() {
             }} data-testid="button-edit-from-preview">
               <Edit className="h-4 w-4 mr-2" />
               Edit Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Template Dialog */}
+      <Dialog open={!!duplicatingTemplate} onOpenChange={(open) => !open && setDuplicatingTemplate(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="h-5 w-5" />
+              Duplicate Template
+            </DialogTitle>
+            <DialogDescription>
+              Create a copy of "{duplicatingTemplate?.departmentLabel}" with a new name. 
+              Field configurations will be copied automatically.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="duplicate-label">New Template Name</Label>
+              <Input
+                id="duplicate-label"
+                value={duplicateFormData.departmentLabel}
+                onChange={(e) => {
+                  const label = e.target.value;
+                  const key = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                  setDuplicateFormData(prev => ({
+                    ...prev,
+                    departmentLabel: label,
+                    departmentKey: key
+                  }));
+                }}
+                placeholder="e.g., Restaurant - Lunch"
+                data-testid="input-duplicate-label"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="duplicate-key">Template Key (auto-generated)</Label>
+              <Input
+                id="duplicate-key"
+                value={duplicateFormData.departmentKey}
+                onChange={(e) => setDuplicateFormData(prev => ({
+                  ...prev,
+                  departmentKey: e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '')
+                }))}
+                placeholder="e.g., restaurant-lunch"
+                data-testid="input-duplicate-key"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used internally. Must be unique and contain only lowercase letters, numbers, and hyphens.
+              </p>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <Label>What to copy:</Label>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="copy-fields"
+                  checked={true}
+                  disabled
+                />
+                <label htmlFor="copy-fields" className="text-sm text-muted-foreground">
+                  Field configurations (always copied)
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="copy-procedures"
+                  checked={duplicateFormData.copyProcedures}
+                  onCheckedChange={(checked) => setDuplicateFormData(prev => ({
+                    ...prev,
+                    copyProcedures: !!checked
+                  }))}
+                  data-testid="checkbox-copy-procedures"
+                />
+                <label htmlFor="copy-procedures" className="text-sm">
+                  Procedure checklists
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="copy-access-codes"
+                  checked={duplicateFormData.copyAccessCodes}
+                  onCheckedChange={(checked) => setDuplicateFormData(prev => ({
+                    ...prev,
+                    copyAccessCodes: !!checked
+                  }))}
+                  data-testid="checkbox-copy-access-codes"
+                />
+                <label htmlFor="copy-access-codes" className="text-sm">
+                  Staff access codes
+                </label>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              Note: Report history is not copied. The new template will start fresh.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setDuplicatingTemplate(null)}
+              data-testid="button-cancel-duplicate"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (duplicatingTemplate) {
+                  duplicateTemplateMutation.mutate({
+                    sourceTemplateId: duplicatingTemplate.id,
+                    departmentKey: duplicateFormData.departmentKey,
+                    departmentLabel: duplicateFormData.departmentLabel,
+                    copyProcedures: duplicateFormData.copyProcedures,
+                    copyAccessCodes: duplicateFormData.copyAccessCodes
+                  });
+                }
+              }}
+              disabled={
+                !duplicateFormData.departmentKey.trim() || 
+                !duplicateFormData.departmentLabel.trim() ||
+                duplicateTemplateMutation.isPending
+              }
+              data-testid="button-confirm-duplicate"
+            >
+              {duplicateTemplateMutation.isPending ? "Duplicating..." : "Create Duplicate"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -10079,6 +10079,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Duplicate a template
+  app.post('/api/daily-reports/templates/:id/duplicate', isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { departmentKey, departmentLabel, copyProcedures, copyAccessCodes } = req.body;
+      
+      // Validate required fields
+      if (!departmentKey || !departmentLabel) {
+        return res.status(400).json({ message: 'Department key and label are required' });
+      }
+      
+      // Check if department key already exists
+      const templates = await storage.getDailyReportTemplates();
+      const existingTemplate = templates.find(t => t.department === departmentKey);
+      if (existingTemplate) {
+        return res.status(400).json({ message: 'A template with this key already exists' });
+      }
+      
+      // Get source template
+      const sourceTemplate = templates.find(t => t.id === id);
+      if (!sourceTemplate) {
+        return res.status(404).json({ message: 'Source template not found' });
+      }
+      
+      // Create new template with copied settings
+      const newTemplate = await storage.upsertDailyReportTemplate({
+        department: departmentKey,
+        departmentLabel: departmentLabel,
+        notificationEmails: sourceTemplate.notificationEmails || [],
+        metrics: sourceTemplate.metrics || [],
+        sortOrder: (sourceTemplate.sortOrder || 0) + 1
+      });
+      
+      // Copy field assignments from source template
+      const sourceAssignments = await storage.getDepartmentFieldAssignments(id);
+      for (const assignment of sourceAssignments) {
+        await storage.createDepartmentFieldAssignment({
+          templateId: newTemplate.id,
+          fieldDefinitionId: assignment.fieldDefinitionId,
+          isEnabled: assignment.isEnabled,
+          sortOrder: assignment.sortOrder
+        });
+      }
+      
+      // Optionally copy procedures
+      if (copyProcedures) {
+        const sourceProcedures = await storage.getDailyProcedureTemplates(sourceTemplate.department);
+        for (const proc of sourceProcedures) {
+          await storage.createDailyProcedureTemplate({
+            department: departmentKey,
+            procedureName: proc.procedureName,
+            description: proc.description,
+            procedureType: proc.procedureType,
+            sortOrder: proc.sortOrder,
+            isRequired: proc.isRequired,
+            isActive: proc.isActive
+          });
+        }
+      }
+      
+      // Optionally copy access codes
+      if (copyAccessCodes) {
+        const sourceAccessCodes = await storage.getDailyReportAccessCodes(sourceTemplate.department);
+        for (const code of sourceAccessCodes) {
+          // Generate a new unique code for the duplicate
+          const newCode = `${code.code.slice(0, -2)}${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
+          await storage.createDailyReportAccessCode({
+            code: newCode,
+            staffName: code.staffName,
+            department: departmentKey,
+            isActive: code.isActive
+          });
+        }
+      }
+      
+      res.json(newTemplate);
+    } catch (error) {
+      console.error('Error duplicating daily report template:', error);
+      res.status(500).json({ message: 'Failed to duplicate template' });
+    }
+  });
+
   // ============================================
   // DAILY REPORT FIELD DEFINITIONS
   // ============================================
