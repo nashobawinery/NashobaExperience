@@ -4835,7 +4835,7 @@ export default function DailyReportsAdminDashboard() {
 
       {/* Template Preview Dialog */}
       <Dialog open={!!previewingTemplate} onOpenChange={(open) => !open && setPreviewingTemplate(null)}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-[700px] h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
@@ -4847,7 +4847,8 @@ export default function DailyReportsAdminDashboard() {
           </DialogHeader>
           
           {previewingTemplate && (
-            <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full pr-4">
               <div className="space-y-6 py-4">
                 <div className="bg-muted/50 rounded-lg p-4 border">
                   <h3 className="font-medium text-sm text-muted-foreground mb-3">REPORT FIELDS</h3>
@@ -4963,7 +4964,8 @@ export default function DailyReportsAdminDashboard() {
                   )}
                 </div>
               </div>
-            </ScrollArea>
+              </ScrollArea>
+            </div>
           )}
           
           <DialogFooter>
