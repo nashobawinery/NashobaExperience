@@ -68,7 +68,7 @@ function RequestList({
   onSelectRequest: (id: string) => void;
   selectedRequestId: string | null;
 }) {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("new");
   const [searchTerm, setSearchTerm] = useState("");
 
   const { toast } = useToast();
