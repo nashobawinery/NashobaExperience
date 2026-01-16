@@ -847,6 +847,11 @@ export default function CatalogPage() {
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                  }
+                }}
                 className="pl-10 w-full sm:w-64"
                 data-testid="input-search"
               />
