@@ -13297,6 +13297,264 @@ ${webSourcesContext}`
     }
   });
 
+  // ============ Social Review Monitoring ============
+
+  // Social Channels
+  app.get('/api/admin/social/channels', isAdmin, async (req, res) => {
+    try {
+      const channels = await storage.getSocialChannels();
+      res.json(channels);
+    } catch (error) {
+      console.error('Error fetching social channels:', error);
+      res.status(500).json({ message: 'Failed to fetch channels' });
+    }
+  });
+
+  app.get('/api/admin/social/channels/:id', isAdmin, async (req, res) => {
+    try {
+      const channel = await storage.getSocialChannel(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Channel not found' });
+      }
+      res.json(channel);
+    } catch (error) {
+      console.error('Error fetching channel:', error);
+      res.status(500).json({ message: 'Failed to fetch channel' });
+    }
+  });
+
+  app.post('/api/admin/social/channels', isAdmin, async (req, res) => {
+    try {
+      const channel = await storage.createSocialChannel(req.body);
+      res.json(channel);
+    } catch (error) {
+      console.error('Error creating channel:', error);
+      res.status(500).json({ message: 'Failed to create channel' });
+    }
+  });
+
+  app.patch('/api/admin/social/channels/:id', isAdmin, async (req, res) => {
+    try {
+      const channel = await storage.updateSocialChannel(req.params.id, req.body);
+      if (!channel) {
+        return res.status(404).json({ message: 'Channel not found' });
+      }
+      res.json(channel);
+    } catch (error) {
+      console.error('Error updating channel:', error);
+      res.status(500).json({ message: 'Failed to update channel' });
+    }
+  });
+
+  app.delete('/api/admin/social/channels/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSocialChannel(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting channel:', error);
+      res.status(500).json({ message: 'Failed to delete channel' });
+    }
+  });
+
+  // Social Reviews
+  app.get('/api/admin/social/reviews', isAdmin, async (req, res) => {
+    try {
+      const { platform, status, channelId, requiresResponse } = req.query;
+      const reviews = await storage.getSocialReviews({
+        platform: platform as string | undefined,
+        status: status as string | undefined,
+        channelId: channelId as string | undefined,
+        requiresResponse: requiresResponse === 'true' ? true : requiresResponse === 'false' ? false : undefined
+      });
+      res.json(reviews);
+    } catch (error) {
+      console.error('Error fetching social reviews:', error);
+      res.status(500).json({ message: 'Failed to fetch reviews' });
+    }
+  });
+
+  app.get('/api/admin/social/reviews/:id', isAdmin, async (req, res) => {
+    try {
+      const review = await storage.getSocialReview(req.params.id);
+      if (!review) {
+        return res.status(404).json({ message: 'Review not found' });
+      }
+      res.json(review);
+    } catch (error) {
+      console.error('Error fetching review:', error);
+      res.status(500).json({ message: 'Failed to fetch review' });
+    }
+  });
+
+  app.post('/api/admin/social/reviews', isAdmin, async (req, res) => {
+    try {
+      const review = await storage.createSocialReview(req.body);
+      res.json(review);
+    } catch (error) {
+      console.error('Error creating review:', error);
+      res.status(500).json({ message: 'Failed to create review' });
+    }
+  });
+
+  app.patch('/api/admin/social/reviews/:id', isAdmin, async (req, res) => {
+    try {
+      const review = await storage.updateSocialReview(req.params.id, req.body);
+      if (!review) {
+        return res.status(404).json({ message: 'Review not found' });
+      }
+      res.json(review);
+    } catch (error) {
+      console.error('Error updating review:', error);
+      res.status(500).json({ message: 'Failed to update review' });
+    }
+  });
+
+  app.delete('/api/admin/social/reviews/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSocialReview(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      res.status(500).json({ message: 'Failed to delete review' });
+    }
+  });
+
+  // Social Review Responses
+  app.get('/api/admin/social/reviews/:id/responses', isAdmin, async (req, res) => {
+    try {
+      const responses = await storage.getSocialReviewResponses(req.params.id);
+      res.json(responses);
+    } catch (error) {
+      console.error('Error fetching responses:', error);
+      res.status(500).json({ message: 'Failed to fetch responses' });
+    }
+  });
+
+  app.post('/api/admin/social/reviews/:id/responses', isAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const response = await storage.createSocialReviewResponse({
+        ...req.body,
+        reviewId: req.params.id,
+        responderUserId: user?.id,
+        responderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'
+      });
+      // Update review status to responded if sent
+      if (req.body.status === 'sent') {
+        await storage.updateSocialReview(req.params.id, { status: 'responded' });
+      }
+      res.json(response);
+    } catch (error) {
+      console.error('Error creating response:', error);
+      res.status(500).json({ message: 'Failed to create response' });
+    }
+  });
+
+  app.patch('/api/admin/social/responses/:id', isAdmin, async (req, res) => {
+    try {
+      const response = await storage.updateSocialReviewResponse(req.params.id, req.body);
+      if (!response) {
+        return res.status(404).json({ message: 'Response not found' });
+      }
+      res.json(response);
+    } catch (error) {
+      console.error('Error updating response:', error);
+      res.status(500).json({ message: 'Failed to update response' });
+    }
+  });
+
+  app.delete('/api/admin/social/responses/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSocialReviewResponse(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting response:', error);
+      res.status(500).json({ message: 'Failed to delete response' });
+    }
+  });
+
+  // Social Review Stats
+  app.get('/api/admin/social/stats', isAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getSocialReviewStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching social stats:', error);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // AI-generated response for social reviews
+  app.post('/api/admin/social/reviews/:id/ai-draft', isAdmin, async (req, res) => {
+    try {
+      const review = await storage.getSocialReview(req.params.id);
+      if (!review) {
+        return res.status(404).json({ message: 'Review not found' });
+      }
+
+      // Get knowledge base for context
+      const cannedResponses = await storage.getSupportCannedResponses();
+      const webSources = await storage.getSupportWebSources();
+      const articles = await storage.getSupportArticles({ status: 'published' });
+
+      // Build context for AI
+      const knowledgeContext = [
+        ...cannedResponses.filter(r => r.isActive).map(r => `Q: ${r.questionPatterns?.join(' / ')}\nA: ${r.answer}`),
+        ...webSources.filter(s => s.isActive).map(s => `Source: ${s.title}\n${s.content || s.summary || ''}`),
+        ...articles.slice(0, 10).map(a => `Article: ${a.title}\n${a.content}`)
+      ].join('\n\n');
+
+      const sentiment = review.rating && review.rating >= 4 ? 'positive' : 
+                       review.rating && review.rating <= 2 ? 'negative' : 'neutral';
+
+      const systemPrompt = `You are a friendly customer service representative for Nashoba Valley Winery. 
+Generate a professional, warm response to a ${sentiment} customer review.
+
+Guidelines:
+- Start with "Thank you for reaching out!" or similar warm greeting
+- Be genuine and personable
+- Address specific points mentioned in the review
+- For positive reviews: express gratitude and invite them back
+- For negative reviews: apologize sincerely, offer to make it right, provide contact info
+- Keep response concise (2-4 sentences)
+- Sign off as "The Nashoba Team"
+
+Knowledge base for reference:
+${knowledgeContext.slice(0, 4000)}`;
+
+      const userMessage = `
+Platform: ${review.platform}
+Rating: ${review.rating ? `${review.rating}/5 stars` : 'N/A'}
+Reviewer: ${review.authorName || 'Anonymous'}
+Review: ${review.content || 'No content'}
+
+Generate a professional response:`;
+
+      const openai = (await import('openai')).default;
+      const client = new openai();
+      
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      });
+
+      const draftResponse = completion.choices[0]?.message?.content || 'Thank you for your feedback!';
+
+      res.json({ 
+        draft: draftResponse,
+        review: review
+      });
+    } catch (error) {
+      console.error('Error generating AI draft:', error);
+      res.status(500).json({ message: 'Failed to generate response' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
 
