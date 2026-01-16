@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Pencil,
   BarChart3,
-  Star
+  Star,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,6 +147,9 @@ function RequestList({
                       <StatusIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
+                          {request.source === 'email' && (
+                            <Mail className="h-4 w-4 shrink-0 text-blue-500" />
+                          )}
                           <span className="font-medium truncate">{request.subject}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -276,7 +280,15 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg truncate">{request.subject}</CardTitle>
+            <div className="flex items-center gap-2">
+              {request.source === 'email' && (
+                <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300">
+                  <Mail className="h-3 w-3" />
+                  Email
+                </Badge>
+              )}
+              <CardTitle className="text-lg truncate">{request.subject}</CardTitle>
+            </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
               <span>{request.customerName || request.customerEmail || "Anonymous"}</span>
               <span>·</span>
