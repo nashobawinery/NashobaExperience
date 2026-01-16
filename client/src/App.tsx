@@ -117,6 +117,7 @@ const B2bReorderPage = lazy(() => import("@/pages/b2b/ReorderPage"));
 const B2bAdminDashboard = lazy(() => import("@/pages/b2b/AdminDashboard"));
 const B2bWhereToBuyPage = lazy(() => import("@/pages/b2b/WhereToBuyPage"));
 const B2bSalesRepDashboard = lazy(() => import("@/pages/b2b/SalesRepDashboard"));
+const B2bCustomerRequestsPage = lazy(() => import("@/pages/b2b/CustomerRequestsPage"));
 const B2bCustomerDataPage = lazy(() => import("@/pages/b2b/CustomerDataPage"));
 const B2bTierAgreementPage = lazy(() => import("@/pages/b2b/TierAgreementPage"));
 const B2bViewSignedAgreementPage = lazy(() => import("@/pages/b2b/ViewSignedAgreementPage"));
@@ -942,6 +943,11 @@ function B2bRoutes() {
             <Route path="/b2b/commissions">
               <ProtectedRoute requireSalesRep>
                 <Suspense fallback={<PageLoader />}><B2bSalesRepDashboard /></Suspense>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/b2b/customer-requests">
+              <ProtectedRoute requireSalesRep>
+                <Suspense fallback={<PageLoader />}><B2bCustomerRequestsPage /></Suspense>
               </ProtectedRoute>
             </Route>
 
