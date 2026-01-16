@@ -33,7 +33,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, and granular feature permissions.
 - **Module Management**: Admin UI for managing platform module metadata.
-- **Customer Support Module**: AI-powered customer support chatbot with knowledge base management. Features include: public chat widget for customers, admin dashboard for managing support requests, canned responses and web sources for training the AI, OpenAI GPT-4o-mini integration for intelligent responses, conversation history and status tracking.
+- **Customer Support Module**: AI-powered customer support chatbot with knowledge base management. Features include: public chat widget for customers, admin dashboard for managing support requests, canned responses and web sources for training the AI, OpenAI GPT-4o-mini integration for intelligent responses, conversation history and status tracking, Social Review Monitoring for Google/Facebook/Yelp/TripAdvisor reviews with AI draft generation, and Email Inbound Integration via SendGrid Inbound Parse webhook.
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Independent module concerns within a monolithic structure.
@@ -58,3 +58,37 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Authentication**: `openid-client`, `express-session`, `connect-pg-simple`.
 - **Database**: PostgreSQL (via Neon serverless).
 - **File Storage**: `@google-cloud/storage`, `@uppy/core`, `@uppy/dashboard`, `@uppy/react`, `@uppy/aws-s3`.
+
+## Email Inbound Integration Setup
+
+The platform supports receiving emails as support requests via SendGrid Inbound Parse. This allows forwarding emails from `support@nashobawinery.com` to be processed automatically as support tickets.
+
+### Setup Steps
+
+1. **Configure SendGrid Inbound Parse**
+   - Log into SendGrid dashboard
+   - Navigate to Settings > Inbound Parse
+   - Add a new host/URL configuration:
+     - Hostname: `inbound.nashobawinery.com` (or your subdomain)
+     - URL: `https://your-replit-app.replit.app/api/webhooks/inbound-email`
+     - Check "POST the raw, full MIME message" (optional)
+
+2. **Configure DNS**
+   - Add an MX record for your inbound subdomain pointing to SendGrid:
+     - Host: `inbound` (creates `inbound.nashobawinery.com`)
+     - Priority: 10
+     - Value: `mx.sendgrid.net`
+
+3. **Set up Email Forwarding**
+   - Configure your email provider to forward `support@nashobawinery.com` to `support@inbound.nashobawinery.com`
+
+### Webhook Endpoint
+
+- **URL**: `POST /api/webhooks/inbound-email`
+- **Features**:
+  - Parses multipart/form-data from SendGrid
+  - Extracts sender name, email, subject, and body
+  - Detects email threads via Message-ID, In-Reply-To, and References headers
+  - Creates new support requests or appends to existing threads
+  - Deduplicates by Message-ID to prevent duplicate processing
+- **Email Indicators**: Email-originated requests display a blue mail icon in the support dashboard
