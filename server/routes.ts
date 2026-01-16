@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import crypto, { randomUUID } from "crypto";
 import { storage } from "./storage";
@@ -27,7 +27,7 @@ import {
   type PermissionLevel
 } from "./rbac";
 import { validateSyncRegistry, logSyncRegistryStatus } from "./syncRegistry";
-import { triviaAttempts, achievementRedemptions } from "@shared/schema";
+import { triviaAttempts, achievementRedemptions, type SupportRequest } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
   insertProductSchema,
@@ -13552,6 +13552,186 @@ Generate a professional response:`;
     } catch (error) {
       console.error('Error generating AI draft:', error);
       res.status(500).json({ message: 'Failed to generate response' });
+    }
+  });
+
+  // ============================================
+  // EMAIL INBOUND WEBHOOK (SendGrid Inbound Parse)
+  // ============================================
+
+  // This endpoint receives incoming emails forwarded via SendGrid Inbound Parse
+  // It creates support requests from emails and handles thread linking
+  app.post('/api/webhooks/inbound-email', express.raw({ type: '*/*', limit: '25mb' }), async (req, res) => {
+    try {
+      // Parse the multipart form data from SendGrid
+      // SendGrid sends multipart/form-data with the email contents
+      const contentType = req.headers['content-type'] || '';
+      
+      let emailData: Record<string, string> = {};
+      let attachments: Array<{ filename: string; type: string; content: Buffer }> = [];
+      
+      if (contentType.includes('multipart/form-data')) {
+        // Parse multipart form data manually
+        const boundary = contentType.split('boundary=')[1];
+        if (boundary) {
+          const parts = req.body.toString().split(`--${boundary}`);
+          for (const part of parts) {
+            if (part.includes('Content-Disposition: form-data')) {
+              const nameMatch = part.match(/name="([^"]+)"/);
+              if (nameMatch) {
+                const name = nameMatch[1];
+                const valueStart = part.indexOf('\r\n\r\n');
+                if (valueStart !== -1) {
+                  const value = part.slice(valueStart + 4).replace(/\r\n--$/, '').trim();
+                  emailData[name] = value;
+                }
+              }
+            }
+          }
+        }
+      } else if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('application/json')) {
+        // Handle URL-encoded or JSON data
+        try {
+          emailData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        } catch {
+          const params = new URLSearchParams(req.body.toString());
+          params.forEach((value, key) => {
+            emailData[key] = value;
+          });
+        }
+      }
+
+      // Extract email fields from SendGrid's format
+      // Note: envelope might be a JSON string, try to parse it
+      let envelope: { from?: string; to?: string[] } = {};
+      try {
+        if (emailData.envelope) {
+          envelope = JSON.parse(emailData.envelope);
+        }
+      } catch { /* ignore */ }
+      
+      const from = emailData.from || envelope.from || '';
+      const fromName = from.match(/^([^<]+)/)?.[1]?.trim() || '';
+      const fromEmail = from.match(/<([^>]+)>/)?.[1] || from.match(/[\w.-]+@[\w.-]+/)?.[0] || '';
+      const to = emailData.to || envelope.to?.[0] || '';
+      const subject = emailData.subject || 'No Subject';
+      const textBody = emailData.text || '';
+      const htmlBody = emailData.html || '';
+      const messageId = emailData['Message-Id'] || emailData.message_id || '';
+      const inReplyTo = emailData['In-Reply-To'] || emailData.in_reply_to || '';
+      const references = emailData['References'] || emailData.references || '';
+
+      console.log('[Email Inbound] Received email:', { 
+        from: fromEmail, 
+        subject,
+        messageId: messageId?.slice(0, 30),
+        hasInReplyTo: !!inReplyTo
+      });
+
+      // Check for duplicate message
+      if (messageId) {
+        const existingMessage = await storage.getSupportMessageByEmailId(messageId);
+        if (existingMessage) {
+          console.log('[Email Inbound] Duplicate email detected, skipping:', messageId);
+          return res.status(200).json({ message: 'Duplicate email, skipped' });
+        }
+      }
+
+      // Determine if this is a reply to an existing thread
+      let existingRequest: SupportRequest | undefined;
+      
+      // First check in-reply-to and references for thread linking
+      if (inReplyTo) {
+        existingRequest = await storage.getSupportRequestByEmailThread(inReplyTo);
+      }
+      
+      if (!existingRequest && references) {
+        // Check each reference ID
+        const refIds = references.split(/\s+/).filter(Boolean);
+        for (const refId of refIds) {
+          existingRequest = await storage.getSupportRequestByEmailThread(refId);
+          if (existingRequest) break;
+        }
+      }
+
+      // Also try matching by customer email for recent open requests
+      if (!existingRequest && fromEmail) {
+        const recentRequests = await storage.getSupportRequests({ status: 'new' });
+        const matchingRequest = recentRequests.find(r => 
+          r.customerEmail?.toLowerCase() === fromEmail.toLowerCase() &&
+          r.source === 'email' &&
+          r.status !== 'closed'
+        );
+        if (matchingRequest) {
+          existingRequest = matchingRequest;
+        }
+      }
+
+      // Clean the email body (remove quoted text, signatures)
+      let cleanBody = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Remove common quoted text patterns
+      cleanBody = cleanBody.split(/\n\s*On .* wrote:\s*\n/)[0]?.trim() || cleanBody;
+      cleanBody = cleanBody.split(/\n\s*-----Original Message-----/)[0]?.trim() || cleanBody;
+      cleanBody = cleanBody.split(/\n\s*From:/)[0]?.trim() || cleanBody;
+
+      if (existingRequest) {
+        // Add as a new message to existing request
+        console.log('[Email Inbound] Adding to existing request:', existingRequest.id);
+        
+        await storage.createSupportMessage({
+          requestId: existingRequest.id,
+          senderType: 'customer',
+          senderName: fromName || fromEmail,
+          content: cleanBody || 'No content',
+          emailMessageId: messageId || undefined,
+          isInternal: false
+        });
+
+        // Update the request status if it was closed
+        if (existingRequest.status === 'closed') {
+          await storage.updateSupportRequest(existingRequest.id, { status: 'new' });
+        }
+
+        res.status(200).json({ 
+          message: 'Email added to existing request',
+          requestId: existingRequest.id 
+        });
+      } else {
+        // Create a new support request
+        console.log('[Email Inbound] Creating new support request');
+        
+        const newRequest = await storage.createSupportRequest({
+          customerName: fromName || undefined,
+          customerEmail: fromEmail || undefined,
+          subject: subject,
+          initialMessage: cleanBody || 'No content',
+          source: 'email',
+          emailMessageId: messageId || undefined,
+          emailThreadId: messageId || undefined, // Use message ID as thread ID for new emails
+          status: 'new',
+          priority: 'normal'
+        });
+
+        res.status(200).json({ 
+          message: 'Support request created from email',
+          requestId: newRequest.id 
+        });
+      }
+    } catch (error) {
+      console.error('[Email Inbound] Error processing email:', error);
+      // Return 200 to prevent SendGrid from retrying
+      res.status(200).json({ message: 'Error processing email', error: String(error) });
+    }
+  });
+
+  // Endpoint to get attachments for a support request
+  app.get('/api/admin/support/requests/:id/attachments', isAdmin, async (req, res) => {
+    try {
+      const attachments = await storage.getAttachmentsForRequest(req.params.id);
+      res.json(attachments);
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+      res.status(500).json({ message: 'Failed to fetch attachments' });
     }
   });
 
