@@ -2942,6 +2942,153 @@ router.get('/api/b2b/admin/customers/pending', requireB2bAdmin, async (req: Requ
   }
 });
 
+// ========== CUSTOMER REQUEST ENDPOINTS (Sales Rep Submission & Admin Approval) ==========
+
+// Get customer requests (admin sees all, sales rep sees only their own)
+router.get('/api/b2b/customer-requests', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { status } = req.query;
+    const filters: { status?: string; salesRepId?: string } = {};
+    
+    if (status) {
+      filters.status = status as string;
+    }
+    
+    // Sales reps only see their own requests
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      filters.salesRepId = (req.session as any).b2bUserId;
+    }
+    
+    const requests = await storage.getB2bCustomerRequests(filters);
+    res.json(requests);
+  } catch (error) {
+    console.error('Error fetching customer requests:', error);
+    res.status(500).json({ error: 'Failed to fetch customer requests' });
+  }
+});
+
+// Get a single customer request
+router.get('/api/b2b/customer-requests/:id', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const request = await storage.getB2bCustomerRequest(id);
+    
+    if (!request) {
+      return res.status(404).json({ error: 'Customer request not found' });
+    }
+    
+    // Sales reps can only view their own requests
+    if ((req.session as any).b2bUserType === 'sales_rep') {
+      if (request.submittedBySalesRepId !== (req.session as any).b2bUserId) {
+        return res.status(403).json({ error: 'Not authorized to view this request' });
+      }
+    }
+    
+    res.json(request);
+  } catch (error) {
+    console.error('Error fetching customer request:', error);
+    res.status(500).json({ error: 'Failed to fetch customer request' });
+  }
+});
+
+// Sales Rep: Submit a new customer request for approval
+router.post('/api/b2b/customer-requests', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const salesRepId = (req.session as any).b2bUserId;
+    
+    const requestData = {
+      ...req.body,
+      submittedBySalesRepId: salesRepId,
+      status: 'pending',
+    };
+    
+    const request = await storage.createB2bCustomerRequest(requestData);
+    res.status(201).json(request);
+  } catch (error) {
+    console.error('Error creating customer request:', error);
+    res.status(500).json({ error: 'Failed to create customer request' });
+  }
+});
+
+// Sales Rep: Update their own pending customer request
+router.put('/api/b2b/customer-requests/:id', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const salesRepId = (req.session as any).b2bUserId;
+    
+    const existing = await storage.getB2bCustomerRequest(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Customer request not found' });
+    }
+    
+    if (existing.submittedBySalesRepId !== salesRepId) {
+      return res.status(403).json({ error: 'Not authorized to update this request' });
+    }
+    
+    if (existing.status !== 'pending' && existing.status !== 'rejected') {
+      return res.status(400).json({ error: 'Can only update pending or rejected requests' });
+    }
+    
+    // Reset status to pending if updating a rejected request
+    const updateData = {
+      ...req.body,
+      status: 'pending' as const,
+    };
+    
+    const request = await storage.updateB2bCustomerRequest(id, updateData);
+    res.json(request);
+  } catch (error) {
+    console.error('Error updating customer request:', error);
+    res.status(500).json({ error: 'Failed to update customer request' });
+  }
+});
+
+// Admin: Approve a customer request (creates the customer)
+router.post('/api/b2b/customer-requests/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = (req.session as any).b2bUserId;
+    
+    const result = await storage.approveB2bCustomerRequest(id, adminId);
+    res.json({
+      message: 'Customer request approved and customer created',
+      request: result.request,
+      customer: result.customer,
+    });
+  } catch (error: any) {
+    console.error('Error approving customer request:', error);
+    res.status(500).json({ error: error.message || 'Failed to approve customer request' });
+  }
+});
+
+// Admin: Reject a customer request
+router.post('/api/b2b/customer-requests/:id/reject', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = (req.session as any).b2bUserId;
+    
+    if (!reason) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+    
+    const request = await storage.rejectB2bCustomerRequest(id, adminId, reason);
+    if (!request) {
+      return res.status(404).json({ error: 'Customer request not found' });
+    }
+    
+    res.json({
+      message: 'Customer request rejected',
+      request,
+    });
+  } catch (error) {
+    console.error('Error rejecting customer request:', error);
+    res.status(500).json({ error: 'Failed to reject customer request' });
+  }
+});
+
+// ========== END CUSTOMER REQUEST ENDPOINTS ==========
+
 // Admin/Sales Rep: Get all customers (any status)
 // Sales reps only see their assigned customers (server-side filtering)
 router.get('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
