@@ -222,6 +222,10 @@ import {
   type SocialReviewWithChannel,
   type InsertSocialReviewResponse,
   type SocialReviewResponse,
+  // Support Attachments (for email integration)
+  supportAttachments,
+  type InsertSupportAttachment,
+  type SupportAttachment,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -5395,6 +5399,48 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(supportArticles.viewCount), desc(supportArticles.helpfulCount))
       .limit(limit);
+  }
+
+  // ============ Email Inbound Support ============
+
+  // Find existing request by email thread ID
+  async getSupportRequestByEmailThread(emailThreadId: string): Promise<SupportRequest | undefined> {
+    const [result] = await db.select()
+      .from(supportRequests)
+      .where(eq(supportRequests.emailThreadId, emailThreadId));
+    return result;
+  }
+
+  // Find existing message by email Message-ID (for deduplication)
+  async getSupportMessageByEmailId(emailMessageId: string): Promise<SupportMessage | undefined> {
+    const [result] = await db.select()
+      .from(supportMessages)
+      .where(eq(supportMessages.emailMessageId, emailMessageId));
+    return result;
+  }
+
+  // Support Attachments
+  async getAttachmentsForRequest(requestId: string): Promise<SupportAttachment[]> {
+    return db.select()
+      .from(supportAttachments)
+      .where(eq(supportAttachments.requestId, requestId))
+      .orderBy(supportAttachments.createdAt);
+  }
+
+  async getAttachmentsForMessage(messageId: string): Promise<SupportAttachment[]> {
+    return db.select()
+      .from(supportAttachments)
+      .where(eq(supportAttachments.messageId, messageId))
+      .orderBy(supportAttachments.createdAt);
+  }
+
+  async createSupportAttachment(data: InsertSupportAttachment): Promise<SupportAttachment> {
+    const [result] = await db.insert(supportAttachments).values(data).returning();
+    return result;
+  }
+
+  async deleteSupportAttachment(id: string): Promise<void> {
+    await db.delete(supportAttachments).where(eq(supportAttachments.id, id));
   }
 
   // ============ Social Review Monitoring ============
