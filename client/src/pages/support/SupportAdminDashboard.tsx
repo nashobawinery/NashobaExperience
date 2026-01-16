@@ -69,9 +69,23 @@ function RequestList({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
+  const { toast } = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const { data: requests = [], isLoading, refetch } = useQuery<SupportRequest[]>({
     queryKey: ["/api/admin/support/requests"],
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+      toast({ title: "Refreshed", description: "Support requests updated" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const filteredRequests = requests.filter(r => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
@@ -91,8 +105,8 @@ function RequestList({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-lg">Support Requests</CardTitle>
-          <Button size="icon" variant="ghost" onClick={() => refetch()} data-testid="button-refresh-requests">
-            <RefreshCw className="h-4 w-4" />
+          <Button size="icon" variant="ghost" onClick={handleRefresh} disabled={isRefreshing} data-testid="button-refresh-requests">
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
         <div className="flex flex-col gap-2">
