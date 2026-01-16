@@ -3043,13 +3043,81 @@ router.put('/api/b2b/customer-requests/:id', requireB2bSalesRep, async (req: Req
   }
 });
 
+// Admin: Get all customer requests (admin-only endpoint)
+router.get('/api/b2b/admin/customer-requests', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { status } = req.query;
+    const filters: { status?: string } = {};
+    
+    if (status) {
+      filters.status = status as string;
+    }
+    
+    const requests = await storage.getB2bCustomerRequests(filters);
+    res.json(requests);
+  } catch (error) {
+    console.error('Error fetching customer requests for admin:', error);
+    res.status(500).json({ error: 'Failed to fetch customer requests' });
+  }
+});
+
+// Admin: Approve a customer request (creates the customer)
+router.post('/api/b2b/admin/customer-requests/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { tierId } = req.body;
+    const adminId = (req.session as any).b2bUserId;
+    
+    if (!tierId) {
+      return res.status(400).json({ error: 'Pricing tier is required' });
+    }
+    
+    const result = await storage.approveB2bCustomerRequest(id, adminId, tierId);
+    res.json({
+      message: 'Customer request approved and customer created',
+      request: result.request,
+      customer: result.customer,
+    });
+  } catch (error: any) {
+    console.error('Error approving customer request:', error);
+    res.status(500).json({ error: error.message || 'Failed to approve customer request' });
+  }
+});
+
+// Admin: Reject a customer request (new admin path)
+router.post('/api/b2b/admin/customer-requests/:id/reject', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = (req.session as any).b2bUserId;
+    
+    if (!reason) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+    
+    const request = await storage.rejectB2bCustomerRequest(id, adminId, reason);
+    if (!request) {
+      return res.status(404).json({ error: 'Customer request not found' });
+    }
+    
+    res.json({
+      message: 'Customer request rejected',
+      request,
+    });
+  } catch (error) {
+    console.error('Error rejecting customer request:', error);
+    res.status(500).json({ error: 'Failed to reject customer request' });
+  }
+});
+
 // Admin: Approve a customer request (creates the customer)
 router.post('/api/b2b/customer-requests/:id/approve', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { tierId } = req.body;
     const adminId = (req.session as any).b2bUserId;
     
-    const result = await storage.approveB2bCustomerRequest(id, adminId);
+    const result = await storage.approveB2bCustomerRequest(id, adminId, tierId);
     res.json({
       message: 'Customer request approved and customer created',
       request: result.request,

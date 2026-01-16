@@ -1,6 +1,6 @@
 import { useB2bAuth } from "@/contexts/B2bAuthContext";
 import { Button } from "@/components/ui/button";
-import { Wine, LogOut, ShoppingCart, Package, History, User, TrendingUp, UserPlus } from "lucide-react";
+import { Wine, LogOut, ShoppingCart, Package, History, User, TrendingUp, UserPlus, UserCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 export function B2bLayout({ children }: { children: React.ReactNode }) {
@@ -111,6 +111,17 @@ export function B2bLayout({ children }: { children: React.ReactNode }) {
                 >
                   <User className="h-4 w-4" />
                   Dashboard
+                </Button>
+              </Link>
+              <Link href="/b2b/admin/customer-requests">
+                <Button
+                  variant={location === "/b2b/admin/customer-requests" ? "default" : "ghost"}
+                  size="sm"
+                  className="flex items-center gap-2 whitespace-nowrap"
+                  data-testid="nav-admin-customer-requests"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  Customer Requests
                 </Button>
               </Link>
             </div>

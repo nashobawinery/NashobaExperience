@@ -453,7 +453,7 @@ export interface IStorage {
   getB2bCustomerRequest(id: string): Promise<(B2bCustomerRequest & { salesRep: SalesRep; tier?: TierPricing | null }) | undefined>;
   createB2bCustomerRequest(data: InsertB2bCustomerRequest): Promise<B2bCustomerRequest>;
   updateB2bCustomerRequest(id: string, data: Partial<InsertB2bCustomerRequest>): Promise<B2bCustomerRequest | undefined>;
-  approveB2bCustomerRequest(id: string, adminId: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }>;
+  approveB2bCustomerRequest(id: string, adminId: string, tierId?: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }>;
   rejectB2bCustomerRequest(id: string, adminId: string, reason: string): Promise<B2bCustomerRequest | undefined>;
 
   // B2B - Customer Locations
@@ -2440,7 +2440,7 @@ export class DatabaseStorage implements IStorage {
     return request;
   }
 
-  async approveB2bCustomerRequest(id: string, adminId: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }> {
+  async approveB2bCustomerRequest(id: string, adminId: string, tierId?: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }> {
     const request = await this.getB2bCustomerRequest(id);
     if (!request) {
       throw new Error('Customer request not found');
@@ -2448,6 +2448,9 @@ export class DatabaseStorage implements IStorage {
     if (request.status !== 'pending') {
       throw new Error('Request is not pending');
     }
+
+    // Use provided tierId or fall back to requested tier
+    const finalTierId = tierId || request.pricingTierId;
 
     // Generate customer number
     const allCustomers = await this.getAllB2bCustomers();
@@ -2474,7 +2477,7 @@ export class DatabaseStorage implements IStorage {
       shippingCity: request.shippingCity,
       shippingState: request.shippingState,
       shippingZipCode: request.shippingZipCode,
-      pricingTierId: request.pricingTierId,
+      pricingTierId: finalTierId,
       salesRepId: request.submittedBySalesRepId,
       notes: request.notes,
     }).returning();

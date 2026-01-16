@@ -118,6 +118,7 @@ const B2bAdminDashboard = lazy(() => import("@/pages/b2b/AdminDashboard"));
 const B2bWhereToBuyPage = lazy(() => import("@/pages/b2b/WhereToBuyPage"));
 const B2bSalesRepDashboard = lazy(() => import("@/pages/b2b/SalesRepDashboard"));
 const B2bCustomerRequestsPage = lazy(() => import("@/pages/b2b/CustomerRequestsPage"));
+const B2bCustomerRequestsAdminPage = lazy(() => import("@/pages/b2b/CustomerRequestsAdminPage"));
 const B2bCustomerDataPage = lazy(() => import("@/pages/b2b/CustomerDataPage"));
 const B2bTierAgreementPage = lazy(() => import("@/pages/b2b/TierAgreementPage"));
 const B2bViewSignedAgreementPage = lazy(() => import("@/pages/b2b/ViewSignedAgreementPage"));
@@ -936,6 +937,11 @@ function B2bRoutes() {
             <Route path="/b2b/admin/agreements/:agreementId">
               <ProtectedRoute requireAdmin>
                 <Suspense fallback={<PageLoader />}><B2bViewSignedAgreementPage /></Suspense>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/b2b/admin/customer-requests">
+              <ProtectedRoute requireAdmin>
+                <Suspense fallback={<PageLoader />}><B2bCustomerRequestsAdminPage /></Suspense>
               </ProtectedRoute>
             </Route>
 
