@@ -1381,14 +1381,14 @@ function ArticlesTab() {
               <div className="space-y-2">
                 <Label htmlFor="article-category">Category</Label>
                 <Select
-                  value={formData.categoryId}
-                  onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+                  value={formData.categoryId || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, categoryId: value === "none" ? "" : value })}
                 >
                   <SelectTrigger data-testid="select-article-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No category</SelectItem>
+                    <SelectItem value="none">No category</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
