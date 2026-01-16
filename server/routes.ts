@@ -13780,10 +13780,67 @@ Generate a professional response:`;
 
       // Clean the email body (remove quoted text, signatures)
       let cleanBody = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      // Remove common quoted text patterns
-      cleanBody = cleanBody.split(/\n\s*On .* wrote:\s*\n/)[0]?.trim() || cleanBody;
-      cleanBody = cleanBody.split(/\n\s*-----Original Message-----/)[0]?.trim() || cleanBody;
-      cleanBody = cleanBody.split(/\n\s*From:/)[0]?.trim() || cleanBody;
+      
+      // Check if this is a forwarded email (FW: or Fwd: in subject)
+      const isForwarded = subject.toLowerCase().startsWith('fw:') || subject.toLowerCase().startsWith('fwd:');
+      
+      if (isForwarded) {
+        // For forwarded emails, try to extract the forwarded content
+        // Look for forwarded message markers and get content after them
+        const forwardedPatterns = [
+          /---------- Forwarded message ---------\s*\n([\s\S]*)/i,
+          /-------- Original Message --------\s*\n([\s\S]*)/i,
+          /----- Forwarded Message -----\s*\n([\s\S]*)/i,
+          /Begin forwarded message:\s*\n([\s\S]*)/i,
+          /From:.*\nSent:.*\nTo:.*\n(?:Subject:.*\n)?\s*\n([\s\S]*)/i,
+          /From:.*\nDate:.*\n(?:Subject:.*\n)?(?:To:.*\n)?\s*\n([\s\S]*)/i,
+        ];
+        
+        for (const pattern of forwardedPatterns) {
+          const match = cleanBody.match(pattern);
+          if (match && match[1]) {
+            // Found forwarded content, use it but clean up signature lines
+            let forwardedContent = match[1].trim();
+            // Remove trailing signature separators
+            forwardedContent = forwardedContent.split(/\n_{10,}/)[0]?.trim() || forwardedContent;
+            forwardedContent = forwardedContent.split(/\n-{10,}/)[0]?.trim() || forwardedContent;
+            if (forwardedContent && forwardedContent.length > 5) {
+              cleanBody = forwardedContent;
+              break;
+            }
+          }
+        }
+        
+        // If still just underscores or too short, try to get everything after the first From/Subject block
+        if (!cleanBody || cleanBody.match(/^_+$/) || cleanBody.length < 10) {
+          // Try to find content after headers in forwarded email
+          const headerEndMatch = (textBody || '').match(/Subject:.*\n\s*\n([\s\S]+)/i);
+          if (headerEndMatch && headerEndMatch[1]) {
+            let content = headerEndMatch[1].trim();
+            content = content.split(/\n_{10,}/)[0]?.trim() || content;
+            if (content && content.length > 5 && !content.match(/^_+$/)) {
+              cleanBody = content;
+            }
+          }
+        }
+      } else {
+        // For regular replies, remove quoted text patterns
+        cleanBody = cleanBody.split(/\n\s*On .* wrote:\s*\n/)[0]?.trim() || cleanBody;
+        cleanBody = cleanBody.split(/\n\s*-----Original Message-----/)[0]?.trim() || cleanBody;
+        // Only split on From: if it looks like a quote header (has date/time context)
+        const fromQuoteMatch = cleanBody.match(/^([\s\S]*?)\n\s*From:.*\n.*(?:Sent|Date):/i);
+        if (fromQuoteMatch && fromQuoteMatch[1]) {
+          cleanBody = fromQuoteMatch[1].trim() || cleanBody;
+        }
+      }
+      
+      // Remove trailing underscore lines (common in forwarded emails)
+      cleanBody = cleanBody.replace(/\n*_{5,}\s*$/g, '').trim();
+      
+      // If body is still empty or just underscores, use a placeholder
+      if (!cleanBody || cleanBody.match(/^_+$/) || cleanBody.length < 3) {
+        cleanBody = '[Email body could not be extracted - please check original email]';
+      }
 
       if (existingRequest) {
         // Add as a new message to existing request
