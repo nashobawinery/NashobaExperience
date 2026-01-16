@@ -344,26 +344,28 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="border-b pb-4">
-        <div className="flex items-center gap-3">
-          <Button size="icon" variant="ghost" onClick={onBack} className="md:hidden" data-testid="button-back">
+        <div className="flex items-start gap-3">
+          <Button size="icon" variant="ghost" onClick={onBack} className="md:hidden shrink-0" data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {request.source === 'email' && (
-                <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300">
+                <Badge variant="outline" className="gap-1 text-blue-600 border-blue-300 shrink-0">
                   <Mail className="h-3 w-3" />
                   Email
                 </Badge>
               )}
               <CardTitle className="text-lg truncate">{request.subject}</CardTitle>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1 flex-wrap">
               <span>{request.customerName || request.customerEmail || "Anonymous"}</span>
               <span>·</span>
               <span>{format(new Date(request.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
             </div>
           </div>
+        </div>
+        <div className="flex gap-2 mt-3 flex-wrap items-center">
           <Select
             value={request.status}
             onValueChange={(value) => updateStatusMutation.mutate(value)}
@@ -382,8 +384,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex gap-2 mt-3">
           <Button
             size="sm"
             variant="outline"
@@ -394,6 +394,18 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             <Bot className="h-4 w-4 mr-2" />
             {generateAiDraftMutation.isPending ? "Generating..." : "Generate AI Response"}
           </Button>
+          {request.status !== "closed" && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => closeRequestMutation.mutate()}
+              disabled={closeRequestMutation.isPending}
+              data-testid="button-close-ticket"
+            >
+              <Archive className="h-4 w-4 mr-2" />
+              {closeRequestMutation.isPending ? "Closing..." : "Close Ticket"}
+            </Button>
+          )}
         </div>
 
         <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
