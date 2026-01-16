@@ -5080,7 +5080,33 @@ export class DatabaseStorage implements IStorage {
       .where(eq(supportMessages.requestId, id))
       .orderBy(supportMessages.createdAt);
     
-    return { ...request, messages };
+    // Create a synthetic first message from the initialMessage if it exists
+    // and there isn't already a message with the same content at the start
+    const allMessages = [...messages];
+    if (request.initialMessage) {
+      const hasInitialInMessages = messages.length > 0 && 
+        messages[0].content === request.initialMessage &&
+        messages[0].senderType === 'customer';
+      
+      if (!hasInitialInMessages) {
+        // Add the initial message as the first message
+        const syntheticFirstMessage = {
+          id: `initial-${id}`,
+          requestId: id,
+          senderType: 'customer' as const,
+          senderName: request.customerName || request.customerEmail || 'Customer',
+          senderId: null,
+          content: request.initialMessage,
+          isInternal: false,
+          metadata: {},
+          emailMessageId: request.emailMessageId || null,
+          createdAt: request.createdAt,
+        };
+        allMessages.unshift(syntheticFirstMessage);
+      }
+    }
+    
+    return { ...request, messages: allMessages };
   }
 
   async createSupportRequest(data: InsertSupportRequest): Promise<SupportRequest> {
