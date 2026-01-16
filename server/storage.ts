@@ -77,6 +77,7 @@ import {
   salesReps,
   b2bAdmins,
   b2bCustomers,
+  b2bCustomerRequests,
   b2bCustomerLocations,
   b2bCustomerManualProducts,
   b2bOrders,
@@ -99,6 +100,8 @@ import {
   type B2bAdmin,
   type InsertB2bCustomer,
   type B2bCustomer,
+  type InsertB2bCustomerRequest,
+  type B2bCustomerRequest,
   type InsertB2bCustomerLocation,
   type B2bCustomerLocation,
   type InsertB2bCustomerManualProduct,
@@ -444,6 +447,14 @@ export interface IStorage {
   deleteB2bCustomer(id: string): Promise<boolean>;
   approveB2bCustomer(id: string, tierId: string, passwordHash: string, approvedByAdminId: string | null): Promise<B2bCustomer | undefined>;
   upsertB2bCustomer(data: Omit<InsertB2bCustomer, 'passwordHash'> & { passwordHash?: string }): Promise<{ customer: B2bCustomer; action: 'created' | 'updated' }>;
+
+  // B2B - Customer Requests (for sales rep submission & admin approval)
+  getB2bCustomerRequests(filters?: { status?: string; salesRepId?: string }): Promise<(B2bCustomerRequest & { salesRep: SalesRep; tier?: TierPricing | null })[]>;
+  getB2bCustomerRequest(id: string): Promise<(B2bCustomerRequest & { salesRep: SalesRep; tier?: TierPricing | null }) | undefined>;
+  createB2bCustomerRequest(data: InsertB2bCustomerRequest): Promise<B2bCustomerRequest>;
+  updateB2bCustomerRequest(id: string, data: Partial<InsertB2bCustomerRequest>): Promise<B2bCustomerRequest | undefined>;
+  approveB2bCustomerRequest(id: string, adminId: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }>;
+  rejectB2bCustomerRequest(id: string, adminId: string, reason: string): Promise<B2bCustomerRequest | undefined>;
 
   // B2B - Customer Locations
   getAllB2bCustomerLocations(): Promise<B2bCustomerLocation[]>;
@@ -2364,6 +2375,139 @@ export class DatabaseStorage implements IStorage {
       .where(eq(b2bCustomers.id, id))
       .returning();
     return customer;
+  }
+
+  // B2B - Customer Requests implementations
+  async getB2bCustomerRequests(filters?: { status?: string; salesRepId?: string }): Promise<(B2bCustomerRequest & { salesRep: SalesRep; tier?: TierPricing | null })[]> {
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(b2bCustomerRequests.status, filters.status as any));
+    }
+    if (filters?.salesRepId) {
+      conditions.push(eq(b2bCustomerRequests.submittedBySalesRepId, filters.salesRepId));
+    }
+
+    const results = await db
+      .select({
+        request: b2bCustomerRequests,
+        salesRep: salesReps,
+        tier: tierPricing,
+      })
+      .from(b2bCustomerRequests)
+      .innerJoin(salesReps, eq(b2bCustomerRequests.submittedBySalesRepId, salesReps.id))
+      .leftJoin(tierPricing, eq(b2bCustomerRequests.pricingTierId, tierPricing.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(b2bCustomerRequests.createdAt));
+
+    return results.map(r => ({
+      ...r.request,
+      salesRep: r.salesRep,
+      tier: r.tier,
+    }));
+  }
+
+  async getB2bCustomerRequest(id: string): Promise<(B2bCustomerRequest & { salesRep: SalesRep; tier?: TierPricing | null }) | undefined> {
+    const [result] = await db
+      .select({
+        request: b2bCustomerRequests,
+        salesRep: salesReps,
+        tier: tierPricing,
+      })
+      .from(b2bCustomerRequests)
+      .innerJoin(salesReps, eq(b2bCustomerRequests.submittedBySalesRepId, salesReps.id))
+      .leftJoin(tierPricing, eq(b2bCustomerRequests.pricingTierId, tierPricing.id))
+      .where(eq(b2bCustomerRequests.id, id));
+
+    if (!result) return undefined;
+    return {
+      ...result.request,
+      salesRep: result.salesRep,
+      tier: result.tier,
+    };
+  }
+
+  async createB2bCustomerRequest(data: InsertB2bCustomerRequest): Promise<B2bCustomerRequest> {
+    const [request] = await db.insert(b2bCustomerRequests).values(data).returning();
+    return request;
+  }
+
+  async updateB2bCustomerRequest(id: string, data: Partial<InsertB2bCustomerRequest>): Promise<B2bCustomerRequest | undefined> {
+    const [request] = await db
+      .update(b2bCustomerRequests)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bCustomerRequests.id, id))
+      .returning();
+    return request;
+  }
+
+  async approveB2bCustomerRequest(id: string, adminId: string): Promise<{ request: B2bCustomerRequest; customer: B2bCustomer }> {
+    const request = await this.getB2bCustomerRequest(id);
+    if (!request) {
+      throw new Error('Customer request not found');
+    }
+    if (request.status !== 'pending') {
+      throw new Error('Request is not pending');
+    }
+
+    // Generate customer number
+    const allCustomers = await this.getAllB2bCustomers();
+    const customerNumber = `NV${String(allCustomers.length + 1).padStart(5, '0')}`;
+
+    // Create the customer from the request data
+    const [customer] = await db.insert(b2bCustomers).values({
+      accountName: request.accountName,
+      accountStatus: 'pending_approval' as any,
+      customerType: request.customerType,
+      licenseNumber: request.licenseNumber,
+      taxId: request.taxId,
+      primaryContactName: request.primaryContactName,
+      primaryContactRole: request.primaryContactRole,
+      customerNumber,
+      emailAddress: request.emailAddress,
+      phoneNumber: request.phoneNumber,
+      altPhoneNumber: request.altPhoneNumber,
+      billingAddress: request.billingAddress,
+      billingCity: request.billingCity,
+      billingState: request.billingState,
+      billingZipCode: request.billingZipCode,
+      shippingAddress: request.shippingAddress,
+      shippingCity: request.shippingCity,
+      shippingState: request.shippingState,
+      shippingZipCode: request.shippingZipCode,
+      pricingTierId: request.pricingTierId,
+      salesRepId: request.submittedBySalesRepId,
+      notes: request.notes,
+    }).returning();
+
+    // Update the request to approved
+    const [updatedRequest] = await db
+      .update(b2bCustomerRequests)
+      .set({
+        status: 'approved' as any,
+        reviewedByAdminId: adminId,
+        reviewedAt: new Date(),
+        createdCustomerId: customer.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bCustomerRequests.id, id))
+      .returning();
+
+    return { request: updatedRequest, customer };
+  }
+
+  async rejectB2bCustomerRequest(id: string, adminId: string, reason: string): Promise<B2bCustomerRequest | undefined> {
+    const [request] = await db
+      .update(b2bCustomerRequests)
+      .set({
+        status: 'rejected' as any,
+        reviewedByAdminId: adminId,
+        reviewedAt: new Date(),
+        rejectionReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(b2bCustomerRequests.id, id))
+      .returning();
+    return request;
   }
 
   // B2B - Customer Locations implementations
