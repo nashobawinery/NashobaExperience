@@ -3883,6 +3883,9 @@ export const supportRequests = pgTable("support_requests", {
   botResponseConfidence: decimal("bot_response_confidence", { precision: 5, scale: 2 }), // 0-100
   sourcesUsed: jsonb("sources_used").default([]), // Array of source IDs/URLs used for bot response
   tags: text("tags").array().default([]),
+  source: varchar("source").notNull().default("widget"), // widget, email, api
+  emailMessageId: varchar("email_message_id"), // For email thread tracking
+  emailThreadId: varchar("email_thread_id"), // Groups related emails
   closedAt: timestamp("closed_at"),
   closedById: varchar("closed_by_id"),
   closedByName: varchar("closed_by_name"),
@@ -3893,6 +3896,8 @@ export const supportRequests = pgTable("support_requests", {
   index("idx_support_req_email").on(table.customerEmail),
   index("idx_support_req_created").on(table.createdAt),
   index("idx_support_req_assigned").on(table.assignedToId),
+  index("idx_support_req_email_msg").on(table.emailMessageId),
+  index("idx_support_req_email_thread").on(table.emailThreadId),
 ]);
 
 export const insertSupportRequestSchema = createInsertSchema(supportRequests).omit({
@@ -3914,10 +3919,12 @@ export const supportMessages = pgTable("support_messages", {
   content: text("content").notNull(),
   isInternal: boolean("is_internal").notNull().default(false), // Internal notes not visible to customer
   metadata: jsonb("metadata").default({}), // Additional data like confidence scores, sources
+  emailMessageId: varchar("email_message_id"), // Message-ID header for email dedup
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_support_msg_request").on(table.requestId),
   index("idx_support_msg_created").on(table.createdAt),
+  index("idx_support_msg_email").on(table.emailMessageId),
 ]);
 
 export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({
@@ -3926,6 +3933,29 @@ export const insertSupportMessageSchema = createInsertSchema(supportMessages).om
 });
 export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
 export type SupportMessage = typeof supportMessages.$inferSelect;
+
+// Support Attachments - Files attached to support messages (from emails or uploads)
+export const supportAttachments = pgTable("support_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => supportMessages.id, { onDelete: 'cascade' }),
+  requestId: varchar("request_id").notNull().references(() => supportRequests.id, { onDelete: 'cascade' }),
+  fileName: varchar("file_name").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(), // bytes
+  storageUrl: text("storage_url").notNull(), // URL to object storage
+  storageKey: varchar("storage_key"), // Object storage key for deletion
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_attach_msg").on(table.messageId),
+  index("idx_support_attach_req").on(table.requestId),
+]);
+
+export const insertSupportAttachmentSchema = createInsertSchema(supportAttachments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportAttachment = z.infer<typeof insertSupportAttachmentSchema>;
+export type SupportAttachment = typeof supportAttachments.$inferSelect;
 
 // Support Canned Responses - Pre-written Q&A pairs for the bot
 export const supportCannedResponses = pgTable("support_canned_responses", {
