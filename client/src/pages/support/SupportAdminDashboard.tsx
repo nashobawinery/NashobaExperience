@@ -20,7 +20,11 @@ import {
   Pencil,
   BarChart3,
   Star,
-  Mail
+  Mail,
+  Loader2,
+  CircleDot,
+  CheckCircle,
+  Archive
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { SupportRequest, SupportMessage } from "@shared/schema";
@@ -38,11 +43,21 @@ type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] 
 
 const statusConfig: Record<string, { label: string; icon: typeof Circle; className: string }> = {
   new: { label: "New", icon: AlertCircle, className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  open: { label: "Open", icon: CircleDot, className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   customer_replied: { label: "Customer Replied", icon: MessageSquare, className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  pending: { label: "Pending", icon: Loader2, className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   bot_responded: { label: "Bot Responded", icon: Bot, className: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
   human_responded: { label: "Agent Responded", icon: User, className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  closed: { label: "Closed", icon: CheckCircle2, className: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200" }
+  resolved: { label: "Resolved", icon: CheckCircle, className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  closed: { label: "Closed", icon: Archive, className: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200" }
 };
+
+const changeableStatuses = [
+  { value: "open", label: "Open" },
+  { value: "pending", label: "Pending" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+];
 
 function RequestList({ 
   onSelectRequest, 
@@ -101,20 +116,36 @@ function RequestList({
               All
             </Badge>
             <Badge
-              variant={statusFilter === "new" ? "default" : "outline"}
+              variant={statusFilter === "open" ? "default" : "outline"}
               className="cursor-pointer"
-              onClick={() => setStatusFilter("new")}
-              data-testid="filter-new"
+              onClick={() => setStatusFilter("open")}
+              data-testid="filter-open"
             >
-              New
+              Open
             </Badge>
             <Badge
-              variant={statusFilter === "customer_replied" ? "default" : "outline"}
+              variant={statusFilter === "pending" ? "default" : "outline"}
               className="cursor-pointer"
-              onClick={() => setStatusFilter("customer_replied")}
-              data-testid="filter-customer-replied"
+              onClick={() => setStatusFilter("pending")}
+              data-testid="filter-pending"
             >
-              Needs Response
+              Pending
+            </Badge>
+            <Badge
+              variant={statusFilter === "resolved" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setStatusFilter("resolved")}
+              data-testid="filter-resolved"
+            >
+              Resolved
+            </Badge>
+            <Badge
+              variant={statusFilter === "closed" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setStatusFilter("closed")}
+              data-testid="filter-closed"
+            >
+              Closed
             </Badge>
           </div>
         </div>
@@ -248,6 +279,20 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     },
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      return apiRequest("PATCH", `/api/admin/support/requests/${requestId}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
+      toast({ title: "Status updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -295,7 +340,24 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
               <span>{format(new Date(request.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
             </div>
           </div>
-          <Badge className={status.className} variant="secondary">{status.label}</Badge>
+          <Select
+            value={request.status}
+            onValueChange={(value) => updateStatusMutation.mutate(value)}
+            disabled={updateStatusMutation.isPending}
+          >
+            <SelectTrigger className="w-[140px]" data-testid="select-status">
+              <SelectValue>
+                <Badge className={status.className} variant="secondary">{status.label}</Badge>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {changeableStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value} data-testid={`status-option-${s.value}`}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2 mt-3">
           <Button
@@ -308,18 +370,6 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             <Bot className="h-4 w-4 mr-2" />
             {generateAiDraftMutation.isPending ? "Generating..." : "Generate AI Response"}
           </Button>
-          {request.status !== "closed" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => closeRequestMutation.mutate()}
-              disabled={closeRequestMutation.isPending}
-              data-testid="button-close-request"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Close Request
-            </Button>
-          )}
         </div>
 
         <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
