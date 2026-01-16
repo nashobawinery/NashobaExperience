@@ -13834,47 +13834,110 @@ Generate a professional response:`;
       }
 
       // Clean the email body (remove quoted text, signatures)
+      // Log raw body for debugging
+      console.log('[Email Inbound] Raw text body length:', textBody?.length || 0);
+      console.log('[Email Inbound] Raw HTML body length:', htmlBody?.length || 0);
+      console.log('[Email Inbound] Text body preview:', textBody?.slice(0, 500) || 'empty');
+      
       let cleanBody = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       
       // Check if this is a forwarded email (FW: or Fwd: in subject)
       const isForwarded = subject.toLowerCase().startsWith('fw:') || subject.toLowerCase().startsWith('fwd:');
       
       if (isForwarded) {
-        // For forwarded emails, try to extract the forwarded content
-        // Look for forwarded message markers and get content after them
-        const forwardedPatterns = [
-          /---------- Forwarded message ---------\s*\n([\s\S]*)/i,
-          /-------- Original Message --------\s*\n([\s\S]*)/i,
-          /----- Forwarded Message -----\s*\n([\s\S]*)/i,
-          /Begin forwarded message:\s*\n([\s\S]*)/i,
-          /From:.*\nSent:.*\nTo:.*\n(?:Subject:.*\n)?\s*\n([\s\S]*)/i,
-          /From:.*\nDate:.*\n(?:Subject:.*\n)?(?:To:.*\n)?\s*\n([\s\S]*)/i,
+        console.log('[Email Inbound] Processing as forwarded email');
+        
+        // For forwarded emails, the content structure is often:
+        // ________________________________
+        // From: <email>
+        // Sent: <date>
+        // To: <recipient>
+        // Subject: <subject>
+        //
+        // <ACTUAL CONTENT HERE>
+        //
+        // [signature/footer]
+        
+        // First, try to extract content from the forwarded block
+        // Look for the pattern: Subject line followed by blank line, then content
+        const forwardedContentPatterns = [
+          // Outlook style: underscore separator, then headers, then blank line, then content
+          /_{5,}\s*\n(?:From:.*\n)?(?:Sent:.*\n)?(?:To:.*\n)?(?:Cc:.*\n)?(?:Subject:.*\n)\s*\n([\s\S]+)/i,
+          // Gmail style forwarded message
+          /---------- Forwarded message ---------\s*\n(?:From:.*\n)?(?:Date:.*\n)?(?:Subject:.*\n)?(?:To:.*\n)?\s*\n([\s\S]+)/i,
+          // Apple mail style
+          /Begin forwarded message:\s*\n(?:From:.*\n)?(?:Date:.*\n)?(?:Subject:.*\n)?(?:To:.*\n)?(?:Reply-To:.*\n)?\s*\n([\s\S]+)/i,
+          // Generic: Subject line followed by double newline
+          /Subject:[^\n]*\n\s*\n([\s\S]+)/i,
+          // Fallback: From/Sent/To block followed by content
+          /From:.*\nSent:.*\nTo:.*\n(?:Cc:.*\n)?(?:Subject:.*\n)?\s*\n([\s\S]+)/i,
         ];
         
-        for (const pattern of forwardedPatterns) {
-          const match = cleanBody.match(pattern);
+        let extracted = false;
+        for (const pattern of forwardedContentPatterns) {
+          const match = (textBody || cleanBody).match(pattern);
           if (match && match[1]) {
-            // Found forwarded content, use it but clean up signature lines
             let forwardedContent = match[1].trim();
-            // Remove trailing signature separators
-            forwardedContent = forwardedContent.split(/\n_{10,}/)[0]?.trim() || forwardedContent;
-            forwardedContent = forwardedContent.split(/\n-{10,}/)[0]?.trim() || forwardedContent;
-            if (forwardedContent && forwardedContent.length > 5) {
+            // Remove any trailing underscore separators
+            forwardedContent = forwardedContent.split(/\n_{5,}/)[0]?.trim() || forwardedContent;
+            forwardedContent = forwardedContent.split(/\n-{5,}/)[0]?.trim() || forwardedContent;
+            // Remove signature blocks
+            forwardedContent = forwardedContent.split(/\n(?:--|Best|Thanks|Regards|Sincerely)[,\s]/i)[0]?.trim() || forwardedContent;
+            
+            // Check if we got meaningful content
+            if (forwardedContent && forwardedContent.length > 5 && !forwardedContent.match(/^_+$/)) {
               cleanBody = forwardedContent;
+              extracted = true;
+              console.log('[Email Inbound] Extracted forwarded content:', cleanBody.slice(0, 100));
               break;
             }
           }
         }
         
-        // If still just underscores or too short, try to get everything after the first From/Subject block
-        if (!cleanBody || cleanBody.match(/^_+$/) || cleanBody.length < 10) {
-          // Try to find content after headers in forwarded email
-          const headerEndMatch = (textBody || '').match(/Subject:.*\n\s*\n([\s\S]+)/i);
-          if (headerEndMatch && headerEndMatch[1]) {
-            let content = headerEndMatch[1].trim();
-            content = content.split(/\n_{10,}/)[0]?.trim() || content;
-            if (content && content.length > 5 && !content.match(/^_+$/)) {
-              cleanBody = content;
+        // If pattern extraction failed, try HTML parsing as fallback
+        if (!extracted && htmlBody) {
+          console.log('[Email Inbound] Trying HTML extraction fallback');
+          // Strip HTML tags more carefully
+          let htmlContent = htmlBody
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')  // Remove style blocks
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script blocks
+            .replace(/<br\s*\/?>/gi, '\n')  // Convert br to newlines
+            .replace(/<\/p>/gi, '\n\n')     // Convert p endings to double newlines
+            .replace(/<\/div>/gi, '\n')     // Convert div endings to newlines
+            .replace(/<[^>]+>/g, ' ')       // Strip remaining tags
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          // Try the same patterns on HTML-extracted content
+          for (const pattern of forwardedContentPatterns) {
+            const match = htmlContent.match(pattern);
+            if (match && match[1]) {
+              let forwardedContent = match[1].trim();
+              forwardedContent = forwardedContent.split(/_{5,}/)[0]?.trim() || forwardedContent;
+              if (forwardedContent && forwardedContent.length > 10 && !forwardedContent.match(/^_+$/)) {
+                cleanBody = forwardedContent;
+                extracted = true;
+                console.log('[Email Inbound] Extracted from HTML:', cleanBody.slice(0, 100));
+                break;
+              }
+            }
+          }
+          
+          // Last resort: just use the HTML content if it has meaningful text
+          if (!extracted && htmlContent.length > 50 && !htmlContent.match(/^_+$/)) {
+            // Remove header blocks and get the meat
+            const contentOnly = htmlContent
+              .replace(/^.*?(?=\w{10,})/s, '')  // Skip to first long word
+              .replace(/_{5,}/g, '')
+              .trim();
+            if (contentOnly.length > 20) {
+              cleanBody = contentOnly.slice(0, 2000);
+              console.log('[Email Inbound] Using cleaned HTML content:', cleanBody.slice(0, 100));
             }
           }
         }
@@ -13889,13 +13952,26 @@ Generate a professional response:`;
         }
       }
       
-      // Remove trailing underscore lines (common in forwarded emails)
-      cleanBody = cleanBody.replace(/\n*_{5,}\s*$/g, '').trim();
+      // Final cleanup: Remove leading/trailing underscore lines
+      cleanBody = cleanBody.replace(/^_{5,}\s*/g, '').replace(/\s*_{5,}$/g, '').trim();
       
-      // If body is still empty or just underscores, use a placeholder
+      // If body is still empty, just underscores, or too short, use a placeholder with original body reference
       if (!cleanBody || cleanBody.match(/^_+$/) || cleanBody.length < 3) {
-        cleanBody = '[Email body could not be extracted - please check original email]';
+        // Try one more time with the raw HTML if available
+        if (htmlBody && htmlBody.length > 100) {
+          const rawStripped = htmlBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (rawStripped.length > 50 && !rawStripped.match(/^_+$/)) {
+            cleanBody = rawStripped.slice(0, 2000);
+            console.log('[Email Inbound] Using raw stripped HTML:', cleanBody.slice(0, 100));
+          } else {
+            cleanBody = '[Email body could not be extracted - please check original email]';
+          }
+        } else {
+          cleanBody = '[Email body could not be extracted - please check original email]';
+        }
       }
+      
+      console.log('[Email Inbound] Final clean body length:', cleanBody.length);
 
       if (existingRequest) {
         // Add as a new message to existing request
