@@ -12658,6 +12658,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 IMPORTANT: Always start your response with a warm, friendly greeting such as "Thank you for reaching out!" or "We appreciate you contacting us!" before addressing their question.
 
+REQUIRED DISCLAIMER: You MUST end EVERY response with the following disclaimer on its own paragraph:
+---
+This is an AI generated response. A live agent will review within 24 hours and reach out to you with additional information. If our AI agent has answered your question, please respond "close" and we will mark our answer as satisfying your needs.
+---
+
 KNOWLEDGE BASE (Canned Responses):
 ${knowledgeBaseContext}
 
@@ -13793,9 +13798,22 @@ Generate a professional response:`;
           isInternal: false
         });
 
-        // Update the request status if it was closed
-        if (existingRequest.status === 'closed') {
+        // Check if customer replied with "close" to close the ticket
+        const normalizedBody = (cleanBody || '').toLowerCase().trim();
+        if (normalizedBody === 'close' || normalizedBody === '"close"' || normalizedBody === "'close'" ||
+            normalizedBody.startsWith('close.') || normalizedBody.startsWith('close,') ||
+            normalizedBody === 'closed' || normalizedBody === 'resolved') {
+          console.log('[Email Inbound] Customer requested to close ticket:', existingRequest.id);
+          await storage.updateSupportRequest(existingRequest.id, { 
+            status: 'closed',
+            resolution: 'Customer confirmed AI response was satisfactory'
+          });
+        } else if (existingRequest.status === 'closed') {
+          // Update the request status if it was closed and customer sent a new message
           await storage.updateSupportRequest(existingRequest.id, { status: 'new' });
+        } else if (existingRequest.status === 'bot_responded') {
+          // If bot responded and customer replied with something other than "close", mark as open for agent review
+          await storage.updateSupportRequest(existingRequest.id, { status: 'open' });
         }
 
         res.status(200).json({ 
