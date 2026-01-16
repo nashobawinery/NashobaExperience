@@ -4209,11 +4209,12 @@ export const insertSocialChannelSchema = createInsertSchema(socialChannels).omit
 export type InsertSocialChannel = z.infer<typeof insertSocialChannelSchema>;
 export type SocialChannel = typeof socialChannels.$inferSelect;
 
-// Social Reviews - Reviews imported from connected platforms
+// Social Reviews - Reviews imported from connected platforms or email notifications
 export const socialReviews = pgTable("social_reviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  channelId: varchar("channel_id").notNull().references(() => socialChannels.id, { onDelete: 'cascade' }),
+  channelId: varchar("channel_id").references(() => socialChannels.id, { onDelete: 'set null' }), // Optional - null for email imports
   platform: varchar("platform").notNull(), // google, facebook, yelp, tripadvisor
+  source: varchar("source").notNull().default("manual"), // manual, email, api - how the review was imported
   externalReviewId: varchar("external_review_id"), // Platform-specific review ID
   authorName: varchar("author_name"),
   authorProfileUrl: text("author_profile_url"),
