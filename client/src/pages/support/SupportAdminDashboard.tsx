@@ -552,7 +552,7 @@ function DocumentationDialog({ open, onClose }: { open: boolean; onClose: () => 
                 AI Response System
               </h3>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>The AI assistant uses your Knowledge Base to generate helpful responses. Every AI response includes this disclaimer:</p>
+                <p>The AI assistant uses your Knowledge Base to generate helpful responses. Every AI response starts with this disclaimer:</p>
                 <div className="bg-muted p-3 rounded-md italic">
                   "This is an AI generated response. A live agent will review within 24 hours and reach out to you with additional information. If our AI agent has answered your question, please respond 'close' and we will mark our answer as satisfying your needs."
                 </div>

@@ -12656,12 +12656,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: 'system', 
             content: `${systemPrompt}
 
-IMPORTANT: Always start your response with a warm, friendly greeting such as "Thank you for reaching out!" or "We appreciate you contacting us!" before addressing their question.
-
-REQUIRED DISCLAIMER: You MUST end EVERY response with the following disclaimer on its own paragraph:
+REQUIRED DISCLAIMER: You MUST start EVERY response with the following disclaimer on its own paragraph, BEFORE any greeting or other content:
 ---
 This is an AI generated response. A live agent will review within 24 hours and reach out to you with additional information. If our AI agent has answered your question, please respond "close" and we will mark our answer as satisfying your needs.
 ---
+
+After the disclaimer, include a warm, friendly greeting such as "Thank you for reaching out!" or "We appreciate you contacting us!" before addressing their question.
 
 KNOWLEDGE BASE (Canned Responses):
 ${knowledgeBaseContext}
