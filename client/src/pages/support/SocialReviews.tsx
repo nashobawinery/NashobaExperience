@@ -21,7 +21,10 @@ import {
   ThumbsDown,
   AlertCircle,
   Archive,
-  Flag
+  Flag,
+  Copy,
+  Mail,
+  Upload
 } from "lucide-react";
 import { SiFacebook, SiGoogle, SiYelp, SiTripadvisor } from "react-icons/si";
 import { Button } from "@/components/ui/button";
@@ -50,11 +53,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialChannel, SocialReview, SocialReviewResponse } from "@shared/schema";
 
-const platformConfig: Record<string, { name: string; icon: any; color: string }> = {
-  google: { name: "Google", icon: SiGoogle, color: "text-blue-500" },
-  facebook: { name: "Facebook", icon: SiFacebook, color: "text-blue-600" },
-  yelp: { name: "Yelp", icon: SiYelp, color: "text-red-500" },
-  tripadvisor: { name: "TripAdvisor", icon: SiTripadvisor, color: "text-green-600" }
+const platformConfig: Record<string, { name: string; icon: any; color: string; reviewUrl?: string }> = {
+  google: { name: "Google", icon: SiGoogle, color: "text-blue-500", reviewUrl: "https://business.google.com/reviews" },
+  facebook: { name: "Facebook", icon: SiFacebook, color: "text-blue-600", reviewUrl: "https://business.facebook.com/latest/inbox/all" },
+  yelp: { name: "Yelp", icon: SiYelp, color: "text-red-500", reviewUrl: "https://biz.yelp.com/reviews" },
+  tripadvisor: { name: "TripAdvisor", icon: SiTripadvisor, color: "text-green-600", reviewUrl: "https://www.tripadvisor.com/Owners" }
 };
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -224,6 +227,26 @@ function ReviewDetailView({
     createResponseMutation.mutate({ content: draftResponse, status: "draft" });
   };
 
+  const handleCopyToClipboard = async () => {
+    if (!draftResponse.trim()) return;
+    try {
+      await navigator.clipboard.writeText(draftResponse);
+      toast({ title: "Response copied to clipboard" });
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+  };
+
+  const openInPlatform = () => {
+    const config = platformConfig[review.platform];
+    const url = review.reviewUrl || config?.reviewUrl;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      toast({ title: "No review URL available", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b flex items-center justify-between gap-2">
@@ -349,23 +372,36 @@ function ReviewDetailView({
                 className="resize-none"
                 data-testid="textarea-response"
               />
-              <div className="flex justify-end gap-2 mt-3">
-                <Button
-                  variant="outline"
-                  onClick={handleSaveDraft}
-                  disabled={!draftResponse.trim() || createResponseMutation.isPending}
-                  data-testid="button-save-draft"
-                >
-                  Save Draft
-                </Button>
-                <Button
-                  onClick={handleSendResponse}
-                  disabled={!draftResponse.trim() || createResponseMutation.isPending}
-                  data-testid="button-send-response"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Response
-                </Button>
+              <div className="flex flex-col gap-3 mt-3">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleSaveDraft}
+                    disabled={!draftResponse.trim() || createResponseMutation.isPending}
+                    data-testid="button-save-draft"
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCopyToClipboard}
+                    disabled={!draftResponse.trim()}
+                    data-testid="button-copy-response"
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </Button>
+                  <Button
+                    onClick={openInPlatform}
+                    data-testid="button-open-platform"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open in {platformConfig[review.platform]?.name || "Platform"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-right">
+                  Copy your response and paste it directly on {platformConfig[review.platform]?.name || "the platform"}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -429,12 +465,144 @@ function StatsOverview() {
   );
 }
 
+function ManualImportDialog({ 
+  open, 
+  onClose 
+}: { 
+  open: boolean; 
+  onClose: () => void; 
+}) {
+  const [platform, setPlatform] = useState<string>("google");
+  const [authorName, setAuthorName] = useState("");
+  const [rating, setRating] = useState<string>("5");
+  const [content, setContent] = useState("");
+  const { toast } = useToast();
+
+  const createReviewMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", "/api/admin/social/reviews", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/social/reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/social/stats"] });
+      toast({ title: "Review imported successfully" });
+      onClose();
+      // Reset form
+      setAuthorName("");
+      setRating("5");
+      setContent("");
+    },
+    onError: () => {
+      toast({ title: "Failed to import review", variant: "destructive" });
+    }
+  });
+
+  const handleSubmit = () => {
+    if (!content.trim()) {
+      toast({ title: "Please enter review content", variant: "destructive" });
+      return;
+    }
+
+    createReviewMutation.mutate({
+      platform,
+      source: "manual",
+      authorName: authorName.trim() || "Anonymous",
+      rating: parseInt(rating, 10),
+      content: content.trim(),
+      status: "new",
+      requiresResponse: true,
+      reviewCreatedAt: new Date().toISOString()
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Import Review Manually</DialogTitle>
+          <DialogDescription>
+            Add a review from any platform. Copy the details from the original review.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Platform</label>
+            <Select value={platform} onValueChange={setPlatform}>
+              <SelectTrigger data-testid="select-import-platform">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="google">Google</SelectItem>
+                <SelectItem value="facebook">Facebook</SelectItem>
+                <SelectItem value="yelp">Yelp</SelectItem>
+                <SelectItem value="tripadvisor">TripAdvisor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reviewer Name</label>
+            <Input
+              placeholder="e.g., John D."
+              value={authorName}
+              onChange={(e) => setAuthorName(e.target.value)}
+              data-testid="input-import-author"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Rating</label>
+            <Select value={rating} onValueChange={setRating}>
+              <SelectTrigger data-testid="select-import-rating">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 Stars</SelectItem>
+                <SelectItem value="4">4 Stars</SelectItem>
+                <SelectItem value="3">3 Stars</SelectItem>
+                <SelectItem value="2">2 Stars</SelectItem>
+                <SelectItem value="1">1 Star</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Review Content</label>
+            <Textarea
+              placeholder="Paste the review text here..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={4}
+              data-testid="textarea-import-content"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-cancel-import">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={createReviewMutation.isPending}
+            data-testid="button-submit-import"
+          >
+            {createReviewMutation.isPending ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
+            Import Review
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SocialReviews() {
   const [, setLocation] = useLocation();
   const [selectedReview, setSelectedReview] = useState<SocialReview | null>(null);
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const { toast } = useToast();
 
   const { data: channels = [], isLoading: channelsLoading } = useQuery<SocialChannel[]>({
@@ -468,6 +636,8 @@ export default function SocialReviews() {
 
   return (
     <div className="h-screen flex flex-col">
+      <ManualImportDialog open={showImportDialog} onClose={() => setShowImportDialog(false)} />
+      
       <header className="border-b p-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -484,9 +654,13 @@ export default function SocialReviews() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-add-review">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Review
+            </Button>
             <Button variant="outline" onClick={() => refetchReviews()} data-testid="button-refresh-reviews">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Sync Reviews
+              Refresh
             </Button>
           </div>
         </div>
@@ -554,12 +728,27 @@ export default function SocialReviews() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                   <Star className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                  <h3 className="text-lg font-medium mb-1">No reviews found</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    {channels.length === 0
-                      ? "Connect a social channel to start monitoring reviews."
-                      : "No reviews match your current filters. Try adjusting your search criteria."}
+                  <h3 className="text-lg font-medium mb-1">No reviews yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mb-4">
+                    {searchTerm || platformFilter !== "all" || statusFilter !== "all"
+                      ? "No reviews match your current filters. Try adjusting your search criteria."
+                      : "Reviews will appear here automatically when forwarded via email, or you can add them manually."}
                   </p>
+                  <div className="flex gap-3 flex-wrap justify-center">
+                    <Button variant="outline" className="gap-2" onClick={() => setShowImportDialog(true)} data-testid="button-import-review">
+                      <Upload className="h-4 w-4" />
+                      Import Review Manually
+                    </Button>
+                  </div>
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg max-w-md">
+                    <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                      <Mail className="h-4 w-4" />
+                      Email Import (Recommended)
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Forward your Google, Facebook, Yelp, or TripAdvisor review notification emails to <strong>support@nashobawinery.com</strong> and they'll appear here automatically.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -580,22 +769,45 @@ export default function SocialReviews() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                   <Building2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                  <h3 className="text-lg font-medium mb-1">No channels connected</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mb-4">
-                    Connect your business profiles from Google, Facebook, Yelp, or TripAdvisor to start monitoring reviews.
+                  <h3 className="text-lg font-medium mb-1">How to Import Reviews</h3>
+                  <p className="text-sm text-muted-foreground max-w-lg mb-6">
+                    There are two ways to get reviews into your dashboard:
                   </p>
-                  <div className="flex gap-3 flex-wrap justify-center">
-                    <Button variant="outline" className="gap-2" data-testid="button-connect-google">
-                      <SiGoogle className="h-4 w-4 text-blue-500" />
-                      Connect Google
-                    </Button>
-                    <Button variant="outline" className="gap-2" data-testid="button-connect-facebook">
-                      <SiFacebook className="h-4 w-4 text-blue-600" />
-                      Connect Facebook
-                    </Button>
+                  
+                  <div className="grid gap-4 md:grid-cols-2 max-w-2xl text-left">
+                    <Card className="border-2 border-primary/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Mail className="h-5 w-5 text-primary" />
+                          Email Forwarding (Recommended)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        <p className="mb-2">Forward review notification emails to:</p>
+                        <p className="font-mono text-xs bg-muted p-2 rounded mb-2">support@nashobawinery.com</p>
+                        <p>Reviews from Google, Facebook, Yelp, and TripAdvisor will be automatically detected and imported.</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Upload className="h-5 w-5" />
+                          Manual Import
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        <p className="mb-3">Copy review details from any platform and add them manually.</p>
+                        <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)} data-testid="button-manual-import">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Import Review
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-4">
-                    Yelp and TripAdvisor reviews can be imported manually.
+                  
+                  <p className="text-xs text-muted-foreground mt-6 max-w-md">
+                    Once reviews are imported, you can generate AI responses and copy them to paste on the original platform.
                   </p>
                 </CardContent>
               </Card>

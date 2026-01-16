@@ -13637,6 +13637,112 @@ Generate a professional response:`;
         }
       }
 
+      // ============================================
+      // REVIEW NOTIFICATION DETECTION
+      // Check if this email is a review notification from Google, Facebook, Yelp, or TripAdvisor
+      // ============================================
+      const reviewPlatformPatterns = [
+        { platform: 'google', domains: ['google.com', 'googleusercontent.com'], subjectPatterns: ['new review', 'left a review', 'reviewed your business', 'customer review'] },
+        { platform: 'facebook', domains: ['facebook.com', 'facebookmail.com', 'fb.com'], subjectPatterns: ['new review', 'new recommendation', 'left a review', 'reviewed your page'] },
+        { platform: 'yelp', domains: ['yelp.com'], subjectPatterns: ['new review', 'reviewed your business', 'left a review'] },
+        { platform: 'tripadvisor', domains: ['tripadvisor.com'], subjectPatterns: ['new review', 'traveler review', 'left a review', 'reviewed'] }
+      ];
+
+      const subjectLower = subject.toLowerCase();
+      const fromEmailLower = fromEmail.toLowerCase();
+
+      let detectedPlatform: string | null = null;
+      for (const pattern of reviewPlatformPatterns) {
+        const domainMatch = pattern.domains.some(d => fromEmailLower.includes(d));
+        const subjectMatch = pattern.subjectPatterns.some(p => subjectLower.includes(p));
+        if (domainMatch && subjectMatch) {
+          detectedPlatform = pattern.platform;
+          break;
+        }
+      }
+
+      // If this is a review notification, create a social review instead of support ticket
+      if (detectedPlatform) {
+        console.log('[Email Inbound] Detected review notification from:', detectedPlatform);
+
+        // Parse review details from email body
+        const bodyText = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        // Try to extract rating (look for star patterns or numbers)
+        let rating: number | null = null;
+        const ratingMatch = bodyText.match(/(\d)\s*(?:star|★|⭐)/i) || 
+                           bodyText.match(/rating[:\s]*(\d)/i) ||
+                           bodyText.match(/(\d)\s*out of\s*5/i);
+        if (ratingMatch) {
+          const parsed = parseInt(ratingMatch[1], 10);
+          if (parsed >= 1 && parsed <= 5) {
+            rating = parsed;
+          }
+        }
+
+        // Try to extract reviewer name from subject or body
+        let authorName = 'Anonymous Reviewer';
+        // Common patterns: "John D. left a review" or "Review from John"
+        const nameFromSubject = subject.match(/(.+?)\s+(?:left|wrote|posted|submitted)/i)?.[1]?.trim();
+        const nameFromBody = bodyText.match(/(?:from|by|reviewer:?)\s+([A-Z][a-z]+(?:\s+[A-Z]\.?)?)/)?.[1]?.trim();
+        if (nameFromSubject && nameFromSubject.length < 50) {
+          authorName = nameFromSubject;
+        } else if (nameFromBody) {
+          authorName = nameFromBody;
+        }
+
+        // Extract review content - look for quoted text or review body patterns
+        let reviewContent = bodyText;
+        // Try to extract just the review text, not the full email
+        const quoteMatch = bodyText.match(/"([^"]{10,500})"/);
+        if (quoteMatch) {
+          reviewContent = quoteMatch[1];
+        } else {
+          // Limit to first meaningful paragraph
+          const paragraphs = bodyText.split(/\n\n|\r\n\r\n/).filter(p => p.length > 20);
+          if (paragraphs.length > 0) {
+            reviewContent = paragraphs[0].substring(0, 500);
+          }
+        }
+
+        // Detect sentiment based on rating or keywords
+        let sentiment: string | null = null;
+        if (rating) {
+          sentiment = rating >= 4 ? 'positive' : rating >= 3 ? 'neutral' : 'negative';
+        }
+
+        // Create the social review
+        const review = await storage.createSocialReview({
+          channelId: null, // No connected channel for email imports
+          platform: detectedPlatform,
+          source: 'email',
+          authorName: authorName,
+          rating: rating,
+          content: reviewContent,
+          status: 'new',
+          sentiment: sentiment,
+          requiresResponse: true,
+          rawPayload: {
+            emailFrom: fromEmail,
+            emailSubject: subject,
+            emailBody: bodyText.substring(0, 2000),
+            importedAt: new Date().toISOString()
+          }
+        });
+
+        console.log('[Email Inbound] Created social review:', review.id, 'Platform:', detectedPlatform);
+
+        return res.status(200).json({
+          message: 'Review notification imported',
+          reviewId: review.id,
+          platform: detectedPlatform
+        });
+      }
+
+      // ============================================
+      // SUPPORT TICKET FLOW (non-review emails)
+      // ============================================
+
       // Determine if this is a reply to an existing thread
       let existingRequest: SupportRequest | undefined;
       
