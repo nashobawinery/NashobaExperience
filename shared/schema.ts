@@ -497,6 +497,42 @@ export const b2bCustomers = pgTable("b2b_customers", {
   index("idx_b2b_customers_sales_rep").on(table.salesRepId),
 ]);
 
+export const customerRequestStatusEnum = pgEnum("customer_request_status", ["pending", "approved", "rejected"]);
+
+export const b2bCustomerRequests = pgTable("b2b_customer_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  accountName: varchar("account_name").notNull(),
+  customerType: customerTypeEnum("customer_type"),
+  licenseNumber: varchar("license_number"),
+  taxId: varchar("tax_id"),
+  primaryContactName: varchar("primary_contact_name").notNull(),
+  primaryContactRole: varchar("primary_contact_role"),
+  emailAddress: varchar("email_address").notNull(),
+  phoneNumber: varchar("phone_number").notNull(),
+  altPhoneNumber: varchar("alt_phone_number"),
+  billingAddress: text("billing_address"),
+  billingCity: varchar("billing_city"),
+  billingState: varchar("billing_state"),
+  billingZipCode: varchar("billing_zip_code"),
+  shippingAddress: text("shipping_address"),
+  shippingCity: varchar("shipping_city"),
+  shippingState: varchar("shipping_state"),
+  shippingZipCode: varchar("shipping_zip_code"),
+  pricingTierId: varchar("pricing_tier_id").references(() => tierPricing.id),
+  notes: text("notes"),
+  status: customerRequestStatusEnum("status").notNull().default("pending"),
+  submittedBySalesRepId: varchar("submitted_by_sales_rep_id").notNull().references(() => salesReps.id),
+  reviewedByAdminId: varchar("reviewed_by_admin_id").references(() => b2bAdmins.id),
+  reviewedAt: timestamp("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+  createdCustomerId: varchar("created_customer_id").references(() => b2bCustomers.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_b2b_customer_requests_status").on(table.status),
+  index("idx_b2b_customer_requests_sales_rep").on(table.submittedBySalesRepId),
+]);
+
 export const b2bCustomerLocations = pgTable("b2b_customer_locations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id, { onDelete: 'cascade' }),
@@ -1686,6 +1722,7 @@ export const insertTierPricingSchema = createInsertSchema(tierPricing).omit({ id
 export const insertSalesRepSchema = createInsertSchema(salesReps).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bAdminSchema = createInsertSchema(b2bAdmins).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCustomerSchema = createInsertSchema(b2bCustomers).omit({ id: true, createdAt: true, updatedAt: true, signupDate: true, lastOrderDate: true, totalPurchaseValue: true, passwordHash: true, approvedAt: true, approvedByAdminId: true });
+export const insertB2bCustomerRequestSchema = createInsertSchema(b2bCustomerRequests).omit({ id: true, createdAt: true, updatedAt: true, reviewedByAdminId: true, reviewedAt: true, rejectionReason: true, createdCustomerId: true });
 export const insertB2bCustomerLocationSchema = createInsertSchema(b2bCustomerLocations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCustomerManualProductSchema = createInsertSchema(b2bCustomerManualProducts).omit({ id: true, createdAt: true });
 export const insertB2bTierAgreementSchema = createInsertSchema(b2bTierAgreements).omit({ id: true, createdAt: true, updatedAt: true, sentAt: true });
@@ -1865,6 +1902,9 @@ export type B2bAdmin = typeof b2bAdmins.$inferSelect;
 
 export type InsertB2bCustomer = z.infer<typeof insertB2bCustomerSchema>;
 export type B2bCustomer = typeof b2bCustomers.$inferSelect;
+
+export type InsertB2bCustomerRequest = z.infer<typeof insertB2bCustomerRequestSchema>;
+export type B2bCustomerRequest = typeof b2bCustomerRequests.$inferSelect;
 
 export type InsertB2bCustomerLocation = z.infer<typeof insertB2bCustomerLocationSchema>;
 export type B2bCustomerLocation = typeof b2bCustomerLocations.$inferSelect;
