@@ -18,7 +18,8 @@ import {
   Globe,
   AlertCircle,
   Pencil,
-  BarChart3
+  BarChart3,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -433,7 +434,7 @@ export default function SupportAdminDashboard() {
               <p className="text-sm text-muted-foreground">Manage customer inquiries and conversations</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
               onClick={() => setLocation("/support/knowledge-base")}
@@ -441,6 +442,14 @@ export default function SupportAdminDashboard() {
             >
               <BookOpen className="h-4 w-4 mr-2" />
               Knowledge Base
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/admin/support/social-reviews")}
+              data-testid="button-social-reviews"
+            >
+              <Star className="h-4 w-4 mr-2" />
+              Social Reviews
             </Button>
             <Button
               variant="outline"

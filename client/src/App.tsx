@@ -67,6 +67,7 @@ const StaffDashboardAdmin = lazy(() => import("@/pages/StaffDashboardAdmin"));
 const SupportAdminDashboard = lazy(() => import("@/pages/support/SupportAdminDashboard"));
 const SupportKnowledgeBase = lazy(() => import("@/pages/support/SupportKnowledgeBase"));
 const SupportAnalytics = lazy(() => import("@/pages/support/SupportAnalytics"));
+const SocialReviews = lazy(() => import("@/pages/support/SocialReviews"));
 const SupportWidget = lazy(() => import("@/pages/support/SupportWidget"));
 const SupportContactForm = lazy(() => import("@/pages/support/SupportContactForm"));
 const FAQPage = lazy(() => import("@/pages/support/FAQPage"));
@@ -469,6 +470,24 @@ function SupportAnalyticsRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <SupportAnalytics />
+    </Suspense>
+  );
+}
+
+function SocialReviewsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SocialReviews />
     </Suspense>
   );
 }
@@ -999,6 +1018,7 @@ function Router() {
         <Route path="/faq" component={FAQPageRoute} />
         <Route path="/faq-widget" component={FAQWidgetPageRoute} />
         <Route path="/admin/support/analytics" component={SupportAnalyticsRoute} />
+        <Route path="/admin/support/social-reviews" component={SocialReviewsRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
