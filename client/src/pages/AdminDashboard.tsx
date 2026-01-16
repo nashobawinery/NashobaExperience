@@ -1757,6 +1757,17 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                     placeholder="e.g., 750ml"
                   />
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-case-size">Case Size (bottles per case)</Label>
+                  <Input
+                    id="edit-case-size"
+                    type="number"
+                    min="1"
+                    value={editProductData.caseSize || 12}
+                    onChange={(e) => setEditProductData({ ...editProductData, caseSize: parseInt(e.target.value) || 12 })}
+                    placeholder="e.g., 12"
+                  />
+                </div>
               </div>
             </div>
 
