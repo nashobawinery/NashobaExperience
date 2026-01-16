@@ -13622,15 +13622,49 @@ Generate a professional response:`;
       const subject = emailData.subject || 'No Subject';
       const textBody = emailData.text || '';
       const htmlBody = emailData.html || '';
-      const messageId = emailData['Message-Id'] || emailData.message_id || '';
-      const inReplyTo = emailData['In-Reply-To'] || emailData.in_reply_to || '';
-      const references = emailData['References'] || emailData.references || '';
+      
+      // Parse headers - SendGrid sends them as a JSON string in the 'headers' field
+      let parsedHeaders: Record<string, string> = {};
+      try {
+        if (emailData.headers) {
+          // Headers might be a JSON string or already parsed
+          const headersData = typeof emailData.headers === 'string' 
+            ? JSON.parse(emailData.headers) 
+            : emailData.headers;
+          
+          // If it's an array of name/value objects
+          if (Array.isArray(headersData)) {
+            headersData.forEach((h: { name?: string; value?: string }) => {
+              if (h.name && h.value) {
+                parsedHeaders[h.name.toLowerCase()] = h.value;
+              }
+            });
+          } else if (typeof headersData === 'object') {
+            // If it's already an object
+            Object.entries(headersData).forEach(([key, value]) => {
+              parsedHeaders[key.toLowerCase()] = String(value);
+            });
+          }
+        }
+      } catch (e) {
+        console.log('[Email Inbound] Could not parse headers:', e);
+      }
+      
+      // Try multiple sources for Message-ID (SendGrid uses various formats)
+      const messageId = emailData['Message-Id'] || emailData['Message-ID'] || emailData.message_id ||
+                        parsedHeaders['message-id'] || '';
+      const inReplyTo = emailData['In-Reply-To'] || emailData.in_reply_to ||
+                        parsedHeaders['in-reply-to'] || '';
+      const references = emailData['References'] || emailData.references ||
+                         parsedHeaders['references'] || '';
 
       console.log('[Email Inbound] Received email:', { 
         from: fromEmail, 
         subject,
-        messageId: messageId?.slice(0, 30),
-        hasInReplyTo: !!inReplyTo
+        messageId: messageId?.slice(0, 50),
+        hasInReplyTo: !!inReplyTo,
+        hasReferences: !!references,
+        headerKeys: Object.keys(parsedHeaders).slice(0, 10)
       });
 
       // Check for duplicate message
@@ -13765,7 +13799,28 @@ Generate a professional response:`;
         }
       }
 
-      // Also try matching by customer email for recent open requests
+      // Try subject-based matching for replies/forwards (RE:, FW:, Fwd:)
+      if (!existingRequest) {
+        // Normalize subject by removing RE:, FW:, Fwd: prefixes
+        const normalizedSubject = subject.replace(/^(re:|fw:|fwd:)\s*/gi, '').trim().toLowerCase();
+        
+        if (normalizedSubject) {
+          // Look for recent requests with matching subject
+          const allRecentRequests = await storage.getSupportRequests({});
+          const matchingBySubject = allRecentRequests.find(r => {
+            if (r.source !== 'email' || r.status === 'closed') return false;
+            const requestSubject = (r.subject || '').replace(/^(re:|fw:|fwd:)\s*/gi, '').trim().toLowerCase();
+            return requestSubject === normalizedSubject;
+          });
+          
+          if (matchingBySubject) {
+            console.log('[Email Inbound] Found matching request by subject:', matchingBySubject.id);
+            existingRequest = matchingBySubject;
+          }
+        }
+      }
+
+      // Also try matching by customer email for recent open requests (same sender, recent time)
       if (!existingRequest && fromEmail) {
         const recentRequests = await storage.getSupportRequests({ status: 'new' });
         const matchingRequest = recentRequests.find(r => 
