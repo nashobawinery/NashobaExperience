@@ -24,7 +24,9 @@ import {
   Loader2,
   CircleDot,
   CheckCircle,
-  Archive
+  Archive,
+  HelpCircle,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -499,8 +501,171 @@ function EmptyState() {
   );
 }
 
+function DocumentationDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            Customer Support Documentation
+          </DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-6 pb-4">
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email Integration Setup
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Your support system receives emails at <strong>support@nashobawinery.com</strong>. Here's how it works:</p>
+                <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Emails sent to support@nashobawinery.com are forwarded to support@inbound.nashobawinery.com</li>
+                  <li>SendGrid Inbound Parse receives the email and sends it to our webhook</li>
+                  <li>The webhook creates a new support ticket automatically</li>
+                  <li>You'll see the new ticket appear in this dashboard within 30 seconds</li>
+                </ol>
+                <div className="bg-muted p-3 rounded-md mt-2">
+                  <p className="font-medium text-foreground">DNS Configuration:</p>
+                  <p>MX Record: inbound.nashobawinery.com → mx.sendgrid.net (Priority 10)</p>
+                  <p>Webhook URL: https://nashobawinery.org/api/webhooks/inbound-email</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                AI Response System
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>The AI assistant uses your Knowledge Base to generate helpful responses. Every AI response includes this disclaimer:</p>
+                <div className="bg-muted p-3 rounded-md italic">
+                  "This is an AI generated response. A live agent will review within 24 hours and reach out to you with additional information. If our AI agent has answered your question, please respond 'close' and we will mark our answer as satisfying your needs."
+                </div>
+                <p className="mt-2"><strong>How to use:</strong></p>
+                <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Select a support request from the list</li>
+                  <li>Click "Generate AI Response" to create a draft</li>
+                  <li>Review and edit the AI's suggestion</li>
+                  <li>Click "Send Response" to email it to the customer</li>
+                </ol>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Customer Reply Linking
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>When customers reply to your support emails, their responses are automatically linked to the original ticket:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Replies use email headers (In-Reply-To, References) to find the original ticket</li>
+                  <li>Customer messages appear in the conversation thread</li>
+                  <li>The ticket status updates based on the reply</li>
+                </ul>
+                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-md mt-2 border border-green-200 dark:border-green-800">
+                  <p className="font-medium text-green-800 dark:text-green-200">Auto-Close Feature:</p>
+                  <p className="text-green-700 dark:text-green-300">If a customer replies with just "close", "closed", or "resolved", the ticket automatically closes with a note that the AI response was satisfactory.</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Circle className="h-4 w-4" />
+                Ticket Status Flow
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">New</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Email received, awaiting response</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Bot Responded</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">AI response sent, awaiting customer reply</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Open</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Customer replied (not "close"), needs agent review</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Pending</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Waiting for external information</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Resolved</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Issue addressed, pending final confirmation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">Closed</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Ticket complete (auto or manual)</span>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Star className="h-4 w-4" />
+                Social Review Monitoring
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Monitor and respond to reviews from Google, Facebook, Yelp, and TripAdvisor:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>Email Detection:</strong> Forward review notification emails to support@nashobawinery.com - they're automatically parsed and imported</li>
+                  <li><strong>Manual Import:</strong> Use "Add Review" button to manually enter reviews</li>
+                  <li><strong>AI Draft Responses:</strong> Generate professional response drafts with AI</li>
+                  <li><strong>Copy + Open:</strong> Copy response and open the platform to paste it (no OAuth needed)</li>
+                </ul>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Knowledge Base
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Build your AI's knowledge by adding:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>Canned Responses:</strong> Pre-written answers for common questions</li>
+                  <li><strong>Web Sources:</strong> URLs to scrape for information (hours, menus, policies)</li>
+                  <li><strong>FAQ Articles:</strong> Detailed articles for complex topics</li>
+                </ul>
+                <p className="mt-2">The AI searches your knowledge base to provide accurate, consistent responses.</p>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Auto-Refresh
+              </h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>The ticket list refreshes automatically every 30 seconds. You can also click the refresh button for immediate updates. New emails typically appear within 1-2 minutes of being sent.</p>
+              </div>
+            </section>
+          </div>
+        </ScrollArea>
+        <DialogFooter>
+          <Button onClick={onClose} data-testid="button-close-docs">Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SupportAdminDashboard() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [, setLocation] = useLocation();
 
   return (
@@ -519,6 +684,14 @@ export default function SupportAdminDashboard() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => setDocsOpen(true)}
+              data-testid="button-documentation"
+            >
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Documentation
+            </Button>
             <Button
               variant="outline"
               onClick={() => setLocation("/support/knowledge-base")}
@@ -546,6 +719,8 @@ export default function SupportAdminDashboard() {
           </div>
         </div>
       </header>
+      
+      <DocumentationDialog open={docsOpen} onClose={() => setDocsOpen(false)} />
 
       <div className="flex-1 flex overflow-hidden">
         <div className="w-full md:w-[400px] border-r flex-shrink-0">
