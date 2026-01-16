@@ -127,7 +127,15 @@ function RequestList({
               onClick={() => setStatusFilter("all")}
               data-testid="filter-all"
             >
-              All
+              All ({requests.length})
+            </Badge>
+            <Badge
+              variant={statusFilter === "new" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setStatusFilter("new")}
+              data-testid="filter-new"
+            >
+              New ({requests.filter(r => r.status === "new").length})
             </Badge>
             <Badge
               variant={statusFilter === "open" ? "default" : "outline"}
@@ -135,7 +143,7 @@ function RequestList({
               onClick={() => setStatusFilter("open")}
               data-testid="filter-open"
             >
-              Open
+              Open ({requests.filter(r => r.status === "open").length})
             </Badge>
             <Badge
               variant={statusFilter === "pending" ? "default" : "outline"}
@@ -143,7 +151,7 @@ function RequestList({
               onClick={() => setStatusFilter("pending")}
               data-testid="filter-pending"
             >
-              Pending
+              Pending ({requests.filter(r => r.status === "pending").length})
             </Badge>
             <Badge
               variant={statusFilter === "resolved" ? "default" : "outline"}
@@ -151,7 +159,7 @@ function RequestList({
               onClick={() => setStatusFilter("resolved")}
               data-testid="filter-resolved"
             >
-              Resolved
+              Resolved ({requests.filter(r => r.status === "resolved").length})
             </Badge>
             <Badge
               variant={statusFilter === "closed" ? "default" : "outline"}
@@ -159,7 +167,7 @@ function RequestList({
               onClick={() => setStatusFilter("closed")}
               data-testid="filter-closed"
             >
-              Closed
+              Closed ({requests.filter(r => r.status === "closed").length})
             </Badge>
           </div>
         </div>
