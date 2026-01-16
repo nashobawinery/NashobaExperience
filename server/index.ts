@@ -54,6 +54,9 @@ app.use((req, res, next) => {
 // Serve attached assets folder
 app.use('/attached_assets', express.static(path.join(process.cwd(), 'attached_assets')));
 
+// Serve public folder for embeddable widgets
+app.use(express.static(path.join(process.cwd(), 'public')));
+
 (async () => {
   const server = await registerRoutes(app);
 
