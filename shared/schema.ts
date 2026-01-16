@@ -4106,6 +4106,109 @@ export type SupportArticleWithRelations = SupportArticle & {
   tags?: SupportTag[];
 };
 
+// ============ Social Review Monitoring ============
+
+// Social Channels - Connected platform accounts for review monitoring
+export const socialChannels = pgTable("social_channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platform: varchar("platform").notNull(), // google, facebook, yelp, tripadvisor
+  accountName: varchar("account_name").notNull(), // Display name of the connected account
+  externalAccountId: varchar("external_account_id"), // Platform-specific ID
+  locationId: varchar("location_id"), // Optional link to locations table
+  authStatus: varchar("auth_status").notNull().default("pending"), // pending, connected, expired, error
+  accessToken: text("access_token"), // Encrypted OAuth access token
+  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
+  tokenExpiresAt: timestamp("token_expires_at"),
+  settings: jsonb("settings").default({}), // Platform-specific settings
+  lastSyncAt: timestamp("last_sync_at"),
+  syncError: text("sync_error"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_social_channels_platform").on(table.platform),
+  index("idx_social_channels_status").on(table.authStatus),
+]);
+
+export const insertSocialChannelSchema = createInsertSchema(socialChannels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSyncAt: true,
+});
+export type InsertSocialChannel = z.infer<typeof insertSocialChannelSchema>;
+export type SocialChannel = typeof socialChannels.$inferSelect;
+
+// Social Reviews - Reviews imported from connected platforms
+export const socialReviews = pgTable("social_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").notNull().references(() => socialChannels.id, { onDelete: 'cascade' }),
+  platform: varchar("platform").notNull(), // google, facebook, yelp, tripadvisor
+  externalReviewId: varchar("external_review_id"), // Platform-specific review ID
+  authorName: varchar("author_name"),
+  authorProfileUrl: text("author_profile_url"),
+  authorAvatarUrl: text("author_avatar_url"),
+  rating: integer("rating"), // 1-5 stars (null if not applicable)
+  content: text("content"), // Review text
+  reviewUrl: text("review_url"), // Direct link to review on platform
+  reviewCreatedAt: timestamp("review_created_at"), // When review was posted on platform
+  status: varchar("status").notNull().default("new"), // new, read, responded, archived, flagged
+  sentiment: varchar("sentiment"), // positive, neutral, negative (AI-detected)
+  requiresResponse: boolean("requires_response").notNull().default(true),
+  linkedRequestId: varchar("linked_request_id"), // Link to support_requests if converted
+  rawPayload: jsonb("raw_payload").default({}), // Full API response for reference
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_social_reviews_channel").on(table.channelId),
+  index("idx_social_reviews_platform").on(table.platform),
+  index("idx_social_reviews_status").on(table.status),
+  index("idx_social_reviews_created").on(table.reviewCreatedAt),
+  index("idx_social_reviews_external").on(table.externalReviewId),
+]);
+
+export const insertSocialReviewSchema = createInsertSchema(socialReviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSocialReview = z.infer<typeof insertSocialReviewSchema>;
+export type SocialReview = typeof socialReviews.$inferSelect;
+
+// Social Review Responses - Responses sent to reviews
+export const socialReviewResponses = pgTable("social_review_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewId: varchar("review_id").notNull().references(() => socialReviews.id, { onDelete: 'cascade' }),
+  responderUserId: varchar("responder_user_id"),
+  responderName: varchar("responder_name"),
+  content: text("content").notNull(),
+  status: varchar("status").notNull().default("draft"), // draft, pending, sent, failed
+  externalResponseId: varchar("external_response_id"), // Platform's ID for the response
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  isAiGenerated: boolean("is_ai_generated").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_social_responses_review").on(table.reviewId),
+  index("idx_social_responses_status").on(table.status),
+]);
+
+export const insertSocialReviewResponseSchema = createInsertSchema(socialReviewResponses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+});
+export type InsertSocialReviewResponse = z.infer<typeof insertSocialReviewResponseSchema>;
+export type SocialReviewResponse = typeof socialReviewResponses.$inferSelect;
+
+// Social Review with channel info for frontend
+export type SocialReviewWithChannel = SocialReview & {
+  channel?: SocialChannel | null;
+  responses?: SocialReviewResponse[];
+};
+
 // Schema aliases for backward compatibility
 export const insertLocationSchema = insertResyLocationSchema;
 export const insertExperienceSchema = insertResyExperienceSchema;
