@@ -450,7 +450,7 @@ export default function CatalogPage() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">SKU: {product.sku}</p>
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex flex-wrap gap-4 text-sm mb-2">
                     <div>
                       <span className="text-muted-foreground">Retail: </span>
                       <span className="line-through">${Number(product.price).toFixed(2)}</span>
@@ -460,6 +460,10 @@ export default function CatalogPage() {
                       <span className="font-bold text-primary">
                         ${product.tierPrice ? Number(product.tierPrice).toFixed(2) : Number(product.price).toFixed(2)}/bottle
                       </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Package className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">Case: {product.caseSize} bottles</span>
                     </div>
                   </div>
                 </div>
@@ -643,12 +647,16 @@ export default function CatalogPage() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">SKU: {product.sku}</p>
-                      <div className="flex gap-4 text-sm">
+                      <div className="flex flex-wrap gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Your Price: </span>
                           <span className="font-bold text-primary">
                             ${product.tierPrice ? Number(product.tierPrice).toFixed(2) : Number(product.price).toFixed(2)}/bottle
                           </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Package className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">Case: {product.caseSize} bottles</span>
                         </div>
                         <Badge variant="secondary">Previously Ordered</Badge>
                       </div>
