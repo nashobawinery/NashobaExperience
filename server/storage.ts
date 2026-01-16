@@ -211,6 +211,17 @@ import {
   type SupportArticleWithRelations,
   type InsertSupportTag,
   type SupportTag,
+  // Social Review Monitoring
+  socialChannels,
+  socialReviews,
+  socialReviewResponses,
+  type InsertSocialChannel,
+  type SocialChannel,
+  type InsertSocialReview,
+  type SocialReview,
+  type SocialReviewWithChannel,
+  type InsertSocialReviewResponse,
+  type SocialReviewResponse,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -5384,6 +5395,181 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(supportArticles.viewCount), desc(supportArticles.helpfulCount))
       .limit(limit);
+  }
+
+  // ============ Social Review Monitoring ============
+
+  // Social Channels
+  async getSocialChannels(): Promise<SocialChannel[]> {
+    return db.select().from(socialChannels).orderBy(desc(socialChannels.createdAt));
+  }
+
+  async getSocialChannel(id: string): Promise<SocialChannel | undefined> {
+    const [result] = await db.select().from(socialChannels).where(eq(socialChannels.id, id));
+    return result;
+  }
+
+  async createSocialChannel(data: InsertSocialChannel): Promise<SocialChannel> {
+    const [result] = await db.insert(socialChannels).values(data).returning();
+    return result;
+  }
+
+  async updateSocialChannel(id: string, data: Partial<InsertSocialChannel>): Promise<SocialChannel | undefined> {
+    const [result] = await db.update(socialChannels)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(socialChannels.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSocialChannel(id: string): Promise<void> {
+    await db.delete(socialChannels).where(eq(socialChannels.id, id));
+  }
+
+  // Social Reviews
+  async getSocialReviews(filters?: { 
+    platform?: string; 
+    status?: string; 
+    channelId?: string;
+    requiresResponse?: boolean;
+  }): Promise<SocialReviewWithChannel[]> {
+    const conditions: SQL<unknown>[] = [];
+    
+    if (filters?.platform) {
+      conditions.push(eq(socialReviews.platform, filters.platform));
+    }
+    if (filters?.status) {
+      conditions.push(eq(socialReviews.status, filters.status));
+    }
+    if (filters?.channelId) {
+      conditions.push(eq(socialReviews.channelId, filters.channelId));
+    }
+    if (filters?.requiresResponse !== undefined) {
+      conditions.push(eq(socialReviews.requiresResponse, filters.requiresResponse));
+    }
+
+    const reviews = conditions.length > 0
+      ? await db.select().from(socialReviews).where(and(...conditions)).orderBy(desc(socialReviews.reviewCreatedAt))
+      : await db.select().from(socialReviews).orderBy(desc(socialReviews.reviewCreatedAt));
+
+    // Get channels for reviews
+    const channelIds = [...new Set(reviews.map(r => r.channelId))];
+    const channels = channelIds.length > 0 
+      ? await db.select().from(socialChannels).where(inArray(socialChannels.id, channelIds))
+      : [];
+    const channelMap = new Map(channels.map(c => [c.id, c]));
+
+    // Get responses for reviews
+    const reviewIds = reviews.map(r => r.id);
+    const responses = reviewIds.length > 0
+      ? await db.select().from(socialReviewResponses).where(inArray(socialReviewResponses.reviewId, reviewIds))
+      : [];
+    const responseMap = new Map<string, SocialReviewResponse[]>();
+    responses.forEach(r => {
+      if (!responseMap.has(r.reviewId)) {
+        responseMap.set(r.reviewId, []);
+      }
+      responseMap.get(r.reviewId)!.push(r);
+    });
+
+    return reviews.map(review => ({
+      ...review,
+      channel: channelMap.get(review.channelId) || null,
+      responses: responseMap.get(review.id) || []
+    }));
+  }
+
+  async getSocialReview(id: string): Promise<SocialReviewWithChannel | undefined> {
+    const [review] = await db.select().from(socialReviews).where(eq(socialReviews.id, id));
+    if (!review) return undefined;
+
+    const [channel] = await db.select().from(socialChannels).where(eq(socialChannels.id, review.channelId));
+    const responses = await db.select().from(socialReviewResponses).where(eq(socialReviewResponses.reviewId, id));
+
+    return { ...review, channel: channel || null, responses };
+  }
+
+  async createSocialReview(data: InsertSocialReview): Promise<SocialReview> {
+    const [result] = await db.insert(socialReviews).values(data).returning();
+    return result;
+  }
+
+  async updateSocialReview(id: string, data: Partial<InsertSocialReview>): Promise<SocialReview | undefined> {
+    const [result] = await db.update(socialReviews)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(socialReviews.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSocialReview(id: string): Promise<void> {
+    await db.delete(socialReviews).where(eq(socialReviews.id, id));
+  }
+
+  // Social Review Responses
+  async getSocialReviewResponses(reviewId: string): Promise<SocialReviewResponse[]> {
+    return db.select().from(socialReviewResponses)
+      .where(eq(socialReviewResponses.reviewId, reviewId))
+      .orderBy(desc(socialReviewResponses.createdAt));
+  }
+
+  async createSocialReviewResponse(data: InsertSocialReviewResponse): Promise<SocialReviewResponse> {
+    const [result] = await db.insert(socialReviewResponses).values(data).returning();
+    return result;
+  }
+
+  async updateSocialReviewResponse(id: string, data: Partial<InsertSocialReviewResponse>): Promise<SocialReviewResponse | undefined> {
+    const [result] = await db.update(socialReviewResponses)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(socialReviewResponses.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSocialReviewResponse(id: string): Promise<void> {
+    await db.delete(socialReviewResponses).where(eq(socialReviewResponses.id, id));
+  }
+
+  // Social Review Stats for analytics
+  async getSocialReviewStats(): Promise<{
+    totalReviews: number;
+    newReviews: number;
+    respondedReviews: number;
+    averageRating: number;
+    byPlatform: { platform: string; count: number; avgRating: number }[];
+  }> {
+    const allReviews = await db.select().from(socialReviews);
+    
+    const reviewsWithRating = allReviews.filter(r => r.rating !== null);
+    const averageRating = reviewsWithRating.length > 0
+      ? reviewsWithRating.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewsWithRating.length
+      : 0;
+
+    // Group by platform
+    const platformStats = new Map<string, { count: number; totalRating: number; ratingCount: number }>();
+    allReviews.forEach(r => {
+      const stat = platformStats.get(r.platform) || { count: 0, totalRating: 0, ratingCount: 0 };
+      stat.count++;
+      if (r.rating !== null) {
+        stat.totalRating += r.rating;
+        stat.ratingCount++;
+      }
+      platformStats.set(r.platform, stat);
+    });
+
+    const byPlatform = Array.from(platformStats.entries()).map(([platform, stat]) => ({
+      platform,
+      count: stat.count,
+      avgRating: stat.ratingCount > 0 ? stat.totalRating / stat.ratingCount : 0
+    }));
+
+    return {
+      totalReviews: allReviews.length,
+      newReviews: allReviews.filter(r => r.status === 'new').length,
+      respondedReviews: allReviews.filter(r => r.status === 'responded').length,
+      averageRating: Math.round(averageRating * 10) / 10,
+      byPlatform
+    };
   }
 }
 
