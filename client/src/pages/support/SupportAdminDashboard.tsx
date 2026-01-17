@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
@@ -295,6 +295,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [newMessage, setNewMessage] = useState("");
   const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [aiDraftContent, setAiDraftContent] = useState("");
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -302,6 +303,21 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     queryKey: ["/api/admin/support/requests", requestId],
     enabled: !!requestId,
   });
+
+  // Pre-populate AI draft content if the request has an auto-generated draft
+  useEffect(() => {
+    if (request?.aiDraft && !hasLoadedDraft) {
+      setAiDraftContent(request.aiDraft);
+      setHasLoadedDraft(true);
+    }
+  }, [request?.aiDraft, hasLoadedDraft]);
+
+  // Reset draft loaded state when switching requests
+  useEffect(() => {
+    setHasLoadedDraft(false);
+    setAiDraftContent("");
+    setAiDraftOpen(false);
+  }, [requestId]);
 
   const { data: cannedResponses = [] } = useQuery<SupportCannedResponse[]>({
     queryKey: ["/api/admin/support/canned-responses"],
@@ -500,6 +516,30 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </Button>
           )}
         </div>
+
+        {/* AI Draft Ready Banner */}
+        {request.aiDraft && request.status !== "closed" && (
+          <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
+              <Bot className="h-4 w-4" />
+              <span className="text-sm font-medium">AI Draft Ready for Review</span>
+              {request.aiDraftGeneratedAt && (
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  (Generated {formatDistanceToNow(new Date(request.aiDraftGeneratedAt), { addSuffix: true })})
+                </span>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => setAiDraftOpen(true)}
+              data-testid="button-review-ai-draft"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Review & Edit
+            </Button>
+          </div>
+        )}
 
         <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
           <DialogContent className="max-w-2xl">

@@ -12901,8 +12901,12 @@ ${webSourcesContext}`
         senderName: 'Nashoba Team'
       });
 
-      // Update request status
-      await storage.updateSupportRequest(req.params.id, { status: 'in_progress' });
+      // Update request status and clear the AI draft since it was sent
+      await storage.updateSupportRequest(req.params.id, { 
+        status: 'bot_responded',
+        aiDraft: null,
+        aiDraftGeneratedAt: null
+      });
 
       res.json({ message });
     } catch (error) {
