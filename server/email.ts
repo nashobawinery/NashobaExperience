@@ -2091,3 +2091,131 @@ export async function sendEmail(to: string, subject: string, html: string, text:
     throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/**
+ * Sends a confirmation/receipt email to the customer when a support request is created
+ */
+export async function sendSupportRequestReceipt(
+  customerEmail: string,
+  customerName: string | null,
+  ticketId: string,
+  subject: string | null,
+  message: string
+): Promise<void> {
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('[Support Email] SendGrid not configured, skipping receipt email');
+    return;
+  }
+
+  if (!customerEmail) {
+    console.log('[Support Email] No customer email provided, skipping receipt');
+    return;
+  }
+
+  try {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    
+    const displayName = customerName || 'Valued Customer';
+    const ticketRef = ticketId.slice(0, 8).toUpperCase();
+    
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="background-color: ${BRAND_COLORS.burgundy}; padding: 30px; text-align: center;">
+        <h1 style="margin: 0; color: ${BRAND_COLORS.gold}; font-size: 24px;">Nashoba Valley Winery</h1>
+        <p style="margin: 10px 0 0; color: #ffffff; font-size: 14px;">Customer Support</p>
+      </td>
+    </tr>
+    
+    <tr>
+      <td style="padding: 30px;">
+        <h2 style="margin: 0 0 20px; color: ${BRAND_COLORS.burgundy}; font-size: 20px;">We've Received Your Request</h2>
+        
+        <p style="margin: 0 0 20px; color: ${BRAND_COLORS.text}; line-height: 1.6;">
+          Hi ${displayName},
+        </p>
+        
+        <p style="margin: 0 0 20px; color: ${BRAND_COLORS.text}; line-height: 1.6;">
+          Thank you for contacting Nashoba Valley Winery. We have received your support request and one of our team members will respond within 48 hours, but more than likely much sooner.
+        </p>
+        
+        <div style="background-color: ${BRAND_COLORS.cream}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${BRAND_COLORS.burgundy};">
+          <p style="margin: 0 0 10px; font-weight: bold; color: ${BRAND_COLORS.burgundy};">Reference Number: ${ticketRef}</p>
+          ${subject ? `<p style="margin: 0 0 10px; color: ${BRAND_COLORS.text};"><strong>Subject:</strong> ${subject}</p>` : ''}
+          <p style="margin: 0; color: ${BRAND_COLORS.text};"><strong>Your Message:</strong></p>
+          <p style="margin: 10px 0 0; color: ${BRAND_COLORS.text}; font-style: italic; white-space: pre-wrap;">${message.slice(0, 300)}${message.length > 300 ? '...' : ''}</p>
+        </div>
+        
+        <p style="margin: 0 0 20px; color: ${BRAND_COLORS.text}; line-height: 1.6;">
+          Please keep this email for your records. If you have any additional information to add, simply reply to this email.
+        </p>
+        
+        <p style="margin: 20px 0 0; color: ${BRAND_COLORS.text}; line-height: 1.6;">
+          Warm regards,<br>
+          <strong>The Nashoba Valley Winery Team</strong>
+        </p>
+      </td>
+    </tr>
+    
+    <tr>
+      <td style="background-color: ${BRAND_COLORS.cream}; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0; color: #666; font-size: 12px;">
+          Nashoba Valley Winery<br>
+          100 Wattaquadock Hill Road, Bolton, MA 01740<br>
+          (978) 779-5521 | info@nashobawinery.com
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    const textContent = `
+We've Received Your Request
+
+Hi ${displayName},
+
+Thank you for contacting Nashoba Valley Winery. We have received your support request and one of our team members will respond within 48 hours, but more than likely much sooner.
+
+Reference Number: ${ticketRef}
+${subject ? `Subject: ${subject}` : ''}
+
+Your Message:
+${message.slice(0, 300)}${message.length > 300 ? '...' : ''}
+
+Please keep this email for your records. If you have any additional information to add, simply reply to this email.
+
+Warm regards,
+The Nashoba Valley Winery Team
+
+---
+Nashoba Valley Winery
+100 Wattaquadock Hill Road, Bolton, MA 01740
+(978) 779-5521 | info@nashobawinery.com
+`;
+
+    const msg = {
+      to: customerEmail,
+      from: {
+        email: process.env.SENDGRID_FROM_EMAIL || 'support@nashobawinery.com',
+        name: 'Nashoba Valley Winery Support'
+      },
+      subject: `We've Received Your Request - Ref #${ticketRef}`,
+      text: textContent,
+      html: htmlContent,
+    };
+
+    await sgMail.send(msg);
+    console.log(`[Support Email] Receipt sent to ${customerEmail} for ticket ${ticketId}`);
+  } catch (error) {
+    console.error('[Support Email] Failed to send receipt:', error);
+    // Don't throw - receipt emails are non-critical
+  }
+}

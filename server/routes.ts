@@ -69,7 +69,7 @@ import {
   insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
-import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents } from "./email";
+import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment verification (responds immediately)
@@ -12558,6 +12558,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'chat'
       ).catch(err => console.error('[Support] Failed to notify agents:', err));
 
+      // Send confirmation receipt to customer (non-blocking)
+      if (email) {
+        sendSupportRequestReceipt(
+          email,
+          name || null,
+          request.id,
+          subject,
+          initialMessage
+        ).catch(err => console.error('[Support] Failed to send receipt:', err));
+      }
+
       res.json(request);
     } catch (error) {
       console.error('Error creating support request:', error);
@@ -14843,6 +14854,17 @@ Generate a professional response:`;
           null, // category
           'email'
         ).catch(err => console.error('[Support] Failed to notify agents:', err));
+
+        // Send confirmation receipt to customer (non-blocking)
+        if (fromEmail) {
+          sendSupportRequestReceipt(
+            fromEmail,
+            fromName || null,
+            newRequest.id,
+            subject,
+            cleanBody || 'No content'
+          ).catch(err => console.error('[Support] Failed to send receipt:', err));
+        }
 
         res.status(200).json({ 
           message: 'Support request created from email',

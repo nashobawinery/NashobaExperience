@@ -38,6 +38,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
   - **Manual Agent Assignment**: Admins can manually assign specific agents to tickets via the Support Admin Dashboard. Assignment triggers immediate email notification with secure access token. UI displays current assignment badge, agent dropdown with loading/empty states, and tracks assignment in `assignedAgentId` field.
   - **Automated Reminder System**: Daily 8 AM Eastern (DST-aware) scheduler sends reminders for tickets with "new" or "pending" status. Uses `getNextEasternTime8AM()` for timezone-correct scheduling. Reminders are sent to all active agents and include quick-action links.
   - **48-Hour Escalation**: Tickets unanswered for 48+ hours trigger escalation emails to ALL active agents with urgent warning banner. Escalation tracking via `escalatedAt` and `escalationCount` fields on support requests.
+  - **Customer Receipt Email**: Automatic confirmation email sent to customers when they submit a support request (via chat widget or email). Includes reference number, subject, message preview, and response time expectation (within 48 hours).
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Independent module concerns within a monolithic structure.
