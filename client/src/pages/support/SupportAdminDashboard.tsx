@@ -517,7 +517,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             data-testid="button-generate-ai"
           >
             <Bot className="h-4 w-4 mr-2" />
-            {generateAiDraftMutation.isPending ? "Generating..." : "Generate AI Response"}
+            {generateAiDraftMutation.isPending ? "Generating..." : "Cody Response"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -797,7 +797,7 @@ function DocumentationDialog({ open, onClose }: { open: boolean; onClose: () => 
                 <p className="mt-2"><strong>How to use:</strong></p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>Select a support request from the list</li>
-                  <li>Click "Generate AI Response" to create a draft</li>
+                  <li>Click "Cody Response" to create a draft</li>
                   <li>Review and edit the AI's suggestion</li>
                   <li>Click "Send Response" to email it to the customer</li>
                 </ol>
