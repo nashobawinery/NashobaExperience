@@ -12598,6 +12598,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to fetch and extract text content from a URL
+  async function fetchWebContent(url: string): Promise<string> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'NashobaBot/1.0 (Customer Support Assistant)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.log(`[Web Fetch] Failed to fetch ${url}: ${response.status}`);
+        return '';
+      }
+      
+      const html = await response.text();
+      
+      // Extract text content from HTML (simple extraction)
+      let text = html
+        // Remove script and style tags with their content
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        // Remove HTML tags
+        .replace(/<[^>]+>/g, ' ')
+        // Decode common HTML entities
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&mdash;/g, '—')
+        .replace(/&ndash;/g, '–')
+        // Remove extra whitespace
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      // Limit to reasonable size (approx 8000 chars to leave room in context)
+      if (text.length > 8000) {
+        text = text.substring(0, 8000) + '... (content truncated)';
+      }
+      
+      console.log(`[Web Fetch] Successfully fetched ${url}: ${text.length} chars`);
+      return text;
+    } catch (error: any) {
+      console.log(`[Web Fetch] Error fetching ${url}:`, error.message);
+      return '';
+    }
+  }
+
   // Generate AI draft response (returns without saving - for preview/edit)
   app.post('/api/support/requests/:id/ai-draft', isAdmin, async (req, res) => {
     try {
@@ -12627,8 +12682,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Topic: ${r.title}\nKeywords: ${r.keywords?.join(', ') || ''}\nResponse: ${r.answer}`
       ).join('\n\n---\n\n');
 
-      const webSourcesContext = webSources.map(s => 
-        `Source: ${s.title}\nURL: ${s.url}\nContent: ${s.content || 'No content extracted'}`
+      // Fetch fresh content from web sources in real-time
+      console.log(`[AI Draft] Fetching content from ${webSources.length} web sources...`);
+      const webSourceContents = await Promise.all(
+        webSources.map(async (s) => {
+          if (s.url) {
+            const fetchedContent = await fetchWebContent(s.url);
+            return {
+              title: s.title,
+              url: s.url,
+              content: fetchedContent || s.content || 'No content available'
+            };
+          }
+          return {
+            title: s.title,
+            url: s.url,
+            content: s.content || 'No content available'
+          };
+        })
+      );
+
+      const webSourcesContext = webSourceContents.map(s => 
+        `Source: ${s.title}\nURL: ${s.url}\nContent: ${s.content}`
       ).join('\n\n---\n\n');
 
       // Build article context from Knowledge Base
