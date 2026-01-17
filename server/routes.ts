@@ -12547,8 +12547,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         senderName: name || 'Anonymous'
       });
 
-      // AI Categorization and Auto-Assignment (non-blocking but we wait for it)
+      // AI Categorization and Auto-Assignment
       let categoryName: string | null = null;
+      let assignedAgentId: string | null = null;
       try {
         const aiResult = await categorizeTicketWithAI(request.id, subject, initialMessage);
         
@@ -12559,20 +12560,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
             assignedAgentId: aiResult.assignedAgentId
           });
           categoryName = aiResult.categoryName;
-          console.log(`[Support] Ticket ${request.id} categorized as "${categoryName}" and assigned to agent ${aiResult.assignedAgentId}`);
-        }
-        
-        // Pre-generate AI draft response (non-blocking)
-        generateAIDraftForRequest(request.id).then(draft => {
-          if (draft) {
-            storage.updateSupportRequest(request.id, { aiDraftResponse: draft });
-            console.log(`[Support] AI draft generated for ticket ${request.id}`);
+          assignedAgentId = aiResult.assignedAgentId;
+          console.log(`[Support] Ticket ${request.id} categorized as "${categoryName}" and assigned to agent ${assignedAgentId}`);
+        } else {
+          // No category matched - fallback to default agent
+          const defaultAgent = await storage.getDefaultSupportAgent();
+          if (defaultAgent && defaultAgent.isActive) {
+            await storage.updateSupportRequest(request.id, {
+              assignedAgentId: defaultAgent.id
+            });
+            assignedAgentId = defaultAgent.id;
+            console.log(`[Support] Ticket ${request.id} assigned to default agent ${defaultAgent.id} (no category match)`);
           }
-        }).catch(err => console.error('[Support] Failed to generate AI draft:', err));
-        
+        }
       } catch (err) {
         console.error('[Support] AI categorization failed:', err);
+        // Fallback: assign to default agent even if AI fails
+        try {
+          const defaultAgent = await storage.getDefaultSupportAgent();
+          if (defaultAgent && defaultAgent.isActive) {
+            await storage.updateSupportRequest(request.id, {
+              assignedAgentId: defaultAgent.id
+            });
+            assignedAgentId = defaultAgent.id;
+            console.log(`[Support] Fallback: Ticket ${request.id} assigned to default agent ${defaultAgent.id}`);
+          }
+        } catch (fallbackErr) {
+          console.error('[Support] Failed to assign default agent:', fallbackErr);
+        }
       }
+        
+      // Pre-generate AI draft response (non-blocking)
+      generateAIDraftForRequest(request.id).then(async (draft) => {
+        if (draft) {
+          await storage.updateSupportRequest(request.id, { 
+            aiDraft: draft,
+            aiDraftGeneratedAt: new Date()
+          });
+          console.log(`[Support] AI draft generated for ticket ${request.id}`);
+        }
+      }).catch(err => console.error('[Support] Failed to generate AI draft:', err));
 
       // Notify support agents via email (non-blocking)
       notifySupportAgents(
@@ -14995,6 +15022,7 @@ Generate a professional response:`;
 
         // AI Categorization and Auto-Assignment
         let categoryName: string | null = null;
+        let assignedAgentId: string | null = null;
         try {
           console.log('[Email Inbound] Starting AI categorization for:', newRequest.id);
           const aiResult = await categorizeTicketWithAI(newRequest.id, subject, cleanBody || 'No content');
@@ -15005,10 +15033,34 @@ Generate a professional response:`;
               assignedAgentId: aiResult.assignedAgentId
             });
             categoryName = aiResult.categoryName;
-            console.log(`[Email Inbound] Ticket categorized as "${categoryName}" and assigned to agent ${aiResult.assignedAgentId}`);
+            assignedAgentId = aiResult.assignedAgentId;
+            console.log(`[Email Inbound] Ticket categorized as "${categoryName}" and assigned to agent ${assignedAgentId}`);
+          } else {
+            // No category matched - fallback to default agent
+            const defaultAgent = await storage.getDefaultSupportAgent();
+            if (defaultAgent && defaultAgent.isActive) {
+              await storage.updateSupportRequest(newRequest.id, {
+                assignedAgentId: defaultAgent.id
+              });
+              assignedAgentId = defaultAgent.id;
+              console.log(`[Email Inbound] Ticket assigned to default agent ${defaultAgent.id} (no category match)`);
+            }
           }
         } catch (err) {
           console.error('[Email Inbound] AI categorization failed:', err);
+          // Fallback: assign to default agent even if AI fails
+          try {
+            const defaultAgent = await storage.getDefaultSupportAgent();
+            if (defaultAgent && defaultAgent.isActive) {
+              await storage.updateSupportRequest(newRequest.id, {
+                assignedAgentId: defaultAgent.id
+              });
+              assignedAgentId = defaultAgent.id;
+              console.log(`[Email Inbound] Fallback: Ticket assigned to default agent ${defaultAgent.id}`);
+            }
+          } catch (fallbackErr) {
+            console.error('[Email Inbound] Failed to assign default agent:', fallbackErr);
+          }
         }
 
         // Auto-generate AI draft response in the background
