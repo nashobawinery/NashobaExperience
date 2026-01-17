@@ -12915,6 +12915,37 @@ ${webSourcesContext}`
     }
   });
 
+  // Public: Record feedback on a message (thumbs up/down)
+  app.post('/api/support/messages/:messageId/feedback', async (req, res) => {
+    try {
+      const { feedback } = req.body;
+      
+      if (!feedback || !['up', 'down'].includes(feedback)) {
+        return res.status(400).json({ message: 'Valid feedback (up/down) is required' });
+      }
+
+      const message = await storage.getSupportMessage(req.params.messageId);
+      if (!message) {
+        return res.status(404).json({ message: 'Message not found' });
+      }
+
+      // Store feedback in the message metadata
+      const currentMetadata = (message.metadata as Record<string, any>) || {};
+      await storage.updateSupportMessage(req.params.messageId, {
+        metadata: {
+          ...currentMetadata,
+          feedback,
+          feedbackAt: new Date().toISOString()
+        }
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error recording feedback:', error);
+      res.status(500).json({ message: 'Failed to record feedback' });
+    }
+  });
+
   // Admin: Get all support requests
   app.get('/api/admin/support/requests', isAdmin, async (req, res) => {
     try {

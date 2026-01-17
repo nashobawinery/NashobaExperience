@@ -8,7 +8,14 @@ import {
   User, 
   Loader2,
   ArrowLeft,
-  X
+  X,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
+  MapPin,
+  Wine,
+  Calendar,
+  HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +89,15 @@ function LinkifiedText({ text }: { text: string }) {
   );
 }
 
+// Quick reply options for common queries
+const QUICK_REPLIES = [
+  { icon: Clock, label: "Hours & Location", subject: "Hours & Location", message: "What are your hours of operation and where are you located?" },
+  { icon: Calendar, label: "Reservations", subject: "Reservations", message: "I'd like to make a reservation. What options do you have available?" },
+  { icon: Wine, label: "Wine & Spirits", subject: "Wine & Spirits", message: "Can you tell me about your wine and spirits selection?" },
+  { icon: MapPin, label: "Tours & Tastings", subject: "Tours & Tastings", message: "What tours and tastings do you offer?" },
+  { icon: HelpCircle, label: "Other Question", subject: "", message: "" },
+];
+
 function StartConversationForm({ onStart }: { onStart: (requestId: string) => void }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -89,6 +105,7 @@ function StartConversationForm({ onStart }: { onStart: (requestId: string) => vo
     subject: "",
     message: "",
   });
+  const [showFullForm, setShowFullForm] = useState(false);
   const { toast } = useToast();
 
   const startMutation = useMutation({
@@ -119,17 +136,65 @@ function StartConversationForm({ onStart }: { onStart: (requestId: string) => vo
     startMutation.mutate(formData);
   };
 
+  const handleQuickReply = (quick: typeof QUICK_REPLIES[0]) => {
+    if (quick.subject === "") {
+      // "Other Question" - show full form
+      setShowFullForm(true);
+    } else {
+      // Quick reply - submit immediately
+      startMutation.mutate({
+        ...formData,
+        subject: quick.subject,
+        message: quick.message,
+      });
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="text-center mb-6">
-        <MessageSquare className="h-12 w-12 mx-auto mb-3 text-primary" />
+        <Bot className="h-12 w-12 mx-auto mb-3 text-primary" />
         <h2 className="text-xl font-semibold mb-1">How can we help?</h2>
         <p className="text-sm text-muted-foreground">
-          Start a conversation with our support team. Our AI assistant will help you get started.
+          I'm an AI assistant for Nashoba Valley. Choose a topic or ask your own question.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Quick Reply Buttons */}
+      {!showFullForm && (
+        <div className="space-y-2 mb-4">
+          {QUICK_REPLIES.map((quick) => (
+            <Button
+              key={quick.label}
+              variant="outline"
+              className="w-full justify-start gap-3 h-auto py-3"
+              onClick={() => handleQuickReply(quick)}
+              disabled={startMutation.isPending}
+              data-testid={`quick-reply-${quick.label.toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              <quick.icon className="h-5 w-5 text-primary flex-shrink-0" />
+              <span className="text-left">{quick.label}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Full form - shown when "Other Question" is selected */}
+      {showFullForm && (
+        <div className="mb-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowFullForm(false)}
+            className="mb-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to quick options
+          </Button>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className={`space-y-4 ${!showFullForm ? 'hidden' : ''}`}>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="name">Name (optional)</Label>
@@ -211,9 +276,21 @@ function ChatInterface({
 }) {
   const [newMessage, setNewMessage] = useState("");
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'up' | 'down'>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // Feedback mutation
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ messageId, feedback }: { messageId: string; feedback: 'up' | 'down' }) => {
+      return apiRequest("POST", `/api/support/messages/${messageId}/feedback`, { feedback });
+    },
+    onSuccess: (_, { messageId, feedback }) => {
+      setFeedbackGiven(prev => ({ ...prev, [messageId]: feedback }));
+      toast({ title: feedback === 'up' ? "Thanks for the feedback!" : "We'll try to do better" });
+    },
+  });
 
   const { data: request, isLoading, error } = useQuery<SupportRequestWithMessages>({
     queryKey: ["/api/support/requests", requestId],
@@ -330,6 +407,35 @@ function ChatInterface({
                   </span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
+                
+                {/* Feedback buttons for bot messages */}
+                {message.senderType === "bot" && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
+                    <span className="text-xs opacity-60">Was this helpful?</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => feedbackMutation.mutate({ messageId: message.id, feedback: 'up' })}
+                        disabled={!!feedbackGiven[message.id] || feedbackMutation.isPending}
+                        className={`p-1 rounded hover:bg-purple-200 dark:hover:bg-purple-700 transition-colors ${
+                          feedbackGiven[message.id] === 'up' ? 'text-green-600 dark:text-green-400' : 'opacity-60'
+                        }`}
+                        data-testid={`feedback-up-${message.id}`}
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => feedbackMutation.mutate({ messageId: message.id, feedback: 'down' })}
+                        disabled={!!feedbackGiven[message.id] || feedbackMutation.isPending}
+                        className={`p-1 rounded hover:bg-purple-200 dark:hover:bg-purple-700 transition-colors ${
+                          feedbackGiven[message.id] === 'down' ? 'text-red-600 dark:text-red-400' : 'opacity-60'
+                        }`}
+                        data-testid={`feedback-down-${message.id}`}
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

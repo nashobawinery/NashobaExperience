@@ -5143,6 +5143,22 @@ export class DatabaseStorage implements IStorage {
       .orderBy(supportMessages.createdAt);
   }
 
+  async getSupportMessage(messageId: string): Promise<SupportMessage | undefined> {
+    const [result] = await db.select()
+      .from(supportMessages)
+      .where(eq(supportMessages.id, messageId))
+      .limit(1);
+    return result;
+  }
+
+  async updateSupportMessage(messageId: string, data: Partial<InsertSupportMessage>): Promise<SupportMessage | undefined> {
+    const [result] = await db.update(supportMessages)
+      .set(data)
+      .where(eq(supportMessages.id, messageId))
+      .returning();
+    return result;
+  }
+
   async createSupportMessage(data: InsertSupportMessage): Promise<SupportMessage> {
     const [result] = await db.insert(supportMessages).values(data).returning();
     

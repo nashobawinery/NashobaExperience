@@ -154,4 +154,30 @@
       chatContainer.classList.remove('open');
     }
   });
+
+  // Proactive Engagement - Auto-open after 60 seconds if not already opened
+  let hasProactivelyOpened = false;
+  let hasUserInteracted = false;
+  
+  // Track if user has already interacted
+  chatButton.addEventListener('click', function() {
+    hasUserInteracted = true;
+  });
+  
+  setTimeout(function() {
+    // Only proactively open if:
+    // 1. User hasn't already interacted with the widget
+    // 2. Widget isn't already open
+    // 3. We haven't already proactively opened
+    if (!hasUserInteracted && !chatContainer.classList.contains('open') && !hasProactivelyOpened) {
+      hasProactivelyOpened = true;
+      chatContainer.classList.add('open');
+      
+      // Send a message to the iframe to show a welcome prompt
+      const iframe = document.getElementById('nashoba-chat-iframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'proactive-greeting' }, '*');
+      }
+    }
+  }, 60000); // 60 seconds
 })();
