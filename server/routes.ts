@@ -13561,6 +13561,274 @@ ${webSourcesContext}`
     }
   });
 
+  // ============ Support Agents ============
+
+  // Get all support agents
+  app.get('/api/admin/support/agents', isAdmin, async (req, res) => {
+    try {
+      const agents = await storage.getSupportAgents();
+      // Get categories for each agent
+      const agentsWithCategories = await Promise.all(
+        agents.map(async (agent) => {
+          const categories = await storage.getSupportAgentCategories(agent.id);
+          return { ...agent, categories };
+        })
+      );
+      res.json(agentsWithCategories);
+    } catch (error) {
+      console.error('Error fetching support agents:', error);
+      res.status(500).json({ message: 'Failed to fetch agents' });
+    }
+  });
+
+  // Get platform users available for agent assignment
+  app.get('/api/admin/support/platform-users', isAdmin, async (req, res) => {
+    try {
+      const rbac = await import('./rbac');
+      const users = await rbac.getAllPlatformUsers();
+      // Filter to active users with email
+      const availableUsers = users
+        .filter((u: any) => u.active && u.email)
+        .map((u: any) => ({
+          id: u.id,
+          email: u.email,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          displayName: `${u.firstName} ${u.lastName}`,
+          department: u.department,
+          jobTitle: u.jobTitle
+        }));
+      res.json(availableUsers);
+    } catch (error) {
+      console.error('Error fetching platform users:', error);
+      res.status(500).json({ message: 'Failed to fetch platform users' });
+    }
+  });
+
+  // Create support agent
+  app.post('/api/admin/support/agents', isAdmin, async (req, res) => {
+    try {
+      const { platformUserId, categories } = req.body;
+      
+      // Get platform user info
+      const rbac = await import('./rbac');
+      const allUsers = await rbac.getAllPlatformUsers();
+      const platformUser = allUsers.find((u: any) => u.id === platformUserId);
+      if (!platformUser) {
+        return res.status(400).json({ message: 'Platform user not found' });
+      }
+
+      // Check if agent already exists for this user
+      const existingAgent = await storage.getSupportAgentByPlatformUserId(platformUserId);
+      if (existingAgent) {
+        return res.status(400).json({ message: 'Agent already exists for this user' });
+      }
+
+      // Generate unique 4-digit PIN
+      let pinCode: string;
+      let isUnique = false;
+      do {
+        pinCode = String(Math.floor(1000 + Math.random() * 9000));
+        const existingPin = await storage.getSupportAgentByPin(pinCode);
+        isUnique = !existingPin;
+      } while (!isUnique);
+
+      // Create agent
+      const agent = await storage.createSupportAgent({
+        platformUserId,
+        email: platformUser.email,
+        displayName: `${platformUser.firstName} ${platformUser.lastName}`,
+        pinCode,
+        isActive: true,
+        receiveEmailNotifications: true,
+        isDefaultAgent: req.body.isDefaultAgent || false
+      });
+
+      // Set categories if provided
+      if (categories && categories.length > 0) {
+        await storage.setSupportAgentCategories(agent.id, categories);
+      }
+
+      const agentCategories = await storage.getSupportAgentCategories(agent.id);
+      res.status(201).json({ ...agent, categories: agentCategories });
+    } catch (error) {
+      console.error('Error creating support agent:', error);
+      res.status(500).json({ message: 'Failed to create agent' });
+    }
+  });
+
+  // Update support agent
+  app.patch('/api/admin/support/agents/:id', isAdmin, async (req, res) => {
+    try {
+      const { categories, ...agentData } = req.body;
+      
+      const agent = await storage.updateSupportAgent(req.params.id, agentData);
+      if (!agent) {
+        return res.status(404).json({ message: 'Agent not found' });
+      }
+
+      // Update categories if provided
+      if (categories !== undefined) {
+        await storage.setSupportAgentCategories(agent.id, categories);
+      }
+
+      const agentCategories = await storage.getSupportAgentCategories(agent.id);
+      res.json({ ...agent, categories: agentCategories });
+    } catch (error) {
+      console.error('Error updating support agent:', error);
+      res.status(500).json({ message: 'Failed to update agent' });
+    }
+  });
+
+  // Regenerate agent PIN
+  app.post('/api/admin/support/agents/:id/regenerate-pin', isAdmin, async (req, res) => {
+    try {
+      // Generate unique 4-digit PIN
+      let pinCode: string;
+      let isUnique = false;
+      do {
+        pinCode = String(Math.floor(1000 + Math.random() * 9000));
+        const existingPin = await storage.getSupportAgentByPin(pinCode);
+        isUnique = !existingPin;
+      } while (!isUnique);
+
+      const agent = await storage.updateSupportAgent(req.params.id, { pinCode });
+      if (!agent) {
+        return res.status(404).json({ message: 'Agent not found' });
+      }
+
+      res.json({ pinCode: agent.pinCode });
+    } catch (error) {
+      console.error('Error regenerating PIN:', error);
+      res.status(500).json({ message: 'Failed to regenerate PIN' });
+    }
+  });
+
+  // Delete support agent
+  app.delete('/api/admin/support/agents/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteSupportAgent(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting support agent:', error);
+      res.status(500).json({ message: 'Failed to delete agent' });
+    }
+  });
+
+  // Verify agent PIN and return access token for quick access
+  app.post('/api/support/verify-pin', async (req, res) => {
+    try {
+      const { pinCode, requestId, action } = req.body;
+      
+      const agent = await storage.getSupportAgentByPin(pinCode);
+      if (!agent) {
+        return res.status(401).json({ message: 'Invalid PIN code' });
+      }
+
+      // Generate access token
+      const token = `${agent.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+      await storage.createAgentAccessToken({
+        agentId: agent.id,
+        requestId,
+        token,
+        action: action || 'view',
+        expiresAt
+      });
+
+      res.json({ 
+        success: true, 
+        agentId: agent.id,
+        agentName: agent.displayName,
+        token,
+        expiresAt 
+      });
+    } catch (error) {
+      console.error('Error verifying PIN:', error);
+      res.status(500).json({ message: 'Failed to verify PIN' });
+    }
+  });
+
+  // Forward ticket to another agent
+  app.post('/api/support/forward-ticket', async (req, res) => {
+    try {
+      const { requestId, fromAgentId, toAgentId, pinCode, note } = req.body;
+
+      // Verify PIN
+      const agent = await storage.getSupportAgentByPin(pinCode);
+      if (!agent || agent.id !== fromAgentId) {
+        return res.status(401).json({ message: 'Invalid PIN code' });
+      }
+
+      // Get target agent
+      const toAgent = await storage.getSupportAgent(toAgentId);
+      if (!toAgent) {
+        return res.status(400).json({ message: 'Target agent not found' });
+      }
+
+      // Update ticket assignment
+      await storage.updateSupportRequest(requestId, {
+        assignedToId: toAgent.platformUserId,
+        assignedToName: toAgent.displayName,
+        status: 'open'
+      });
+
+      // Add internal note about the forward
+      await storage.createSupportMessage({
+        requestId,
+        senderType: 'agent',
+        senderName: agent.displayName,
+        senderId: agent.platformUserId,
+        content: `Ticket forwarded to ${toAgent.displayName}${note ? `: ${note}` : ''}`,
+        isInternal: true,
+        metadata: { action: 'forward', toAgentId }
+      });
+
+      res.json({ success: true, forwardedTo: toAgent.displayName });
+    } catch (error) {
+      console.error('Error forwarding ticket:', error);
+      res.status(500).json({ message: 'Failed to forward ticket' });
+    }
+  });
+
+  // Mark ticket as spam
+  app.post('/api/support/mark-spam', async (req, res) => {
+    try {
+      const { requestId, pinCode, agentId } = req.body;
+
+      // Verify PIN
+      const agent = await storage.getSupportAgentByPin(pinCode);
+      if (!agent || (agentId && agent.id !== agentId)) {
+        return res.status(401).json({ message: 'Invalid PIN code' });
+      }
+
+      // Update ticket status to spam
+      await storage.updateSupportRequest(requestId, {
+        status: 'spam',
+        closedAt: new Date(),
+        closedById: agent.platformUserId,
+        closedByName: agent.displayName
+      });
+
+      // Add internal note
+      await storage.createSupportMessage({
+        requestId,
+        senderType: 'agent',
+        senderName: agent.displayName,
+        senderId: agent.platformUserId,
+        content: 'Ticket marked as spam',
+        isInternal: true,
+        metadata: { action: 'mark_spam' }
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking ticket as spam:', error);
+      res.status(500).json({ message: 'Failed to mark as spam' });
+    }
+  });
+
   app.get('/api/public/articles/:slug', async (req, res) => {
     try {
       const article = await storage.getSupportArticleBySlug(req.params.slug);
