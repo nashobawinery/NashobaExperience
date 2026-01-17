@@ -68,7 +68,7 @@ import {
   insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
-import { generateWorkOrderNotificationEmail, sendEmail } from "./email";
+import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment verification (responds immediately)
@@ -12546,6 +12546,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         senderName: name || 'Anonymous'
       });
 
+      // Notify support agents via email (non-blocking)
+      notifySupportAgents(
+        request.id,
+        subject,
+        initialMessage,
+        name || null,
+        email || null,
+        null, // category
+        'chat'
+      ).catch(err => console.error('[Support] Failed to notify agents:', err));
+
       res.json(request);
     } catch (error) {
       console.error('Error creating support request:', error);
@@ -13829,6 +13840,171 @@ ${webSourcesContext}`
     }
   });
 
+  // Public: Verify access token and get ticket details for quick access
+  app.post('/api/support/verify-token', async (req, res) => {
+    try {
+      const { token, action } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: 'Token is required' });
+      }
+      
+      const accessToken = await storage.getAgentAccessToken(token);
+      
+      if (!accessToken) {
+        return res.status(401).json({ message: 'Invalid or expired access token' });
+      }
+      
+      // Check if token is expired
+      if (new Date(accessToken.expiresAt) < new Date()) {
+        return res.status(401).json({ message: 'Access token has expired' });
+      }
+      
+      // Check if token has already been used for an action (single-use for actions)
+      if (accessToken.usedAt && action !== 'view') {
+        return res.status(401).json({ message: 'This link has already been used for an action' });
+      }
+      
+      // Get agent info
+      const agent = await storage.getSupportAgent(accessToken.agentId);
+      if (!agent || !agent.isActive) {
+        return res.status(401).json({ message: 'Agent not found or inactive' });
+      }
+      
+      // Get ticket details
+      const request = await storage.getSupportRequestWithMessages(accessToken.requestId);
+      if (!request) {
+        return res.status(404).json({ message: 'Ticket not found' });
+      }
+      
+      // Get list of agents for forwarding
+      const agents = await storage.getActiveSupportAgents();
+      const otherAgents = agents
+        .filter(a => a.id !== agent.id)
+        .map(a => ({ id: a.id, displayName: a.displayName }));
+      
+      res.json({
+        success: true,
+        agent: {
+          id: agent.id,
+          displayName: agent.displayName,
+          email: agent.email
+        },
+        ticket: request,
+        otherAgents,
+        tokenRequestId: accessToken.requestId
+      });
+    } catch (error) {
+      console.error('Error verifying token:', error);
+      res.status(500).json({ message: 'Failed to verify token' });
+    }
+  });
+
+  // Public: Perform action with access token (forward, spam, reply)
+  app.post('/api/support/token-action', async (req, res) => {
+    try {
+      const { token, action, targetAgentId, note, replyContent } = req.body;
+      
+      if (!token || !action) {
+        return res.status(400).json({ message: 'Token and action are required' });
+      }
+      
+      const accessToken = await storage.getAgentAccessToken(token);
+      
+      if (!accessToken) {
+        return res.status(401).json({ message: 'Invalid or expired access token' });
+      }
+      
+      if (new Date(accessToken.expiresAt) < new Date()) {
+        return res.status(401).json({ message: 'Access token has expired' });
+      }
+      
+      // Check if token has already been used (tokens are single-use for actions)
+      if (accessToken.usedAt) {
+        return res.status(401).json({ message: 'This link has already been used' });
+      }
+      
+      const agent = await storage.getSupportAgent(accessToken.agentId);
+      if (!agent || !agent.isActive) {
+        return res.status(401).json({ message: 'Agent not found or inactive' });
+      }
+      
+      const requestId = accessToken.requestId;
+      
+      // Mark token as used before performing action
+      await storage.markAgentAccessTokenUsed(token);
+      
+      if (action === 'forward') {
+        if (!targetAgentId) {
+          return res.status(400).json({ message: 'Target agent is required for forward action' });
+        }
+        
+        const targetAgent = await storage.getSupportAgent(targetAgentId);
+        if (!targetAgent) {
+          return res.status(400).json({ message: 'Target agent not found' });
+        }
+        
+        await storage.updateSupportRequest(requestId, {
+          assignedToId: targetAgent.platformUserId,
+          assignedToName: targetAgent.displayName,
+          status: 'open'
+        });
+        
+        await storage.createSupportMessage({
+          requestId,
+          senderType: 'agent',
+          senderName: agent.displayName,
+          senderId: agent.platformUserId,
+          content: `Ticket forwarded to ${targetAgent.displayName}${note ? `: ${note}` : ''}`,
+          isInternal: true,
+          metadata: { action: 'forward', toAgentId: targetAgentId }
+        });
+        
+        res.json({ success: true, message: `Ticket forwarded to ${targetAgent.displayName}` });
+      } else if (action === 'spam') {
+        await storage.updateSupportRequest(requestId, {
+          status: 'spam',
+          closedById: agent.platformUserId,
+          closedByName: agent.displayName
+        });
+        
+        await storage.createSupportMessage({
+          requestId,
+          senderType: 'agent',
+          senderName: agent.displayName,
+          senderId: agent.platformUserId,
+          content: 'Ticket marked as spam',
+          isInternal: true,
+          metadata: { action: 'mark_spam' }
+        });
+        
+        res.json({ success: true, message: 'Ticket marked as spam' });
+      } else if (action === 'reply') {
+        if (!replyContent) {
+          return res.status(400).json({ message: 'Reply content is required' });
+        }
+        
+        await storage.createSupportMessage({
+          requestId,
+          senderType: 'agent',
+          senderName: agent.displayName,
+          senderId: agent.platformUserId,
+          content: replyContent,
+          isInternal: false
+        });
+        
+        await storage.updateSupportRequest(requestId, { status: 'open' });
+        
+        res.json({ success: true, message: 'Reply sent' });
+      } else {
+        res.status(400).json({ message: 'Invalid action' });
+      }
+    } catch (error) {
+      console.error('Error processing token action:', error);
+      res.status(500).json({ message: 'Failed to process action' });
+    }
+  });
+
   app.get('/api/public/articles/:slug', async (req, res) => {
     try {
       const article = await storage.getSupportArticleBySlug(req.params.slug);
@@ -14590,6 +14766,17 @@ Generate a professional response:`;
         }).catch((err) => {
           console.error('[Email Inbound] Failed to generate AI draft:', err);
         });
+
+        // Notify support agents via email (non-blocking)
+        notifySupportAgents(
+          newRequest.id,
+          subject,
+          cleanBody || 'No content',
+          fromName || null,
+          fromEmail || null,
+          null, // category
+          'email'
+        ).catch(err => console.error('[Support] Failed to notify agents:', err));
 
         res.status(200).json({ 
           message: 'Support request created from email',

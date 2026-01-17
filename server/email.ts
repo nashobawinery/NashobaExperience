@@ -1,5 +1,6 @@
 import type { Product, CartItem, Favorite, B2bSystemTemplateCustomization } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
+import crypto from "crypto";
 import { storage } from "./storage";
 
 interface EmailCustomization {
@@ -1847,6 +1848,221 @@ if (!apiKey) {
   console.error("SENDGRID_API_KEY environment variable is not set");
 } else {
   sgMail.setApiKey(apiKey);
+}
+
+// ============= SUPPORT AGENT NOTIFICATION EMAILS =============
+
+interface SupportAgentNotificationData {
+  agentName: string;
+  agentEmail: string;
+  agentId: string;
+  ticketId: string;
+  ticketSubject: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  message: string;
+  category: string | null;
+  source: 'chat' | 'email' | 'form';
+}
+
+/**
+ * Generates an email notification for support agents when a new ticket arrives
+ * Includes action buttons for View, Forward, and Mark Spam
+ * The accessToken parameter provides secure, time-limited access to actions
+ */
+export function generateSupportAgentNotificationEmail(data: SupportAgentNotificationData & { accessToken: string }): { subject: string; html: string; text: string } {
+  const baseUrl = getBaseUrl();
+  
+  const subject = `New Support Ticket: ${data.ticketSubject}`;
+  
+  // Action URLs with encoded token for secure access
+  const viewUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=view`;
+  const forwardUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=forward`;
+  const spamUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=spam`;
+  
+  const sourceLabel = data.source === 'email' ? 'Email' : data.source === 'form' ? 'Contact Form' : 'Chat Widget';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>${getBrandedEmailStyles()}</style>
+    </head>
+    <body>
+      <div class="email-container">
+        ${generateBrandedEmailHeader('New Support Ticket', 'Action required')}
+        
+        <div class="content">
+          <p style="margin: 0 0 20px;">Hi ${data.agentName},</p>
+          
+          <p style="margin: 0 0 20px;">A new support ticket has been assigned to you:</p>
+          
+          <div class="info-box">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td style="padding: 5px 0;"><strong>Ticket ID:</strong></td>
+                <td style="padding: 5px 0;">#${data.ticketId.substring(0, 8)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>Subject:</strong></td>
+                <td style="padding: 5px 0;">${data.ticketSubject}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>From:</strong></td>
+                <td style="padding: 5px 0;">${data.customerName || 'Anonymous'} ${data.customerEmail ? `(${data.customerEmail})` : ''}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0;"><strong>Source:</strong></td>
+                <td style="padding: 5px 0;">${sourceLabel}</td>
+              </tr>
+              ${data.category ? `
+              <tr>
+                <td style="padding: 5px 0;"><strong>Category:</strong></td>
+                <td style="padding: 5px 0;">${data.category}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+          
+          <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0 0 10px; font-weight: bold; color: ${BRAND_COLORS.burgundy};">Message:</p>
+            <p style="margin: 0; white-space: pre-wrap;">${data.message.length > 500 ? data.message.substring(0, 500) + '...' : data.message}</p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <p style="margin: 0 0 15px; color: #666; font-size: 14px;">Quick Actions:</p>
+            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 400px; margin: 0 auto;">
+              <tr>
+                <td style="padding: 5px; text-align: center;">
+                  <a href="${viewUrl}" class="button" style="display: inline-block; background-color: ${BRAND_COLORS.burgundy}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                    View Ticket
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 5px; text-align: center;">
+                  <a href="${forwardUrl}" style="display: inline-block; background-color: #2563EB; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+                    Forward to Agent
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 5px; text-align: center;">
+                  <a href="${spamUrl}" style="display: inline-block; background-color: #DC2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-size: 14px;">
+                    Mark as Spam
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <p style="margin: 20px 0 0; color: #666; font-size: 13px; text-align: center;">
+            These secure links are valid for 24 hours.
+          </p>
+        </div>
+        
+        ${generateBrandedEmailFooter(false)}
+      </div>
+    </body>
+    </html>
+  `;
+  
+  const text = `
+New Support Ticket Notification
+
+Hi ${data.agentName},
+
+A new support ticket has been assigned to you:
+
+Ticket ID: #${data.ticketId.substring(0, 8)}
+Subject: ${data.ticketSubject}
+From: ${data.customerName || 'Anonymous'} ${data.customerEmail ? `(${data.customerEmail})` : ''}
+Source: ${sourceLabel}
+${data.category ? `Category: ${data.category}` : ''}
+
+Message:
+${data.message.length > 500 ? data.message.substring(0, 500) + '...' : data.message}
+
+Quick Actions:
+- View Ticket: ${viewUrl}
+- Forward to Agent: ${forwardUrl}
+- Mark as Spam: ${spamUrl}
+
+These secure links are valid for 24 hours.
+
+---
+Nashoba Valley Winery
+100 Wattaquadock Hill Road, Bolton, MA 01740
+  `;
+  
+  return { subject, html, text };
+}
+
+/**
+ * Sends notification emails to all relevant support agents for a new ticket
+ * Creates time-limited access tokens for secure quick actions from email links
+ */
+export async function notifySupportAgents(
+  ticketId: string,
+  ticketSubject: string,
+  message: string,
+  customerName: string | null,
+  customerEmail: string | null,
+  category: string | null,
+  source: 'chat' | 'email' | 'form'
+): Promise<void> {
+  try {
+    // Get agents to notify based on category or default agent
+    const agents = await storage.getSupportAgentsForNotification(category);
+    
+    if (agents.length === 0) {
+      console.log('[Support Email] No agents configured for notification');
+      return;
+    }
+    
+    console.log(`[Support Email] Notifying ${agents.length} agent(s) for ticket ${ticketId}`);
+    
+    for (const agent of agents) {
+      if (!agent.email || !agent.receiveEmailNotifications) {
+        continue;
+      }
+      
+      // Create a cryptographically secure, time-limited access token (24 hours for email links)
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      await storage.createAgentAccessToken({
+        agentId: agent.id,
+        requestId: ticketId,
+        token,
+        action: 'email_link',
+        expiresAt
+      });
+      
+      const emailData = generateSupportAgentNotificationEmail({
+        agentName: agent.displayName,
+        agentEmail: agent.email,
+        agentId: agent.id,
+        ticketId,
+        ticketSubject,
+        customerName,
+        customerEmail,
+        message,
+        category,
+        source,
+        accessToken: token
+      });
+      
+      try {
+        await sendEmail(agent.email, emailData.subject, emailData.html, emailData.text);
+        console.log(`[Support Email] Notification sent to ${agent.email}`);
+      } catch (emailError) {
+        console.error(`[Support Email] Failed to send to ${agent.email}:`, emailError);
+      }
+    }
+  } catch (error) {
+    console.error('[Support Email] Error notifying agents:', error);
+  }
 }
 
 // Email sending function using SendGrid

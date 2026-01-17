@@ -867,6 +867,14 @@ export default function SupportAdminDashboard() {
               <BarChart3 className="h-4 w-4 mr-2" />
               Analytics
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/admin/support/agents")}
+              data-testid="button-agents"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Agents
+            </Button>
           </div>
         </div>
       </header>

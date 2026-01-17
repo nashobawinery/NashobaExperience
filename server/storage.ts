@@ -6127,6 +6127,35 @@ export class DatabaseStorage implements IStorage {
     await db.delete(supportAgentAccessTokens)
       .where(sql`${supportAgentAccessTokens.expiresAt} < NOW()`);
   }
+
+  // Get agents to notify for a new ticket based on category
+  async getSupportAgentsForNotification(category: string | null): Promise<SupportAgent[]> {
+    // If category provided, get agents assigned to that category
+    if (category) {
+      // First try to find the category by name
+      const [cat] = await db.select()
+        .from(supportCategories)
+        .where(eq(supportCategories.name, category));
+      
+      if (cat) {
+        const categoryAgents = await this.getAgentsForCategory(cat.id);
+        if (categoryAgents.length > 0) {
+          // Filter to those with email notifications enabled
+          return categoryAgents.filter(a => a.receiveEmailNotifications);
+        }
+      }
+    }
+    
+    // Fall back to default agent if no category match
+    const defaultAgent = await this.getDefaultSupportAgent();
+    if (defaultAgent && defaultAgent.receiveEmailNotifications) {
+      return [defaultAgent];
+    }
+    
+    // If no default, return all active agents with notifications enabled
+    const allAgents = await this.getActiveSupportAgents();
+    return allAgents.filter(a => a.receiveEmailNotifications);
+  }
 }
 
 export const storage = new DatabaseStorage();
