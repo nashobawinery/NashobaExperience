@@ -78,6 +78,8 @@ export default function SupportAgentsPage() {
   const [editPinFor, setEditPinFor] = useState<string | null>(null);
   const [editPinValue, setEditPinValue] = useState<string>("");
   const [deleteConfirmAgent, setDeleteConfirmAgent] = useState<SupportAgent | null>(null);
+  const [editCategoriesFor, setEditCategoriesFor] = useState<SupportAgent | null>(null);
+  const [editingCategories, setEditingCategories] = useState<string[]>([]);
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<SupportAgent[]>({
     queryKey: ['/api/admin/support/agents'],
@@ -205,6 +207,29 @@ export default function SupportAgentsPage() {
         ? prev.filter(c => c !== categoryId)
         : [...prev, categoryId]
     );
+  };
+
+  const toggleEditingCategory = (categoryId: string) => {
+    setEditingCategories(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(c => c !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const handleOpenEditCategories = (agent: SupportAgent) => {
+    setEditCategoriesFor(agent);
+    setEditingCategories(agent.categories.map(c => c.categoryId));
+  };
+
+  const handleSaveCategories = () => {
+    if (!editCategoriesFor) return;
+    updateAgentMutation.mutate({ 
+      id: editCategoriesFor.id, 
+      categories: editingCategories.map(categoryId => ({ categoryId, isLead: false }))
+    });
+    setEditCategoriesFor(null);
+    setEditingCategories([]);
   };
 
   if (agentsLoading) {
@@ -397,9 +422,21 @@ export default function SupportAgentsPage() {
                   </div>
                 </div>
 
-                {agent.categories.length > 0 && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground mb-2 block">Assigned Categories</Label>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm text-muted-foreground">Assigned Categories</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleOpenEditCategories(agent)}
+                      className="h-7 text-xs"
+                      data-testid={`button-edit-categories-${agent.id}`}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  </div>
+                  {agent.categories.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {agent.categories.map(cat => (
                         <Badge 
@@ -411,8 +448,10 @@ export default function SupportAgentsPage() {
                         </Badge>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No categories assigned</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))
@@ -545,6 +584,53 @@ export default function SupportAgentsPage() {
               data-testid="button-confirm-delete"
             >
               {deleteAgentMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editCategoriesFor} onOpenChange={() => { setEditCategoriesFor(null); setEditingCategories([]); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Categories</DialogTitle>
+            <DialogDescription>
+              Update the categories assigned to {editCategoriesFor?.displayName}. Click categories to toggle them on or off.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {categories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {categories.map(cat => (
+                  <Badge
+                    key={cat.id}
+                    variant={editingCategories.includes(cat.id) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleEditingCategory(cat.id)}
+                    data-testid={`edit-category-${cat.id}`}
+                  >
+                    {cat.name}
+                    {editingCategories.includes(cat.id) && (
+                      <CheckCircle className="h-3 w-3 ml-1" />
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No categories available</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditCategoriesFor(null); setEditingCategories([]); }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveCategories}
+              disabled={updateAgentMutation.isPending}
+              data-testid="button-save-categories"
+            >
+              {updateAgentMutation.isPending ? "Saving..." : "Save Categories"}
             </Button>
           </DialogFooter>
         </DialogContent>
