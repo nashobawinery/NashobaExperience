@@ -14277,8 +14277,10 @@ ${webSourcesContext}`
         
         // Get the full ticket details to send in the notification
         const ticket = await storage.getSupportRequest(requestId);
+        console.log(`[Support Forward] Forwarding ticket ${requestId} from ${agent.displayName} to ${targetAgent.displayName} (${targetAgent.email || 'NO EMAIL'})`);
         if (ticket) {
           // Send email notification to the target agent
+          console.log(`[Support Forward] Sending notification email to ${targetAgent.email || 'NO EMAIL'}`);
           await sendForwardedTicketNotification(
             { id: targetAgent.id, displayName: targetAgent.displayName, email: targetAgent.email || '' },
             agent.displayName,
@@ -14292,6 +14294,9 @@ ${webSourcesContext}`
             },
             note
           );
+          console.log(`[Support Forward] Email notification sent successfully`);
+        } else {
+          console.log(`[Support Forward] Could not find ticket ${requestId} to send notification`);
         }
         
         res.json({ success: true, message: `Ticket forwarded to ${targetAgent.displayName}` });

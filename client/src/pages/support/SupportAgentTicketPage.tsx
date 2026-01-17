@@ -295,8 +295,11 @@ export default function SupportAgentTicketPage() {
           <p className="text-muted-foreground mb-4">
             {actionSuccess}
           </p>
-          <Button onClick={() => window.location.href = '/api/login?returnTo=/support/admin'} data-testid="button-go-to-dashboard">
-            Go to Dashboard
+          <p className="text-sm text-muted-foreground mb-4">
+            You can safely close this window now.
+          </p>
+          <Button onClick={() => window.close()} data-testid="button-close-window">
+            Close Window
           </Button>
         </Card>
       </div>
