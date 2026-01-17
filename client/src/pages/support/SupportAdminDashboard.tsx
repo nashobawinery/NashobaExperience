@@ -26,7 +26,8 @@ import {
   CheckCircle,
   Archive,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Ban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,8 @@ const statusConfig: Record<string, { label: string; icon: typeof Circle; classNa
   bot_responded: { label: "Bot Responded", icon: Bot, className: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
   human_responded: { label: "Agent Responded", icon: User, className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   resolved: { label: "Resolved", icon: CheckCircle, className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  closed: { label: "Closed", icon: Archive, className: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200" }
+  closed: { label: "Closed", icon: Archive, className: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200" },
+  spam: { label: "Spam", icon: Ban, className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" }
 };
 
 const changeableStatuses = [
@@ -118,6 +120,7 @@ const changeableStatuses = [
   { value: "pending", label: "Pending" },
   { value: "resolved", label: "Resolved" },
   { value: "closed", label: "Closed" },
+  { value: "spam", label: "Spam" },
 ];
 
 function RequestList({ 
