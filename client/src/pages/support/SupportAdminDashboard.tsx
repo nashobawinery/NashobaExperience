@@ -44,6 +44,33 @@ import type { SupportRequest, SupportMessage, SupportCannedResponse } from "@sha
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
 
+function LinkifiedText({ text }: { text: string }) {
+  const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+          urlRegex.lastIndex = 0;
+          return (
+            <a
+              key={index}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 underline hover:opacity-80"
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 const statusConfig: Record<string, { label: string; icon: typeof Circle; className: string }> = {
   new: { label: "New", icon: AlertCircle, className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   open: { label: "Open", icon: CircleDot, className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
@@ -505,7 +532,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                   <span>·</span>
                   <span>{format(new Date(message.createdAt), "h:mm a")}</span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
               </div>
             </div>
           ))}

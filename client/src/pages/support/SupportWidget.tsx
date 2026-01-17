@@ -24,6 +24,33 @@ type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] 
 
 const STORAGE_KEY = "support_request_id";
 
+function LinkifiedText({ text }: { text: string }) {
+  const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+          urlRegex.lastIndex = 0;
+          return (
+            <a
+              key={index}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 underline hover:opacity-80"
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 function StartConversationForm({ onStart }: { onStart: (requestId: string) => void }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -271,7 +298,7 @@ function ChatInterface({
                       : "Support Agent"}
                   </span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
               </div>
             </div>
           ))}
