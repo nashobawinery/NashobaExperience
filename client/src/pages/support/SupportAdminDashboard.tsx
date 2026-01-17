@@ -45,12 +45,43 @@ import type { SupportRequest, SupportMessage, SupportCannedResponse } from "@sha
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
 
 function LinkifiedText({ text }: { text: string }) {
+  // First handle markdown-style links [text](url)
+  const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  let processedText = text;
+  const markdownLinks: { placeholder: string; label: string; url: string }[] = [];
+  
+  let match;
+  let placeholderIndex = 0;
+  while ((match = markdownLinkRegex.exec(text)) !== null) {
+    const placeholder = `__LINK_${placeholderIndex}__`;
+    markdownLinks.push({ placeholder, label: match[1], url: match[2] });
+    processedText = processedText.replace(match[0], placeholder);
+    placeholderIndex++;
+  }
+  
+  // Then handle raw URLs
   const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
-  const parts = text.split(urlRegex);
+  const parts = processedText.split(urlRegex);
   
   return (
     <>
       {parts.map((part, index) => {
+        // Check if this is a markdown link placeholder
+        const mdLink = markdownLinks.find(l => l.placeholder === part);
+        if (mdLink) {
+          return (
+            <a
+              key={index}
+              href={mdLink.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 underline hover:opacity-80"
+            >
+              {mdLink.label}
+            </a>
+          );
+        }
+        // Check if this is a raw URL
         if (urlRegex.test(part)) {
           urlRegex.lastIndex = 0;
           return (
