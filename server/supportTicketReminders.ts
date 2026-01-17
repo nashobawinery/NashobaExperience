@@ -387,6 +387,7 @@ async function sendManualAgentNotification(ticketId: string, agentId: string): P
       agentId: agent.id,
       requestId: ticket.id,
       token,
+      action: 'view',
       expiresAt
     });
     
