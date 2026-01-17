@@ -14773,6 +14773,27 @@ Generate a professional response:`;
       }
 
       // ============================================
+      // SKIP OUR OWN AUTO-GENERATED EMAILS
+      // Prevent mail loops from confirmation emails being re-ingested
+      // ============================================
+      const ourDomains = ['nashobawinery.com', 'nashobawinery.shop'];
+      const isFromOurDomain = ourDomains.some(d => fromEmail.toLowerCase().includes(d));
+      const isAutoReply = 
+        subject.toLowerCase().includes("we've received your request") ||
+        subject.toLowerCase().includes("new support ticket:") ||
+        subject.toLowerCase().includes("support request received") ||
+        parsedHeaders['auto-submitted'] ||
+        parsedHeaders['x-auto-response-suppress'] ||
+        fromEmail.toLowerCase().includes('noreply') ||
+        fromEmail.toLowerCase().includes('no-reply') ||
+        fromEmail.toLowerCase().includes('mailer-daemon');
+      
+      if (isFromOurDomain && isAutoReply) {
+        console.log('[Email Inbound] Skipping auto-generated email from our domain:', subject);
+        return res.status(200).json({ message: 'Auto-generated email skipped' });
+      }
+
+      // ============================================
       // REVIEW NOTIFICATION DETECTION
       // Check if this email is a review notification from Google, Facebook, Yelp, or TripAdvisor
       // ============================================
@@ -14935,7 +14956,25 @@ Generate a professional response:`;
       console.log('[Email Inbound] Raw HTML body length:', htmlBody?.length || 0);
       console.log('[Email Inbound] Text body preview:', textBody?.slice(0, 500) || 'empty');
       
-      let cleanBody = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Prefer text body with newlines preserved; HTML fallback converts tags to appropriate whitespace
+      let cleanBody = textBody || '';
+      if (!cleanBody && htmlBody) {
+        // Convert HTML to plain text while preserving line structure
+        cleanBody = htmlBody
+          .replace(/<br\s*\/?>/gi, '\n')      // br tags to newlines
+          .replace(/<\/p>/gi, '\n\n')         // paragraph ends to double newlines
+          .replace(/<\/div>/gi, '\n')         // div ends to single newlines
+          .replace(/<\/li>/gi, '\n')          // list items to newlines
+          .replace(/<[^>]+>/g, ' ')           // strip remaining tags
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/[ \t]+/g, ' ')            // collapse horizontal whitespace only (preserve newlines)
+          .replace(/\n{3,}/g, '\n\n')         // limit consecutive newlines to 2
+          .trim();
+      }
       
       // Check if this is a forwarded email (FW: or Fwd: in subject)
       const isForwarded = subject.toLowerCase().startsWith('fw:') || subject.toLowerCase().startsWith('fwd:');
@@ -14993,20 +15032,22 @@ Generate a professional response:`;
         // If pattern extraction failed, try HTML parsing as fallback
         if (!extracted && htmlBody) {
           console.log('[Email Inbound] Trying HTML extraction fallback');
-          // Strip HTML tags more carefully
+          // Strip HTML tags more carefully - preserve newlines for readability
           let htmlContent = htmlBody
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')  // Remove style blocks
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script blocks
             .replace(/<br\s*\/?>/gi, '\n')  // Convert br to newlines
             .replace(/<\/p>/gi, '\n\n')     // Convert p endings to double newlines
             .replace(/<\/div>/gi, '\n')     // Convert div endings to newlines
+            .replace(/<\/li>/gi, '\n')      // List items to newlines
             .replace(/<[^>]+>/g, ' ')       // Strip remaining tags
             .replace(/&nbsp;/g, ' ')
             .replace(/&quot;/g, '"')
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
-            .replace(/\s+/g, ' ')
+            .replace(/[ \t]+/g, ' ')        // Collapse horizontal whitespace only (preserve newlines)
+            .replace(/\n{3,}/g, '\n\n')     // Limit consecutive newlines to 2
             .trim();
           
           // Try the same patterns on HTML-extracted content
