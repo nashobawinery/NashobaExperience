@@ -5159,6 +5159,21 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getBotMessagesWithFeedback(limit: number = 50): Promise<SupportMessage[]> {
+    // Efficiently get bot messages that have feedback in a single query
+    // Uses SQL to filter messages with feedback in their JSONB metadata
+    return await db.select()
+      .from(supportMessages)
+      .where(
+        and(
+          eq(supportMessages.senderType, 'bot'),
+          sql`${supportMessages.metadata}->>'feedback' IS NOT NULL`
+        )
+      )
+      .orderBy(desc(supportMessages.createdAt))
+      .limit(limit);
+  }
+
   async createSupportMessage(data: InsertSupportMessage): Promise<SupportMessage> {
     const [result] = await db.insert(supportMessages).values(data).returning();
     
@@ -5539,6 +5554,20 @@ export class DatabaseStorage implements IStorage {
     articleStats: { total: number; published: number; draft: number; totalViews: number; totalHelpful: number; totalNotHelpful: number };
     requestStats: { total: number; new: number; inProgress: number; closed: number };
     recentRequests: SupportRequest[];
+    botPerformance: {
+      deflectionRate: number;
+      botResolvedCount: number;
+      totalResolved: number;
+      avgResponseTimeMinutes: number;
+      avgResolutionTimeMinutes: number;
+      satisfactionScore: number;
+      feedbackUp: number;
+      feedbackDown: number;
+      emailRequests: number;
+      widgetRequests: number;
+      dailyVolume: { date: string; count: number }[];
+      statusBreakdown: Record<string, number>;
+    };
   }> {
     // Top articles by views
     const topArticles = await db.select()
@@ -5573,7 +5602,128 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(supportRequests.createdAt))
       .limit(5);
 
-    return { topArticles, articleStats, requestStats, recentRequests };
+    // Bot performance analytics
+    const allMessages = await db.select().from(supportMessages);
+    
+    // Group messages by request
+    const messagesByRequest: Record<string, typeof allMessages> = {};
+    allMessages.forEach(msg => {
+      if (!messagesByRequest[msg.requestId]) {
+        messagesByRequest[msg.requestId] = [];
+      }
+      messagesByRequest[msg.requestId].push(msg);
+    });
+
+    // Calculate bot deflection rate
+    const resolvedRequests = allRequests.filter(r => r.status === 'closed' || r.status === 'resolved');
+    const botResolvedRequests = resolvedRequests.filter(r => {
+      const messages = messagesByRequest[r.id] || [];
+      const hasBotMessage = messages.some(m => m.senderType === 'bot');
+      const hasAgentMessage = messages.some(m => m.senderType === 'agent');
+      return hasBotMessage && !hasAgentMessage;
+    });
+
+    const totalResolved = resolvedRequests.length;
+    const botResolvedCount = botResolvedRequests.length;
+    const deflectionRate = totalResolved > 0 ? (botResolvedCount / totalResolved) * 100 : 0;
+
+    // Calculate response and resolution times
+    let totalResponseTime = 0;
+    let responseTimeCount = 0;
+    let totalResolutionTime = 0;
+    let resolutionTimeCount = 0;
+
+    allRequests.forEach(request => {
+      const messages = messagesByRequest[request.id] || [];
+      const firstResponse = messages
+        .filter(m => m.senderType === 'bot' || m.senderType === 'agent')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+      
+      if (firstResponse) {
+        const responseTime = (new Date(firstResponse.createdAt).getTime() - new Date(request.createdAt).getTime()) / 60000;
+        if (responseTime >= 0) {
+          totalResponseTime += responseTime;
+          responseTimeCount++;
+        }
+      }
+
+      if (request.status === 'closed' || request.status === 'resolved') {
+        const resolutionTime = (new Date(request.updatedAt).getTime() - new Date(request.createdAt).getTime()) / 60000;
+        if (resolutionTime >= 0) {
+          totalResolutionTime += resolutionTime;
+          resolutionTimeCount++;
+        }
+      }
+    });
+
+    const avgResponseTimeMinutes = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0;
+    const avgResolutionTimeMinutes = resolutionTimeCount > 0 ? totalResolutionTime / resolutionTimeCount : 0;
+
+    // Calculate satisfaction from message feedback
+    let feedbackUp = 0;
+    let feedbackDown = 0;
+    allMessages.forEach(msg => {
+      const metadata = msg.metadata as Record<string, any> | null;
+      if (metadata?.feedback === 'up') {
+        feedbackUp++;
+      } else if (metadata?.feedback === 'down') {
+        feedbackDown++;
+      }
+    });
+    const totalFeedback = feedbackUp + feedbackDown;
+    const satisfactionScore = totalFeedback > 0 ? (feedbackUp / totalFeedback) * 100 : 0;
+
+    // Request sources
+    let emailRequests = 0;
+    let widgetRequests = 0;
+    allRequests.forEach(r => {
+      const metadata = r.metadata as Record<string, any> | null;
+      if (metadata?.source === 'email' || metadata?.emailMessageId) {
+        emailRequests++;
+      } else {
+        widgetRequests++;
+      }
+    });
+
+    // Daily volume (last 30 days)
+    const dailyVolumeMap: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      dailyVolumeMap[dateStr] = 0;
+    }
+    allRequests.forEach(r => {
+      const dateStr = new Date(r.createdAt).toISOString().split('T')[0];
+      if (dailyVolumeMap[dateStr] !== undefined) {
+        dailyVolumeMap[dateStr]++;
+      }
+    });
+    const dailyVolume = Object.entries(dailyVolumeMap).map(([date, count]) => ({ date, count }));
+
+    // Status breakdown
+    const statusBreakdown: Record<string, number> = {};
+    allRequests.forEach(r => {
+      statusBreakdown[r.status] = (statusBreakdown[r.status] || 0) + 1;
+    });
+
+    const botPerformance = {
+      deflectionRate,
+      botResolvedCount,
+      totalResolved,
+      avgResponseTimeMinutes,
+      avgResolutionTimeMinutes,
+      satisfactionScore,
+      feedbackUp,
+      feedbackDown,
+      emailRequests,
+      widgetRequests,
+      dailyVolume,
+      statusBreakdown
+    };
+
+    return { topArticles, articleStats, requestStats, recentRequests, botPerformance };
   }
 
   // Get top FAQ articles for widget

@@ -12715,13 +12715,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `FAQ Article: ${a.title}\nSummary: ${a.summary || ''}\nContent: ${a.content}`
       ).join('\n\n---\n\n');
 
+      // Get feedback patterns for continuous learning (single efficient query)
+      const messagesWithFeedback = await storage.getBotMessagesWithFeedback(20);
+      
+      // Transform to feedback patterns
+      const feedbackPatterns = messagesWithFeedback.map(msg => {
+        const metadata = msg.metadata as Record<string, any> | null;
+        return {
+          content: msg.content.substring(0, 200), // First 200 chars
+          feedback: metadata?.feedback || ''
+        };
+      }).filter(p => p.feedback);
+
+      // Build feedback context for AI learning
+      let feedbackContext = '';
+      if (feedbackPatterns.length > 0) {
+        const positiveExamples = feedbackPatterns.filter(f => f.feedback === 'up').slice(0, 3);
+        const negativeExamples = feedbackPatterns.filter(f => f.feedback === 'down').slice(0, 3);
+        
+        if (positiveExamples.length > 0 || negativeExamples.length > 0) {
+          feedbackContext = '\n\nCUSTOMER FEEDBACK PATTERNS:\n';
+          if (positiveExamples.length > 0) {
+            feedbackContext += 'Responses that customers found HELPFUL (model these):\n';
+            positiveExamples.forEach((ex, i) => {
+              feedbackContext += `${i + 1}. "${ex.content}..."\n`;
+            });
+          }
+          if (negativeExamples.length > 0) {
+            feedbackContext += '\nResponses that customers found NOT helpful (avoid similar patterns):\n';
+            negativeExamples.forEach((ex, i) => {
+              feedbackContext += `${i + 1}. "${ex.content}..."\n`;
+            });
+          }
+        }
+      }
+
       // For auto-generation, we just use the initial message as conversation
       const conversationHistory = `Customer: ${request.initialMessage}`;
 
       // Get AI system prompt from settings
       const systemPromptSetting = settings.find(s => s.settingKey === 'ai_system_prompt');
-      const systemPrompt = systemPromptSetting?.settingValue || 
+      const baseSystemPrompt = systemPromptSetting?.settingValue || 
         `You are a helpful customer support assistant for Nashoba Valley Winery. Be friendly, professional, and helpful. Answer questions based on the knowledge base provided. If you don't know the answer, politely say so and offer to connect the customer with a human agent.`;
+
+      // Add multilingual support - detect language and respond accordingly
+      const multilingualInstructions = `
+
+MULTILINGUAL SUPPORT:
+- Detect the language of the customer's message.
+- ALWAYS respond in the SAME LANGUAGE that the customer used.
+- If the message is in Spanish, respond in Spanish.
+- If the message is in French, respond in French.
+- If the message is in Portuguese, respond in Portuguese.
+- If the message is in any other language, respond in that language.
+- Only respond in English if the customer's message is in English.
+- Maintain a warm, friendly tone regardless of language.`;
+
+      const systemPrompt = baseSystemPrompt + multilingualInstructions;
 
       // Call OpenAI
       const openai = (await import('openai')).default;
@@ -12743,7 +12793,7 @@ FAQ ARTICLES (Relevant to this conversation):
 ${articlesContext || 'No specific articles found for this query.'}
 
 WEBSITE INFORMATION:
-${webSourcesContext}` 
+${webSourcesContext}${feedbackContext}` 
           },
           { 
             role: 'user', 
@@ -12832,8 +12882,23 @@ ${webSourcesContext}`
 
       // Get AI system prompt from settings
       const systemPromptSetting = settings.find(s => s.settingKey === 'ai_system_prompt');
-      const systemPrompt = systemPromptSetting?.settingValue || 
+      const baseSystemPrompt = systemPromptSetting?.settingValue || 
         `You are a helpful customer support assistant for Nashoba Valley Winery. Be friendly, professional, and helpful. Answer questions based on the knowledge base provided. If you don't know the answer, politely say so and offer to connect the customer with a human agent.`;
+
+      // Add multilingual support
+      const multilingualInstructions = `
+
+MULTILINGUAL SUPPORT:
+- Detect the language of the customer's message.
+- ALWAYS respond in the SAME LANGUAGE that the customer used.
+- If the message is in Spanish, respond in Spanish.
+- If the message is in French, respond in French.
+- If the message is in Portuguese, respond in Portuguese.
+- If the message is in any other language, respond in that language.
+- Only respond in English if the customer's message is in English.
+- Maintain a warm, friendly tone regardless of language.`;
+
+      const systemPrompt = baseSystemPrompt + multilingualInstructions;
 
       // Call OpenAI
       const openai = (await import('openai')).default;
