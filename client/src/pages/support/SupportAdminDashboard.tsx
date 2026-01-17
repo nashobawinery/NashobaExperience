@@ -280,9 +280,26 @@ function RequestList({
                             {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true })}
                           </span>
                         </div>
-                        <Badge className={`mt-2 ${status.className}`} variant="secondary">
-                          {status.label}
-                        </Badge>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <Badge className={status.className} variant="secondary">
+                            {status.label}
+                          </Badge>
+                          {(request as any).assignedAgentName && (
+                            <Badge variant="outline" className="text-xs">
+                              <User className="h-3 w-3 mr-1" />
+                              {(request as any).assignedAgentName}
+                            </Badge>
+                          )}
+                          {(request as any).assignedAgentId && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${(request as any).emailNotificationSent ? 'text-green-600 border-green-600' : 'text-amber-600 border-amber-600'}`}
+                            >
+                              <Mail className="h-3 w-3 mr-1" />
+                              {(request as any).emailNotificationSent ? 'Notified' : 'Not notified'}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </button>

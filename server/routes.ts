@@ -13041,7 +13041,35 @@ ${webSourcesContext}`
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       
       const requests = await storage.getSupportRequests({ status, limit });
-      res.json(requests);
+      
+      // Enrich requests with assigned agent info and notification status
+      const agents = await storage.getSupportAgents();
+      const rbac = await import('./rbac');
+      const allPlatformUsers = await rbac.getAllPlatformUsers();
+      
+      const enrichedRequests = requests.map((request: any) => {
+        let assignedAgentName = null;
+        
+        if (request.assignedAgentId) {
+          const agent = agents.find((a: any) => a.id === request.assignedAgentId);
+          if (agent) {
+            const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
+            assignedAgentName = platformUser 
+              ? ((platformUser.first_name || platformUser.last_name) 
+                  ? `${platformUser.first_name || ''} ${platformUser.last_name || ''}`.trim() 
+                  : agent.email?.split('@')[0] || 'Unknown')
+              : agent.displayName || agent.email?.split('@')[0] || 'Unknown';
+          }
+        }
+        
+        return {
+          ...request,
+          assignedAgentName,
+          emailNotificationSent: !!request.agentNotificationSentAt
+        };
+      });
+      
+      res.json(enrichedRequests);
     } catch (error) {
       console.error('Error fetching support requests:', error);
       res.status(500).json({ message: 'Failed to fetch support requests' });

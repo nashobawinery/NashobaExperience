@@ -395,8 +395,8 @@ async function sendManualAgentNotification(ticketId: string, agentId: string): P
     const allPlatformUsers = await rbac.getAllPlatformUsers();
     const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
     const displayName = platformUser 
-      ? ((platformUser.firstName || platformUser.lastName) 
-          ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+      ? ((platformUser.first_name || platformUser.last_name) 
+          ? `${platformUser.first_name || ''} ${platformUser.last_name || ''}`.trim() 
           : agent.email?.split('@')[0] || 'Agent')
       : agent.displayName || agent.email?.split('@')[0] || 'Agent';
     
@@ -408,6 +408,7 @@ async function sendManualAgentNotification(ticketId: string, agentId: string): P
     await db.update(supportRequests)
       .set({ 
         assignedAgentId: agent.id,
+        agentNotificationSentAt: new Date(),
         lastReminderSentAt: new Date(),
         reminderCount: (ticket.reminderCount || 0) + 1,
         updatedAt: new Date()

@@ -3932,6 +3932,7 @@ export const supportRequests = pgTable("support_requests", {
   closedById: varchar("closed_by_id"),
   closedByName: varchar("closed_by_name"),
   assignedAgentId: varchar("assigned_agent_id"),
+  agentNotificationSentAt: timestamp("agent_notification_sent_at"), // When email notification was sent to assigned agent
   lastReminderSentAt: timestamp("last_reminder_sent_at"),
   reminderCount: integer("reminder_count").notNull().default(0),
   escalatedAt: timestamp("escalated_at"),
