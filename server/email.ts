@@ -1863,6 +1863,7 @@ interface SupportAgentNotificationData {
   message: string;
   category: string | null;
   source: 'chat' | 'email' | 'form';
+  aiDraft?: string | null;
 }
 
 /**
@@ -1877,6 +1878,7 @@ export function generateSupportAgentNotificationEmail(data: SupportAgentNotifica
   
   // Action URLs with encoded token for secure access
   const viewUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=view`;
+  const replyUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=reply`;
   const forwardUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=forward`;
   const spamUrl = `${baseUrl}/support/agent/ticket/${data.ticketId}?token=${data.accessToken}&action=spam`;
   
@@ -1929,12 +1931,29 @@ export function generateSupportAgentNotificationEmail(data: SupportAgentNotifica
             <p style="margin: 0; white-space: pre-wrap;">${data.message.length > 500 ? data.message.substring(0, 500) + '...' : data.message}</p>
           </div>
           
+          ${data.aiDraft ? `
+          <div style="background: linear-gradient(135deg, #f3e8ff 0%, #dbeafe 100%); border-radius: 8px; padding: 15px; margin: 20px 0; border: 1px solid #c4b5fd;">
+            <p style="margin: 0 0 10px; font-weight: bold; color: #7c3aed; display: flex; align-items: center;">
+              &#10024; AI Suggested Response
+            </p>
+            <p style="margin: 0; white-space: pre-wrap; font-size: 14px; color: #374151;">${data.aiDraft.length > 300 ? data.aiDraft.substring(0, 300) + '...' : data.aiDraft}</p>
+            <p style="margin: 10px 0 0; font-size: 12px; color: #6b7280;">Click "Reply Now" to review and edit this response before sending.</p>
+          </div>
+          ` : ''}
+          
           <div style="text-align: center; margin: 30px 0;">
             <p style="margin: 0 0 15px; color: #666; font-size: 14px;">Quick Actions:</p>
             <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 400px; margin: 0 auto;">
               <tr>
                 <td style="padding: 5px; text-align: center;">
-                  <a href="${viewUrl}" class="button" style="display: inline-block; background-color: ${BRAND_COLORS.burgundy}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                  <a href="${replyUrl}" class="button" style="display: inline-block; background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                    Reply Now
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 5px; text-align: center;">
+                  <a href="${viewUrl}" style="display: inline-block; background-color: ${BRAND_COLORS.burgundy}; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-size: 14px;">
                     View Ticket
                   </a>
                 </td>
@@ -1982,8 +2001,13 @@ ${data.category ? `Category: ${data.category}` : ''}
 
 Message:
 ${data.message.length > 500 ? data.message.substring(0, 500) + '...' : data.message}
-
+${data.aiDraft ? `
+AI Suggested Response:
+${data.aiDraft.length > 300 ? data.aiDraft.substring(0, 300) + '...' : data.aiDraft}
+(Click "Reply Now" to review and edit this response before sending)
+` : ''}
 Quick Actions:
+- Reply Now: ${replyUrl}
 - View Ticket: ${viewUrl}
 - Forward to Agent: ${forwardUrl}
 - Mark as Spam: ${spamUrl}
@@ -2009,7 +2033,8 @@ export async function notifySupportAgents(
   customerName: string | null,
   customerEmail: string | null,
   category: string | null,
-  source: 'chat' | 'email' | 'form'
+  source: 'chat' | 'email' | 'form',
+  aiDraft?: string | null
 ): Promise<void> {
   try {
     // Get agents to notify based on category or default agent
@@ -2050,6 +2075,7 @@ export async function notifySupportAgents(
         message,
         category,
         source,
+        aiDraft,
         accessToken: token
       });
       

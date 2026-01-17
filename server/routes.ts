@@ -12590,7 +12590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
         
-      // Pre-generate AI draft response (non-blocking)
+      // Pre-generate AI draft response and then notify agents (non-blocking)
       generateAIDraftForRequest(request.id).then(async (draft) => {
         if (draft) {
           await storage.updateSupportRequest(request.id, { 
@@ -12599,18 +12599,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           console.log(`[Support] AI draft generated for ticket ${request.id}`);
         }
-      }).catch(err => console.error('[Support] Failed to generate AI draft:', err));
-
-      // Notify support agents via email (non-blocking)
-      notifySupportAgents(
-        request.id,
-        subject,
-        initialMessage,
-        name || null,
-        email || null,
-        categoryName, // Pass the category name for routing
-        'chat'
-      ).catch(err => console.error('[Support] Failed to notify agents:', err));
+        
+        // Notify support agents via email after AI draft is ready
+        await notifySupportAgents(
+          request.id,
+          subject,
+          initialMessage,
+          name || null,
+          email || null,
+          categoryName,
+          'chat',
+          draft || null
+        );
+      }).catch(err => console.error('[Support] Failed to generate AI draft or notify agents:', err));
 
       // Send confirmation receipt to customer (non-blocking)
       if (email) {
@@ -15151,7 +15152,7 @@ Generate a professional response:`;
           }
         }
 
-        // Auto-generate AI draft response in the background
+        // Auto-generate AI draft response and then notify agents (non-blocking)
         console.log('[Email Inbound] Generating AI draft for new request:', newRequest.id);
         generateAIDraftForRequest(newRequest.id).then(async (aiDraft) => {
           if (aiDraft) {
@@ -15161,20 +15162,21 @@ Generate a professional response:`;
             });
             console.log('[Email Inbound] AI draft saved for request:', newRequest.id);
           }
+          
+          // Notify support agents via email after AI draft is ready
+          await notifySupportAgents(
+            newRequest.id,
+            subject,
+            cleanBody || 'No content',
+            fromName || null,
+            fromEmail || null,
+            categoryName,
+            'email',
+            aiDraft || null
+          );
         }).catch((err) => {
-          console.error('[Email Inbound] Failed to generate AI draft:', err);
+          console.error('[Email Inbound] Failed to generate AI draft or notify agents:', err);
         });
-
-        // Notify support agents via email (non-blocking)
-        notifySupportAgents(
-          newRequest.id,
-          subject,
-          cleanBody || 'No content',
-          fromName || null,
-          fromEmail || null,
-          categoryName, // Pass category name for routing
-          'email'
-        ).catch(err => console.error('[Support] Failed to notify agents:', err));
 
         // Send confirmation receipt to customer (non-blocking)
         if (fromEmail) {
