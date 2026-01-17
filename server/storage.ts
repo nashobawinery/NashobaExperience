@@ -4813,10 +4813,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProceduresSubmissionDraft(templateId: string, staffName: string): Promise<ProceduresSubmission | undefined> {
+    // Use case-insensitive and trimmed comparison for better matching
+    const normalizedName = staffName.trim().toLowerCase();
     const [draft] = await db.select().from(proceduresSubmissions)
       .where(and(
         eq(proceduresSubmissions.templateId, templateId),
-        eq(proceduresSubmissions.submittedByName, staffName),
+        sql`LOWER(TRIM(${proceduresSubmissions.submittedByName})) = ${normalizedName}`,
         eq(proceduresSubmissions.status, "draft")
       ))
       .orderBy(desc(proceduresSubmissions.createdAt))

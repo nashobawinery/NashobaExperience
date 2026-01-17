@@ -27,6 +27,36 @@ function getEasternTime(): { hour: number; minute: number } {
   };
 }
 
+// Helper to get today's date in Eastern timezone as a Date object set to midnight Eastern
+function getEasternDateToday(): Date {
+  const easternFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = easternFormatter.formatToParts(new Date());
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '0';
+  
+  const year = parseInt(getPart('year'));
+  const month = parseInt(getPart('month')) - 1; // JS months are 0-indexed
+  const day = parseInt(getPart('day'));
+  
+  // Create a date at midnight for the Eastern date
+  // We use UTC here to avoid local timezone issues
+  return new Date(Date.UTC(year, month, day, 5, 0, 0, 0)); // 5 AM UTC = midnight EST (close enough for date comparison)
+}
+
+// Helper to get the day of week key for Eastern timezone
+function getEasternDayKey(): string {
+  const easternFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'long'
+  });
+  const weekday = easternFormatter.format(new Date()).toLowerCase();
+  return weekday;
+}
+
 // Check if deadline has passed for a template
 function isDeadlinePassed(completionTime: string | null): boolean {
   const eastern = getEasternTime();
@@ -58,14 +88,20 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
     
     console.log(`[Mandatory Procedures] Found ${mandatoryTemplates.length} mandatory templates to check`);
     
-    const today = new Date();
-    const todayDayKey = DAY_MAP[today.getDay()];
+    // IMPORTANT: Use Eastern timezone for date calculations
+    // At 11:30 PM Eastern, UTC may already be the next day
+    const todayEastern = getEasternDateToday();
+    const todayDayKey = getEasternDayKey();
     
-    const todayStart = new Date(today);
-    todayStart.setHours(0, 0, 0, 0);
+    // Create date range for today in Eastern time
+    // We'll compare just the date portion (year-month-day)
+    const todayStart = new Date(todayEastern);
+    todayStart.setUTCHours(0, 0, 0, 0);
     
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
+    const todayEnd = new Date(todayEastern);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+    
+    console.log(`[Mandatory Procedures] Checking for Eastern date: ${todayEastern.toISOString().split('T')[0]}, day: ${todayDayKey}`);
     
     const submissions = await storage.getProceduresSubmissions();
     
@@ -104,7 +140,7 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
         procedureCode: template.procedureCode,
         department: template.department,
         submittedByName: "SYSTEM",
-        submissionDate: today,
+        submissionDate: todayEastern,
         dateTimeStarted: null,
         dateTimeSubmitted: new Date(),
         status: "no_report",
@@ -119,7 +155,7 @@ async function checkMissedMandatoryProcedures(): Promise<void> {
       const emailCc = template.emailRecipientsCc || [];
       
       if (emailTo.length > 0 || emailCc.length > 0) {
-        const { subject, html, text } = generateMissedProcedureEmail(template, today);
+        const { subject, html, text } = generateMissedProcedureEmail(template, todayEastern);
         
         for (const recipient of emailTo) {
           try {
