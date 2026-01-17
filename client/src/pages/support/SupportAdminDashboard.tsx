@@ -37,9 +37,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { SupportRequest, SupportMessage } from "@shared/schema";
+import type { SupportRequest, SupportMessage, SupportCannedResponse } from "@shared/schema";
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
 
@@ -244,6 +245,10 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     enabled: !!requestId,
   });
 
+  const { data: cannedResponses = [] } = useQuery<SupportCannedResponse[]>({
+    queryKey: ["/api/admin/support/canned-responses"],
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
       return apiRequest("POST", `/api/admin/support/requests/${requestId}/messages`, { content });
@@ -394,6 +399,36 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             <Bot className="h-4 w-4 mr-2" />
             {generateAiDraftMutation.isPending ? "Generating..." : "Generate AI Response"}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={request.status === "closed" || cannedResponses.length === 0}
+                data-testid="button-canned-responses"
+              >
+                <BookOpen className="h-4 w-4 mr-2" />
+                Canned Responses
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+              {cannedResponses.map((response) => (
+                <DropdownMenuItem
+                  key={response.id}
+                  onClick={() => {
+                    setAiDraftContent(response.answer);
+                    setAiDraftOpen(true);
+                  }}
+                  data-testid={`canned-response-item-${response.id}`}
+                >
+                  {response.title}
+                </DropdownMenuItem>
+              ))}
+              {cannedResponses.length === 0 && (
+                <DropdownMenuItem disabled>No canned responses available</DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {request.status !== "closed" && (
             <Button
               size="sm"
