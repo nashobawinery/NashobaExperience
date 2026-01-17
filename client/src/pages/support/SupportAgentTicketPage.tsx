@@ -278,7 +278,7 @@ export default function SupportAgentTicketPage() {
           <p className="text-muted-foreground mb-4">
             {error}
           </p>
-          <Button onClick={() => setLocation('/admin/support')} data-testid="button-go-to-dashboard">
+          <Button onClick={() => window.location.href = '/api/login?returnTo=/support/admin'} data-testid="button-go-to-dashboard">
             Go to Dashboard
           </Button>
         </Card>
@@ -295,7 +295,7 @@ export default function SupportAgentTicketPage() {
           <p className="text-muted-foreground mb-4">
             {actionSuccess}
           </p>
-          <Button onClick={() => setLocation('/admin/support')} data-testid="button-go-to-dashboard">
+          <Button onClick={() => window.location.href = '/api/login?returnTo=/support/admin'} data-testid="button-go-to-dashboard">
             Go to Dashboard
           </Button>
         </Card>
@@ -312,7 +312,7 @@ export default function SupportAgentTicketPage() {
           <p className="text-muted-foreground mb-4">
             This ticket may have been deleted or you don't have access.
           </p>
-          <Button onClick={() => setLocation('/admin/support')} data-testid="button-go-to-dashboard">
+          <Button onClick={() => window.location.href = '/api/login?returnTo=/support/admin'} data-testid="button-go-to-dashboard">
             Go to Dashboard
           </Button>
         </Card>
@@ -330,7 +330,7 @@ export default function SupportAgentTicketPage() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => setLocation('/admin/support')}
+              onClick={() => window.location.href = '/api/login?returnTo=/support/admin'}
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4" />
