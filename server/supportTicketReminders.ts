@@ -173,9 +173,9 @@ async function sendReminderEmail(agent: any, ticket: any, token: string, baseUrl
   
   sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
   
-  const viewUrl = `${baseUrl}/support/ticket/${ticket.id}?token=${token}&action=view`;
-  const forwardUrl = `${baseUrl}/support/ticket/${ticket.id}?token=${token}&action=forward`;
-  const spamUrl = `${baseUrl}/support/ticket/${ticket.id}?token=${token}&action=spam`;
+  const viewUrl = `${baseUrl}/support/agent/ticket/${ticket.id}?token=${token}&action=view`;
+  const forwardUrl = `${baseUrl}/support/agent/ticket/${ticket.id}?token=${token}&action=forward`;
+  const spamUrl = `${baseUrl}/support/agent/ticket/${ticket.id}?token=${token}&action=spam`;
   
   const ticketAge = Math.round((Date.now() - new Date(ticket.createdAt).getTime()) / 3600000);
   
