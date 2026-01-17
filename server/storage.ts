@@ -229,6 +229,14 @@ import {
   supportAttachments,
   type InsertSupportAttachment,
   type SupportAttachment,
+  // Support Agents
+  supportAgents,
+  supportAgentCategories,
+  supportAgentAccessTokens,
+  type InsertSupportAgent,
+  type SupportAgent,
+  type InsertSupportAgentCategory,
+  type SupportAgentCategory,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -5955,6 +5963,169 @@ export class DatabaseStorage implements IStorage {
       averageRating: Math.round(averageRating * 10) / 10,
       byPlatform
     };
+  }
+
+  // ============ Support Agents ============
+
+  async getSupportAgents(): Promise<SupportAgent[]> {
+    return db.select()
+      .from(supportAgents)
+      .orderBy(supportAgents.displayName);
+  }
+
+  async getActiveSupportAgents(): Promise<SupportAgent[]> {
+    return db.select()
+      .from(supportAgents)
+      .where(eq(supportAgents.isActive, true))
+      .orderBy(supportAgents.displayName);
+  }
+
+  async getSupportAgent(id: string): Promise<SupportAgent | undefined> {
+    const [result] = await db.select()
+      .from(supportAgents)
+      .where(eq(supportAgents.id, id));
+    return result;
+  }
+
+  async getSupportAgentByPlatformUserId(platformUserId: string): Promise<SupportAgent | undefined> {
+    const [result] = await db.select()
+      .from(supportAgents)
+      .where(eq(supportAgents.platformUserId, platformUserId));
+    return result;
+  }
+
+  async getSupportAgentByPin(pinCode: string): Promise<SupportAgent | undefined> {
+    const [result] = await db.select()
+      .from(supportAgents)
+      .where(
+        and(
+          eq(supportAgents.pinCode, pinCode),
+          eq(supportAgents.isActive, true)
+        )
+      );
+    return result;
+  }
+
+  async createSupportAgent(data: InsertSupportAgent): Promise<SupportAgent> {
+    const [result] = await db.insert(supportAgents).values(data).returning();
+    return result;
+  }
+
+  async updateSupportAgent(id: string, data: Partial<InsertSupportAgent>): Promise<SupportAgent | undefined> {
+    const [result] = await db.update(supportAgents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(supportAgents.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSupportAgent(id: string): Promise<void> {
+    await db.delete(supportAgents).where(eq(supportAgents.id, id));
+  }
+
+  async getDefaultSupportAgent(): Promise<SupportAgent | undefined> {
+    const [result] = await db.select()
+      .from(supportAgents)
+      .where(
+        and(
+          eq(supportAgents.isDefaultAgent, true),
+          eq(supportAgents.isActive, true)
+        )
+      );
+    return result;
+  }
+
+  // Agent Categories
+  async getSupportAgentCategories(agentId: string): Promise<SupportAgentCategory[]> {
+    return db.select()
+      .from(supportAgentCategories)
+      .where(eq(supportAgentCategories.agentId, agentId));
+  }
+
+  async getAgentsForCategory(categoryId: string): Promise<SupportAgent[]> {
+    const agentCats = await db.select()
+      .from(supportAgentCategories)
+      .where(eq(supportAgentCategories.categoryId, categoryId));
+    
+    if (agentCats.length === 0) return [];
+    
+    const agentIds = agentCats.map(ac => ac.agentId);
+    return db.select()
+      .from(supportAgents)
+      .where(
+        and(
+          sql`${supportAgents.id} IN (${sql.join(agentIds.map(id => sql`${id}`), sql`, `)})`,
+          eq(supportAgents.isActive, true)
+        )
+      );
+  }
+
+  async getLeadAgentForCategory(categoryId: string): Promise<SupportAgent | undefined> {
+    const [agentCat] = await db.select()
+      .from(supportAgentCategories)
+      .where(
+        and(
+          eq(supportAgentCategories.categoryId, categoryId),
+          eq(supportAgentCategories.isLead, true)
+        )
+      );
+    
+    if (!agentCat) return undefined;
+    
+    return this.getSupportAgent(agentCat.agentId);
+  }
+
+  async setSupportAgentCategories(agentId: string, categoryAssignments: { categoryId: string; isLead: boolean }[]): Promise<void> {
+    // Delete existing assignments
+    await db.delete(supportAgentCategories)
+      .where(eq(supportAgentCategories.agentId, agentId));
+    
+    // Insert new assignments
+    if (categoryAssignments.length > 0) {
+      await db.insert(supportAgentCategories).values(
+        categoryAssignments.map(ca => ({
+          agentId,
+          categoryId: ca.categoryId,
+          isLead: ca.isLead
+        }))
+      );
+    }
+  }
+
+  // Agent Access Tokens
+  async createAgentAccessToken(data: {
+    agentId: string;
+    requestId: string;
+    token: string;
+    action: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    await db.insert(supportAgentAccessTokens).values(data);
+  }
+
+  async getAgentAccessToken(token: string): Promise<{
+    id: string;
+    agentId: string;
+    requestId: string;
+    action: string;
+    expiresAt: Date;
+    usedAt: Date | null;
+  } | undefined> {
+    const [result] = await db.select()
+      .from(supportAgentAccessTokens)
+      .where(eq(supportAgentAccessTokens.token, token));
+    return result;
+  }
+
+  async markAgentAccessTokenUsed(token: string): Promise<void> {
+    await db.update(supportAgentAccessTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(supportAgentAccessTokens.token, token));
+  }
+
+  async cleanupExpiredAccessTokens(): Promise<void> {
+    await db.delete(supportAgentAccessTokens)
+      .where(sql`${supportAgentAccessTokens.expiresAt} < NOW()`);
   }
 }
 
