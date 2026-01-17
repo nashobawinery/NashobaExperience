@@ -11,6 +11,7 @@ import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
+import { scheduleTicketReminders } from "./supportTicketReminders";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -14832,6 +14833,9 @@ Generate a professional response:`;
 
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
+  
+  // Initialize support ticket reminders scheduler (daily at 8 AM Eastern)
+  scheduleTicketReminders();
 
   const httpServer = createServer(app);
   return httpServer;
