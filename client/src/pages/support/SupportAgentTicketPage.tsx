@@ -14,7 +14,10 @@ import {
   Clock,
   User,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Sparkles,
+  Copy,
+  Tag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,10 +48,13 @@ type SupportRequest = {
   status: string;
   priority: string | null;
   category: string | null;
+  categoryName: string | null;
   source: string | null;
   createdAt: string;
   initialMessage: string;
   messages: SupportMessage[];
+  aiDraft: string | null;
+  aiDraftGeneratedAt: string | null;
 };
 
 type AgentInfo = {
@@ -84,6 +90,8 @@ export default function SupportAgentTicketPage() {
   const [forwardNote, setForwardNote] = useState("");
   const [replyMessage, setReplyMessage] = useState("");
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [showAiDraft, setShowAiDraft] = useState(true);
 
   useEffect(() => {
     if (!tokenFromUrl) {
@@ -108,6 +116,12 @@ export default function SupportAgentTicketPage() {
         setTicket(data.ticket);
         setOtherAgents(data.otherAgents || []);
         setIsVerified(true);
+        setSelectedStatus(data.ticket.status || 'new');
+        
+        // Pre-populate reply with AI draft if available and reply is empty
+        if (data.ticket.aiDraft && !replyMessage) {
+          setReplyMessage(data.ticket.aiDraft);
+        }
 
         if (actionFromUrl === 'forward') {
           setShowForwardDialog(true);
@@ -176,12 +190,26 @@ export default function SupportAgentTicketPage() {
       return performAction('reply', { replyContent: replyMessage });
     },
     onSuccess: () => {
-      toast({ title: "Reply sent" });
+      toast({ title: "Reply sent", description: "Your response has been sent to the customer" });
       setReplyMessage("");
       verifyToken();
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to send reply", variant: "destructive" });
+    }
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async (newStatus: string) => {
+      return performAction('update-status', { newStatus });
+    },
+    onSuccess: (_, newStatus) => {
+      toast({ title: "Status updated", description: `Ticket status changed to ${newStatus}` });
+      setSelectedStatus(newStatus);
+      verifyToken();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update status", variant: "destructive" });
     }
   });
 
@@ -203,6 +231,19 @@ export default function SupportAgentTicketPage() {
       return;
     }
     replyMutation.mutate();
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    if (newStatus !== selectedStatus) {
+      statusMutation.mutate(newStatus);
+    }
+  };
+
+  const handleUseAiDraft = () => {
+    if (ticket?.aiDraft) {
+      setReplyMessage(ticket.aiDraft);
+      setShowAiDraft(false);
+    }
   };
 
   const statusConfig: Record<string, { label: string; className: string }> = {
@@ -332,7 +373,26 @@ export default function SupportAgentTicketPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Status</Label>
-                <Badge className={status.className}>{status.label}</Badge>
+                <Select 
+                  value={selectedStatus} 
+                  onValueChange={handleStatusChange}
+                  disabled={statusMutation.isPending}
+                >
+                  <SelectTrigger className="w-[130px] h-8" data-testid="select-status">
+                    <SelectValue>
+                      <Badge className={statusConfig[selectedStatus]?.className || status.className}>
+                        {statusConfig[selectedStatus]?.label || status.label}
+                      </Badge>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">From</Label>
@@ -356,12 +416,23 @@ export default function SupportAgentTicketPage() {
                 </p>
               </div>
             </div>
-            {ticket.customerEmail && (
-              <div className="mt-3 pt-3 border-t">
-                <Label className="text-xs text-muted-foreground">Customer Email</Label>
-                <p className="text-sm">{ticket.customerEmail}</p>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t">
+              {ticket.customerEmail && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Customer Email</Label>
+                  <p className="text-sm">{ticket.customerEmail}</p>
+                </div>
+              )}
+              {ticket.categoryName && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Category</Label>
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Tag className="h-3 w-3" />
+                    {ticket.categoryName}
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -428,33 +499,81 @@ export default function SupportAgentTicketPage() {
             </ScrollArea>
 
             {ticket.status !== 'spam' && ticket.status !== 'closed' && (
-              <div className="mt-4 pt-4 border-t space-y-3">
-                <Label>Reply to Customer</Label>
-                <Textarea
-                  placeholder="Type your reply..."
-                  value={replyMessage}
-                  onChange={(e) => setReplyMessage(e.target.value)}
-                  className="min-h-[100px]"
-                  data-testid="textarea-reply"
-                />
-                <div className="flex justify-end">
-                  <Button 
-                    onClick={handleSendReply}
-                    disabled={!replyMessage.trim() || replyMutation.isPending}
-                    data-testid="button-send-reply"
-                  >
-                    {replyMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Reply
-                      </>
-                    )}
-                  </Button>
+              <div className="mt-4 pt-4 border-t space-y-4">
+                {ticket.aiDraft && showAiDraft && (
+                  <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 border-purple-200 dark:border-purple-800">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-purple-600" />
+                          AI Suggested Response
+                        </CardTitle>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleUseAiDraft}
+                            data-testid="button-use-ai-draft"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Use This
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => setShowAiDraft(false)}
+                            data-testid="button-dismiss-ai-draft"
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                      {ticket.aiDraftGeneratedAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Generated {formatDistanceToNow(new Date(ticket.aiDraftGeneratedAt), { addSuffix: true })}
+                        </p>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-wrap">{ticket.aiDraft}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="space-y-3">
+                  <Label>Reply to Customer</Label>
+                  <Textarea
+                    placeholder="Type your reply..."
+                    value={replyMessage}
+                    onChange={(e) => setReplyMessage(e.target.value)}
+                    className="min-h-[120px]"
+                    data-testid="textarea-reply"
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {ticket.customerEmail 
+                        ? `Response will be sent to ${ticket.customerEmail}`
+                        : 'No customer email - response will be saved but not sent'
+                      }
+                    </p>
+                    <Button 
+                      onClick={handleSendReply}
+                      disabled={!replyMessage.trim() || replyMutation.isPending}
+                      data-testid="button-send-reply"
+                    >
+                      {replyMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Send Reply
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
