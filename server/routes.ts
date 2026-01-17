@@ -13605,7 +13605,9 @@ ${webSourcesContext}`
           email: u.email,
           firstName: u.firstName,
           lastName: u.lastName,
-          displayName: `${u.firstName} ${u.lastName}`,
+          displayName: (u.firstName || u.lastName) 
+            ? `${u.firstName || ''} ${u.lastName || ''}`.trim() 
+            : u.email?.split('@')[0] || 'Unknown User',
           department: u.department,
           jobTitle: u.jobTitle
         }));
@@ -13644,11 +13646,15 @@ ${webSourcesContext}`
         isUnique = !existingPin;
       } while (!isUnique);
 
-      // Create agent
+      // Create agent with proper display name handling
+      const displayName = (platformUser.firstName || platformUser.lastName) 
+        ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+        : platformUser.email?.split('@')[0] || 'Unknown User';
+      
       const agent = await storage.createSupportAgent({
         platformUserId,
         email: platformUser.email,
-        displayName: `${platformUser.firstName} ${platformUser.lastName}`,
+        displayName,
         pinCode,
         isActive: true,
         receiveEmailNotifications: true,
