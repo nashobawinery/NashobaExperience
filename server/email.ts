@@ -2091,6 +2091,115 @@ export async function notifySupportAgents(
   }
 }
 
+// ============= FORWARDED TICKET NOTIFICATION =============
+
+/**
+ * Sends an email notification to an agent when a ticket is forwarded to them
+ */
+export async function sendForwardedTicketNotification(
+  toAgent: { id: string; displayName: string; email: string },
+  fromAgentName: string,
+  ticket: { id: string; subject: string; customerName: string | null; customerEmail: string | null; initialMessage: string; category: string | null },
+  note?: string
+): Promise<void> {
+  try {
+    if (!toAgent.email) {
+      console.log('[Support Email] Target agent has no email configured');
+      return;
+    }
+
+    // Create a cryptographically secure, time-limited access token (24 hours)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    await storage.createAgentAccessToken({
+      agentId: toAgent.id,
+      requestId: ticket.id,
+      token,
+      action: 'email_link',
+      expiresAt
+    });
+
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : process.env.REPL_SLUG 
+        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+        : 'http://localhost:5000';
+    
+    const replyUrl = `${baseUrl}/support/agent/ticket/${ticket.id}?token=${token}`;
+    
+    const subject = `Forwarded Ticket: ${ticket.subject}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>${getBrandedEmailStyles()}</style>
+      </head>
+      <body>
+        <div class="email-container">
+          ${generateBrandedEmailHeader('Ticket Forwarded to You', 'Support Request')}
+          
+          <div class="content">
+            <p style="margin: 0 0 20px;">Hi ${toAgent.displayName},</p>
+            
+            <p style="margin: 0 0 20px;"><strong>${fromAgentName}</strong> has forwarded a support ticket to you${note ? ` with the following note:` : '.'}</p>
+            
+            ${note ? `
+              <div style="background: #f8f9fa; border-left: 4px solid ${BRAND_COLORS.burgundy}; padding: 15px; margin: 0 0 20px; font-style: italic;">
+                "${note}"
+              </div>
+            ` : ''}
+            
+            <div class="info-box" style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px; color: ${BRAND_COLORS.burgundy};">Ticket Details</h3>
+              <p style="margin: 0 0 8px;"><strong>Subject:</strong> ${ticket.subject}</p>
+              <p style="margin: 0 0 8px;"><strong>From:</strong> ${ticket.customerName || 'Unknown'} ${ticket.customerEmail ? `&lt;${ticket.customerEmail}&gt;` : ''}</p>
+              ${ticket.category ? `<p style="margin: 0 0 8px;"><strong>Category:</strong> ${ticket.category}</p>` : ''}
+              <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 15px 0;" />
+              <p style="margin: 0; white-space: pre-wrap; font-size: 14px;">${ticket.initialMessage.slice(0, 500)}${ticket.initialMessage.length > 500 ? '...' : ''}</p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${replyUrl}" class="button" style="display: inline-block; background-color: ${BRAND_COLORS.burgundy}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">View & Respond</a>
+            </div>
+            
+            <p style="margin: 0; color: #666; font-size: 14px;">Click the button above to view the full ticket and respond to the customer.</p>
+          </div>
+          
+          ${generateBrandedEmailFooter()}
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const text = `
+Ticket Forwarded to You
+
+Hi ${toAgent.displayName},
+
+${fromAgentName} has forwarded a support ticket to you${note ? `:
+
+Note: "${note}"` : '.'}
+
+Ticket Details:
+- Subject: ${ticket.subject}
+- From: ${ticket.customerName || 'Unknown'} ${ticket.customerEmail ? `<${ticket.customerEmail}>` : ''}
+${ticket.category ? `- Category: ${ticket.category}` : ''}
+
+Message:
+${ticket.initialMessage.slice(0, 500)}${ticket.initialMessage.length > 500 ? '...' : ''}
+
+View and respond: ${replyUrl}
+    `;
+    
+    await sendEmail(toAgent.email, subject, html, text);
+    console.log(`[Support Email] Forwarded ticket notification sent to ${toAgent.email}`);
+  } catch (error) {
+    console.error('[Support Email] Error sending forwarded ticket notification:', error);
+  }
+}
+
 // ============= SUPPORT AGENT ENROLLMENT EMAIL =============
 
 /**

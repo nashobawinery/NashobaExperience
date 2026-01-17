@@ -69,7 +69,7 @@ import {
   insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
-import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt, sendAgentEnrollmentEmail } from "./email";
+import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt, sendAgentEnrollmentEmail, sendForwardedTicketNotification } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment verification (responds immediately)
@@ -14075,6 +14075,25 @@ ${webSourcesContext}`
         metadata: { action: 'forward', toAgentId }
       });
 
+      // Get the full ticket details to send in the notification
+      const ticket = await storage.getSupportRequest(requestId);
+      if (ticket) {
+        // Send email notification to the target agent
+        await sendForwardedTicketNotification(
+          { id: toAgent.id, displayName: toAgent.displayName, email: toAgent.email || '' },
+          agent.displayName,
+          {
+            id: ticket.id,
+            subject: ticket.subject,
+            customerName: ticket.customerName,
+            customerEmail: ticket.customerEmail,
+            initialMessage: ticket.initialMessage,
+            category: ticket.category
+          },
+          note
+        );
+      }
+
       res.json({ success: true, forwardedTo: toAgent.displayName });
     } catch (error) {
       console.error('Error forwarding ticket:', error);
@@ -14255,6 +14274,25 @@ ${webSourcesContext}`
           isInternal: true,
           metadata: { action: 'forward', toAgentId: targetAgentId }
         });
+        
+        // Get the full ticket details to send in the notification
+        const ticket = await storage.getSupportRequest(requestId);
+        if (ticket) {
+          // Send email notification to the target agent
+          await sendForwardedTicketNotification(
+            { id: targetAgent.id, displayName: targetAgent.displayName, email: targetAgent.email || '' },
+            agent.displayName,
+            {
+              id: ticket.id,
+              subject: ticket.subject,
+              customerName: ticket.customerName,
+              customerEmail: ticket.customerEmail,
+              initialMessage: ticket.initialMessage,
+              category: ticket.category
+            },
+            note
+          );
+        }
         
         res.json({ success: true, message: `Ticket forwarded to ${targetAgent.displayName}` });
       } else if (action === 'spam') {
