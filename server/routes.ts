@@ -12653,6 +12653,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Helper function to generate AI draft for a support request
+  async function generateAIDraftForRequest(requestId: string): Promise<string | null> {
+    try {
+      const request = await storage.getSupportRequestWithMessages(requestId);
+      if (!request) {
+        console.log(`[AI Draft] Request not found: ${requestId}`);
+        return null;
+      }
+
+      // Get knowledge base (canned responses + web sources + articles)
+      const cannedResponses = await storage.getSupportCannedResponses(true);
+      const webSources = await storage.getSupportWebSources(true);
+      const settings = await storage.getSupportSettings();
+
+      // Get the latest customer message for article search
+      const latestCustomerMessage = request.messages
+        .filter(m => m.senderType === 'customer')
+        .pop();
+      
+      // Use the initial message if no customer messages in thread
+      const searchText = latestCustomerMessage?.content || request.initialMessage || '';
+      
+      // Search for relevant articles based on the customer's message
+      let relevantArticles: any[] = [];
+      if (searchText) {
+        relevantArticles = await storage.searchSupportArticles(searchText, 5);
+      }
+
+      // Build context for AI
+      const knowledgeBaseContext = cannedResponses.map(r => 
+        `Topic: ${r.title}\nKeywords: ${r.keywords?.join(', ') || ''}\nResponse: ${r.answer}`
+      ).join('\n\n---\n\n');
+
+      // Fetch fresh content from web sources in real-time
+      console.log(`[AI Draft Auto] Fetching content from ${webSources.length} web sources...`);
+      const webSourceContents = await Promise.all(
+        webSources.map(async (s) => {
+          if (s.url) {
+            const fetchedContent = await fetchWebContent(s.url);
+            return {
+              title: s.title,
+              url: s.url,
+              content: fetchedContent || s.content || 'No content available'
+            };
+          }
+          return {
+            title: s.title,
+            url: s.url,
+            content: s.content || 'No content available'
+          };
+        })
+      );
+
+      const webSourcesContext = webSourceContents.map(s => 
+        `Source: ${s.title}\nURL: ${s.url}\nContent: ${s.content}`
+      ).join('\n\n---\n\n');
+
+      // Build article context from Knowledge Base
+      const articlesContext = relevantArticles.map(a => 
+        `FAQ Article: ${a.title}\nSummary: ${a.summary || ''}\nContent: ${a.content}`
+      ).join('\n\n---\n\n');
+
+      // For auto-generation, we just use the initial message as conversation
+      const conversationHistory = `Customer: ${request.initialMessage}`;
+
+      // Get AI system prompt from settings
+      const systemPromptSetting = settings.find(s => s.settingKey === 'ai_system_prompt');
+      const systemPrompt = systemPromptSetting?.settingValue || 
+        `You are a helpful customer support assistant for Nashoba Valley Winery. Be friendly, professional, and helpful. Answer questions based on the knowledge base provided. If you don't know the answer, politely say so and offer to connect the customer with a human agent.`;
+
+      // Call OpenAI
+      const openai = (await import('openai')).default;
+      const client = new openai();
+      
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: `${systemPrompt}
+
+Include a warm, friendly greeting such as "Thank you for reaching out!" or "We appreciate you contacting us!" before addressing their question.
+
+KNOWLEDGE BASE (Canned Responses):
+${knowledgeBaseContext}
+
+FAQ ARTICLES (Relevant to this conversation):
+${articlesContext || 'No specific articles found for this query.'}
+
+WEBSITE INFORMATION:
+${webSourcesContext}` 
+          },
+          { 
+            role: 'user', 
+            content: `Customer inquiry:\n${conversationHistory}\n\nPlease provide a helpful response to the customer. Start with a friendly greeting and use the FAQ articles and knowledge base to give accurate information.` 
+          }
+        ],
+        max_tokens: 500
+      });
+
+      const aiResponse = completion.choices[0]?.message?.content;
+      
+      if (!aiResponse) {
+        console.log('[AI Draft Auto] No response from AI');
+        return null;
+      }
+
+      console.log(`[AI Draft Auto] Generated draft for request ${requestId}: ${aiResponse.length} chars`);
+      return aiResponse;
+    } catch (error) {
+      console.error('[AI Draft Auto] Error generating AI draft:', error);
+      return null;
+    }
+  }
+
   // Generate AI draft response (returns without saving - for preview/edit)
   app.post('/api/support/requests/:id/ai-draft', isAdmin, async (req, res) => {
     try {
@@ -14092,6 +14207,20 @@ Generate a professional response:`;
           emailThreadId: messageId || undefined, // Use message ID as thread ID for new emails
           status: 'new',
           priority: 'normal'
+        });
+
+        // Auto-generate AI draft response in the background
+        console.log('[Email Inbound] Generating AI draft for new request:', newRequest.id);
+        generateAIDraftForRequest(newRequest.id).then(async (aiDraft) => {
+          if (aiDraft) {
+            await storage.updateSupportRequest(newRequest.id, {
+              aiDraft,
+              aiDraftGeneratedAt: new Date()
+            });
+            console.log('[Email Inbound] AI draft saved for request:', newRequest.id);
+          }
+        }).catch((err) => {
+          console.error('[Email Inbound] Failed to generate AI draft:', err);
         });
 
         res.status(200).json({ 

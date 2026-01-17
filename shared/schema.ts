@@ -3926,6 +3926,8 @@ export const supportRequests = pgTable("support_requests", {
   source: varchar("source").notNull().default("widget"), // widget, email, api
   emailMessageId: varchar("email_message_id"), // For email thread tracking
   emailThreadId: varchar("email_thread_id"), // Groups related emails
+  aiDraft: text("ai_draft"), // Auto-generated AI draft response
+  aiDraftGeneratedAt: timestamp("ai_draft_generated_at"), // When the AI draft was generated
   closedAt: timestamp("closed_at"),
   closedById: varchar("closed_by_id"),
   closedByName: varchar("closed_by_name"),
