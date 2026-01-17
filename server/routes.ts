@@ -14150,6 +14150,18 @@ ${webSourcesContext}`
         .filter(a => a.id !== agent.id)
         .map(a => ({ id: a.id, displayName: a.displayName }));
       
+      // Get AI draft if available
+      const fullRequest = await storage.getSupportRequest(accessToken.requestId);
+      const aiDraft = fullRequest?.aiDraft || null;
+      const aiDraftGeneratedAt = fullRequest?.aiDraftGeneratedAt || null;
+      
+      // Get category name if assigned
+      let categoryName: string | null = null;
+      if (fullRequest?.categoryId) {
+        const category = await storage.getSupportCategory(fullRequest.categoryId);
+        categoryName = category?.name || null;
+      }
+      
       res.json({
         success: true,
         agent: {
@@ -14157,7 +14169,12 @@ ${webSourcesContext}`
           displayName: agent.displayName,
           email: agent.email
         },
-        ticket: request,
+        ticket: {
+          ...request,
+          aiDraft,
+          aiDraftGeneratedAt,
+          categoryName
+        },
         otherAgents,
         tokenRequestId: accessToken.requestId
       });
@@ -14251,6 +14268,13 @@ ${webSourcesContext}`
           return res.status(400).json({ message: 'Reply content is required' });
         }
         
+        // Get the ticket to send email to customer
+        const ticket = await storage.getSupportRequest(requestId);
+        if (!ticket) {
+          return res.status(404).json({ message: 'Ticket not found' });
+        }
+        
+        // Create the agent message
         await storage.createSupportMessage({
           requestId,
           senderType: 'agent',
@@ -14260,9 +14284,73 @@ ${webSourcesContext}`
           isInternal: false
         });
         
-        await storage.updateSupportRequest(requestId, { status: 'open' });
+        // Update status to 'pending' (awaiting customer response)
+        await storage.updateSupportRequest(requestId, { status: 'pending' });
         
-        res.json({ success: true, message: 'Reply sent' });
+        // Send email to customer if we have their email
+        if (ticket.customerEmail) {
+          try {
+            const sgMail = (await import('@sendgrid/mail')).default;
+            sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+            
+            const emailContent = {
+              to: ticket.customerEmail,
+              from: {
+                email: 'support@nashobawinery.com',
+                name: 'Nashoba Valley Support'
+              },
+              subject: `Re: ${ticket.subject} [Ticket #${ticket.id.slice(0, 8)}]`,
+              text: `Hello ${ticket.customerName || 'Valued Customer'},\n\n${replyContent}\n\n---\nNashoba Valley Support\nReference: #${ticket.id.slice(0, 8)}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <p>Hello ${ticket.customerName || 'Valued Customer'},</p>
+                  <div style="white-space: pre-wrap; margin: 20px 0;">${replyContent.replace(/\n/g, '<br>')}</div>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                  <p style="color: #666; font-size: 12px;">
+                    Nashoba Valley Support<br>
+                    Reference: #${ticket.id.slice(0, 8)}
+                  </p>
+                </div>
+              `
+            };
+            
+            await sgMail.send(emailContent);
+            console.log(`[Support] Reply email sent to ${ticket.customerEmail} for ticket ${requestId}`);
+          } catch (emailError) {
+            console.error('[Support] Failed to send reply email:', emailError);
+            // Continue - the message is saved, just email failed
+          }
+        }
+        
+        // Note: We DON'T mark the token as used for reply actions
+        // so agents can send multiple replies from the same link
+        // Reset the usedAt if it was marked
+        await storage.resetAgentAccessTokenUsage(token);
+        
+        res.json({ success: true, message: 'Reply sent to customer' });
+      } else if (action === 'update-status') {
+        const { newStatus } = req.body;
+        
+        if (!newStatus || !['new', 'open', 'pending', 'resolved', 'closed'].includes(newStatus)) {
+          return res.status(400).json({ message: 'Valid status is required' });
+        }
+        
+        await storage.updateSupportRequest(requestId, { status: newStatus });
+        
+        await storage.createSupportMessage({
+          requestId,
+          senderType: 'agent',
+          senderName: agent.displayName,
+          senderId: agent.platformUserId,
+          content: `Status updated to ${newStatus}`,
+          isInternal: true,
+          metadata: { action: 'status_update', newStatus }
+        });
+        
+        // Reset token usage so agents can continue using the page
+        await storage.resetAgentAccessTokenUsage(token);
+        
+        res.json({ success: true, message: `Status updated to ${newStatus}` });
       } else {
         res.status(400).json({ message: 'Invalid action' });
       }

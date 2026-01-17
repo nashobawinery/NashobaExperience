@@ -6125,6 +6125,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(supportAgentAccessTokens.token, token));
   }
 
+  async resetAgentAccessTokenUsage(token: string): Promise<void> {
+    await db.update(supportAgentAccessTokens)
+      .set({ usedAt: null })
+      .where(eq(supportAgentAccessTokens.token, token));
+  }
+
   async cleanupExpiredAccessTokens(): Promise<void> {
     await db.delete(supportAgentAccessTokens)
       .where(sql`${supportAgentAccessTokens.expiresAt} < NOW()`);
