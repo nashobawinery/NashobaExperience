@@ -130,7 +130,7 @@ export default function SupportAnalytics() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/admin/support">
+        <Link href="/support">
           <Button variant="ghost" size="icon" data-testid="button-back-support">
             <ArrowLeft className="h-4 w-4" />
           </Button>
