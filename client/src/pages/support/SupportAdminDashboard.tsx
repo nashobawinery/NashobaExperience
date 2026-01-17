@@ -28,7 +28,8 @@ import {
   HelpCircle,
   ChevronRight,
   Ban,
-  UserPlus
+  UserPlus,
+  FolderOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -955,6 +956,14 @@ export default function SupportAdminDashboard() {
             >
               <Settings className="h-4 w-4 mr-2" />
               Agents
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/admin/support/categories")}
+              data-testid="button-categories"
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Categories
             </Button>
           </div>
         </div>

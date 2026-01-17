@@ -622,12 +622,14 @@ function CategoriesTab() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SupportCategory | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [newTag, setNewTag] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
     description: "",
     icon: "",
     color: "",
+    tags: [] as string[],
     sortOrder: 0,
     isActive: true,
   });
@@ -690,9 +692,11 @@ function CategoriesTab() {
       description: "",
       icon: "",
       color: "",
+      tags: [],
       sortOrder: 0,
       isActive: true,
     });
+    setNewTag("");
   };
 
   const openEditDialog = (category: SupportCategory) => {
@@ -703,10 +707,24 @@ function CategoriesTab() {
       description: category.description || "",
       icon: category.icon || "",
       color: category.color || "",
+      tags: category.tags || [],
       sortOrder: category.sortOrder || 0,
       isActive: category.isActive ?? true,
     });
+    setNewTag("");
     setIsDialogOpen(true);
+  };
+
+  const addTag = () => {
+    const tag = newTag.trim();
+    if (tag && !formData.tags.includes(tag)) {
+      setFormData({ ...formData, tags: [...formData.tags, tag] });
+      setNewTag("");
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setFormData({ ...formData, tags: formData.tags.filter(t => t !== tagToRemove) });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -755,15 +773,32 @@ function CategoriesTab() {
                     >
                       <FolderOpen className="h-4 w-4" />
                     </div>
-                    <div>
-                      <CardTitle className="text-base">{category.name}</CardTitle>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CardTitle className="text-base">{category.name}</CardTitle>
+                        {!category.isActive && (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
+                      </div>
                       {category.description && (
                         <p className="text-sm text-muted-foreground">{category.description}</p>
                       )}
+                      {category.tags && category.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {category.tags.slice(0, 5).map((tag, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              <Tag className="h-3 w-3 mr-1" />
+                              {tag}
+                            </Badge>
+                          ))}
+                          {category.tags.length > 5 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{category.tags.length - 5} more
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {!category.isActive && (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
                   </div>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" onClick={() => openEditDialog(category)} data-testid={`button-edit-category-${category.id}`}>
@@ -785,7 +820,7 @@ function CategoriesTab() {
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
             <DialogDescription>
-              Categories help organize articles in the Knowledge Base
+              Categories help organize tickets, route requests to agents, and allow AI to classify incoming messages
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -820,6 +855,45 @@ function CategoriesTab() {
                 rows={2}
                 data-testid="input-category-description"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category-tags">AI Classification Tags</Label>
+              <p className="text-xs text-muted-foreground">Keywords/phrases to help AI categorize incoming support requests</p>
+              <div className="flex gap-2">
+                <Input
+                  id="category-tags"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="Add a keyword or phrase..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  data-testid="input-category-tags"
+                />
+                <Button type="button" variant="outline" onClick={addTag} data-testid="button-add-tag">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {formData.tags.map((tag, idx) => (
+                    <Badge key={idx} variant="secondary" className="gap-1">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="ml-1 hover:text-destructive"
+                        data-testid={`button-remove-tag-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

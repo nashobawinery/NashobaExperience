@@ -4085,7 +4085,7 @@ export type SupportRequestWithMessages = SupportRequest & {
   messages: SupportMessage[];
 };
 
-// Knowledge Base Categories
+// Support Categories (used for ticket routing, AI categorization, and knowledge base organization)
 export const supportCategories = pgTable("support_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
@@ -4093,6 +4093,7 @@ export const supportCategories = pgTable("support_categories", {
   description: text("description"),
   icon: varchar("icon", { length: 100 }), // Lucide icon name
   color: varchar("color", { length: 50 }), // Tailwind color class
+  tags: text("tags").array().default([]), // Keywords/phrases to help AI categorize incoming requests
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
