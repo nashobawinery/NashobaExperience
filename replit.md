@@ -33,12 +33,76 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, and granular feature permissions.
 - **Module Management**: Admin UI for managing platform module metadata.
-- **Customer Support Module**: AI-powered customer support chatbot with knowledge base management. Features include: public chat widget for customers, admin dashboard for managing support requests, canned responses and web sources for training the AI, OpenAI GPT-4o-mini integration for intelligent responses, conversation history and status tracking, Social Review Monitoring for Google/Facebook/Yelp/TripAdvisor reviews with AI draft generation, Email Inbound Integration via SendGrid Inbound Parse webhook, and Support Agent Management with email notifications featuring secure quick-access links.
-  - **Support Agent Management**: Agents are linked to platform users and assigned to support categories with lead designation. When new tickets arrive, agents receive email notifications with secure, time-limited access tokens (24-hour expiry, cryptographically secure using crypto.randomBytes). Email links allow agents to view tickets, forward to other agents, or mark as spam without requiring admin session login. Tokens are single-use for destructive actions (forward/spam) but allow repeated view access.
-  - **Manual Agent Assignment**: Admins can manually assign specific agents to tickets via the Support Admin Dashboard. Assignment triggers immediate email notification with secure access token. UI displays current assignment badge, agent dropdown with loading/empty states, and tracks assignment in `assignedAgentId` field.
-  - **Automated Reminder System**: Daily 8 AM Eastern (DST-aware) scheduler sends reminders for tickets with "new" or "pending" status. Uses `getNextEasternTime8AM()` for timezone-correct scheduling. Reminders are sent to all active agents and include quick-action links.
-  - **48-Hour Escalation**: Tickets unanswered for 48+ hours trigger escalation emails to ALL active agents with urgent warning banner. Escalation tracking via `escalatedAt` and `escalationCount` fields on support requests.
-  - **Customer Receipt Email**: Automatic confirmation email sent to customers when they submit a support request (via chat widget or email). Includes reference number, subject, message preview, and response time expectation (within 48 hours).
+- **Customer Support Module**: AI-powered customer support system with intelligent ticket routing, automated responses, and comprehensive agent management.
+
+## Customer Support Module - Detailed Documentation
+
+### Quick Summary: How Agent Email Response Works
+
+The Customer Support Module enables support agents to respond to customer inquiries **directly from their email** without ever needing to log into the platform. Here's how it works:
+
+1. **Customer Submits Request**: A customer contacts support via the chat widget or email
+2. **Cody Analyzes & Drafts**: Our AI assistant, **Cody**, immediately analyzes the request, categorizes it, and generates a suggested response
+3. **Agent Gets Email**: The assigned agent receives an email notification with:
+   - Customer's message summary
+   - Cody's AI-suggested response (ready to use or edit)
+   - Quick action buttons: **Reply Now**, View Ticket, Forward, Mark as Spam
+4. **One-Click Response**: Agent clicks "Reply Now" and is taken directly to the ticket page (no login required - secure token-based access)
+5. **Edit & Send**: Agent can use Cody's suggestion as-is or edit it, then click "Send Reply" - the customer receives the response immediately
+6. **Automatic Reminders**: If tickets go unanswered, Cody sends daily reminders at 8 AM Eastern. After 48 hours, escalation alerts go to all agents
+
+**Key Benefit**: Agents can handle support tickets in seconds without switching contexts or logging into multiple systems. Everything is tracked in the platform automatically.
+
+### Core Features
+
+- **Public Chat Widget**: Embeddable customer-facing chat for submitting support requests
+- **Admin Dashboard**: Comprehensive ticket management with filtering, status tracking, and assignment
+- **Cody AI Assistant**: Powered by OpenAI GPT-4o-mini for intelligent categorization and response generation
+- **Knowledge Base**: Canned responses and web sources for training Cody
+- **Social Review Monitoring**: Track reviews from Google, Facebook, Yelp, and TripAdvisor with AI draft generation
+- **Email Inbound Integration**: SendGrid Inbound Parse webhook for receiving support emails
+
+### Support Agent Management
+
+Agents are linked to platform users and assigned to support categories with lead designation. The system features:
+
+- **Secure Token-Based Access**: When new tickets arrive, agents receive email notifications with secure, time-limited access tokens (24-hour expiry, cryptographically secure using crypto.randomBytes)
+- **No-Login Required Actions**: Email links allow agents to view tickets, respond, forward to other agents, or mark as spam without requiring admin session login
+- **Reusable Tokens for Responses**: Tokens allow multiple replies and status updates from the same link, while destructive actions (forward/spam) are single-use
+- **Agent Enrollment Notifications**: When a new agent is created, they receive a welcome email introducing them to the platform and explaining how the email-based workflow operates
+
+### Cody AI Capabilities
+
+- **Automatic Categorization**: Analyzes incoming tickets and matches them to support categories based on tags
+- **Smart Agent Assignment**: Routes tickets to the appropriate agent based on category expertise
+- **Draft Response Generation**: Creates professional, context-aware response suggestions that agents can edit
+- **Continuous Learning**: Uses canned responses and web sources to improve response quality
+
+### Manual Agent Assignment
+
+Admins can manually assign specific agents to tickets via the Support Admin Dashboard:
+- Assignment triggers immediate email notification with secure access token
+- UI displays current assignment badge, agent dropdown with loading/empty states
+- Tracks assignment in `assignedAgentId` field
+
+### Automated Reminder System
+
+- **Daily Reminders**: 8 AM Eastern (DST-aware) scheduler sends reminders for tickets with "new" or "pending" status
+- **Timezone Handling**: Uses `getNextEasternTime8AM()` for timezone-correct scheduling
+- **Agent Coverage**: Reminders sent to all active agents with quick-action links
+
+### 48-Hour Escalation
+
+- Tickets unanswered for 48+ hours trigger escalation emails to ALL active agents
+- Emails include urgent warning banner
+- Escalation tracking via `escalatedAt` and `escalationCount` fields on support requests
+
+### Customer Communication
+
+- **Receipt Email**: Automatic confirmation sent when customers submit a request (via chat or email)
+- **Reference Numbers**: Each ticket gets a unique ID for tracking
+- **Response Time Expectation**: Customers are told to expect a response within 48 hours
+- **Agent Reply Emails**: When agents respond, customers receive formatted emails with the response and ticket reference
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Independent module concerns within a monolithic structure.

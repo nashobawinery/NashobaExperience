@@ -2091,6 +2091,124 @@ export async function notifySupportAgents(
   }
 }
 
+// ============= SUPPORT AGENT ENROLLMENT EMAIL =============
+
+/**
+ * Sends a welcome email to newly enrolled support agents
+ * Explains the email-based workflow and introduces Cody AI assistant
+ */
+export async function sendAgentEnrollmentEmail(
+  agentEmail: string,
+  agentName: string
+): Promise<void> {
+  const subject = 'Welcome to Nashoba Valley Support Team';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>${getBrandedEmailStyles()}</style>
+    </head>
+    <body>
+      <div class="email-container">
+        ${generateBrandedEmailHeader('Welcome to the Team!', 'Support Agent Enrollment')}
+        
+        <div class="content">
+          <p style="margin: 0 0 20px;">Hi ${agentName},</p>
+          
+          <p style="margin: 0 0 20px;">You've been enrolled as a support agent for Nashoba Valley Winery. We're excited to have you on the team!</p>
+          
+          <div class="info-box" style="background: linear-gradient(135deg, #f3e8ff 0%, #dbeafe 100%); border: 1px solid #c4b5fd; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px; color: #7c3aed;">Meet Cody, Your AI Assistant</h3>
+            <p style="margin: 0;">Cody is our AI-powered support assistant that will help you respond to customer inquiries quickly and professionally. Here's how it works:</p>
+          </div>
+          
+          <h3 style="color: ${BRAND_COLORS.burgundy}; margin: 25px 0 15px;">How the Email-Based Response System Works</h3>
+          
+          <ol style="margin: 0 0 20px; padding-left: 20px; line-height: 1.8;">
+            <li><strong>Customer Reaches Out</strong> - When a customer submits a support request via chat or email, you'll receive an email notification</li>
+            <li><strong>Cody Drafts a Response</strong> - Cody analyzes the request and prepares a suggested response for you</li>
+            <li><strong>Click "Reply Now"</strong> - Simply click the link in your email - no login required!</li>
+            <li><strong>Review & Send</strong> - Edit Cody's suggestion if needed, then click Send - the customer gets your response instantly</li>
+          </ol>
+          
+          <div class="info-box">
+            <h4 style="margin: 0 0 10px; color: ${BRAND_COLORS.burgundy};">Key Features:</h4>
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+              <li><strong>No Login Required</strong> - Secure token-based access lets you respond directly from email links</li>
+              <li><strong>AI-Suggested Responses</strong> - Cody provides ready-to-use response drafts you can edit</li>
+              <li><strong>Quick Actions</strong> - Forward tickets, update status, or mark spam with one click</li>
+              <li><strong>Automatic Reminders</strong> - Daily reminders at 8 AM for pending tickets</li>
+              <li><strong>Escalation Alerts</strong> - Urgent notifications for tickets over 48 hours old</li>
+            </ul>
+          </div>
+          
+          <div style="background-color: #fef3c7; border-radius: 8px; padding: 15px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0; font-size: 14px;">
+              <strong>Important:</strong> Email links are secure and valid for 24 hours. You can send multiple replies from the same link, but forwarding or marking as spam uses the link once.
+            </p>
+          </div>
+          
+          <p style="margin: 20px 0;">You'll start receiving ticket notifications as soon as customers submit requests in your assigned categories. If you have any questions, please reach out to your supervisor.</p>
+          
+          <p style="margin: 20px 0 0;">Welcome aboard!</p>
+          <p style="margin: 5px 0 0; color: #666;">The Nashoba Valley Team</p>
+        </div>
+        
+        ${generateBrandedEmailFooter(false)}
+      </div>
+    </body>
+    </html>
+  `;
+  
+  const text = `
+Welcome to the Nashoba Valley Support Team!
+
+Hi ${agentName},
+
+You've been enrolled as a support agent for Nashoba Valley Winery. We're excited to have you on the team!
+
+MEET CODY, YOUR AI ASSISTANT
+Cody is our AI-powered support assistant that will help you respond to customer inquiries quickly and professionally.
+
+HOW THE EMAIL-BASED RESPONSE SYSTEM WORKS:
+
+1. Customer Reaches Out - When a customer submits a support request via chat or email, you'll receive an email notification
+
+2. Cody Drafts a Response - Cody analyzes the request and prepares a suggested response for you
+
+3. Click "Reply Now" - Simply click the link in your email - no login required!
+
+4. Review & Send - Edit Cody's suggestion if needed, then click Send - the customer gets your response instantly
+
+KEY FEATURES:
+- No Login Required - Secure token-based access lets you respond directly from email links
+- AI-Suggested Responses - Cody provides ready-to-use response drafts you can edit
+- Quick Actions - Forward tickets, update status, or mark spam with one click
+- Automatic Reminders - Daily reminders at 8 AM for pending tickets
+- Escalation Alerts - Urgent notifications for tickets over 48 hours old
+
+IMPORTANT: Email links are secure and valid for 24 hours. You can send multiple replies from the same link, but forwarding or marking as spam uses the link once.
+
+You'll start receiving ticket notifications as soon as customers submit requests in your assigned categories.
+
+Welcome aboard!
+The Nashoba Valley Team
+
+---
+Nashoba Valley Winery
+100 Wattaquadock Hill Road, Bolton, MA 01740
+  `;
+  
+  try {
+    await sendEmail(agentEmail, subject, html, text);
+    console.log(`[Support] Agent enrollment email sent to ${agentEmail}`);
+  } catch (error) {
+    console.error(`[Support] Failed to send enrollment email to ${agentEmail}:`, error);
+    // Don't throw - enrollment email is not critical
+  }
+}
+
 // Email sending function using SendGrid
 export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
   const from = process.env.SENDGRID_FROM_EMAIL || 'email@nashobawinery.com';

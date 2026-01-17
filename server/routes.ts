@@ -69,7 +69,7 @@ import {
   insertDailyReportFieldDefinitionSchema,
 } from "@shared/schema";
 import sgMail from "@sendgrid/mail";
-import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt } from "./email";
+import { generateWorkOrderNotificationEmail, sendEmail, notifySupportAgents, sendSupportRequestReceipt, sendAgentEnrollmentEmail } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint for deployment verification (responds immediately)
@@ -13915,6 +13915,12 @@ ${webSourcesContext}`
       // Set categories if provided
       if (categories && categories.length > 0) {
         await storage.setSupportAgentCategories(agent.id, categories);
+      }
+
+      // Send enrollment notification email (non-blocking)
+      if (agent.email) {
+        sendAgentEnrollmentEmail(agent.email, agent.displayName)
+          .catch(err => console.error('[Support] Failed to send enrollment email:', err));
       }
 
       const agentCategories = await storage.getSupportAgentCategories(agent.id);
