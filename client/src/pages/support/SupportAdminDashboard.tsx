@@ -532,7 +532,10 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             <Button
               size="sm"
               variant="default"
-              onClick={() => setAiDraftOpen(true)}
+              onClick={() => {
+                setAiDraftContent(request.aiDraft || "");
+                setAiDraftOpen(true);
+              }}
               data-testid="button-review-ai-draft"
             >
               <Pencil className="h-4 w-4 mr-2" />
