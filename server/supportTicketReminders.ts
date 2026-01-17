@@ -21,8 +21,7 @@ async function sendTicketReminders() {
         and(
           or(
             eq(supportRequests.status, "new"),
-            eq(supportRequests.status, "pending"),
-            eq(supportRequests.status, "bot_responded")
+            eq(supportRequests.status, "pending")
           ),
           isNull(supportRequests.closedAt)
         )
@@ -273,38 +272,55 @@ Nashoba Valley Winery
   }
 }
 
+function getNextEasternTime8AM(): Date {
+  const now = new Date();
+  const easternTimeStr = now.toLocaleString('en-US', { 
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false 
+  });
+  const [datePart, timePart] = easternTimeStr.split(', ');
+  const [hours, minutes] = timePart.split(':').map(Number);
+  
+  let hoursUntil8AM: number;
+  if (hours < 8) {
+    hoursUntil8AM = 8 - hours;
+  } else {
+    hoursUntil8AM = 24 - hours + 8;
+  }
+  
+  const target = new Date(now.getTime() + hoursUntil8AM * 3600000);
+  target.setMinutes(0, 0, 0);
+  
+  return target;
+}
+
 function scheduleTicketReminders() {
-  const runAt8AM = () => {
+  const scheduleNext = () => {
     const now = new Date();
-    const easternOffset = -5;
-    const utcHours = now.getUTCHours();
-    const easternHours = (utcHours + easternOffset + 24) % 24;
+    const next8AM = getNextEasternTime8AM();
+    const msUntilRun = Math.max(next8AM.getTime() - now.getTime(), 60000);
+    const minutesUntil = Math.round(msUntilRun / 60000);
     
-    const target = new Date();
-    const hoursUntil8AM = (8 - easternHours + 24) % 24;
+    const next8AMEastern = next8AM.toLocaleString('en-US', { 
+      timeZone: 'America/New_York',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
     
-    if (hoursUntil8AM === 0 && now.getMinutes() > 0) {
-      target.setHours(target.getHours() + 24);
-    } else {
-      target.setHours(target.getHours() + hoursUntil8AM);
-    }
-    target.setMinutes(0, 0, 0);
-    
-    const msUntil8AM = target.getTime() - now.getTime();
-    
-    console.log(`[Support Reminders] Next reminder run scheduled for ${target.toLocaleString('en-US', { timeZone: 'America/New_York' })} Eastern (in ${Math.round(msUntil8AM / 60000)} minutes)`);
+    console.log(`[Support Reminders] Next reminder run scheduled for ${next8AMEastern} Eastern (in ${minutesUntil} minutes)`);
     
     setTimeout(() => {
       sendTicketReminders()
-        .then(() => runAt8AM())
+        .then(() => scheduleNext())
         .catch((error) => {
           console.error("[Support Reminders] Error in scheduled run:", error);
-          runAt8AM();
+          scheduleNext();
         });
-    }, msUntil8AM);
+    }, msUntilRun);
   };
   
-  runAt8AM();
+  scheduleNext();
   console.log("[Support Reminders] Scheduler initialized");
 }
 
