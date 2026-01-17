@@ -13605,11 +13605,21 @@ ${webSourcesContext}`
   app.get('/api/admin/support/agents', isAdmin, async (req, res) => {
     try {
       const agents = await storage.getSupportAgents();
-      // Get categories for each agent
+      const rbac = await import('./rbac');
+      const allPlatformUsers = await rbac.getAllPlatformUsers();
+      
+      // Get categories for each agent and enrich with platform user data
       const agentsWithCategories = await Promise.all(
         agents.map(async (agent) => {
           const categories = await storage.getSupportAgentCategories(agent.id);
-          return { ...agent, categories };
+          // Find matching platform user to get proper display name
+          const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
+          const displayName = platformUser 
+            ? ((platformUser.firstName || platformUser.lastName) 
+                ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+                : agent.email?.split('@')[0] || 'Unknown')
+            : agent.displayName;
+          return { ...agent, displayName, categories };
         })
       );
       res.json(agentsWithCategories);

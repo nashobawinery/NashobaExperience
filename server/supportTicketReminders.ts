@@ -91,6 +91,10 @@ async function sendReminderToAssignedAgents(ticket: any) {
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
     : 'http://localhost:5000';
   
+  // Get platform users for proper display names
+  const rbac = await import('./rbac');
+  const allPlatformUsers = await rbac.getAllPlatformUsers();
+  
   for (const agent of agents) {
     if (!agent.email || !agent.receiveEmailNotifications) continue;
     
@@ -105,7 +109,15 @@ async function sendReminderToAssignedAgents(ticket: any) {
       action: 'email_link'
     });
     
-    await sendReminderEmail(agent, ticket, token, baseUrl, false);
+    // Get proper display name from platform user
+    const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
+    const displayName = platformUser 
+      ? ((platformUser.firstName || platformUser.lastName) 
+          ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+          : agent.email?.split('@')[0] || 'Agent')
+      : agent.displayName || agent.email?.split('@')[0] || 'Agent';
+    
+    await sendReminderEmail({ ...agent, displayName }, ticket, token, baseUrl, false);
   }
 }
 
@@ -121,6 +133,10 @@ async function sendEscalationToAllAgents(ticket: any) {
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
     : 'http://localhost:5000';
   
+  // Get platform users for proper display names
+  const rbac = await import('./rbac');
+  const allPlatformUsers = await rbac.getAllPlatformUsers();
+  
   for (const agent of allAgents) {
     if (!agent.email || !agent.receiveEmailNotifications) continue;
     
@@ -135,7 +151,15 @@ async function sendEscalationToAllAgents(ticket: any) {
       action: 'email_link'
     });
     
-    await sendReminderEmail(agent, ticket, token, baseUrl, true);
+    // Get proper display name from platform user
+    const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
+    const displayName = platformUser 
+      ? ((platformUser.firstName || platformUser.lastName) 
+          ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+          : agent.email?.split('@')[0] || 'Agent')
+      : agent.displayName || agent.email?.split('@')[0] || 'Agent';
+    
+    await sendReminderEmail({ ...agent, displayName }, ticket, token, baseUrl, true);
   }
 }
 
@@ -366,8 +390,15 @@ async function sendManualAgentNotification(ticketId: string, agentId: string): P
       expiresAt
     });
     
-    const user = await storage.getUser(agent.userId);
-    const displayName = user?.firstName || agent.email.split('@')[0] || 'Agent';
+    // Get proper display name from platform user
+    const rbac = await import('./rbac');
+    const allPlatformUsers = await rbac.getAllPlatformUsers();
+    const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
+    const displayName = platformUser 
+      ? ((platformUser.firstName || platformUser.lastName) 
+          ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+          : agent.email?.split('@')[0] || 'Agent')
+      : agent.displayName || agent.email?.split('@')[0] || 'Agent';
     
     await sendReminderEmail({
       ...agent,
