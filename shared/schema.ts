@@ -4248,6 +4248,70 @@ export const insertSocialReviewSchema = createInsertSchema(socialReviews).omit({
 export type InsertSocialReview = z.infer<typeof insertSocialReviewSchema>;
 export type SocialReview = typeof socialReviews.$inferSelect;
 
+// Support Agents - Authorized staff who can review and respond to support tickets
+export const supportAgents = pgTable("support_agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platformUserId: varchar("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  email: varchar("email").notNull(), // Cached from platform user for quick access
+  displayName: varchar("display_name").notNull(), // Cached for display
+  pinCode: varchar("pin_code", { length: 4 }).notNull(), // 4-digit quick access code
+  pinCodeHash: varchar("pin_code_hash"), // Hashed version for security (optional, can be added later)
+  isActive: boolean("is_active").notNull().default(true),
+  receiveEmailNotifications: boolean("receive_email_notifications").notNull().default(true),
+  isDefaultAgent: boolean("is_default_agent").notNull().default(false), // Receives all uncategorized tickets
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_agents_user").on(table.platformUserId),
+  index("idx_support_agents_active").on(table.isActive),
+  index("idx_support_agents_pin").on(table.pinCode),
+  unique("uq_support_agents_user").on(table.platformUserId),
+  unique("uq_support_agents_pin").on(table.pinCode),
+]);
+
+export const insertSupportAgentSchema = createInsertSchema(supportAgents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSupportAgent = z.infer<typeof insertSupportAgentSchema>;
+export type SupportAgent = typeof supportAgents.$inferSelect;
+
+// Support Agent Categories - Maps agents to the categories they are leads for
+export const supportAgentCategories = pgTable("support_agent_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => supportAgents.id, { onDelete: 'cascade' }),
+  categoryId: varchar("category_id").notNull().references(() => supportCategories.id, { onDelete: 'cascade' }),
+  isLead: boolean("is_lead").notNull().default(false), // Whether this agent is the lead for this category
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_agent_cat_agent").on(table.agentId),
+  index("idx_support_agent_cat_category").on(table.categoryId),
+  unique("uq_support_agent_category").on(table.agentId, table.categoryId),
+]);
+
+export const insertSupportAgentCategorySchema = createInsertSchema(supportAgentCategories).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSupportAgentCategory = z.infer<typeof insertSupportAgentCategorySchema>;
+export type SupportAgentCategory = typeof supportAgentCategories.$inferSelect;
+
+// Support Agent Access Tokens - Short-lived tokens for email link access
+export const supportAgentAccessTokens = pgTable("support_agent_access_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => supportAgents.id, { onDelete: 'cascade' }),
+  requestId: varchar("request_id").notNull().references(() => supportRequests.id, { onDelete: 'cascade' }),
+  token: varchar("token").notNull().unique(), // Signed token for email links
+  action: varchar("action").notNull(), // view, forward, spam
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_support_access_token").on(table.token),
+  index("idx_support_access_expires").on(table.expiresAt),
+]);
+
 // Social Review Responses - Responses sent to reviews
 export const socialReviewResponses = pgTable("social_review_responses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
