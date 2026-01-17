@@ -12611,6 +12611,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'chat',
           draft || null
         );
+        
+        // Mark that agents were notified
+        await storage.updateSupportRequest(request.id, {
+          agentNotificationSentAt: new Date()
+        });
       }).catch(err => console.error('[Support] Failed to generate AI draft or notify agents:', err));
 
       // Send confirmation receipt to customer (non-blocking)
@@ -15180,6 +15185,11 @@ Generate a professional response:`;
             'email',
             aiDraft || null
           );
+          
+          // Mark that agents were notified
+          await storage.updateSupportRequest(newRequest.id, {
+            agentNotificationSentAt: new Date()
+          });
         }).catch((err) => {
           console.error('[Email Inbound] Failed to generate AI draft or notify agents:', err);
         });
