@@ -13623,11 +13623,11 @@ ${webSourcesContext}`
       const agentsWithCategories = await Promise.all(
         agents.map(async (agent) => {
           const categories = await storage.getSupportAgentCategories(agent.id);
-          // Find matching platform user to get proper display name
+          // Find matching platform user to get proper display name (raw SQL returns snake_case)
           const platformUser = allPlatformUsers.find((u: any) => u.id === agent.platformUserId);
           const displayName = platformUser 
-            ? ((platformUser.firstName || platformUser.lastName) 
-                ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+            ? ((platformUser.first_name || platformUser.last_name) 
+                ? `${platformUser.first_name || ''} ${platformUser.last_name || ''}`.trim() 
                 : agent.email?.split('@')[0] || 'Unknown')
             : agent.displayName;
           return { ...agent, displayName, categories };
@@ -13645,19 +13645,19 @@ ${webSourcesContext}`
     try {
       const rbac = await import('./rbac');
       const users = await rbac.getAllPlatformUsers();
-      // Filter to active users with email
+      // Filter to active users with email (raw SQL returns snake_case field names)
       const availableUsers = users
         .filter((u: any) => u.active && u.email)
         .map((u: any) => ({
           id: u.id,
           email: u.email,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          displayName: (u.firstName || u.lastName) 
-            ? `${u.firstName || ''} ${u.lastName || ''}`.trim() 
+          firstName: u.first_name,
+          lastName: u.last_name,
+          displayName: (u.first_name || u.last_name) 
+            ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
             : u.email?.split('@')[0] || 'Unknown User',
           department: u.department,
-          jobTitle: u.jobTitle
+          jobTitle: u.job_title
         }));
       res.json(availableUsers);
     } catch (error) {
@@ -13706,9 +13706,9 @@ ${webSourcesContext}`
         } while (!isUnique);
       }
 
-      // Create agent with proper display name handling
-      const displayName = (platformUser.firstName || platformUser.lastName) 
-        ? `${platformUser.firstName || ''} ${platformUser.lastName || ''}`.trim() 
+      // Create agent with proper display name handling (raw SQL returns snake_case)
+      const displayName = (platformUser.first_name || platformUser.last_name) 
+        ? `${platformUser.first_name || ''} ${platformUser.last_name || ''}`.trim() 
         : platformUser.email?.split('@')[0] || 'Unknown User';
       
       const agent = await storage.createSupportAgent({
