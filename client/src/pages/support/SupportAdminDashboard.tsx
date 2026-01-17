@@ -27,7 +27,8 @@ import {
   Archive,
   HelpCircle,
   ChevronRight,
-  Ban
+  Ban,
+  UserPlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { SupportRequest, SupportMessage, SupportCannedResponse } from "@shared/schema";
+import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent } from "@shared/schema";
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
 
@@ -326,6 +327,30 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
     queryKey: ["/api/admin/support/canned-responses"],
   });
 
+  const { data: agents = [], isLoading: agentsLoading } = useQuery<(SupportAgent & { displayName?: string })[]>({
+    queryKey: ["/api/admin/support/agents"],
+  });
+  
+  const activeAgents = agents.filter(a => a.isActive);
+
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+
+  const assignAgentMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const res = await apiRequest("POST", `/api/admin/support/requests/${requestId}/assign-agent`, { agentId });
+      return res.json();
+    },
+    onSuccess: (data: { message: string }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/requests"] });
+      toast({ title: "Agent Assigned", description: data.message });
+      setSelectedAgentId("");
+    },
+    onError: () => {
+      toast({ title: "Failed to assign agent", variant: "destructive" });
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
       return apiRequest("POST", `/api/admin/support/requests/${requestId}/messages`, { content });
@@ -519,6 +544,62 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </Button>
           )}
         </div>
+
+        {/* Agent Assignment Section */}
+        {request.status !== "closed" && (
+          <div className="mt-3 p-3 bg-muted/50 border rounded-lg">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <UserPlus className="h-4 w-4" />
+                <span>Assign & Notify Agent:</span>
+              </div>
+              {agentsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading agents...
+                </div>
+              ) : activeAgents.length === 0 ? (
+                <span className="text-sm text-muted-foreground">No active agents available</span>
+              ) : (
+                <>
+                  <Select
+                    value={selectedAgentId}
+                    onValueChange={setSelectedAgentId}
+                  >
+                    <SelectTrigger className="w-[200px]" data-testid="select-agent">
+                      <SelectValue placeholder="Select an agent..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeAgents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id} data-testid={`agent-option-${agent.id}`}>
+                          {agent.displayName || agent.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (selectedAgentId) {
+                        assignAgentMutation.mutate(selectedAgentId);
+                      }
+                    }}
+                    disabled={!selectedAgentId || assignAgentMutation.isPending}
+                    data-testid="button-send-notification"
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    {assignAgentMutation.isPending ? "Sending..." : "Send Notification"}
+                  </Button>
+                </>
+              )}
+              {request.assignedAgentId && (
+                <Badge variant="outline" className="text-xs">
+                  Currently assigned: {agents.find(a => a.id === request.assignedAgentId)?.displayName || agents.find(a => a.id === request.assignedAgentId)?.email || "Unknown"}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* AI Draft Ready Banner */}
         {request.aiDraft && request.status !== "closed" && (

@@ -11,7 +11,7 @@ import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
-import { scheduleTicketReminders } from "./supportTicketReminders";
+import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -13081,6 +13081,32 @@ ${webSourcesContext}`
     } catch (error) {
       console.error('Error closing support request:', error);
       res.status(500).json({ message: 'Failed to close support request' });
+    }
+  });
+
+  // Admin: Assign an agent and send notification email
+  app.post('/api/admin/support/requests/:id/assign-agent', isAdmin, async (req, res) => {
+    try {
+      const { agentId } = req.body;
+      
+      if (!agentId) {
+        return res.status(400).json({ message: 'Agent ID is required' });
+      }
+      
+      const result = await sendManualAgentNotification(req.params.id, agentId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.message });
+      }
+      
+      const updatedRequest = await storage.getSupportRequest(req.params.id);
+      res.json({ 
+        message: result.message, 
+        request: updatedRequest 
+      });
+    } catch (error) {
+      console.error('Error assigning agent to support request:', error);
+      res.status(500).json({ message: 'Failed to assign agent' });
     }
   });
 

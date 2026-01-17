@@ -324,4 +324,71 @@ function scheduleTicketReminders() {
   console.log("[Support Reminders] Scheduler initialized");
 }
 
-export { sendTicketReminders, scheduleTicketReminders };
+async function sendManualAgentNotification(ticketId: string, agentId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const [ticket] = await db
+      .select()
+      .from(supportRequests)
+      .where(eq(supportRequests.id, ticketId));
+    
+    if (!ticket) {
+      return { success: false, message: "Ticket not found" };
+    }
+    
+    const [agent] = await db
+      .select()
+      .from(supportAgents)
+      .where(eq(supportAgents.id, agentId));
+    
+    if (!agent) {
+      return { success: false, message: "Agent not found" };
+    }
+    
+    if (!agent.isActive) {
+      return { success: false, message: "Agent is not active" };
+    }
+    
+    if (!agent.email) {
+      return { success: false, message: "Agent has no email address" };
+    }
+    
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : 'http://localhost:5000';
+    
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    await storage.createAgentAccessToken({
+      agentId: agent.id,
+      requestId: ticket.id,
+      token,
+      expiresAt
+    });
+    
+    const user = await storage.getUser(agent.userId);
+    const displayName = user?.firstName || agent.email.split('@')[0] || 'Agent';
+    
+    await sendReminderEmail({
+      ...agent,
+      displayName
+    }, ticket, token, baseUrl, false);
+    
+    await db.update(supportRequests)
+      .set({ 
+        assignedAgentId: agent.id,
+        lastReminderSentAt: new Date(),
+        reminderCount: (ticket.reminderCount || 0) + 1,
+        updatedAt: new Date()
+      })
+      .where(eq(supportRequests.id, ticketId));
+    
+    console.log(`[Support Reminders] Manual notification sent to ${agent.email} for ticket ${ticketId}`);
+    return { success: true, message: `Notification sent to ${displayName}` };
+  } catch (error) {
+    console.error("[Support Reminders] Error sending manual notification:", error);
+    return { success: false, message: "Failed to send notification" };
+  }
+}
+
+export { sendTicketReminders, scheduleTicketReminders, sendManualAgentNotification };
