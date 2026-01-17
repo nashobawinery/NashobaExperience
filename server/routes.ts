@@ -13637,14 +13637,26 @@ ${webSourcesContext}`
         return res.status(400).json({ message: 'Agent already exists for this user' });
       }
 
-      // Generate unique 4-digit PIN
+      // Use custom PIN if provided, otherwise generate random 4-digit PIN
       let pinCode: string;
-      let isUnique = false;
-      do {
-        pinCode = String(Math.floor(1000 + Math.random() * 9000));
-        const existingPin = await storage.getSupportAgentByPin(pinCode);
-        isUnique = !existingPin;
-      } while (!isUnique);
+      const { customPin } = req.body;
+      
+      if (customPin && /^\d{4}$/.test(customPin)) {
+        // Check if custom PIN is already in use
+        const existingPin = await storage.getSupportAgentByPin(customPin);
+        if (existingPin) {
+          return res.status(400).json({ message: 'This PIN is already in use by another agent' });
+        }
+        pinCode = customPin;
+      } else {
+        // Generate unique random 4-digit PIN
+        let isUnique = false;
+        do {
+          pinCode = String(Math.floor(1000 + Math.random() * 9000));
+          const existingPin = await storage.getSupportAgentByPin(pinCode);
+          isUnique = !existingPin;
+        } while (!isUnique);
+      }
 
       // Create agent with proper display name handling
       const displayName = (platformUser.firstName || platformUser.lastName) 
@@ -13678,6 +13690,17 @@ ${webSourcesContext}`
   app.patch('/api/admin/support/agents/:id', isAdmin, async (req, res) => {
     try {
       const { categories, ...agentData } = req.body;
+      
+      // Validate and check PIN uniqueness if being updated
+      if (agentData.pinCode) {
+        if (!/^\d{4}$/.test(agentData.pinCode)) {
+          return res.status(400).json({ message: 'PIN must be exactly 4 digits' });
+        }
+        const existingPin = await storage.getSupportAgentByPin(agentData.pinCode);
+        if (existingPin && existingPin.id !== req.params.id) {
+          return res.status(400).json({ message: 'This PIN is already in use by another agent' });
+        }
+      }
       
       const agent = await storage.updateSupportAgent(req.params.id, agentData);
       if (!agent) {

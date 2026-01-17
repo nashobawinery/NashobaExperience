@@ -13,13 +13,17 @@ import {
   Mail,
   Users,
   Shield,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Check,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,7 +73,10 @@ export default function SupportAgentsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isDefaultAgent, setIsDefaultAgent] = useState(false);
+  const [customPin, setCustomPin] = useState<string>("");
   const [showPinFor, setShowPinFor] = useState<string | null>(null);
+  const [editPinFor, setEditPinFor] = useState<string | null>(null);
+  const [editPinValue, setEditPinValue] = useState<string>("");
   const [deleteConfirmAgent, setDeleteConfirmAgent] = useState<SupportAgent | null>(null);
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<SupportAgent[]>({
@@ -88,7 +95,7 @@ export default function SupportAgentsPage() {
   const availableUsers = platformUsers.filter(u => !existingPlatformUserIds.includes(u.id));
 
   const createAgentMutation = useMutation({
-    mutationFn: async (data: { platformUserId: string; categories: string[]; isDefaultAgent: boolean }) => {
+    mutationFn: async (data: { platformUserId: string; categories: string[]; isDefaultAgent: boolean; customPin?: string }) => {
       return await apiRequest('POST', '/api/admin/support/agents', data);
     },
     onSuccess: () => {
@@ -98,6 +105,7 @@ export default function SupportAgentsPage() {
       setSelectedUserId("");
       setSelectedCategories([]);
       setIsDefaultAgent(false);
+      setCustomPin("");
     },
     onError: (error: any) => {
       toast({ 
@@ -169,11 +177,26 @@ export default function SupportAgentsPage() {
       toast({ title: "Please select a platform user", variant: "destructive" });
       return;
     }
+    if (customPin && !/^\d{4}$/.test(customPin)) {
+      toast({ title: "PIN must be exactly 4 digits", variant: "destructive" });
+      return;
+    }
     createAgentMutation.mutate({
       platformUserId: selectedUserId,
       categories: selectedCategories,
-      isDefaultAgent
+      isDefaultAgent,
+      customPin: customPin || undefined
     });
+  };
+
+  const handleEditPin = (agentId: string) => {
+    if (!/^\d{4}$/.test(editPinValue)) {
+      toast({ title: "PIN must be exactly 4 digits", variant: "destructive" });
+      return;
+    }
+    updateAgentMutation.mutate({ id: agentId, pinCode: editPinValue });
+    setEditPinFor(null);
+    setEditPinValue("");
   };
 
   const toggleCategory = (categoryId: string) => {
@@ -281,32 +304,62 @@ export default function SupportAgentsPage() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Quick Access PIN</Label>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-1 bg-muted rounded text-lg font-mono tracking-widest">
-                        {showPinFor === agent.id ? agent.pinCode : "••••"}
-                      </code>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => setShowPinFor(showPinFor === agent.id ? null : agent.id)}
-                        data-testid={`button-toggle-pin-${agent.id}`}
-                      >
-                        {showPinFor === agent.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => regeneratePinMutation.mutate(agent.id)}
-                        disabled={regeneratePinMutation.isPending}
-                        data-testid={`button-regenerate-pin-${agent.id}`}
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-1 ${regeneratePinMutation.isPending ? 'animate-spin' : ''}`} />
-                        New PIN
-                      </Button>
-                    </div>
+                    <Label className="text-sm text-muted-foreground">Quick Access Code</Label>
+                    {editPinFor === agent.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          placeholder="1234"
+                          maxLength={4}
+                          value={editPinValue}
+                          onChange={(e) => setEditPinValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          className="w-20 font-mono tracking-widest text-center text-lg"
+                          autoFocus
+                          data-testid={`input-edit-pin-${agent.id}`}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleEditPin(agent.id)}
+                          disabled={editPinValue.length !== 4}
+                          data-testid={`button-save-pin-${agent.id}`}
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => { setEditPinFor(null); setEditPinValue(""); }}
+                          data-testid={`button-cancel-pin-${agent.id}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <code className="px-2 py-1 bg-muted rounded text-lg font-mono tracking-widest">
+                          {showPinFor === agent.id ? agent.pinCode : "••••"}
+                        </code>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => setShowPinFor(showPinFor === agent.id ? null : agent.id)}
+                          data-testid={`button-toggle-pin-${agent.id}`}
+                        >
+                          {showPinFor === agent.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => { setEditPinFor(agent.id); setEditPinValue(agent.pinCode); }}
+                          data-testid={`button-edit-pin-${agent.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      Used for quick ticket access from email links
+                      Set a memorable 4-digit code for this agent
                     </p>
                   </div>
 
@@ -425,6 +478,22 @@ export default function SupportAgentsPage() {
                 </div>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>4-Digit Access Code (Optional)</Label>
+              <Input
+                type="text"
+                placeholder="e.g., 1234"
+                maxLength={4}
+                value={customPin}
+                onChange={(e) => setCustomPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="font-mono tracking-widest text-center text-lg"
+                data-testid="input-custom-pin"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to auto-generate, or enter a memorable 4-digit code
+              </p>
+            </div>
 
             <div className="flex items-center justify-between p-3 border rounded-md">
               <div>
