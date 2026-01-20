@@ -5,12 +5,13 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
-// Use single database for all environments
-const databaseUrlToUse = process.env.DATABASE_URL;
+// Use production database as the single source of truth
+// PROD_DATABASE_URL takes precedence, then falls back to DATABASE_URL
+const databaseUrlToUse = process.env.PROD_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!databaseUrlToUse) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "PROD_DATABASE_URL or DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
