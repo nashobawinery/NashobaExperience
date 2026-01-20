@@ -14,7 +14,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 ### Technical Implementations
 - **Frontend**: React with TypeScript, Vite, TanStack Query.
 - **Backend**: Express.js with TypeScript, RESTful API.
-- **Database**: PostgreSQL with Drizzle ORM (using Neon serverless driver).
+- **Database**: PostgreSQL with Drizzle ORM (using Neon serverless driver). **Single production database** is used for both development and production environments (`PROD_DATABASE_URL` takes precedence over `DATABASE_URL`).
 - **Authentication**: Replit Auth (OpenID Connect) for guest apps and platform users; separate email/password for B2B. PostgreSQL-backed sessions.
 - **Modularity**: Designed as a modular monolith with clear boundaries for independent module development.
 - **Data Synchronization**: An environment sync tool for selective data export/import and object storage synchronization.
