@@ -14781,9 +14781,13 @@ Generate a professional response:`;
   // It creates support requests from emails and handles thread linking
   app.post('/api/webhooks/inbound-email', express.raw({ type: '*/*', limit: '25mb' }), async (req, res) => {
     try {
+      console.log('[Email Inbound] Webhook received');
+      
       // Parse the multipart form data from SendGrid
       // SendGrid sends multipart/form-data with the email contents
       const contentType = req.headers['content-type'] || '';
+      console.log('[Email Inbound] Content-Type:', contentType);
+      console.log('[Email Inbound] Body length:', Buffer.isBuffer(req.body) ? req.body.length : (typeof req.body === 'string' ? req.body.length : JSON.stringify(req.body).length));
       
       let emailData: Record<string, string> = {};
       let attachments: Array<{ filename: string; type: string; content: Buffer }> = [];
