@@ -28,7 +28,7 @@ import {
   type PermissionLevel
 } from "./rbac";
 import { validateSyncRegistry, logSyncRegistryStatus } from "./syncRegistry";
-import { triviaAttempts, achievementRedemptions, type SupportRequest } from "@shared/schema";
+import { triviaAttempts, achievementRedemptions, supportAttachments, type SupportRequest } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
   insertProductSchema,
@@ -14703,6 +14703,66 @@ Generate a professional response:`;
   // EMAIL INBOUND WEBHOOK (SendGrid Inbound Parse)
   // ============================================
 
+  // Helper function to upload email attachments to object storage
+  async function uploadEmailAttachments(
+    attachments: Array<{ filename: string; type: string; content: Buffer }>,
+    requestId: string,
+    messageId: string
+  ): Promise<void> {
+    if (attachments.length === 0) return;
+    
+    console.log(`[Email Inbound] Uploading ${attachments.length} attachments for request ${requestId}`);
+    
+    try {
+      const bucket = getStorageBucket();
+      if (!bucket) {
+        console.error('[Email Inbound] Object storage not configured, cannot save attachments');
+        return;
+      }
+      
+      for (const attachment of attachments) {
+        try {
+          const attachmentId = randomUUID();
+          const safeFilename = attachment.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const storageKey = `support/attachments/${requestId}/${attachmentId}_${safeFilename}`;
+          
+          // Upload to object storage
+          const file = bucket.file(`.private/${storageKey}`);
+          await file.save(attachment.content, {
+            contentType: attachment.type,
+            metadata: {
+              originalFilename: attachment.filename,
+              uploadedAt: new Date().toISOString()
+            }
+          });
+          
+          // Generate a signed URL for access (or use public URL if configured)
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+          });
+          
+          // Save attachment record in database
+          await storage.createSupportAttachment({
+            messageId,
+            requestId,
+            fileName: attachment.filename,
+            mimeType: attachment.type,
+            fileSize: attachment.content.length,
+            storageUrl: signedUrl,
+            storageKey
+          });
+          
+          console.log(`[Email Inbound] Saved attachment: ${attachment.filename} (${attachment.content.length} bytes)`);
+        } catch (attachErr) {
+          console.error(`[Email Inbound] Failed to upload attachment ${attachment.filename}:`, attachErr);
+        }
+      }
+    } catch (err) {
+      console.error('[Email Inbound] Error uploading attachments:', err);
+    }
+  }
+
   // This endpoint receives incoming emails forwarded via SendGrid Inbound Parse
   // It creates support requests from emails and handles thread linking
   app.post('/api/webhooks/inbound-email', express.raw({ type: '*/*', limit: '25mb' }), async (req, res) => {
@@ -14715,23 +14775,70 @@ Generate a professional response:`;
       let attachments: Array<{ filename: string; type: string; content: Buffer }> = [];
       
       if (contentType.includes('multipart/form-data')) {
-        // Parse multipart form data manually
-        const boundary = contentType.split('boundary=')[1];
+        // Parse multipart form data - handle both text and binary parts
+        const boundaryMatch = contentType.match(/boundary=([^;]+)/);
+        const boundary = boundaryMatch ? boundaryMatch[1].trim().replace(/^["']|["']$/g, '') : null;
+        
         if (boundary) {
-          const parts = req.body.toString().split(`--${boundary}`);
+          const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+          const boundaryBuffer = Buffer.from(`--${boundary}`);
+          
+          // Split on boundary while preserving binary data
+          let start = 0;
+          const parts: Buffer[] = [];
+          
+          while (true) {
+            const idx = bodyBuffer.indexOf(boundaryBuffer, start);
+            if (idx === -1) break;
+            if (start > 0) {
+              parts.push(bodyBuffer.slice(start, idx));
+            }
+            start = idx + boundaryBuffer.length;
+            // Skip CRLF after boundary
+            if (bodyBuffer[start] === 0x0d && bodyBuffer[start + 1] === 0x0a) {
+              start += 2;
+            }
+          }
+          
           for (const part of parts) {
-            if (part.includes('Content-Disposition: form-data')) {
-              const nameMatch = part.match(/name="([^"]+)"/);
-              if (nameMatch) {
-                const name = nameMatch[1];
-                const valueStart = part.indexOf('\r\n\r\n');
-                if (valueStart !== -1) {
-                  const value = part.slice(valueStart + 4).replace(/\r\n--$/, '').trim();
-                  emailData[name] = value;
-                }
+            // Find the header/body separator (double CRLF)
+            const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
+            if (headerEnd === -1) continue;
+            
+            const headers = part.slice(0, headerEnd).toString('utf8');
+            let body = part.slice(headerEnd + 4);
+            
+            // Remove trailing CRLF from body
+            if (body.length >= 2 && body[body.length - 2] === 0x0d && body[body.length - 1] === 0x0a) {
+              body = body.slice(0, -2);
+            }
+            
+            const nameMatch = headers.match(/name="([^"]+)"/);
+            const filenameMatch = headers.match(/filename="([^"]+)"/);
+            const contentTypeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
+            
+            if (nameMatch) {
+              const name = nameMatch[1];
+              
+              if (filenameMatch) {
+                // This is a file attachment
+                const filename = filenameMatch[1];
+                const mimeType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
+                
+                attachments.push({
+                  filename,
+                  type: mimeType,
+                  content: body
+                });
+                console.log(`[Email Inbound] Found attachment: ${filename} (${mimeType}, ${body.length} bytes)`);
+              } else {
+                // Text field
+                emailData[name] = body.toString('utf8').trim();
               }
             }
           }
+          
+          console.log(`[Email Inbound] Parsed ${Object.keys(emailData).length} fields, ${attachments.length} attachments`);
         }
       } else if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('application/json')) {
         // Handle URL-encoded or JSON data
@@ -15157,7 +15264,7 @@ Generate a professional response:`;
         // Add as a new message to existing request
         console.log('[Email Inbound] Adding to existing request:', existingRequest.id);
         
-        await storage.createSupportMessage({
+        const newMessage = await storage.createSupportMessage({
           requestId: existingRequest.id,
           senderType: 'customer',
           senderName: fromName || fromEmail,
@@ -15165,6 +15272,11 @@ Generate a professional response:`;
           emailMessageId: messageId || undefined,
           isInternal: false
         });
+
+        // Upload attachments if any
+        if (attachments.length > 0) {
+          await uploadEmailAttachments(attachments, existingRequest.id, newMessage.id);
+        }
 
         // Check if customer replied with "close" to close the ticket
         const normalizedBody = (cleanBody || '').toLowerCase().trim();
@@ -15203,6 +15315,21 @@ Generate a professional response:`;
           status: 'new',
           priority: 'normal'
         });
+
+        // Create initial message for the request so attachments can be linked
+        const initialMessage = await storage.createSupportMessage({
+          requestId: newRequest.id,
+          senderType: 'customer',
+          senderName: fromName || fromEmail || 'Customer',
+          content: cleanBody || 'No content',
+          emailMessageId: messageId || undefined,
+          isInternal: false
+        });
+
+        // Upload attachments if any
+        if (attachments.length > 0) {
+          await uploadEmailAttachments(attachments, newRequest.id, initialMessage.id);
+        }
 
         // AI Categorization and Auto-Assignment
         let categoryName: string | null = null;
@@ -15309,6 +15436,95 @@ Generate a professional response:`;
     } catch (error) {
       console.error('Error fetching attachments:', error);
       res.status(500).json({ message: 'Failed to fetch attachments' });
+    }
+  });
+
+  // Endpoint to download/stream a support attachment
+  app.get('/api/admin/support/attachments/:attachmentId', isAdmin, async (req, res) => {
+    try {
+      const { attachmentId } = req.params;
+      
+      // Get attachment metadata
+      const [attachment] = await db.select().from(supportAttachments)
+        .where(eq(supportAttachments.id, attachmentId));
+      
+      if (!attachment) {
+        return res.status(404).json({ message: 'Attachment not found' });
+      }
+      
+      const bucket = getStorageBucket();
+      if (!bucket) {
+        // Fallback to signed URL if object storage not accessible
+        return res.redirect(attachment.storageUrl);
+      }
+      
+      const file = bucket.file(`.private/${attachment.storageKey}`);
+      const [exists] = await file.exists();
+      
+      if (!exists) {
+        // File deleted from storage, redirect to signed URL as fallback
+        return res.redirect(attachment.storageUrl);
+      }
+      
+      // Stream the file directly
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+      
+      file.createReadStream().pipe(res);
+    } catch (error) {
+      console.error('Error serving attachment:', error);
+      res.status(500).json({ message: 'Failed to serve attachment' });
+    }
+  });
+
+  // Public attachment access for agents with token (no admin auth required)
+  app.get('/api/public/support/attachments/:attachmentId', async (req, res) => {
+    try {
+      const { attachmentId } = req.params;
+      const token = req.query.token as string;
+      
+      if (!token) {
+        return res.status(401).json({ message: 'Token required' });
+      }
+      
+      // Verify the token is valid
+      const accessToken = await storage.getAgentAccessTokenByToken(token);
+      if (!accessToken || !accessToken.isActive || new Date(accessToken.expiresAt) < new Date()) {
+        return res.status(401).json({ message: 'Invalid or expired token' });
+      }
+      
+      // Get attachment metadata
+      const [attachment] = await db.select().from(supportAttachments)
+        .where(eq(supportAttachments.id, attachmentId));
+      
+      if (!attachment) {
+        return res.status(404).json({ message: 'Attachment not found' });
+      }
+      
+      // Verify the agent has access to this request
+      if (accessToken.requestId !== attachment.requestId) {
+        return res.status(403).json({ message: 'Access denied to this attachment' });
+      }
+      
+      const bucket = getStorageBucket();
+      if (!bucket) {
+        return res.redirect(attachment.storageUrl);
+      }
+      
+      const file = bucket.file(`.private/${attachment.storageKey}`);
+      const [exists] = await file.exists();
+      
+      if (!exists) {
+        return res.redirect(attachment.storageUrl);
+      }
+      
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+      
+      file.createReadStream().pipe(res);
+    } catch (error) {
+      console.error('Error serving public attachment:', error);
+      res.status(500).json({ message: 'Failed to serve attachment' });
     }
   });
 
