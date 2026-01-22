@@ -14787,7 +14787,20 @@ Generate a professional response:`;
       // SendGrid sends multipart/form-data with the email contents
       const contentType = req.headers['content-type'] || '';
       console.log('[Email Inbound] Content-Type:', contentType);
-      console.log('[Email Inbound] Body length:', Buffer.isBuffer(req.body) ? req.body.length : (typeof req.body === 'string' ? req.body.length : JSON.stringify(req.body).length));
+      const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+      console.log('[Email Inbound] Body length:', bodyBuffer.length);
+      
+      // Save raw webhook payload for debugging
+      try {
+        const bucket = getStorageBucket();
+        if (bucket) {
+          const debugKey = `.private/email-debug/${Date.now()}_webhook.txt`;
+          await bucket.writeFile(debugKey, bodyBuffer);
+          console.log(`[Email Inbound] Saved debug payload to ${debugKey}`);
+        }
+      } catch (debugErr) {
+        console.error('[Email Inbound] Failed to save debug payload:', debugErr);
+      }
       
       let emailData: Record<string, string> = {};
       let attachmentBinaryParts: Record<string, { content: Buffer; contentType: string }> = {};
