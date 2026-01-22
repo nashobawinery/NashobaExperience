@@ -137,8 +137,8 @@ export default function CatalogPage() {
 
   // Filter products by search
   const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const addToCart = (productId: string, quantity: number, unit: 'bottle' | 'case' = 'case') => {
