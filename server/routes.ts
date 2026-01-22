@@ -6,6 +6,16 @@ import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
+
+// Helper function to get the storage bucket for email attachments
+function getStorageBucket() {
+  const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+  if (!bucketId) {
+    console.error('[ObjectStorage] REPLIT_DEFAULT_BUCKET_ID not set');
+    return null;
+  }
+  return objectStorageClient.bucket(bucketId);
+}
 import b2bRouter from "./b2b-routes";
 import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
