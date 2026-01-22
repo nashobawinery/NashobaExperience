@@ -14869,6 +14869,8 @@ Generate a professional response:`;
           
           console.log(`[Email Inbound] Parsed ${Object.keys(emailData).length} fields, ${attachments.length} direct attachments`);
           console.log(`[Email Inbound] Email fields:`, Object.keys(emailData).join(', '));
+          console.log(`[Email Inbound] Binary parts found:`, Object.keys(attachmentBinaryParts).join(', ') || 'none');
+          console.log(`[Email Inbound] attachment-info field:`, emailData['attachment-info'] || 'not present');
           
           // Handle SendGrid's specific attachment format
           // SendGrid sends attachment-info as JSON describing attachments
