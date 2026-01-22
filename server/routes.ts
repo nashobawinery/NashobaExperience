@@ -14790,6 +14790,7 @@ Generate a professional response:`;
       console.log('[Email Inbound] Body length:', Buffer.isBuffer(req.body) ? req.body.length : (typeof req.body === 'string' ? req.body.length : JSON.stringify(req.body).length));
       
       let emailData: Record<string, string> = {};
+      let attachmentBinaryParts: Record<string, { content: Buffer; contentType: string }> = {};
       let attachments: Array<{ filename: string; type: string; content: Buffer }> = [];
       
       if (contentType.includes('multipart/form-data')) {
@@ -14837,18 +14838,26 @@ Generate a professional response:`;
             
             if (nameMatch) {
               const name = nameMatch[1];
+              const mimeType = contentTypeMatch ? contentTypeMatch[1].trim() : '';
               
               if (filenameMatch) {
-                // This is a file attachment
+                // This is a file attachment with filename in header
                 const filename = filenameMatch[1];
-                const mimeType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
+                const finalMimeType = mimeType || 'application/octet-stream';
                 
                 attachments.push({
                   filename,
-                  type: mimeType,
+                  type: finalMimeType,
                   content: body
                 });
-                console.log(`[Email Inbound] Found attachment: ${filename} (${mimeType}, ${body.length} bytes)`);
+                console.log(`[Email Inbound] Found attachment: ${filename} (${finalMimeType}, ${body.length} bytes)`);
+              } else if (name.startsWith('attachment')) {
+                // SendGrid attachment binary content (attachment1, attachment2, etc.)
+                attachmentBinaryParts[name] = {
+                  content: body,
+                  contentType: mimeType || 'application/octet-stream'
+                };
+                console.log(`[Email Inbound] Found binary attachment part: ${name} (${body.length} bytes)`);
               } else {
                 // Text field
                 emailData[name] = body.toString('utf8').trim();
@@ -14856,7 +14865,52 @@ Generate a professional response:`;
             }
           }
           
-          console.log(`[Email Inbound] Parsed ${Object.keys(emailData).length} fields, ${attachments.length} attachments`);
+          console.log(`[Email Inbound] Parsed ${Object.keys(emailData).length} fields, ${attachments.length} direct attachments`);
+          console.log(`[Email Inbound] Email fields:`, Object.keys(emailData).join(', '));
+          
+          // Handle SendGrid's specific attachment format
+          // SendGrid sends attachment-info as JSON describing attachments
+          // and attachment1, attachment2, etc. as the actual file content
+          if (emailData['attachment-info']) {
+            try {
+              const attachmentInfo = JSON.parse(emailData['attachment-info']);
+              console.log(`[Email Inbound] Found attachment-info:`, JSON.stringify(attachmentInfo));
+              console.log(`[Email Inbound] Binary parts available:`, Object.keys(attachmentBinaryParts).join(', '));
+              
+              // attachment-info is keyed by field name (attachment1, attachment2, etc.)
+              for (const [key, info] of Object.entries(attachmentInfo)) {
+                const attachInfo = info as { filename?: string; type?: string; name?: string; 'content-id'?: string };
+                const filename = attachInfo.filename || attachInfo.name || 'attachment';
+                const mimeType = attachInfo.type || 'application/octet-stream';
+                
+                // Find the corresponding binary content
+                if (attachmentBinaryParts[key]) {
+                  attachments.push({
+                    filename,
+                    type: mimeType,
+                    content: attachmentBinaryParts[key].content
+                  });
+                  console.log(`[Email Inbound] Matched attachment from attachment-info: ${filename} (${mimeType}, ${attachmentBinaryParts[key].content.length} bytes)`);
+                } else {
+                  console.log(`[Email Inbound] Warning: No binary content found for attachment key: ${key}`);
+                }
+              }
+            } catch (e) {
+              console.error(`[Email Inbound] Failed to parse attachment-info:`, e);
+            }
+          }
+          
+          // If we have binary attachment parts but no attachment-info, use them directly
+          if (attachments.length === 0 && Object.keys(attachmentBinaryParts).length > 0) {
+            console.log(`[Email Inbound] Using binary attachment parts directly (no attachment-info)`);
+            for (const [key, part] of Object.entries(attachmentBinaryParts)) {
+              attachments.push({
+                filename: `${key}.bin`,
+                type: part.contentType,
+                content: part.content
+              });
+            }
+          }
         }
       } else if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('application/json')) {
         // Handle URL-encoded or JSON data
