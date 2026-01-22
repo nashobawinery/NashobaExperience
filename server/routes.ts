@@ -15419,7 +15419,32 @@ Generate a professional response:`;
 
         // Upload attachments if any
         if (attachments.length > 0) {
-          await uploadEmailAttachments(attachments, newRequest.id, initialMessage.id);
+          console.log(`[Email Inbound] Attempting to upload ${attachments.length} attachments`);
+          const bucket = getStorageBucket();
+          console.log(`[Email Inbound] Bucket available: ${!!bucket}, bucket ID: ${process.env.REPLIT_DEFAULT_BUCKET_ID || 'NOT SET'}`);
+          
+          // If no bucket, save attachment info directly to database without file storage
+          if (!bucket) {
+            console.log('[Email Inbound] No bucket - saving attachment metadata only');
+            for (const att of attachments) {
+              try {
+                await storage.createSupportAttachment({
+                  messageId: initialMessage.id,
+                  requestId: newRequest.id,
+                  fileName: att.filename,
+                  mimeType: att.type,
+                  fileSize: att.content.length,
+                  storageUrl: '', // No URL without storage
+                  storageKey: ''
+                });
+                console.log(`[Email Inbound] Saved attachment metadata: ${att.filename}`);
+              } catch (attErr) {
+                console.error(`[Email Inbound] Failed to save attachment metadata:`, attErr);
+              }
+            }
+          } else {
+            await uploadEmailAttachments(attachments, newRequest.id, initialMessage.id);
+          }
         }
 
         // AI Categorization and Auto-Assignment
