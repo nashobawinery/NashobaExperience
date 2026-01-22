@@ -29,7 +29,13 @@ import {
   ChevronRight,
   Ban,
   UserPlus,
-  FolderOpen
+  FolderOpen,
+  Paperclip,
+  FileAudio,
+  FileImage,
+  FileText,
+  File,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +49,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent } from "@shared/schema";
+import type { SupportRequest, SupportMessage, SupportCannedResponse, SupportAgent, SupportAttachment } from "@shared/schema";
 
 type SupportRequestWithMessages = SupportRequest & { messages: SupportMessage[] };
+
+// Helper to get icon for attachment type
+function getAttachmentIcon(mimeType: string) {
+  if (mimeType.startsWith('audio/')) return FileAudio;
+  if (mimeType.startsWith('image/')) return FileImage;
+  if (mimeType.startsWith('text/') || mimeType.includes('pdf')) return FileText;
+  return File;
+}
+
+// Helper to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function LinkifiedText({ text }: { text: string }) {
   // First handle markdown-style links [text](url)
@@ -344,6 +365,19 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const { data: cannedResponses = [] } = useQuery<SupportCannedResponse[]>({
     queryKey: ["/api/admin/support/canned-responses"],
   });
+
+  // Fetch attachments for this request
+  const { data: attachments = [] } = useQuery<SupportAttachment[]>({
+    queryKey: ["/api/admin/support/requests", requestId, "attachments"],
+    enabled: !!requestId,
+  });
+
+  // Group attachments by message ID for easy lookup
+  const attachmentsByMessageId = attachments.reduce((acc, att) => {
+    if (!acc[att.messageId]) acc[att.messageId] = [];
+    acc[att.messageId].push(att);
+    return acc;
+  }, {} as Record<string, SupportAttachment[]>);
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<(SupportAgent & { displayName?: string })[]>({
     queryKey: ["/api/admin/support/agents"],
@@ -709,6 +743,36 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                   <span>{format(new Date(message.createdAt), "h:mm a")}</span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
+                
+                {/* Display attachments for this message */}
+                {attachmentsByMessageId[message.id]?.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-1 text-xs opacity-70">
+                      <Paperclip className="h-3 w-3" />
+                      <span>Attachments</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {attachmentsByMessageId[message.id].map((attachment) => {
+                        const AttachmentIcon = getAttachmentIcon(attachment.mimeType);
+                        return (
+                          <a
+                            key={attachment.id}
+                            href={`/api/admin/support/attachments/${attachment.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 bg-background/50 hover:bg-background/80 rounded px-2 py-1 text-xs transition-colors border"
+                            data-testid={`attachment-${attachment.id}`}
+                          >
+                            <AttachmentIcon className="h-4 w-4" />
+                            <span className="max-w-[150px] truncate">{attachment.fileName}</span>
+                            <span className="text-muted-foreground">({formatFileSize(attachment.fileSize)})</span>
+                            <Download className="h-3 w-3" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -17,7 +17,13 @@ import {
   CheckCircle,
   Sparkles,
   Copy,
-  Tag
+  Tag,
+  Paperclip,
+  FileAudio,
+  FileImage,
+  FileText,
+  File,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +74,31 @@ type OtherAgent = {
   displayName: string;
 };
 
+type SupportAttachment = {
+  id: string;
+  messageId: string;
+  requestId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageUrl: string;
+};
+
+// Helper to get icon for attachment type
+function getAttachmentIcon(mimeType: string) {
+  if (mimeType.startsWith('audio/')) return FileAudio;
+  if (mimeType.startsWith('image/')) return FileImage;
+  if (mimeType.startsWith('text/') || mimeType.includes('pdf')) return FileText;
+  return File;
+}
+
+// Helper to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function SupportAgentTicketPage() {
   const params = useParams<{ ticketId: string }>();
   const search = useSearch();
@@ -84,6 +115,7 @@ export default function SupportAgentTicketPage() {
   const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [ticket, setTicket] = useState<SupportRequest | null>(null);
   const [otherAgents, setOtherAgents] = useState<OtherAgent[]>([]);
+  const [attachments, setAttachments] = useState<SupportAttachment[]>([]);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [showSpamDialog, setShowSpamDialog] = useState(false);
   const [forwardToAgentId, setForwardToAgentId] = useState("");
@@ -92,6 +124,13 @@ export default function SupportAgentTicketPage() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [showAiDraft, setShowAiDraft] = useState(true);
+
+  // Group attachments by message ID for easy lookup
+  const attachmentsByMessageId = attachments.reduce((acc, att) => {
+    if (!acc[att.messageId]) acc[att.messageId] = [];
+    acc[att.messageId].push(att);
+    return acc;
+  }, {} as Record<string, SupportAttachment[]>);
 
   useEffect(() => {
     if (!tokenFromUrl) {
@@ -115,6 +154,7 @@ export default function SupportAgentTicketPage() {
         setAgent(data.agent);
         setTicket(data.ticket);
         setOtherAgents(data.otherAgents || []);
+        setAttachments(data.attachments || []);
         setIsVerified(true);
         setSelectedStatus(data.ticket.status || 'new');
         
@@ -494,6 +534,36 @@ export default function SupportAgentTicketPage() {
                       </div>
                       <div className={`rounded-lg p-3 ${msg.isInternal ? 'bg-yellow-50 dark:bg-yellow-950' : 'bg-muted'}`}>
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        
+                        {/* Display attachments for this message */}
+                        {attachmentsByMessageId[msg.id]?.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center gap-1 text-xs opacity-70">
+                              <Paperclip className="h-3 w-3" />
+                              <span>Attachments</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {attachmentsByMessageId[msg.id].map((attachment) => {
+                                const AttachmentIcon = getAttachmentIcon(attachment.mimeType);
+                                return (
+                                  <a
+                                    key={attachment.id}
+                                    href={`/api/public/support/attachments/${attachment.id}?token=${tokenFromUrl}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 bg-background hover:bg-background/80 rounded px-2 py-1 text-xs transition-colors border"
+                                    data-testid={`attachment-${attachment.id}`}
+                                  >
+                                    <AttachmentIcon className="h-4 w-4" />
+                                    <span className="max-w-[150px] truncate">{attachment.fileName}</span>
+                                    <span className="text-muted-foreground">({formatFileSize(attachment.fileSize)})</span>
+                                    <Download className="h-3 w-3" />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

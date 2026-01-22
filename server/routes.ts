@@ -14193,6 +14193,9 @@ ${webSourcesContext}`
         categoryName = category?.name || null;
       }
       
+      // Get attachments for the request
+      const attachments = await storage.getAttachmentsForRequest(accessToken.requestId);
+      
       res.json({
         success: true,
         agent: {
@@ -14207,6 +14210,7 @@ ${webSourcesContext}`
           categoryName
         },
         otherAgents,
+        attachments,
         tokenRequestId: accessToken.requestId
       });
     } catch (error) {
