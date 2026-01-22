@@ -14790,16 +14790,19 @@ Generate a professional response:`;
       const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
       console.log('[Email Inbound] Body length:', bodyBuffer.length);
       
-      // Save raw webhook payload for debugging
+      // Extract field names from the body for debugging
+      let debugFieldInfo = '';
       try {
-        const bucket = getStorageBucket();
-        if (bucket) {
-          const debugKey = `.private/email-debug/${Date.now()}_webhook.txt`;
-          await bucket.writeFile(debugKey, bodyBuffer);
-          console.log(`[Email Inbound] Saved debug payload to ${debugKey}`);
+        const bodyStr = bodyBuffer.toString('utf8');
+        const fieldNames: string[] = [];
+        const fieldMatches = bodyStr.matchAll(/Content-Disposition: form-data; name="([^"]+)"/g);
+        for (const match of fieldMatches) {
+          fieldNames.push(match[1]);
         }
+        debugFieldInfo = `[DEBUG: Fields=${fieldNames.join(',')} Size=${bodyBuffer.length} attach-info=${bodyStr.includes('attachment-info')} attach1=${bodyStr.includes('name="attachment1"')}]`;
+        console.log('[Email Inbound] DEBUG:', debugFieldInfo);
       } catch (debugErr) {
-        console.error('[Email Inbound] Failed to save debug payload:', debugErr);
+        console.error('[Email Inbound] Failed to extract debug info:', debugErr);
       }
       
       let emailData: Record<string, string> = {};
@@ -15389,11 +15392,14 @@ Generate a professional response:`;
         // Create a new support request
         console.log('[Email Inbound] Creating new support request');
         
+        // Append debug info to help diagnose attachment issues
+        const messageWithDebug = `${cleanBody || 'No content'}\n\n---\n${debugFieldInfo}\n[Attachments found: ${attachments.length}]`;
+        
         const newRequest = await storage.createSupportRequest({
           customerName: fromName || undefined,
           customerEmail: fromEmail || undefined,
           subject: subject,
-          initialMessage: cleanBody || 'No content',
+          initialMessage: messageWithDebug,
           source: 'email',
           emailMessageId: messageId || undefined,
           emailThreadId: messageId || undefined, // Use message ID as thread ID for new emails
@@ -15406,7 +15412,7 @@ Generate a professional response:`;
           requestId: newRequest.id,
           senderType: 'customer',
           senderName: fromName || fromEmail || 'Customer',
-          content: cleanBody || 'No content',
+          content: messageWithDebug,
           emailMessageId: messageId || undefined,
           isInternal: false
         });
