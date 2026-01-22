@@ -15406,23 +15406,26 @@ Generate a professional response:`;
           const bucket = getStorageBucket();
           console.log(`[Email Inbound] Bucket available: ${!!bucket}, bucket ID: ${process.env.REPLIT_DEFAULT_BUCKET_ID || 'NOT SET'}`);
           
-          // If no bucket, save attachment info directly to database without file storage
+          // If no bucket, save attachment with base64 content in database
           if (!bucket) {
-            console.log('[Email Inbound] No bucket - saving attachment metadata only');
+            console.log('[Email Inbound] No bucket - saving attachment content as base64');
             for (const att of attachments) {
               try {
+                // Convert binary content to base64 for database storage
+                const base64Content = att.content.toString('base64');
                 await storage.createSupportAttachment({
                   messageId: initialMessage.id,
                   requestId: newRequest.id,
                   fileName: att.filename,
                   mimeType: att.type,
                   fileSize: att.content.length,
-                  storageUrl: '', // No URL without storage
-                  storageKey: ''
+                  storageUrl: 'db://base64', // Marker indicating content is in database
+                  storageKey: '',
+                  fileContent: base64Content
                 });
-                console.log(`[Email Inbound] Saved attachment metadata: ${att.filename}`);
+                console.log(`[Email Inbound] Saved attachment with content: ${att.filename} (${att.content.length} bytes)`);
               } catch (attErr) {
-                console.error(`[Email Inbound] Failed to save attachment metadata:`, attErr);
+                console.error(`[Email Inbound] Failed to save attachment:`, attErr);
               }
             }
           } else {
@@ -15551,10 +15554,22 @@ Generate a professional response:`;
         return res.status(404).json({ message: 'Attachment not found' });
       }
       
+      // Check if content is stored in database (base64)
+      if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
+        const buffer = Buffer.from(attachment.fileContent, 'base64');
+        res.setHeader('Content-Type', attachment.mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      }
+      
       const bucket = getStorageBucket();
       if (!bucket) {
         // Fallback to signed URL if object storage not accessible
-        return res.redirect(attachment.storageUrl);
+        if (attachment.storageUrl && attachment.storageUrl !== '') {
+          return res.redirect(attachment.storageUrl);
+        }
+        return res.status(404).json({ message: 'Attachment file not available' });
       }
       
       const file = bucket.file(`.private/${attachment.storageKey}`);
@@ -15605,16 +15620,31 @@ Generate a professional response:`;
         return res.status(403).json({ message: 'Access denied to this attachment' });
       }
       
+      // Check if content is stored in database (base64)
+      if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
+        const buffer = Buffer.from(attachment.fileContent, 'base64');
+        res.setHeader('Content-Type', attachment.mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      }
+      
       const bucket = getStorageBucket();
       if (!bucket) {
-        return res.redirect(attachment.storageUrl);
+        if (attachment.storageUrl && attachment.storageUrl !== '') {
+          return res.redirect(attachment.storageUrl);
+        }
+        return res.status(404).json({ message: 'Attachment file not available' });
       }
       
       const file = bucket.file(`.private/${attachment.storageKey}`);
       const [exists] = await file.exists();
       
       if (!exists) {
-        return res.redirect(attachment.storageUrl);
+        if (attachment.storageUrl && attachment.storageUrl !== '') {
+          return res.redirect(attachment.storageUrl);
+        }
+        return res.status(404).json({ message: 'Attachment file not available' });
       }
       
       res.setHeader('Content-Type', attachment.mimeType);

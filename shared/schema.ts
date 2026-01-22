@@ -3991,6 +3991,7 @@ export const supportAttachments = pgTable("support_attachments", {
   fileSize: integer("file_size").notNull(), // bytes
   storageUrl: text("storage_url").notNull(), // URL to object storage
   storageKey: varchar("storage_key"), // Object storage key for deletion
+  fileContent: text("file_content"), // Base64-encoded file content when object storage unavailable
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_support_attach_msg").on(table.messageId),
