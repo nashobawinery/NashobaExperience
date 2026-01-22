@@ -14790,20 +14790,6 @@ Generate a professional response:`;
       const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
       console.log('[Email Inbound] Body length:', bodyBuffer.length);
       
-      // Extract field names from the body for debugging
-      let debugFieldInfo = '';
-      try {
-        const bodyStr = bodyBuffer.toString('utf8');
-        const fieldNames: string[] = [];
-        const fieldMatches = bodyStr.matchAll(/Content-Disposition: form-data; name="([^"]+)"/g);
-        for (const match of fieldMatches) {
-          fieldNames.push(match[1]);
-        }
-        debugFieldInfo = `[DEBUG: Fields=${fieldNames.join(',')} Size=${bodyBuffer.length} attach-info=${bodyStr.includes('attachment-info')} attach1=${bodyStr.includes('name="attachment1"')}]`;
-        console.log('[Email Inbound] DEBUG:', debugFieldInfo);
-      } catch (debugErr) {
-        console.error('[Email Inbound] Failed to extract debug info:', debugErr);
-      }
       
       let emailData: Record<string, string> = {};
       let attachmentBinaryParts: Record<string, { content: Buffer; contentType: string }> = {};
@@ -15392,14 +15378,11 @@ Generate a professional response:`;
         // Create a new support request
         console.log('[Email Inbound] Creating new support request');
         
-        // Append debug info to help diagnose attachment issues
-        const messageWithDebug = `${cleanBody || 'No content'}\n\n---\n${debugFieldInfo}\n[Attachments found: ${attachments.length}]`;
-        
         const newRequest = await storage.createSupportRequest({
           customerName: fromName || undefined,
           customerEmail: fromEmail || undefined,
           subject: subject,
-          initialMessage: messageWithDebug,
+          initialMessage: cleanBody || 'No content',
           source: 'email',
           emailMessageId: messageId || undefined,
           emailThreadId: messageId || undefined, // Use message ID as thread ID for new emails
@@ -15412,7 +15395,7 @@ Generate a professional response:`;
           requestId: newRequest.id,
           senderType: 'customer',
           senderName: fromName || fromEmail || 'Customer',
-          content: messageWithDebug,
+          content: cleanBody || 'No content',
           emailMessageId: messageId || undefined,
           isInternal: false
         });
