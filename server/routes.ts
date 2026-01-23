@@ -13247,6 +13247,10 @@ ${webSourcesContext}`
         };
       });
       
+      // Prevent browser caching so refresh always shows latest data
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json(enrichedRequests);
     } catch (error) {
       console.error('Error fetching support requests:', error);
@@ -13261,6 +13265,10 @@ ${webSourcesContext}`
       if (!request) {
         return res.status(404).json({ message: 'Support request not found' });
       }
+      // Prevent browser caching so refresh always shows latest data
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json(request);
     } catch (error) {
       console.error('Error fetching support request:', error);
