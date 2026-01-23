@@ -9132,10 +9132,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Asset Categories ---
   app.get('/api/maintenance/categories', isAuthenticated, async (req, res) => {
     try {
-      const result = await db.execute(sql`
-        SELECT * FROM maintenance_asset_categories WHERE active = true ORDER BY sort_order ASC
-      `);
-      res.json(result.rows);
+      // Return empty array - maintenance_asset_categories table not yet created
+      res.json([]);
     } catch (error) {
       console.error('Error fetching asset categories:', error);
       res.status(500).json({ message: 'Failed to fetch categories' });
@@ -9180,13 +9178,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { status, categoryId, locationId } = req.query;
       const result = await db.execute(sql`
-        SELECT a.*, c.name as category_name, c.icon as category_icon, l.location_name
+        SELECT a.*, l.location_name
         FROM maintenance_assets a
-        LEFT JOIN maintenance_asset_categories c ON a.category_id = c.id
         LEFT JOIN shared_locations l ON a.location_id = l.id
         WHERE 1=1
         ${status ? sql` AND a.status = ${status}` : sql``}
-        ${categoryId ? sql` AND a.category_id = ${categoryId}` : sql``}
         ${locationId ? sql` AND a.location_id = ${locationId}` : sql``}
         ORDER BY a.name ASC
       `);
@@ -9201,9 +9197,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const result = await db.execute(sql`
-        SELECT a.*, c.name as category_name, c.icon as category_icon, l.location_name
+        SELECT a.*, l.location_name
         FROM maintenance_assets a
-        LEFT JOIN maintenance_asset_categories c ON a.category_id = c.id
         LEFT JOIN shared_locations l ON a.location_id = l.id
         WHERE a.id = ${id}
       `);
@@ -9271,12 +9266,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM maintenance_work_orders wo
         LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
         LEFT JOIN shared_locations l ON wo.location_id = l.id
-        LEFT JOIN platform_users req ON wo.requested_by_id = req.id
-        LEFT JOIN platform_users asg ON wo.assigned_to_id = asg.id
+        LEFT JOIN platform_users req ON wo.requested_by = req.id::text
+        LEFT JOIN platform_users asg ON wo.assigned_to = asg.id::text
         WHERE 1=1
         ${status ? sql` AND wo.status = ${status}` : sql``}
         ${priority ? sql` AND wo.priority = ${priority}` : sql``}
-        ${assignedToId ? sql` AND wo.assigned_to_id = ${assignedToId}` : sql``}
+        ${assignedToId ? sql` AND wo.assigned_to = ${assignedToId}` : sql``}
         ${assetId ? sql` AND wo.asset_id = ${assetId}` : sql``}
         ORDER BY 
           CASE wo.priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
@@ -9301,8 +9296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM maintenance_work_orders wo
         LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
         LEFT JOIN shared_locations l ON wo.location_id = l.id
-        LEFT JOIN platform_users req ON wo.requested_by_id = req.id
-        LEFT JOIN platform_users asg ON wo.assigned_to_id = asg.id
+        LEFT JOIN platform_users req ON wo.requested_by = req.id::text
+        LEFT JOIN platform_users asg ON wo.assigned_to = asg.id::text
         WHERE wo.id = ${id}
       `);
       if (result.rows.length === 0) {
@@ -9346,8 +9341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (await db.execute(sql`SELECT id FROM platform_users WHERE email = ${req.user.claims.email}`)).rows[0]?.id : null;
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, maintenance_location_id, work_order_type, priority, status, requested_by_id, assigned_to_id, maintenance_technician_id, assigned_team, due_date, scheduled_start, scheduled_end, estimated_hours, checklist_items, instructions, attachment_urls, notification_email)
-        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${maintenanceLocationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${maintenanceTechnicianId || null}, ${assignedTeam}, ${dueDate ? new Date(dueDate) : null}, ${scheduledStart ? new Date(scheduledStart) : null}, ${scheduledEnd ? new Date(scheduledEnd) : null}, ${estimatedHours}, ${checklistItems ? JSON.stringify(checklistItems) : null}, ${instructions}, ${attachmentUrls || null}, ${notificationEmail || null})
+        INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, maintenance_location_id, work_order_type, priority, status, requested_by, assigned_to, maintenance_technician_id, due_date, estimated_hours, attachments, notification_email)
+        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${maintenanceLocationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${maintenanceTechnicianId || null}, ${dueDate ? new Date(dueDate) : null}, ${estimatedHours}, ${attachmentUrls ? JSON.stringify(attachmentUrls) : null}, ${notificationEmail || null})
         RETURNING *
       `);
       
@@ -9369,7 +9364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
             LEFT JOIN shared_locations sl ON wo.location_id = sl.id
             LEFT JOIN maintenance_technicians t ON wo.maintenance_technician_id = t.id
-            LEFT JOIN platform_users r ON wo.requested_by_id = r.id
+            LEFT JOIN platform_users r ON wo.requested_by = r.id::text
             WHERE wo.id = ${workOrder.id}
           `);
           
@@ -9431,16 +9426,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute(sql`
         UPDATE maintenance_work_orders SET
           title = ${title}, description = ${description}, asset_id = ${assetId || null}, location_id = ${locationId || null},
+          maintenance_location_id = ${maintenanceLocationId || null}, maintenance_technician_id = ${maintenanceTechnicianId || null},
           work_order_type = ${workOrderType}, priority = ${priority}, status = ${status},
-          assigned_to_id = ${assignedToId || null}, assigned_team = ${assignedTeam},
-          due_date = ${dueDate ? new Date(dueDate) : null}, scheduled_start = ${scheduledStart ? new Date(scheduledStart) : null},
-          scheduled_end = ${scheduledEnd ? new Date(scheduledEnd) : null}, estimated_hours = ${estimatedHours},
-          actual_hours = ${actualHours}, labor_cost = ${laborCost}, parts_cost = ${partsCost}, external_cost = ${externalCost},
-          completed_by_id = ${completedById}, completion_notes = ${completionNotes}, failure_reason = ${failureReason},
-          checklist_items = ${checklistItems ? JSON.stringify(checklistItems) : null}, instructions = ${instructions},
-          attachment_urls = ${attachmentUrls || null},
-          actual_start = ${status === 'in_progress' ? sql`COALESCE(actual_start, NOW())` : sql`actual_start`},
-          actual_end = ${status === 'completed' ? sql`NOW()` : sql`actual_end`},
+          assigned_to = ${assignedToId || null},
+          due_date = ${dueDate ? new Date(dueDate) : null}, scheduled_date = ${scheduledStart ? new Date(scheduledStart) : null},
+          estimated_hours = ${estimatedHours}, actual_hours = ${actualHours}, 
+          labor_cost = ${laborCost}, parts_cost = ${partsCost},
+          completion_notes = ${completionNotes},
+          attachments = ${attachmentUrls ? JSON.stringify(attachmentUrls) : sql`attachments`},
+          completed_date = ${status === 'completed' ? sql`COALESCE(completed_date, NOW())` : sql`completed_date`},
           updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
@@ -9556,7 +9550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
         LEFT JOIN shared_locations sl ON wo.location_id = sl.id
         LEFT JOIN maintenance_technicians t ON wo.maintenance_technician_id = t.id
-        LEFT JOIN platform_users r ON wo.requested_by_id = r.id
+        LEFT JOIN platform_users r ON wo.requested_by = r.id::text
         WHERE wo.id = ${id}
       `);
       
@@ -9606,18 +9600,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Parts/Inventory ---
   app.get('/api/maintenance/parts', isAuthenticated, async (req, res) => {
     try {
-      const { category, lowStock, locationId } = req.query;
-      const result = await db.execute(sql`
-        SELECT p.*, l.location_name
-        FROM maintenance_parts p
-        LEFT JOIN shared_locations l ON p.location_id = l.id
-        WHERE p.active = true
-        ${category ? sql` AND p.category = ${category}` : sql``}
-        ${locationId ? sql` AND p.location_id = ${locationId}` : sql``}
-        ${lowStock === 'true' ? sql` AND p.quantity_on_hand <= p.reorder_point` : sql``}
-        ORDER BY p.name ASC
-      `);
-      res.json(result.rows);
+      // Return empty array - maintenance_parts table not yet created
+      res.json([]);
     } catch (error) {
       console.error('Error fetching parts:', error);
       res.status(500).json({ message: 'Failed to fetch parts' });
@@ -9998,9 +9982,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (SELECT COUNT(*)::integer FROM maintenance_assets WHERE status = 'maintenance') as assets_under_maintenance,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'open') as open_work_orders,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'in_progress') as in_progress_work_orders,
-          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'completed' AND actual_end >= NOW() - INTERVAL '30 days') as completed_this_month,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'completed' AND completed_date >= NOW() - INTERVAL '30 days') as completed_this_month,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE priority = 'critical' AND status NOT IN ('completed', 'cancelled')) as critical_work_orders,
-          (SELECT COUNT(*)::integer FROM maintenance_parts WHERE quantity_on_hand <= reorder_point AND active = true) as low_stock_parts,
+          0 as low_stock_parts,
           (SELECT COUNT(*)::integer FROM maintenance_preventive_schedules WHERE next_due <= NOW() + INTERVAL '7 days' AND active = true) as upcoming_pm
       `);
       res.json(stats.rows[0]);
