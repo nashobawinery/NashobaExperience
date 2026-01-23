@@ -9402,6 +9402,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Auto-send notification to assigned technician if one is assigned at creation
+      if (maintenanceTechnicianId) {
+        try {
+          const techResult = await db.execute(sql`
+            SELECT email, first_name, last_name FROM maintenance_technicians WHERE id = ${maintenanceTechnicianId}
+          `);
+          const technician = techResult.rows[0] as any;
+          
+          if (technician?.email) {
+            // Get work order details for email
+            const woDetails = await db.execute(sql`
+              SELECT wo.*, 
+                     a.name as asset_name, a.asset_number,
+                     ml.name as maint_location_name,
+                     sl.location_name as shared_location_name,
+                     r.first_name as requester_first_name, r.last_name as requester_last_name
+              FROM maintenance_work_orders wo
+              LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+              LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
+              LEFT JOIN shared_locations sl ON wo.location_id = sl.id
+              LEFT JOIN platform_users r ON wo.requested_by = r.id::text
+              WHERE wo.id = ${workOrder.id}
+            `);
+            
+            const wo = woDetails.rows[0] as any;
+            const locationName = wo.maint_location_name || wo.shared_location_name;
+            const assigneeName = `${technician.first_name} ${technician.last_name}`;
+            const requestedByName = wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : undefined;
+            
+            const emailContent = generateWorkOrderNotificationEmail({
+              workOrderNumber: wo.work_order_number,
+              title: wo.title,
+              description: wo.description,
+              assetName: wo.asset_name ? `${wo.asset_name} (${wo.asset_number})` : undefined,
+              locationName,
+              priority: wo.priority || 'medium',
+              status: wo.status || 'open',
+              dueDate: wo.due_date,
+              assigneeName,
+              requestedByName,
+              instructions: wo.instructions
+            });
+            
+            await sendEmail(technician.email, emailContent.subject, emailContent.html, emailContent.text);
+            console.log(`[Maintenance] Sent assignment notification to ${technician.email} for WO ${wo.work_order_number}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send technician assignment notification:', emailError);
+          // Don't fail the work order creation if email fails
+        }
+      }
+      
       res.json(workOrder);
     } catch (error) {
       console.error('Error creating work order:', error);
@@ -9413,6 +9465,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { title, description, assetId, locationId, maintenanceLocationId, maintenanceTechnicianId, workOrderType, priority, status, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, actualHours, laborCost, partsCost, externalCost, completionNotes, failureReason, checklistItems, instructions, attachmentUrls } = req.body;
+      
+      // Get current work order state to detect assignment changes
+      const currentWo = await db.execute(sql`
+        SELECT maintenance_technician_id FROM maintenance_work_orders WHERE id = ${id}
+      `);
+      const previousTechnicianId = currentWo.rows[0]?.maintenance_technician_id;
       
       let completedById = null;
       if (status === 'completed') {
@@ -9439,7 +9497,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE id = ${id}
         RETURNING *
       `);
-      res.json(result.rows[0]);
+      
+      const updatedWo = result.rows[0] as any;
+      
+      // Send notification email if technician was newly assigned or changed
+      if (maintenanceTechnicianId && maintenanceTechnicianId !== previousTechnicianId) {
+        try {
+          // Get technician email and work order details
+          const techResult = await db.execute(sql`
+            SELECT email, first_name, last_name FROM maintenance_technicians WHERE id = ${maintenanceTechnicianId}
+          `);
+          const technician = techResult.rows[0] as any;
+          
+          if (technician?.email) {
+            // Get full work order details for email
+            const woDetails = await db.execute(sql`
+              SELECT wo.*, 
+                     a.name as asset_name, a.asset_number,
+                     ml.name as maint_location_name,
+                     sl.location_name as shared_location_name,
+                     r.first_name as requester_first_name, r.last_name as requester_last_name
+              FROM maintenance_work_orders wo
+              LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+              LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
+              LEFT JOIN shared_locations sl ON wo.location_id = sl.id
+              LEFT JOIN platform_users r ON wo.requested_by = r.id::text
+              WHERE wo.id = ${id}
+            `);
+            
+            const wo = woDetails.rows[0] as any;
+            const locationName = wo.maint_location_name || wo.shared_location_name;
+            const assigneeName = `${technician.first_name} ${technician.last_name}`;
+            const requestedByName = wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : undefined;
+            
+            const emailContent = generateWorkOrderNotificationEmail({
+              workOrderNumber: wo.work_order_number,
+              title: wo.title,
+              description: wo.description,
+              assetName: wo.asset_name ? `${wo.asset_name} (${wo.asset_number})` : undefined,
+              locationName,
+              priority: wo.priority || 'medium',
+              status: wo.status || 'open',
+              dueDate: wo.due_date,
+              assigneeName,
+              requestedByName,
+              instructions: wo.instructions
+            });
+            
+            await sendEmail(technician.email, emailContent.subject, emailContent.html, emailContent.text);
+            console.log(`[Maintenance] Sent assignment notification to ${technician.email} for WO ${wo.work_order_number}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send technician assignment notification:', emailError);
+          // Don't fail the update if email fails
+        }
+      }
+      
+      res.json(updatedWo);
     } catch (error) {
       console.error('Error updating work order:', error);
       res.status(500).json({ message: 'Failed to update work order' });
