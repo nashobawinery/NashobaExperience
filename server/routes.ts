@@ -15559,8 +15559,11 @@ Generate a professional response:`;
       // Check if content is stored in database (base64)
       if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
         const buffer = Buffer.from(attachment.fileContent, 'base64');
+        // Force download for audio/video files so they open in user's default player
+        const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
+        const disposition = isMediaFile ? 'attachment' : 'inline';
         res.setHeader('Content-Type', attachment.mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+        res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
         res.setHeader('Content-Length', buffer.length);
         return res.send(buffer);
       }
@@ -15625,8 +15628,11 @@ Generate a professional response:`;
       // Check if content is stored in database (base64)
       if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
         const buffer = Buffer.from(attachment.fileContent, 'base64');
+        // Force download for audio/video files so they open in user's default player
+        const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
+        const disposition = isMediaFile ? 'attachment' : 'inline';
         res.setHeader('Content-Type', attachment.mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+        res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
         res.setHeader('Content-Length', buffer.length);
         return res.send(buffer);
       }
