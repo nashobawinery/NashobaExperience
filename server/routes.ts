@@ -9412,7 +9412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/maintenance/work-orders/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { title, description, assetId, locationId, workOrderType, priority, status, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, actualHours, laborCost, partsCost, externalCost, completionNotes, failureReason, checklistItems, instructions, attachmentUrls } = req.body;
+      const { title, description, assetId, locationId, maintenanceLocationId, maintenanceTechnicianId, workOrderType, priority, status, assignedToId, assignedTeam, dueDate, scheduledStart, scheduledEnd, estimatedHours, actualHours, laborCost, partsCost, externalCost, completionNotes, failureReason, checklistItems, instructions, attachmentUrls } = req.body;
       
       let completedById = null;
       if (status === 'completed') {
