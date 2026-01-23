@@ -163,7 +163,7 @@ type MaintenanceLocation = {
   contactPhone?: string;
   contactEmail?: string;
   accessInstructions?: string;
-  active: boolean;
+  is_active?: boolean;
 };
 
 type WorkOrderNote = {
@@ -1669,7 +1669,7 @@ function NewWorkOrderForm({
                 <SelectValue placeholder="Select work location" />
               </SelectTrigger>
               <SelectContent>
-                {maintenanceLocations.filter(loc => loc.active).map((loc) => (
+                {maintenanceLocations.filter(loc => loc.is_active !== false).map((loc) => (
                   <SelectItem key={loc.id} value={loc.id}>
                     {loc.name}
                   </SelectItem>
@@ -2502,7 +2502,7 @@ function TechnicianForm({
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              {maintenanceLocations.filter(loc => loc.active).map((loc) => (
+              {maintenanceLocations.filter(loc => loc.is_active !== false).map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
                   {loc.name}
                 </SelectItem>
@@ -2867,7 +2867,7 @@ function PmScheduleForm({
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              {maintenanceLocations.filter(l => l.active).map((loc) => (
+              {maintenanceLocations.filter(l => l.is_active !== false).map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
                   {loc.name}
                 </SelectItem>
