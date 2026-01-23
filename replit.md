@@ -39,6 +39,12 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Daily Reports Module**: Managers log incidents and track procedure completion using customizable templates, email notifications, and a status-based review workflow.
 - **Daily Procedures Module**: Mobile-first checklist completion system with opening/closing procedures, draft saving, late submission tracking, and comprehensive submissions management.
 - **Unified Staff Portal**: Single entry point at `/staff` where staff enter their access code once to see both Daily Reports and Daily Procedures they have access to. Validates against both `daily_report_access_codes` and `procedures_staff` tables. Includes staff-accessible Maintenance Work Order submission (`/staff/work-order`) integrated with Daily Reports departments.
+- **Maintenance Module**: Complete CMMS (Computerized Maintenance Management System) with work orders, preventive maintenance scheduling, asset management, technician management, and location hierarchy.
+  - **Work Order Notifications**: 
+    - Automatic email notifications sent to assigned technicians when work orders are created or assignments change
+    - Supervisor technicians (flagged with `is_supervisor`) receive notifications for ALL new work orders
+    - Daily 8 AM Eastern reminder emails to supervisors for work orders older than 7 days that remain uncompleted
+  - **Technician Supervisor Flag**: Technicians can be marked as supervisors in the technician management UI to receive all work order notifications
 - **Spot Inventory Check Module**: Mobile-first inventory counting system with location/area hierarchy, product lookup, barcode scanning, and consolidated reporting with export capabilities.
 - **Role-Based Access Control (RBAC)**: Comprehensive system for managing user permissions across modules with user groups, module access toggles, and granular feature permissions.
 - **Module Management**: Admin UI for managing platform module metadata.

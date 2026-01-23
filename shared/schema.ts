@@ -3317,6 +3317,7 @@ export const maintenanceTechnicians = pgTable("maintenance_technicians", {
   // Status
   available: boolean("available").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
+  isSupervisor: boolean("is_supervisor").notNull().default(false),
   notes: text("notes"),
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -3326,6 +3327,7 @@ export const maintenanceTechnicians = pgTable("maintenance_technicians", {
   index("idx_tech_location").on(table.primaryLocationId),
   index("idx_tech_external").on(table.isExternal),
   index("idx_tech_active").on(table.isActive),
+  index("idx_tech_supervisor").on(table.isSupervisor),
 ]);
 
 export const insertMaintenanceTechnicianSchema = createInsertSchema(maintenanceTechnicians).omit({ id: true, createdAt: true, updatedAt: true });

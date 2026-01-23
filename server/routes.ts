@@ -22,6 +22,7 @@ import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
+import { initMaintenanceReminders } from "./maintenanceReminders";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -9454,6 +9455,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Notify all supervisors about new work order
+      try {
+        const supervisors = await db.execute(sql`
+          SELECT email, first_name, last_name FROM maintenance_technicians 
+          WHERE is_supervisor = true AND is_active = true AND email IS NOT NULL
+        `);
+        
+        if (supervisors.rows.length > 0) {
+          // Get work order details for email
+          const woDetails = await db.execute(sql`
+            SELECT wo.*, 
+                   a.name as asset_name, a.asset_number,
+                   ml.name as maint_location_name,
+                   sl.location_name as shared_location_name,
+                   t.first_name as tech_first_name, t.last_name as tech_last_name,
+                   r.first_name as requester_first_name, r.last_name as requester_last_name
+            FROM maintenance_work_orders wo
+            LEFT JOIN maintenance_assets a ON wo.asset_id = a.id
+            LEFT JOIN maintenance_locations ml ON wo.maintenance_location_id = ml.id
+            LEFT JOIN shared_locations sl ON wo.location_id = sl.id
+            LEFT JOIN maintenance_technicians t ON wo.maintenance_technician_id = t.id
+            LEFT JOIN platform_users r ON wo.requested_by = r.id::text
+            WHERE wo.id = ${workOrder.id}
+          `);
+          
+          const wo = woDetails.rows[0] as any;
+          const locationName = wo.maint_location_name || wo.shared_location_name;
+          const assigneeName = wo.tech_first_name ? `${wo.tech_first_name} ${wo.tech_last_name}` : 'Unassigned';
+          const requestedByName = wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : undefined;
+          
+          for (const supervisor of supervisors.rows as any[]) {
+            // Skip if this supervisor is already the assigned technician (they already got notified)
+            if (maintenanceTechnicianId) {
+              const techResult = await db.execute(sql`SELECT email FROM maintenance_technicians WHERE id = ${maintenanceTechnicianId}`);
+              if ((techResult.rows[0] as any)?.email === supervisor.email) continue;
+            }
+            
+            const emailContent = generateWorkOrderNotificationEmail({
+              workOrderNumber: wo.work_order_number,
+              title: `[Supervisor Alert] ${wo.title}`,
+              description: wo.description,
+              assetName: wo.asset_name ? `${wo.asset_name} (${wo.asset_number})` : undefined,
+              locationName,
+              priority: wo.priority || 'medium',
+              status: wo.status || 'open',
+              dueDate: wo.due_date,
+              assigneeName,
+              requestedByName,
+              instructions: wo.instructions
+            });
+            
+            await sendEmail(supervisor.email, `[Supervisor] New Work Order: ${wo.work_order_number}`, emailContent.html, emailContent.text);
+            console.log(`[Maintenance] Sent supervisor notification to ${supervisor.email} for WO ${wo.work_order_number}`);
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send supervisor notifications:', emailError);
+        // Don't fail the work order creation if email fails
+      }
+      
       res.json(workOrder);
     } catch (error) {
       console.error('Error creating work order:', error);
@@ -10015,7 +10076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId, firstName, lastName, employeeNumber, isExternal,
         companyName, companyAddress, companyCity, companyState, companyZip, companyPhone,
         email, cellPhone, workPhone, skills, certifications, specialties,
-        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, notes 
+        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, isSupervisor, notes 
       } = req.body;
       
       const result = await db.execute(sql`
@@ -10023,7 +10084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user_id, first_name, last_name, employee_number, is_external,
           company_name, company_address, company_city, company_state, company_zip, company_phone,
           email, cell_phone, work_phone, skills, certifications, specialties,
-          hourly_rate, shift_schedule, primary_location_id, available, is_active, notes
+          hourly_rate, shift_schedule, primary_location_id, available, is_active, is_supervisor, notes
         )
         VALUES (
           ${userId || null}, ${firstName}, ${lastName}, ${employeeNumber || null}, ${isExternal ?? false},
@@ -10031,7 +10092,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${email || null}, ${cellPhone || null}, ${workPhone || null}, 
           ${skills ? (Array.isArray(skills) ? skills : [skills]) : null}, 
           ${certifications ? JSON.stringify(certifications) : null}, ${specialties || null},
-          ${hourlyRate || null}, ${shiftSchedule || null}, ${primaryLocationId || null}, ${available ?? true}, ${isActive ?? true}, ${notes || null}
+          ${hourlyRate || null}, ${shiftSchedule || null}, ${primaryLocationId || null}, ${available ?? true}, ${isActive ?? true}, ${isSupervisor ?? false}, ${notes || null}
         )
         RETURNING *
       `);
@@ -10049,7 +10110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId, firstName, lastName, employeeNumber, isExternal,
         companyName, companyAddress, companyCity, companyState, companyZip, companyPhone,
         email, cellPhone, workPhone, skills, certifications, specialties,
-        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, notes 
+        hourlyRate, shiftSchedule, primaryLocationId, available, isActive, isSupervisor, notes 
       } = req.body;
       
       const result = await db.execute(sql`
@@ -10064,7 +10125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           certifications = ${certifications ? JSON.stringify(certifications) : null},
           specialties = ${specialties || null}, hourly_rate = ${hourlyRate || null},
           shift_schedule = ${shiftSchedule || null}, primary_location_id = ${primaryLocationId || null},
-          available = ${available ?? true}, is_active = ${isActive ?? true}, notes = ${notes || null},
+          available = ${available ?? true}, is_active = ${isActive ?? true}, is_supervisor = ${isSupervisor ?? false}, notes = ${notes || null},
           updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
@@ -15799,6 +15860,9 @@ Generate a professional response:`;
   
   // Initialize support ticket reminders scheduler (daily at 8 AM Eastern)
   scheduleTicketReminders();
+  
+  // Initialize maintenance work order reminders scheduler (daily at 8 AM Eastern)
+  initMaintenanceReminders();
 
   const httpServer = createServer(app);
   return httpServer;

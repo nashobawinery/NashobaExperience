@@ -146,6 +146,7 @@ type MaintenanceTechnician = {
   locationName?: string;
   available: boolean;
   isActive: boolean;
+  isSupervisor: boolean;
   notes?: string;
 };
 
@@ -1197,6 +1198,9 @@ export default function MaintenanceDashboard() {
                                 <Badge variant="outline">
                                   {tech.isExternal ? 'Contractor' : 'Internal'}
                                 </Badge>
+                                {tech.isSupervisor && (
+                                  <Badge className="bg-purple-600 text-white">Supervisor</Badge>
+                                )}
                                 {tech.available && (
                                   <Badge variant="outline" className="text-green-600">Available</Badge>
                                 )}
@@ -2446,6 +2450,7 @@ function TechnicianForm({
     hourlyRate: initialData?.hourlyRate || "",
     isActive: initialData?.isActive ?? true,
     available: initialData?.available ?? true,
+    isSupervisor: initialData?.isSupervisor ?? false,
     notes: initialData?.notes || "",
   });
 
@@ -2467,6 +2472,7 @@ function TechnicianForm({
       hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
       isActive: formData.isActive,
       available: formData.available,
+      isSupervisor: formData.isSupervisor,
       notes: formData.notes || undefined,
     });
   };
@@ -2663,6 +2669,17 @@ function TechnicianForm({
               data-testid="checkbox-tech-available"
             />
             <Label htmlFor="available">Available for work orders</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isSupervisor"
+              checked={formData.isSupervisor}
+              onChange={(e) => setFormData({ ...formData, isSupervisor: e.target.checked })}
+              className="w-4 h-4"
+              data-testid="checkbox-tech-supervisor"
+            />
+            <Label htmlFor="isSupervisor">Supervisor (receives all WO notifications)</Label>
           </div>
         </div>
       </div>
