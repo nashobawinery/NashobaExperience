@@ -13896,7 +13896,9 @@ ${webSourcesContext}`
       // Check if agent already exists for this user
       const existingAgent = await storage.getSupportAgentByPlatformUserId(platformUserId);
       if (existingAgent) {
-        return res.status(400).json({ message: 'Agent already exists for this user' });
+        return res.status(400).json({ 
+          message: `This user is already a support agent (${existingAgent.displayName}). Edit their settings instead.` 
+        });
       }
 
       // Use custom PIN if provided, otherwise generate random 4-digit PIN
@@ -13948,9 +13950,14 @@ ${webSourcesContext}`
 
       const agentCategories = await storage.getSupportAgentCategories(agent.id);
       res.status(201).json({ ...agent, categories: agentCategories });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating support agent:', error);
-      res.status(500).json({ message: 'Failed to create agent' });
+      // Return more specific error message for debugging
+      const errorMessage = error?.message || 'Unknown error';
+      if (errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
+        return res.status(400).json({ message: 'This user is already a support agent' });
+      }
+      res.status(500).json({ message: `Failed to create agent: ${errorMessage}` });
     }
   });
 
