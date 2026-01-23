@@ -3998,20 +3998,6 @@ export const supportAttachments = pgTable("support_attachments", {
   index("idx_support_attach_req").on(table.requestId),
 ]);
 
-// Webhook Debug Log - Captures raw webhook data for troubleshooting
-export const webhookDebugLog = pgTable("webhook_debug_log", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  source: varchar("source").notNull(), // 'sendgrid', 'twilio', etc.
-  receivedAt: timestamp("received_at").notNull().defaultNow(),
-  contentType: varchar("content_type"),
-  bodySize: integer("body_size"),
-  fieldNames: text("field_names"), // Comma-separated list of received fields
-  attachmentInfo: text("attachment_info"), // Raw attachment-info JSON if present
-  binaryPartNames: text("binary_part_names"), // Comma-separated list of binary parts
-  attachmentCount: integer("attachment_count").default(0),
-  errorMessage: text("error_message"),
-  processingResult: varchar("processing_result"), // 'success', 'error', 'partial'
-});
 
 export const insertSupportAttachmentSchema = createInsertSchema(supportAttachments).omit({
   id: true,
