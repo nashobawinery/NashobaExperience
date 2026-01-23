@@ -14,7 +14,16 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 ### Technical Implementations
 - **Frontend**: React with TypeScript, Vite, TanStack Query.
 - **Backend**: Express.js with TypeScript, RESTful API.
-- **Database**: PostgreSQL with Drizzle ORM (using Neon serverless driver). **Single database** - `DATABASE_URL` points directly to production (Neon us-west-2). This ensures migrations and runtime use the same database, preventing schema drift.
+- **Database**: PostgreSQL with Drizzle ORM (using Neon serverless driver). 
+
+  **⚠️ CRITICAL: SINGLE SHARED DATABASE ⚠️**
+  - There is ONLY ONE database for both development and production
+  - `DATABASE_URL` secret points to the single Neon database (us-west-2)
+  - ALL SQL commands (including ALTER TABLE) affect this single database immediately
+  - There is NO separate development database - any schema changes are instant and permanent
+  - Publishing does NOT sync databases - they are the same database
+  - The `execute_sql_tool` connects to this single shared database
+  - When making database changes, they apply to production immediately
 - **Authentication**: Replit Auth (OpenID Connect) for guest apps and platform users; separate email/password for B2B. PostgreSQL-backed sessions.
 - **Modularity**: Designed as a modular monolith with clear boundaries for independent module development.
 - **Data Synchronization**: An environment sync tool for selective data export/import and object storage synchronization.
