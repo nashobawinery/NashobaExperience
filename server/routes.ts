@@ -15392,12 +15392,16 @@ Generate a professional response:`;
           priority: 'normal'
         });
 
+        // Debug info for attachment troubleshooting
+        const debugInfo = `[DEBUG: fields=${Object.keys(emailData).length}, binaryParts=${Object.keys(attachmentBinaryParts).join(',') || 'none'}, attachmentInfo=${emailData['attachment-info'] ? 'present' : 'absent'}, attachments=${attachments.length}]`;
+        console.log(`[Email Inbound] ${debugInfo}`);
+        
         // Create initial message for the request so attachments can be linked
         const initialMessage = await storage.createSupportMessage({
           requestId: newRequest.id,
           senderType: 'customer',
           senderName: fromName || fromEmail || 'Customer',
-          content: cleanBody || 'No content',
+          content: (cleanBody || 'No content') + '\n\n' + debugInfo,
           emailMessageId: messageId || undefined,
           isInternal: false
         });
