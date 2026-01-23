@@ -3982,6 +3982,7 @@ export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
 export type SupportMessage = typeof supportMessages.$inferSelect;
 
 // Support Attachments - Files attached to support messages (from emails or uploads)
+// Note: File content is stored as data URL in storageUrl field (data:mime;base64,content)
 export const supportAttachments = pgTable("support_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   messageId: varchar("message_id").notNull().references(() => supportMessages.id, { onDelete: 'cascade' }),
@@ -3989,14 +3990,28 @@ export const supportAttachments = pgTable("support_attachments", {
   fileName: varchar("file_name").notNull(),
   mimeType: varchar("mime_type").notNull(),
   fileSize: integer("file_size").notNull(), // bytes
-  storageUrl: text("storage_url").notNull(), // URL to object storage
+  storageUrl: text("storage_url").notNull(), // URL to object storage OR data URL with base64 content
   storageKey: varchar("storage_key"), // Object storage key for deletion
-  fileContent: text("file_content"), // Base64-encoded file content when object storage unavailable
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_support_attach_msg").on(table.messageId),
   index("idx_support_attach_req").on(table.requestId),
 ]);
+
+// Webhook Debug Log - Captures raw webhook data for troubleshooting
+export const webhookDebugLog = pgTable("webhook_debug_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: varchar("source").notNull(), // 'sendgrid', 'twilio', etc.
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+  contentType: varchar("content_type"),
+  bodySize: integer("body_size"),
+  fieldNames: text("field_names"), // Comma-separated list of received fields
+  attachmentInfo: text("attachment_info"), // Raw attachment-info JSON if present
+  binaryPartNames: text("binary_part_names"), // Comma-separated list of binary parts
+  attachmentCount: integer("attachment_count").default(0),
+  errorMessage: text("error_message"),
+  processingResult: varchar("processing_result"), // 'success', 'error', 'partial'
+});
 
 export const insertSupportAttachmentSchema = createInsertSchema(supportAttachments).omit({
   id: true,

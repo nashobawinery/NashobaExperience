@@ -38,7 +38,7 @@ import {
   type PermissionLevel
 } from "./rbac";
 import { validateSyncRegistry, logSyncRegistryStatus } from "./syncRegistry";
-import { triviaAttempts, achievementRedemptions, supportAttachments, type SupportRequest } from "@shared/schema";
+import { triviaAttempts, achievementRedemptions, supportAttachments, webhookDebugLog, type SupportRequest } from "@shared/schema";
 import { migrateProductImages } from "./migrate-product-images";
 import { 
   insertProductSchema,
@@ -14872,6 +14872,22 @@ Generate a professional response:`;
           console.log(`[Email Inbound] Binary parts found:`, Object.keys(attachmentBinaryParts).join(', ') || 'none');
           console.log(`[Email Inbound] attachment-info field:`, emailData['attachment-info'] || 'not present');
           
+          // Log to webhook debug table for production troubleshooting
+          try {
+            await db.insert(webhookDebugLog).values({
+              source: 'sendgrid',
+              contentType: contentType,
+              bodySize: bodyBuffer.length,
+              fieldNames: Object.keys(emailData).join(', '),
+              attachmentInfo: emailData['attachment-info'] || null,
+              binaryPartNames: Object.keys(attachmentBinaryParts).join(', ') || null,
+              attachmentCount: attachments.length,
+              processingResult: 'parsing'
+            });
+          } catch (dbErr) {
+            console.error('[Email Inbound] Failed to log webhook debug:', dbErr);
+          }
+          
           // Handle SendGrid's specific attachment format
           // SendGrid sends attachment-info as JSON describing attachments
           // and attachment1, attachment2, etc. as the actual file content
@@ -15576,17 +15592,7 @@ Generate a professional response:`;
         }
       }
       
-      // Legacy: Check if content is stored in database (base64) with fileContent column
-      if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
-        const buffer = Buffer.from(attachment.fileContent, 'base64');
-        // Force download for audio/video files so they open in user's default player
-        const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
-        const disposition = isMediaFile ? 'attachment' : 'inline';
-        res.setHeader('Content-Type', attachment.mimeType);
-        res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
-        res.setHeader('Content-Length', buffer.length);
-        return res.send(buffer);
-      }
+      // Legacy db://base64 format is no longer supported - use data URLs instead
       
       const bucket = getStorageBucket();
       if (!bucket) {
@@ -15661,17 +15667,7 @@ Generate a professional response:`;
         }
       }
       
-      // Legacy: Check if content is stored in database (base64) with fileContent column
-      if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
-        const buffer = Buffer.from(attachment.fileContent, 'base64');
-        // Force download for audio/video files so they open in user's default player
-        const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
-        const disposition = isMediaFile ? 'attachment' : 'inline';
-        res.setHeader('Content-Type', attachment.mimeType);
-        res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
-        res.setHeader('Content-Length', buffer.length);
-        return res.send(buffer);
-      }
+      // Legacy db://base64 format is no longer supported - use data URLs instead
       
       const bucket = getStorageBucket();
       if (!bucket) {
