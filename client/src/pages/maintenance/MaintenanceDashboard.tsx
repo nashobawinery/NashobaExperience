@@ -1503,12 +1503,15 @@ function NewWorkOrderForm({
 
   const [showInlineLocation, setShowInlineLocation] = useState(false);
   const [showInlineTechnician, setShowInlineTechnician] = useState(false);
+  const [showInlineAsset, setShowInlineAsset] = useState(false);
   const [inlineLocationName, setInlineLocationName] = useState("");
   const [inlineTechFirstName, setInlineTechFirstName] = useState("");
   const [inlineTechLastName, setInlineTechLastName] = useState("");
   const [inlineTechEmail, setInlineTechEmail] = useState("");
   const [inlineTechType, setInlineTechType] = useState<"internal" | "contractor">("contractor");
   const [inlineTechCompany, setInlineTechCompany] = useState("");
+  const [inlineAssetName, setInlineAssetName] = useState("");
+  const [inlineAssetDescription, setInlineAssetDescription] = useState("");
 
   const createLocationMutation = useMutation({
     mutationFn: async (data: { name: string }) => {
@@ -1540,6 +1543,22 @@ function NewWorkOrderForm({
     },
     onError: () => {
       toast({ title: "Failed to add technician", variant: "destructive" });
+    }
+  });
+
+  const createInlineAssetMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      return apiRequest("POST", "/api/maintenance/assets", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/assets"] });
+      toast({ title: "Asset added" });
+      setShowInlineAsset(false);
+      setInlineAssetName("");
+      setInlineAssetDescription("");
+    },
+    onError: () => {
+      toast({ title: "Failed to add asset", variant: "destructive" });
     }
   });
 
@@ -1612,20 +1631,82 @@ function NewWorkOrderForm({
             data-testid="input-wo-description"
           />
         </div>
+        {/* Asset with inline add */}
         <div>
-          <Label htmlFor="assetId">Asset</Label>
-          <Select value={formData.assetId} onValueChange={(v) => setFormData({ ...formData, assetId: v })}>
-            <SelectTrigger data-testid="select-wo-asset">
-              <SelectValue placeholder="Select asset" />
-            </SelectTrigger>
-            <SelectContent>
-              {assets.map((asset) => (
-                <SelectItem key={asset.id} value={asset.id}>
-                  {asset.assetNumber} - {asset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-between mb-1">
+            <Label htmlFor="assetId">Asset</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setShowInlineAsset(!showInlineAsset)}
+              data-testid="button-add-inline-asset"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add New
+            </Button>
+          </div>
+          {showInlineAsset ? (
+            <div className="space-y-2 p-3 border rounded-md bg-muted/20">
+              <Input
+                placeholder="Asset name *"
+                value={inlineAssetName}
+                onChange={(e) => setInlineAssetName(e.target.value)}
+                data-testid="input-inline-asset-name"
+              />
+              <Input
+                placeholder="Description (optional)"
+                value={inlineAssetDescription}
+                onChange={(e) => setInlineAssetDescription(e.target.value)}
+                data-testid="input-inline-asset-description"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (inlineAssetName.trim()) {
+                      createInlineAssetMutation.mutate({ 
+                        name: inlineAssetName.trim(),
+                        description: inlineAssetDescription.trim() || undefined 
+                      });
+                    }
+                  }}
+                  disabled={!inlineAssetName.trim() || createInlineAssetMutation.isPending}
+                  data-testid="button-save-inline-asset"
+                >
+                  {createInlineAssetMutation.isPending ? "Saving..." : "Save Asset"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowInlineAsset(false);
+                    setInlineAssetName("");
+                    setInlineAssetDescription("");
+                  }}
+                  data-testid="button-cancel-inline-asset"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Select value={formData.assetId} onValueChange={(v) => setFormData({ ...formData, assetId: v })}>
+              <SelectTrigger data-testid="select-wo-asset">
+                <SelectValue placeholder="Select asset" />
+              </SelectTrigger>
+              <SelectContent>
+                {assets.map((asset) => (
+                  <SelectItem key={asset.id} value={asset.id}>
+                    {asset.assetNumber} - {asset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         
         {/* Maintenance Location with inline add */}
