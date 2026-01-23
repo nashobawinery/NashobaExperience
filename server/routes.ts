@@ -15408,24 +15408,24 @@ Generate a professional response:`;
           const bucket = getStorageBucket();
           console.log(`[Email Inbound] Bucket available: ${!!bucket}, bucket ID: ${process.env.REPLIT_DEFAULT_BUCKET_ID || 'NOT SET'}`);
           
-          // If no bucket, save attachment with base64 content in database
+          // If no bucket, save attachment with base64 content as data URL
           if (!bucket) {
-            console.log('[Email Inbound] No bucket - saving attachment content as base64');
+            console.log('[Email Inbound] No bucket - saving attachment content as data URL');
             for (const att of attachments) {
               try {
-                // Convert binary content to base64 for database storage
+                // Convert binary content to base64 data URL for database storage
                 const base64Content = att.content.toString('base64');
+                const dataUrl = `data:${att.type};base64,${base64Content}`;
                 await storage.createSupportAttachment({
                   messageId: initialMessage.id,
                   requestId: newRequest.id,
                   fileName: att.filename,
                   mimeType: att.type,
                   fileSize: att.content.length,
-                  storageUrl: 'db://base64', // Marker indicating content is in database
-                  storageKey: '',
-                  fileContent: base64Content
+                  storageUrl: dataUrl, // Store as data URL - works without extra column
+                  storageKey: ''
                 });
-                console.log(`[Email Inbound] Saved attachment with content: ${att.filename} (${att.content.length} bytes)`);
+                console.log(`[Email Inbound] Saved attachment as data URL: ${att.filename} (${att.content.length} bytes)`);
               } catch (attErr) {
                 console.error(`[Email Inbound] Failed to save attachment:`, attErr);
               }
@@ -15556,7 +15556,23 @@ Generate a professional response:`;
         return res.status(404).json({ message: 'Attachment not found' });
       }
       
-      // Check if content is stored in database (base64)
+      // Check if content is stored as data URL (base64)
+      if (attachment.storageUrl.startsWith('data:')) {
+        // Parse data URL: data:mime_type;base64,content
+        const matches = attachment.storageUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const buffer = Buffer.from(matches[2], 'base64');
+          // Force download for audio/video files so they open in user's default player
+          const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
+          const disposition = isMediaFile ? 'attachment' : 'inline';
+          res.setHeader('Content-Type', attachment.mimeType);
+          res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
+          res.setHeader('Content-Length', buffer.length);
+          return res.send(buffer);
+        }
+      }
+      
+      // Legacy: Check if content is stored in database (base64) with fileContent column
       if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
         const buffer = Buffer.from(attachment.fileContent, 'base64');
         // Force download for audio/video files so they open in user's default player
@@ -15625,7 +15641,23 @@ Generate a professional response:`;
         return res.status(403).json({ message: 'Access denied to this attachment' });
       }
       
-      // Check if content is stored in database (base64)
+      // Check if content is stored as data URL (base64)
+      if (attachment.storageUrl.startsWith('data:')) {
+        // Parse data URL: data:mime_type;base64,content
+        const matches = attachment.storageUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const buffer = Buffer.from(matches[2], 'base64');
+          // Force download for audio/video files so they open in user's default player
+          const isMediaFile = attachment.mimeType.startsWith('audio/') || attachment.mimeType.startsWith('video/');
+          const disposition = isMediaFile ? 'attachment' : 'inline';
+          res.setHeader('Content-Type', attachment.mimeType);
+          res.setHeader('Content-Disposition', `${disposition}; filename="${attachment.fileName}"`);
+          res.setHeader('Content-Length', buffer.length);
+          return res.send(buffer);
+        }
+      }
+      
+      // Legacy: Check if content is stored in database (base64) with fileContent column
       if (attachment.storageUrl === 'db://base64' && attachment.fileContent) {
         const buffer = Buffer.from(attachment.fileContent, 'base64');
         // Force download for audio/video files so they open in user's default player
