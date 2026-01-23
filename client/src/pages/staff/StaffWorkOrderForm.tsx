@@ -62,6 +62,11 @@ export default function StaffWorkOrderForm() {
       return;
     }
     
+    if (!formData.description.trim()) {
+      toast({ title: "Description Required", description: "Please provide details about the issue.", variant: "destructive" });
+      return;
+    }
+    
     if (!formData.department) {
       toast({ title: "Department Required", description: "Please select a department.", variant: "destructive" });
       return;
@@ -146,7 +151,7 @@ export default function StaffWorkOrderForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">Description *</Label>
                 <Textarea
                   id="description"
                   value={formData.description}

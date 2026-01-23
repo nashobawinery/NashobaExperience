@@ -35,22 +35,22 @@ type MaintenanceStats = {
 
 type WorkOrder = {
   id: string;
-  workOrderNumber: string;
+  work_order_number: string;
   title: string;
   description: string;
-  assetId: string;
-  assetName?: string;
-  assetNumber?: string;
-  locationName?: string;
-  workOrderType: string;
+  asset_id: string;
+  asset_name?: string;
+  asset_number?: string;
+  location_name?: string;
+  work_order_type: string;
   priority: string;
   status: string;
-  dueDate: string;
-  assigneeFirstName?: string;
-  assigneeLastName?: string;
-  requesterFirstName?: string;
-  requesterLastName?: string;
-  createdAt: string;
+  due_date: string;
+  assignee_first_name?: string;
+  assignee_last_name?: string;
+  requester_first_name?: string;
+  requester_last_name?: string;
+  created_at: string;
 };
 
 type Asset = {
@@ -456,8 +456,8 @@ export default function MaintenanceDashboard() {
   const filteredWorkOrders = workOrders.filter((wo) => {
     const matchesSearch = searchQuery === "" || 
       wo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wo.workOrderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wo.assetName?.toLowerCase().includes(searchQuery.toLowerCase());
+      wo.work_order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      wo.asset_name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || wo.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || wo.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
@@ -620,12 +620,12 @@ export default function MaintenanceDashboard() {
                           .map(wo => (
                             <div key={wo.id} className="p-3 rounded-lg border hover-elevate">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium text-sm">{wo.workOrderNumber}</span>
+                                <span className="font-medium text-sm">{wo.work_order_number}</span>
                                 <Badge className={statusColors[wo.status]}>{wo.status.replace('_', ' ')}</Badge>
                               </div>
                               <p className="text-sm mt-1">{wo.title}</p>
-                              {wo.assetName && (
-                                <p className="text-xs text-muted-foreground mt-1">{wo.assetName}</p>
+                              {wo.asset_name && (
+                                <p className="text-xs text-muted-foreground mt-1">{wo.asset_name}</p>
                               )}
                             </div>
                           ))}
@@ -728,6 +728,8 @@ export default function MaintenanceDashboard() {
                         <TableHead>Asset</TableHead>
                         <TableHead>Priority</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Filed By</TableHead>
+                        <TableHead>Date Filed</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>Actions</TableHead>
@@ -736,25 +738,25 @@ export default function MaintenanceDashboard() {
                     <TableBody>
                       {workOrdersLoading ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8">Loading...</TableCell>
+                          <TableCell colSpan={10} className="text-center py-8">Loading...</TableCell>
                         </TableRow>
                       ) : filteredWorkOrders.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                             No work orders found
                           </TableCell>
                         </TableRow>
                       ) : (
                         filteredWorkOrders.map((wo) => (
                           <TableRow key={wo.id} data-testid={`row-work-order-${wo.id}`}>
-                            <TableCell className="font-medium">{wo.workOrderNumber}</TableCell>
+                            <TableCell className="font-medium">{wo.work_order_number}</TableCell>
                             <TableCell>
                               <div>
                                 <p className="font-medium">{wo.title}</p>
-                                <p className="text-xs text-muted-foreground">{wo.workOrderType}</p>
+                                <p className="text-xs text-muted-foreground">{wo.work_order_type}</p>
                               </div>
                             </TableCell>
-                            <TableCell>{wo.assetName || '-'}</TableCell>
+                            <TableCell>{wo.asset_name || '-'}</TableCell>
                             <TableCell>
                               <Badge className={priorityColors[wo.priority]}>
                                 {wo.priority}
@@ -766,10 +768,16 @@ export default function MaintenanceDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {wo.assigneeFirstName ? `${wo.assigneeFirstName} ${wo.assigneeLastName}` : '-'}
+                              {wo.requester_first_name ? `${wo.requester_first_name} ${wo.requester_last_name}` : '-'}
                             </TableCell>
                             <TableCell>
-                              {wo.dueDate ? format(new Date(wo.dueDate), 'MMM d, yyyy') : '-'}
+                              {wo.created_at ? format(new Date(wo.created_at), 'MMM d, yyyy') : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {wo.assignee_first_name ? `${wo.assignee_first_name} ${wo.assignee_last_name}` : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {wo.due_date ? format(new Date(wo.due_date), 'MMM d, yyyy') : '-'}
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
@@ -1275,7 +1283,7 @@ export default function MaintenanceDashboard() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Wrench className="w-5 h-5" />
-                {viewingWorkOrder?.workOrderNumber} - {viewingWorkOrder?.title}
+                {viewingWorkOrder?.work_order_number} - {viewingWorkOrder?.title}
               </DialogTitle>
               <DialogDescription>
                 Work order details and activity log
@@ -1303,22 +1311,22 @@ export default function MaintenanceDashboard() {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Type</Label>
-                    <p className="text-sm font-medium">{viewingWorkOrder.workOrderType}</p>
+                    <p className="text-sm font-medium">{viewingWorkOrder.work_order_type}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Due Date</Label>
                     <p className="text-sm font-medium">
-                      {viewingWorkOrder.dueDate ? format(new Date(viewingWorkOrder.dueDate), 'MMM d, yyyy') : '-'}
+                      {viewingWorkOrder.due_date ? format(new Date(viewingWorkOrder.due_date), 'MMM d, yyyy') : '-'}
                     </p>
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs text-muted-foreground">Asset</Label>
-                    <p className="text-sm font-medium">{viewingWorkOrder.assetName || '-'}</p>
+                    <p className="text-sm font-medium">{viewingWorkOrder.asset_name || '-'}</p>
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs text-muted-foreground">Assigned To</Label>
                     <p className="text-sm font-medium">
-                      {viewingWorkOrder.assigneeFirstName ? `${viewingWorkOrder.assigneeFirstName} ${viewingWorkOrder.assigneeLastName}` : '-'}
+                      {viewingWorkOrder.assignee_first_name ? `${viewingWorkOrder.assignee_first_name} ${viewingWorkOrder.assignee_last_name}` : '-'}
                     </p>
                   </div>
                 </div>
