@@ -10027,6 +10027,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Platform Users for Maintenance Module ---
+  app.get('/api/platform-users', isAuthenticated, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, first_name, last_name, email 
+        FROM platform_users 
+        WHERE active = true
+        ORDER BY first_name, last_name
+      `);
+      // Return in camelCase format for frontend
+      res.json(result.rows.map((row: any) => ({
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email
+      })));
+    } catch (error) {
+      console.error('Error fetching platform users:', error);
+      res.status(500).json({ message: 'Failed to fetch platform users' });
+    }
+  });
+
   // --- Technicians (supports internal employees and external contractors) ---
   app.get('/api/maintenance/technicians', isAuthenticated, async (req, res) => {
     try {
