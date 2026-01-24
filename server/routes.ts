@@ -9133,8 +9133,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Asset Categories ---
   app.get('/api/maintenance/categories', isAuthenticated, async (req, res) => {
     try {
-      // Return empty array - maintenance_asset_categories table not yet created
-      res.json([]);
+      const result = await db.execute(sql`
+        SELECT * FROM maintenance_asset_categories 
+        WHERE active = true 
+        ORDER BY sort_order, name
+      `);
+      res.json(result.rows);
     } catch (error) {
       console.error('Error fetching asset categories:', error);
       res.status(500).json({ message: 'Failed to fetch categories' });
