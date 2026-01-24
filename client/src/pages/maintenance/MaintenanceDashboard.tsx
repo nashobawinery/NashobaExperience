@@ -810,11 +810,11 @@ export default function MaintenanceDashboard() {
                                     onClick={() => updateWorkOrderMutation.mutate({ 
                                       ...wo,
                                       id: wo.id, 
-                                      status: 'in_progress' 
+                                      status: 'completed' 
                                     })}
-                                    data-testid={`button-start-wo-${wo.id}`}
+                                    data-testid={`button-complete-wo-${wo.id}`}
                                   >
-                                    Start
+                                    Complete
                                   </Button>
                                 )}
                                 {wo.status === 'in_progress' && (
