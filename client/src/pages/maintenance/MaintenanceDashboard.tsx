@@ -373,10 +373,10 @@ export default function MaintenanceDashboard() {
   // Location mutations
   const createLocationMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      return apiRequest("POST", "/api/shared/locations", data);
+      return apiRequest("POST", "/api/maintenance/locations", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/locations"] });
       setShowNewLocationDialog(false);
       toast({ title: "Location created successfully" });
     },
@@ -387,10 +387,10 @@ export default function MaintenanceDashboard() {
 
   const updateLocationMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      return apiRequest("PUT", `/api/shared/locations/${id}`, data);
+      return apiRequest("PUT", `/api/maintenance/locations/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/locations"] });
       setEditingLocation(null);
       toast({ title: "Location updated successfully" });
     },
@@ -401,10 +401,10 @@ export default function MaintenanceDashboard() {
 
   const deleteLocationMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/shared/locations/${id}`);
+      return apiRequest("DELETE", `/api/maintenance/locations/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shared/locations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/locations"] });
       toast({ title: "Location deleted successfully" });
     },
     onError: () => {
