@@ -412,6 +412,19 @@ export default function MaintenanceDashboard() {
     },
   });
 
+  const deleteMaintenanceLocationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/maintenance/locations/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance/locations"] });
+      toast({ title: "Location deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete location", variant: "destructive" });
+    },
+  });
+
   // Technician mutations
   const createTechnicianMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -1090,7 +1103,7 @@ export default function MaintenanceDashboard() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[300px]">
-                    {locations.length === 0 ? (
+                    {maintenanceLocations.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p>No locations configured</p>
@@ -1098,32 +1111,24 @@ export default function MaintenanceDashboard() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {locations.map((loc) => (
+                        {maintenanceLocations.map((loc) => (
                           <div 
                             key={loc.id} 
                             className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
                             data-testid={`location-${loc.id}`}
                           >
                             <div>
-                              <p className="font-medium">{loc.locationName}</p>
+                              <p className="font-medium">{loc.name}</p>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Badge variant="outline" className="capitalize">{loc.locationType}</Badge>
-                                {loc.city && <span>{loc.city}, {loc.state}</span>}
+                                <Badge variant="outline" className="capitalize">{loc.locationType || 'facility'}</Badge>
+                                {loc.address && <span>{loc.address}</span>}
                               </div>
                             </div>
                             <div className="flex gap-1">
                               <Button 
                                 size="icon" 
                                 variant="ghost"
-                                onClick={() => setEditingLocation(loc)}
-                                data-testid={`edit-location-${loc.id}`}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                size="icon" 
-                                variant="ghost"
-                                onClick={() => deleteLocationMutation.mutate(loc.id)}
+                                onClick={() => deleteMaintenanceLocationMutation.mutate(loc.id)}
                                 data-testid={`delete-location-${loc.id}`}
                               >
                                 <Trash2 className="w-4 h-4" />
