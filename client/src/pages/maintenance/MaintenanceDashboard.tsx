@@ -1428,9 +1428,9 @@ export default function MaintenanceDashboard() {
                             <SelectValue placeholder={viewingWorkOrder.assignee_first_name ? `${viewingWorkOrder.assignee_first_name} ${viewingWorkOrder.assignee_last_name}` : 'Select technician'} />
                           </SelectTrigger>
                           <SelectContent>
-                            {maintenanceTechnicians.map((tech) => (
+                            {maintenanceTechnicians.map((tech: any) => (
                               <SelectItem key={tech.id} value={tech.id}>
-                                {tech.firstName} {tech.lastName}
+                                {tech.first_name || tech.firstName} {tech.last_name || tech.lastName}
                               </SelectItem>
                             ))}
                           </SelectContent>
