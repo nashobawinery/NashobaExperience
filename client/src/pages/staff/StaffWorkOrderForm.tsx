@@ -18,6 +18,12 @@ type DailyReportTemplate = {
   isActive: boolean;
 };
 
+type MaintenanceLocation = {
+  id: string;
+  name: string;
+  locationType?: string;
+};
+
 export default function StaffWorkOrderForm() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -31,6 +37,7 @@ export default function StaffWorkOrderForm() {
     title: "",
     description: "",
     department: "",
+    locationId: "",
     workOrderType: "repair",
     priority: "medium",
     submitterName: staffName || "",
@@ -38,6 +45,10 @@ export default function StaffWorkOrderForm() {
 
   const { data: departments = [] } = useQuery<DailyReportTemplate[]>({
     queryKey: ["/api/public/daily-reports/departments"],
+  });
+
+  const { data: locations = [] } = useQuery<MaintenanceLocation[]>({
+    queryKey: ["/api/maintenance/locations"],
   });
 
   const createWorkOrderMutation = useMutation({
@@ -73,9 +84,15 @@ export default function StaffWorkOrderForm() {
       return;
     }
     
+    if (!formData.submitterName.trim()) {
+      toast({ title: "Name Required", description: "Please enter your name.", variant: "destructive" });
+      return;
+    }
+    
     createWorkOrderMutation.mutate({
       ...formData,
       requestedByName: formData.submitterName,
+      locationId: formData.locationId || undefined,
     });
   };
 
@@ -183,7 +200,26 @@ export default function StaffWorkOrderForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="submitterName">Person Submitting</Label>
+                <Label htmlFor="locationId">Location</Label>
+                <Select 
+                  value={formData.locationId} 
+                  onValueChange={(v) => setFormData({ ...formData, locationId: v })}
+                >
+                  <SelectTrigger data-testid="select-wo-location">
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="submitterName">Your Name *</Label>
                 <Input
                   id="submitterName"
                   value={formData.submitterName}

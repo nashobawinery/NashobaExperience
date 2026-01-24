@@ -12142,7 +12142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Staff work order submission (no auth required - for staff portal)
   app.post('/api/maintenance/work-orders/staff', async (req, res) => {
     try {
-      const { title, description, department, workOrderType, priority, requestedByName } = req.body;
+      const { title, description, department, workOrderType, priority, requestedByName, locationId } = req.body;
       
       if (!title || !department) {
         return res.status(400).json({ message: 'Title and department are required' });
@@ -12162,12 +12162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute(sql`
         INSERT INTO maintenance_work_orders (
           work_order_number, title, description, 
-          work_order_type, priority, status, completion_notes
+          work_order_type, priority, status, completion_notes, location_id
         )
         VALUES (
           ${workOrderNumber}, ${title}, ${description || null}, 
           ${workOrderType || 'repair'}, ${priority || 'medium'}, 'open', 
-          ${completionNotes}
+          ${completionNotes}, ${locationId || null}
         )
         RETURNING id, work_order_number
       `);
