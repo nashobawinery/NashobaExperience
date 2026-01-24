@@ -981,7 +981,8 @@ export default function MaintenanceDashboard() {
                         <DialogDescription>Add a new spare part to inventory</DialogDescription>
                       </DialogHeader>
                       <NewPartForm 
-                        locations={locations}
+                        maintenanceLocations={maintenanceLocations}
+                        categories={categories}
                         onSubmit={(data) => createPartMutation.mutate(data)}
                         isPending={createPartMutation.isPending}
                       />
@@ -2512,11 +2513,13 @@ function NewAssetForm({
 }
 
 function NewPartForm({ 
-  locations, 
+  maintenanceLocations,
+  categories,
   onSubmit, 
   isPending 
 }: { 
-  locations: Location[];
+  maintenanceLocations: MaintenanceLocation[];
+  categories: Array<{ id: string; name: string }>;
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
@@ -2586,13 +2589,18 @@ function NewPartForm({
         </div>
         <div>
           <Label htmlFor="category">Category</Label>
-          <Input
-            id="category"
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            placeholder="e.g., Filters, Belts, Electrical"
-            data-testid="input-part-category"
-          />
+          <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+            <SelectTrigger data-testid="select-part-category">
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.name}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label htmlFor="locationId">Storage Location</Label>
@@ -2601,9 +2609,9 @@ function NewPartForm({
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              {locations.map((loc) => (
+              {maintenanceLocations.map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.locationName}
+                  {loc.name}
                 </SelectItem>
               ))}
             </SelectContent>
