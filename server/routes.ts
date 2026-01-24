@@ -9233,7 +9233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Look up category name from categoryId (category column is required)
       let categoryName = 'Uncategorized';
       if (categoryId) {
-        const catResult = await db.execute(sql`SELECT name FROM maintenance_categories WHERE id = ${categoryId}`);
+        const catResult = await db.execute(sql`SELECT name FROM maintenance_asset_categories WHERE id = ${categoryId}`);
         if (catResult.rows.length > 0) {
           categoryName = catResult.rows[0].name as string;
         }
