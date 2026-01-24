@@ -2449,21 +2449,21 @@ function LocationForm({
   isPending: boolean;
 }) {
   const [formData, setFormData] = useState({
-    locationName: initialData?.locationName || "",
+    name: initialData?.locationName || "",
     locationType: initialData?.locationType || "winery",
+    building: "",
+    floor: "",
+    room: "",
     address: initialData?.address || "",
-    city: initialData?.city || "",
-    state: initialData?.state || "",
-    zipCode: initialData?.zipCode || "",
-    phoneNumber: initialData?.phoneNumber || "",
-    managerUserId: initialData?.managerUserId || "",
+    contactName: "",
+    contactPhone: initialData?.phoneNumber || "",
+    contactEmail: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      managerUserId: formData.managerUserId || undefined,
     });
   };
 
@@ -2471,11 +2471,11 @@ function LocationForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <Label htmlFor="locationName">Location Name *</Label>
+          <Label htmlFor="name">Location Name *</Label>
           <Input
-            id="locationName"
-            value={formData.locationName}
-            onChange={(e) => setFormData({ ...formData, locationName: e.target.value })}
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
             data-testid="input-location-name"
           />
@@ -2497,19 +2497,40 @@ function LocationForm({
           </Select>
         </div>
         <div>
-          <Label htmlFor="managerUserId">Manager</Label>
-          <Select value={formData.managerUserId} onValueChange={(v) => setFormData({ ...formData, managerUserId: v })}>
-            <SelectTrigger data-testid="select-location-manager">
-              <SelectValue placeholder="Select manager" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="contactName">Contact Name</Label>
+          <Input
+            id="contactName"
+            value={formData.contactName}
+            onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
+            data-testid="input-location-contact"
+          />
+        </div>
+        <div>
+          <Label htmlFor="building">Building</Label>
+          <Input
+            id="building"
+            value={formData.building}
+            onChange={(e) => setFormData({ ...formData, building: e.target.value })}
+            data-testid="input-location-building"
+          />
+        </div>
+        <div>
+          <Label htmlFor="floor">Floor</Label>
+          <Input
+            id="floor"
+            value={formData.floor}
+            onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+            data-testid="input-location-floor"
+          />
+        </div>
+        <div>
+          <Label htmlFor="room">Room</Label>
+          <Input
+            id="room"
+            value={formData.room}
+            onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+            data-testid="input-location-room"
+          />
         </div>
         <div className="col-span-2">
           <Label htmlFor="address">Address</Label>
@@ -2521,44 +2542,27 @@ function LocationForm({
           />
         </div>
         <div>
-          <Label htmlFor="city">City</Label>
+          <Label htmlFor="contactPhone">Phone</Label>
           <Input
-            id="city"
-            value={formData.city}
-            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-            data-testid="input-location-city"
-          />
-        </div>
-        <div>
-          <Label htmlFor="state">State</Label>
-          <Input
-            id="state"
-            value={formData.state}
-            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-            data-testid="input-location-state"
-          />
-        </div>
-        <div>
-          <Label htmlFor="zipCode">Zip Code</Label>
-          <Input
-            id="zipCode"
-            value={formData.zipCode}
-            onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-            data-testid="input-location-zip"
-          />
-        </div>
-        <div>
-          <Label htmlFor="phoneNumber">Phone</Label>
-          <Input
-            id="phoneNumber"
-            value={formData.phoneNumber}
-            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+            id="contactPhone"
+            value={formData.contactPhone}
+            onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
             data-testid="input-location-phone"
+          />
+        </div>
+        <div>
+          <Label htmlFor="contactEmail">Email</Label>
+          <Input
+            id="contactEmail"
+            type="email"
+            value={formData.contactEmail}
+            onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+            data-testid="input-location-email"
           />
         </div>
       </div>
       <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={isPending || !formData.locationName} data-testid="button-submit-location">
+        <Button type="submit" disabled={isPending || !formData.name} data-testid="button-submit-location">
           {isPending ? "Saving..." : initialData ? "Update Location" : "Add Location"}
         </Button>
       </div>
