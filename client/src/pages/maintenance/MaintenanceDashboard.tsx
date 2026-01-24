@@ -2433,7 +2433,7 @@ function TechnicianForm({
   onSubmit, 
   isPending 
 }: { 
-  users: Array<{ id: string; firstName: string; lastName: string }>;
+  users: Array<{ id: string; firstName: string; lastName: string; email?: string }>;
   maintenanceLocations: MaintenanceLocation[];
   initialData?: MaintenanceTechnician;
   onSubmit: (data: Record<string, unknown>) => void;
@@ -2507,7 +2507,8 @@ function TechnicianForm({
                 ...formData, 
                 userId: v,
                 firstName: user?.firstName || formData.firstName,
-                lastName: user?.lastName || formData.lastName 
+                lastName: user?.lastName || formData.lastName,
+                email: user?.email || formData.email
               });
             }}>
               <SelectTrigger data-testid="select-tech-user">

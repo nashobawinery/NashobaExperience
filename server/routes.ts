@@ -10154,7 +10154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Properly format arrays for PostgreSQL - handle empty strings
       const skillsArray = skills && skills.length > 0 ? (Array.isArray(skills) ? skills : [skills]) : null;
       const certificationsValue = certifications && certifications.length > 0 ? JSON.stringify(certifications) : null;
-      const specialtiesValue = specialties && specialties.trim() !== '' ? specialties : null;
+      const specialtiesValue = specialties && (typeof specialties === 'string' ? specialties.trim() !== '' : specialties.length > 0) ? specialties : null;
       
       const result = await db.execute(sql`
         INSERT INTO maintenance_technicians (
