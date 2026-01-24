@@ -3225,6 +3225,7 @@ export const maintenanceAssets = pgTable("maintenance_assets", {
   description: text("description"),
   categoryId: varchar("category_id").references(() => maintenanceAssetCategories.id),
   locationId: varchar("location_id").references(() => sharedLocations.id),
+  maintenanceLocationId: varchar("maintenance_location_id").references(() => maintenanceLocations.id),
   manufacturer: varchar("manufacturer"),
   model: varchar("model"),
   serialNumber: varchar("serial_number"),
@@ -3232,6 +3233,8 @@ export const maintenanceAssets = pgTable("maintenance_assets", {
   purchaseCost: decimal("purchase_cost", { precision: 10, scale: 2 }),
   warrantyExpires: timestamp("warranty_expires"),
   expectedLifeYears: integer("expected_life_years"),
+  yearPurchased: varchar("year_purchased"),
+  conditionAtPurchase: varchar("condition_at_purchase"),
   status: varchar("status").notNull().default("operational"), // operational, maintenance, retired, disposed
   criticality: varchar("criticality").notNull().default("medium"), // low, medium, high, critical
   imageUrl: text("image_url"),
@@ -3239,6 +3242,18 @@ export const maintenanceAssets = pgTable("maintenance_assets", {
   specifications: jsonb("specifications"), // Technical specs
   documentUrls: text("document_urls").array(), // Manuals, SOPs
   notes: text("notes"),
+  // Vendor info - where asset was purchased from
+  vendorPurchasedFrom: varchar("vendor_purchased_from"),
+  vendorPurchasedPhone: varchar("vendor_purchased_phone"),
+  vendorPurchasedEmail: varchar("vendor_purchased_email"),
+  // Service vendor info - who services this asset
+  serviceVendorName: varchar("service_vendor_name"),
+  serviceVendorPhone: varchar("service_vendor_phone"),
+  serviceVendorEmail: varchar("service_vendor_email"),
+  // Parts vendor info - where to get parts
+  partsVendorName: varchar("parts_vendor_name"),
+  partsVendorPhone: varchar("parts_vendor_phone"),
+  partsVendorEmail: varchar("parts_vendor_email"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
