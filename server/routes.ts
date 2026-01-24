@@ -10151,8 +10151,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hourlyRate, shiftSchedule, primaryLocationId, available, isActive, isSupervisor, notes 
       } = req.body;
       
-      // Properly format arrays for PostgreSQL
-      const skillsArray = skills ? (Array.isArray(skills) ? skills : [skills]) : null;
+      // Properly format arrays for PostgreSQL - handle empty strings
+      const skillsArray = skills && skills.length > 0 ? (Array.isArray(skills) ? skills : [skills]) : null;
+      const certificationsValue = certifications && certifications.length > 0 ? JSON.stringify(certifications) : null;
+      const specialtiesValue = specialties && specialties.trim() !== '' ? specialties : null;
       
       const result = await db.execute(sql`
         INSERT INTO maintenance_technicians (
@@ -10177,9 +10179,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${cellPhone || null}, 
           ${workPhone || null}, 
           ${skillsArray}, 
-          ${certifications ? JSON.stringify(certifications) : null}, 
-          ${specialties || null},
-          ${hourlyRate || null}, 
+          ${certificationsValue}, 
+          ${specialtiesValue},
+          ${hourlyRate ? parseFloat(hourlyRate) : null}, 
           ${shiftSchedule || null}, 
           ${primaryLocationId || null}, 
           ${available ?? true}, 
