@@ -512,7 +512,7 @@ export default function MaintenanceDashboard() {
                 </DialogHeader>
                 <NewAssetForm 
                   categories={categories}
-                  locations={locations}
+                  maintenanceLocations={maintenanceLocations}
                   onSubmit={(data) => createAssetMutation.mutate(data)}
                   isPending={createAssetMutation.isPending}
                 />
@@ -1977,12 +1977,12 @@ function NewWorkOrderForm({
 
 function NewAssetForm({ 
   categories, 
-  locations, 
+  maintenanceLocations, 
   onSubmit, 
   isPending 
 }: { 
   categories: Array<{ id: string; name: string }>;
-  locations: Location[];
+  maintenanceLocations: MaintenanceLocation[];
   onSubmit: (data: Record<string, unknown>) => void;
   isPending: boolean;
 }) {
@@ -2052,9 +2052,9 @@ function NewAssetForm({
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
-              {locations.map((loc) => (
+              {maintenanceLocations.map((loc) => (
                 <SelectItem key={loc.id} value={loc.id}>
-                  {loc.locationName}
+                  {loc.name}
                 </SelectItem>
               ))}
             </SelectContent>

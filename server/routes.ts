@@ -9224,7 +9224,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await db.execute(sql`
         INSERT INTO maintenance_assets (asset_number, name, description, category_id, location_id, manufacturer, model, serial_number, purchase_date, purchase_cost, warranty_expires, expected_life_years, status, criticality, image_url, qr_code, specifications, document_urls, notes)
-        VALUES (${assetNumber}, ${name}, ${description}, ${categoryId || null}, ${locationId || null}, ${manufacturer}, ${model}, ${serialNumber}, ${purchaseDate ? new Date(purchaseDate) : null}, ${purchaseCost}, ${warrantyExpires ? new Date(warrantyExpires) : null}, ${expectedLifeYears}, ${status || 'operational'}, ${criticality || 'medium'}, ${imageUrl}, ${qrCode}, ${specifications ? JSON.stringify(specifications) : null}, ${documentUrls || null}, ${notes})
+        VALUES (
+          ${assetNumber}, 
+          ${name}, 
+          ${description || null}, 
+          ${categoryId || null}, 
+          ${locationId || null}, 
+          ${manufacturer || null}, 
+          ${model || null}, 
+          ${serialNumber || null}, 
+          ${purchaseDate ? new Date(purchaseDate) : null}, 
+          ${purchaseCost || null}, 
+          ${warrantyExpires ? new Date(warrantyExpires) : null}, 
+          ${expectedLifeYears || null}, 
+          ${status || 'operational'}, 
+          ${criticality || 'medium'}, 
+          ${imageUrl || null}, 
+          ${qrCode || null}, 
+          ${specifications ? JSON.stringify(specifications) : null}, 
+          ${documentUrls || null}, 
+          ${notes || null}
+        )
         RETURNING *
       `);
       res.json(result.rows[0]);
