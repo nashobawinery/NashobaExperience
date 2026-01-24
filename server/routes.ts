@@ -9367,7 +9367,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await db.execute(sql`
         INSERT INTO maintenance_work_orders (work_order_number, title, description, asset_id, location_id, maintenance_location_id, work_order_type, priority, status, requested_by, assigned_to, maintenance_technician_id, due_date, estimated_hours, attachments, notification_email)
-        VALUES (${workOrderNumber}, ${title}, ${description}, ${assetId || null}, ${locationId || null}, ${maintenanceLocationId || null}, ${workOrderType || 'corrective'}, ${priority || 'medium'}, 'open', ${requestedById}, ${assignedToId || null}, ${maintenanceTechnicianId || null}, ${dueDate ? new Date(dueDate) : null}, ${estimatedHours}, ${attachmentUrls ? JSON.stringify(attachmentUrls) : null}, ${notificationEmail || null})
+        VALUES (
+          ${workOrderNumber}, 
+          ${title}, 
+          ${description || null}, 
+          ${assetId || null}, 
+          ${locationId || null}, 
+          ${maintenanceLocationId || null}, 
+          ${workOrderType || 'corrective'}, 
+          ${priority || 'medium'}, 
+          'open', 
+          ${requestedById || null}, 
+          ${assignedToId || null}, 
+          ${maintenanceTechnicianId || null}, 
+          ${dueDate ? new Date(dueDate) : null}, 
+          ${estimatedHours || null}, 
+          ${attachmentUrls ? JSON.stringify(attachmentUrls) : null}, 
+          ${notificationEmail || null}
+        )
         RETURNING *
       `);
       
