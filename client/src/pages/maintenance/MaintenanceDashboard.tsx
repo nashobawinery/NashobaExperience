@@ -587,18 +587,24 @@ export default function MaintenanceDashboard() {
                 value={stats?.operationalAssets || 0}
                 icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
                 testId="stat-operational-assets"
+                onClick={() => setActiveTab("assets")}
               />
               <StatCard
                 title="Under Maintenance"
                 value={stats?.assetsUnderMaintenance || 0}
                 icon={<Wrench className="w-5 h-5 text-yellow-500" />}
                 testId="stat-under-maintenance"
+                onClick={() => setActiveTab("assets")}
               />
               <StatCard
                 title="Open Work Orders"
                 value={stats?.openWorkOrders || 0}
                 icon={<ClipboardList className="w-5 h-5 text-blue-500" />}
                 testId="stat-open-wo"
+                onClick={() => {
+                  setActiveTab("work-orders");
+                  setStatusFilter("open");
+                }}
               />
               <StatCard
                 title="Critical Issues"
@@ -606,17 +612,29 @@ export default function MaintenanceDashboard() {
                 icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
                 variant={stats?.criticalWorkOrders ? "destructive" : "default"}
                 testId="stat-critical"
+                onClick={() => {
+                  setActiveTab("work-orders");
+                  setPriorityFilter("critical");
+                }}
               />
               <StatCard
                 title="In Progress"
                 value={stats?.inProgressWorkOrders || 0}
                 icon={<Clock className="w-5 h-5 text-purple-500" />}
                 testId="stat-in-progress"
+                onClick={() => {
+                  setActiveTab("work-orders");
+                  setStatusFilter("in_progress");
+                }}
               />
               <StatCard
                 title="Completed This Month"
                 value={stats?.completedThisMonth || 0}
                 icon={<TrendingUp className="w-5 h-5 text-green-500" />}
+                onClick={() => {
+                  setActiveTab("work-orders");
+                  setStatusFilter("completed");
+                }}
                 testId="stat-completed"
               />
               <StatCard
@@ -625,12 +643,14 @@ export default function MaintenanceDashboard() {
                 icon={<Package className="w-5 h-5 text-orange-500" />}
                 variant={stats?.lowStockParts ? "warning" : "default"}
                 testId="stat-low-stock"
+                onClick={() => setActiveTab("parts")}
               />
               <StatCard
                 title="Upcoming PM"
                 value={stats?.upcomingPm || 0}
                 icon={<Calendar className="w-5 h-5 text-blue-500" />}
                 testId="stat-upcoming-pm"
+                onClick={() => setActiveTab("pm")}
               />
             </div>
 
@@ -1644,13 +1664,15 @@ function StatCard({
   value, 
   icon, 
   variant = "default",
-  testId 
+  testId,
+  onClick
 }: { 
   title: string; 
   value: number; 
   icon: React.ReactNode;
   variant?: "default" | "destructive" | "warning";
   testId: string;
+  onClick?: () => void;
 }) {
   const bgClass = variant === "destructive" 
     ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800" 
@@ -1659,7 +1681,11 @@ function StatCard({
     : "";
     
   return (
-    <Card className={bgClass} data-testid={testId}>
+    <Card 
+      className={`${bgClass} ${onClick ? 'cursor-pointer hover-elevate' : ''}`} 
+      data-testid={testId}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div>

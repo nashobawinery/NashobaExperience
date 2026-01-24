@@ -10316,14 +10316,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SELECT 
           (SELECT COUNT(*)::integer FROM maintenance_assets WHERE status = 'operational') as operational_assets,
           (SELECT COUNT(*)::integer FROM maintenance_assets WHERE status = 'maintenance') as assets_under_maintenance,
-          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'open') as open_work_orders,
+          (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status IN ('open', 'new')) as open_work_orders,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'in_progress') as in_progress_work_orders,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE status = 'completed' AND completed_date >= NOW() - INTERVAL '30 days') as completed_this_month,
           (SELECT COUNT(*)::integer FROM maintenance_work_orders WHERE priority = 'critical' AND status NOT IN ('completed', 'cancelled')) as critical_work_orders,
           0 as low_stock_parts,
           (SELECT COUNT(*)::integer FROM maintenance_preventive_schedules WHERE next_due <= NOW() + INTERVAL '7 days' AND active = true) as upcoming_pm
       `);
-      res.json(stats.rows[0]);
+      // Convert snake_case to camelCase for frontend compatibility
+      const row = stats.rows[0] as Record<string, number>;
+      res.json({
+        operationalAssets: row.operational_assets || 0,
+        assetsUnderMaintenance: row.assets_under_maintenance || 0,
+        openWorkOrders: row.open_work_orders || 0,
+        inProgressWorkOrders: row.in_progress_work_orders || 0,
+        completedThisMonth: row.completed_this_month || 0,
+        criticalWorkOrders: row.critical_work_orders || 0,
+        lowStockParts: row.low_stock_parts || 0,
+        upcomingPm: row.upcoming_pm || 0
+      });
     } catch (error) {
       console.error('Error fetching maintenance stats:', error);
       res.status(500).json({ message: 'Failed to fetch stats' });
