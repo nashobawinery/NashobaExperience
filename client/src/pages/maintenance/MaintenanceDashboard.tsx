@@ -19,7 +19,7 @@ import {
   Wrench, AlertTriangle, CheckCircle2, Clock, Package, 
   Plus, Settings, Calendar, BarChart3, Search, Filter,
   ClipboardList, Cog, Box, Users, FileText, TrendingUp,
-  MapPin, Phone, Building2, UserCog, Trash2, Edit
+  MapPin, Phone, Building2, UserCog, Trash2, Edit, BookOpen, ExternalLink, Link2
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -592,7 +592,28 @@ export default function MaintenanceDashboard() {
               <Settings className="w-4 h-4" />
               Settings
             </TabsTrigger>
+            <TabsTrigger value="docs" className="gap-2" data-testid="tab-docs">
+              <BookOpen className="w-4 h-4" />
+              Documentation
+            </TabsTrigger>
           </TabsList>
+          
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium">Staff Work Order Submission Form:</span>
+            </div>
+            <a 
+              href="https://nashobawinery.org/staff/work-order" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+              data-testid="link-staff-work-order"
+            >
+              <ExternalLink className="w-4 h-4" />
+              nashobawinery.org/staff/work-order
+            </a>
+          </div>
 
           <TabsContent value="overview" className="mt-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1336,6 +1357,163 @@ export default function MaintenanceDashboard() {
                 )}
               </DialogContent>
             </Dialog>
+          </TabsContent>
+
+          <TabsContent value="docs" className="mt-6">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5" />
+                    Maintenance Module Documentation
+                  </CardTitle>
+                  <CardDescription>
+                    Complete guide to using the Maintenance Management System (CMMS)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <ClipboardList className="w-5 h-5 text-primary" />
+                          Work Orders
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Create work orders for corrective, preventive, or emergency maintenance</li>
+                          <li>Assign work orders to technicians automatically or manually</li>
+                          <li>Track status: New → Open → In Progress → On Hold → Completed</li>
+                          <li>Set priority levels: Low, Medium, High, Critical</li>
+                          <li>Add notes and track activity history</li>
+                          <li>Supervisors receive all new work order notifications</li>
+                          <li>Daily reminders sent for work orders older than 7 days</li>
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <Cog className="w-5 h-5 text-primary" />
+                          Asset Management
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Track all equipment and assets by category</li>
+                          <li>Record manufacturer, model, serial numbers</li>
+                          <li>Monitor asset status: Operational, Under Maintenance, Out of Service</li>
+                          <li>Set criticality levels for prioritization</li>
+                          <li>Link assets to work orders and preventive schedules</li>
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <Package className="w-5 h-5 text-primary" />
+                          Parts Inventory
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Maintain spare parts inventory with stock levels</li>
+                          <li>Set reorder points and minimum stock alerts</li>
+                          <li>Track part usage against work orders</li>
+                          <li>Record vendor information and part numbers</li>
+                          <li>Calculate total inventory value</li>
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <Calendar className="w-5 h-5 text-primary" />
+                          Preventive Maintenance
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Schedule recurring maintenance tasks</li>
+                          <li>Set frequency: Daily, Weekly, Monthly, Quarterly, Yearly</li>
+                          <li>Auto-generate work orders based on schedule</li>
+                          <li>Track compliance and maintenance history</li>
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <UserCog className="w-5 h-5 text-primary" />
+                          Technicians
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Register internal staff or external contractors</li>
+                          <li>Track specialties and certifications</li>
+                          <li>Mark technicians as Supervisors for elevated access</li>
+                          <li>Supervisors receive notifications for ALL new work orders</li>
+                          <li>Manage availability status</li>
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <MapPin className="w-5 h-5 text-primary" />
+                          Locations
+                        </h3>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          <li>Define facility locations and areas</li>
+                          <li>Assign assets to locations</li>
+                          <li>Track work orders by location</li>
+                        </ul>
+                      </div>
+                      
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+                          <ExternalLink className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          Staff Work Order Submission
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Staff can submit work order requests directly without logging into the admin system:
+                        </p>
+                        <a 
+                          href="https://nashobawinery.org/staff/work-order" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open Staff Work Order Form
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Separator className="my-6" />
+                  
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Email Notifications</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-3 rounded-lg border">
+                        <h4 className="font-medium mb-1">Assignment Notifications</h4>
+                        <p className="text-sm text-muted-foreground">
+                          When a work order is created or reassigned, the assigned technician receives an email notification with work order details.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg border">
+                        <h4 className="font-medium mb-1">Supervisor Alerts</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Technicians marked as "Supervisor" receive notifications for ALL new work orders, regardless of assignment.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg border">
+                        <h4 className="font-medium mb-1">Daily Reminders</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Supervisors receive daily reminder emails at 8 AM Eastern for any work orders older than 7 days that remain uncompleted.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg border">
+                        <h4 className="font-medium mb-1">Staff Submissions</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Work orders submitted via the staff form are automatically routed to supervisors for review and assignment.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
 
