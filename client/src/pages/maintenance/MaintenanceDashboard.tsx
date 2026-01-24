@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -214,6 +215,7 @@ const assetStatusColors: Record<string, string> = {
 
 export default function MaintenanceDashboard() {
   const { toast } = useToast();
+  const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -227,6 +229,13 @@ export default function MaintenanceDashboard() {
   const [editingTechnician, setEditingTechnician] = useState<MaintenanceTechnician | null>(null);
   const [viewingWorkOrder, setViewingWorkOrder] = useState<WorkOrder | null>(null);
   const [showPmScheduleDialog, setShowPmScheduleDialog] = useState(false);
+  const [editingWorkOrderFields, setEditingWorkOrderFields] = useState<{
+    description: string;
+    dueDate: string;
+    assignedTechnicianId: string;
+    assetId: string;
+    priority: string;
+  } | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<MaintenanceStats>({
     queryKey: ["/api/maintenance/stats"],
@@ -267,6 +276,15 @@ export default function MaintenanceDashboard() {
   const { data: maintenanceLocations = [] } = useQuery<MaintenanceLocation[]>({
     queryKey: ["/api/maintenance/locations"],
   });
+
+  const isSupervisor = useMemo(() => {
+    if (!user) return false;
+    return maintenanceTechnicians.some(
+      tech => tech.userId === user.id && tech.isSupervisor
+    );
+  }, [user, maintenanceTechnicians]);
+
+  const canEditWorkOrder = isAdmin || isSupervisor;
 
   const createWorkOrderMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -1287,7 +1305,12 @@ export default function MaintenanceDashboard() {
         </Tabs>
 
         {/* Work Order Detail Dialog with Notes */}
-        <Dialog open={!!viewingWorkOrder} onOpenChange={(open) => !open && setViewingWorkOrder(null)}>
+        <Dialog open={!!viewingWorkOrder} onOpenChange={(open) => {
+          if (!open) {
+            setViewingWorkOrder(null);
+            setEditingWorkOrderFields(null);
+          }
+        }}>
           <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1300,51 +1323,218 @@ export default function MaintenanceDashboard() {
             </DialogHeader>
             {viewingWorkOrder && (
               <div className="space-y-6">
-                {/* Work Order Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Status</Label>
-                    <div className="mt-1">
-                      <Badge className={statusColors[viewingWorkOrder.status] || ''}>
-                        {viewingWorkOrder.status.replace(/_/g, ' ')}
-                      </Badge>
+                {/* Work Order Info - Editable for Admins/Supervisors */}
+                {canEditWorkOrder ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <div className="mt-1">
+                          <Badge className={statusColors[viewingWorkOrder.status] || ''}>
+                            {viewingWorkOrder.status.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Priority</Label>
+                        <div className="mt-1">
+                          <Select 
+                            value={editingWorkOrderFields?.priority ?? viewingWorkOrder.priority} 
+                            onValueChange={(value) => {
+                              setEditingWorkOrderFields(prev => ({
+                                description: prev?.description ?? viewingWorkOrder.description ?? '',
+                                dueDate: prev?.dueDate ?? viewingWorkOrder.due_date ?? '',
+                                assignedTechnicianId: prev?.assignedTechnicianId ?? '',
+                                assetId: prev?.assetId ?? viewingWorkOrder.asset_id ?? '',
+                                priority: value,
+                              }));
+                            }}
+                          >
+                            <SelectTrigger data-testid="select-wo-priority" className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">Low</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="high">High</SelectItem>
+                              <SelectItem value="critical">Critical</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Type</Label>
+                        <p className="text-sm font-medium">{viewingWorkOrder.work_order_type}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Due Date</Label>
+                        <Input
+                          type="date"
+                          value={editingWorkOrderFields?.dueDate ?? (viewingWorkOrder.due_date ? viewingWorkOrder.due_date.split('T')[0] : '')}
+                          onChange={(e) => {
+                            setEditingWorkOrderFields(prev => ({
+                              description: prev?.description ?? viewingWorkOrder.description ?? '',
+                              dueDate: e.target.value,
+                              assignedTechnicianId: prev?.assignedTechnicianId ?? '',
+                              assetId: prev?.assetId ?? viewingWorkOrder.asset_id ?? '',
+                              priority: prev?.priority ?? viewingWorkOrder.priority,
+                            }));
+                          }}
+                          className="h-8"
+                          data-testid="input-wo-due-date"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Asset</Label>
+                        <Select 
+                          value={editingWorkOrderFields?.assetId ?? viewingWorkOrder.asset_id ?? ''} 
+                          onValueChange={(value) => {
+                            setEditingWorkOrderFields(prev => ({
+                              description: prev?.description ?? viewingWorkOrder.description ?? '',
+                              dueDate: prev?.dueDate ?? viewingWorkOrder.due_date ?? '',
+                              assignedTechnicianId: prev?.assignedTechnicianId ?? '',
+                              assetId: value,
+                              priority: prev?.priority ?? viewingWorkOrder.priority,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-wo-asset" className="h-8 mt-1">
+                            <SelectValue placeholder="Select asset" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {assets.map((asset) => (
+                              <SelectItem key={asset.id} value={asset.id}>
+                                {asset.name} ({asset.assetNumber})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Assigned To</Label>
+                        <Select 
+                          value={editingWorkOrderFields?.assignedTechnicianId ?? ''} 
+                          onValueChange={(value) => {
+                            setEditingWorkOrderFields(prev => ({
+                              description: prev?.description ?? viewingWorkOrder.description ?? '',
+                              dueDate: prev?.dueDate ?? viewingWorkOrder.due_date ?? '',
+                              assignedTechnicianId: value,
+                              assetId: prev?.assetId ?? viewingWorkOrder.asset_id ?? '',
+                              priority: prev?.priority ?? viewingWorkOrder.priority,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-wo-technician" className="h-8 mt-1">
+                            <SelectValue placeholder={viewingWorkOrder.assignee_first_name ? `${viewingWorkOrder.assignee_first_name} ${viewingWorkOrder.assignee_last_name}` : 'Select technician'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {maintenanceTechnicians.map((tech) => (
+                              <SelectItem key={tech.id} value={tech.id}>
+                                {tech.firstName} {tech.lastName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Priority</Label>
-                    <div className="mt-1">
-                      <Badge className={priorityColors[viewingWorkOrder.priority] || ''}>
-                        {viewingWorkOrder.priority}
-                      </Badge>
+                    
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Description</Label>
+                      <Textarea
+                        value={editingWorkOrderFields?.description ?? viewingWorkOrder.description ?? ''}
+                        onChange={(e) => {
+                          setEditingWorkOrderFields(prev => ({
+                            description: e.target.value,
+                            dueDate: prev?.dueDate ?? viewingWorkOrder.due_date ?? '',
+                            assignedTechnicianId: prev?.assignedTechnicianId ?? '',
+                            assetId: prev?.assetId ?? viewingWorkOrder.asset_id ?? '',
+                            priority: prev?.priority ?? viewingWorkOrder.priority,
+                          }));
+                        }}
+                        className="mt-1"
+                        rows={3}
+                        data-testid="input-wo-description"
+                      />
                     </div>
+                    
+                    {editingWorkOrderFields && (
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={() => {
+                            updateWorkOrderMutation.mutate({
+                              ...viewingWorkOrder,
+                              id: viewingWorkOrder.id,
+                              description: editingWorkOrderFields.description,
+                              dueDate: editingWorkOrderFields.dueDate || undefined,
+                              assignedTechnicianId: editingWorkOrderFields.assignedTechnicianId || undefined,
+                              assetId: editingWorkOrderFields.assetId || undefined,
+                              priority: editingWorkOrderFields.priority,
+                            });
+                            setViewingWorkOrder({
+                              ...viewingWorkOrder,
+                              description: editingWorkOrderFields.description,
+                              due_date: editingWorkOrderFields.dueDate,
+                              asset_id: editingWorkOrderFields.assetId,
+                              priority: editingWorkOrderFields.priority,
+                            });
+                            setEditingWorkOrderFields(null);
+                          }}
+                          disabled={updateWorkOrderMutation.isPending}
+                          data-testid="button-save-wo-changes"
+                        >
+                          {updateWorkOrderMutation.isPending ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Type</Label>
-                    <p className="text-sm font-medium">{viewingWorkOrder.work_order_type}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Due Date</Label>
-                    <p className="text-sm font-medium">
-                      {viewingWorkOrder.due_date ? format(new Date(viewingWorkOrder.due_date), 'MMM d, yyyy') : '-'}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground">Asset</Label>
-                    <p className="text-sm font-medium">{viewingWorkOrder.asset_name || '-'}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground">Assigned To</Label>
-                    <p className="text-sm font-medium">
-                      {viewingWorkOrder.assignee_first_name ? `${viewingWorkOrder.assignee_first_name} ${viewingWorkOrder.assignee_last_name}` : '-'}
-                    </p>
-                  </div>
-                </div>
-                
-                {viewingWorkOrder.description && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Description</Label>
-                    <p className="text-sm mt-1">{viewingWorkOrder.description}</p>
-                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <div className="mt-1">
+                          <Badge className={statusColors[viewingWorkOrder.status] || ''}>
+                            {viewingWorkOrder.status.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Priority</Label>
+                        <div className="mt-1">
+                          <Badge className={priorityColors[viewingWorkOrder.priority] || ''}>
+                            {viewingWorkOrder.priority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Type</Label>
+                        <p className="text-sm font-medium">{viewingWorkOrder.work_order_type}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Due Date</Label>
+                        <p className="text-sm font-medium">
+                          {viewingWorkOrder.due_date ? format(new Date(viewingWorkOrder.due_date), 'MMM d, yyyy') : '-'}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Asset</Label>
+                        <p className="text-sm font-medium">{viewingWorkOrder.asset_name || '-'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Assigned To</Label>
+                        <p className="text-sm font-medium">
+                          {viewingWorkOrder.assignee_first_name ? `${viewingWorkOrder.assignee_first_name} ${viewingWorkOrder.assignee_last_name}` : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {viewingWorkOrder.description && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <p className="text-sm mt-1">{viewingWorkOrder.description}</p>
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 <Separator />
