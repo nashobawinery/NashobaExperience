@@ -9219,31 +9219,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/maintenance/assets', isAdmin, async (req, res) => {
     try {
-      const { name, description, categoryId, locationId, manufacturer, model, serialNumber, purchaseDate, purchaseCost, warrantyExpires, expectedLifeYears, status, criticality, imageUrl, qrCode, specifications, documentUrls, notes } = req.body;
+      const { 
+        name, description, categoryId, locationId, maintenanceLocationId,
+        manufacturer, model, serialNumber, purchaseDate, purchaseCost, 
+        warrantyExpiration, status, criticality, imageUrl, qrCode, 
+        specifications, notes, yearPurchased, conditionAtPurchase,
+        vendorPurchasedFrom, vendorPurchasedPhone, vendorPurchasedEmail,
+        serviceVendorName, serviceVendorPhone, serviceVendorEmail,
+        partsVendorName, partsVendorPhone, partsVendorEmail
+      } = req.body;
       const assetNumber = await generateAssetNumber();
       
       const result = await db.execute(sql`
-        INSERT INTO maintenance_assets (asset_number, name, description, category_id, location_id, manufacturer, model, serial_number, purchase_date, purchase_cost, warranty_expires, expected_life_years, status, criticality, image_url, qr_code, specifications, document_urls, notes)
+        INSERT INTO maintenance_assets (
+          asset_number, name, description, category_id, location_id, maintenance_location_id,
+          manufacturer, model, serial_number, purchase_date, purchase_cost, 
+          warranty_expiration, status, criticality, image_url, qr_code, 
+          specifications, notes, year_purchased, condition_at_purchase,
+          vendor_purchased_from, vendor_purchased_phone, vendor_purchased_email,
+          service_vendor_name, service_vendor_phone, service_vendor_email,
+          parts_vendor_name, parts_vendor_phone, parts_vendor_email
+        )
         VALUES (
           ${assetNumber}, 
-          ${name}, 
+          ${name || null}, 
           ${description || null}, 
           ${categoryId || null}, 
-          ${locationId || null}, 
+          ${locationId || null},
+          ${maintenanceLocationId || null},
           ${manufacturer || null}, 
           ${model || null}, 
           ${serialNumber || null}, 
           ${purchaseDate ? new Date(purchaseDate) : null}, 
           ${purchaseCost || null}, 
-          ${warrantyExpires ? new Date(warrantyExpires) : null}, 
-          ${expectedLifeYears || null}, 
+          ${warrantyExpiration ? new Date(warrantyExpiration) : null}, 
           ${status || 'operational'}, 
           ${criticality || 'medium'}, 
           ${imageUrl || null}, 
           ${qrCode || null}, 
           ${specifications ? JSON.stringify(specifications) : null}, 
-          ${documentUrls || null}, 
-          ${notes || null}
+          ${notes || null},
+          ${yearPurchased || null},
+          ${conditionAtPurchase || null},
+          ${vendorPurchasedFrom || null},
+          ${vendorPurchasedPhone || null},
+          ${vendorPurchasedEmail || null},
+          ${serviceVendorName || null},
+          ${serviceVendorPhone || null},
+          ${serviceVendorEmail || null},
+          ${partsVendorName || null},
+          ${partsVendorPhone || null},
+          ${partsVendorEmail || null}
         )
         RETURNING *
       `);
@@ -9257,17 +9283,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/maintenance/assets/:id', isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, categoryId, locationId, manufacturer, model, serialNumber, purchaseDate, purchaseCost, warrantyExpires, expectedLifeYears, status, criticality, imageUrl, qrCode, specifications, documentUrls, notes } = req.body;
+      const { 
+        name, description, categoryId, locationId, maintenanceLocationId,
+        manufacturer, model, serialNumber, purchaseDate, purchaseCost, 
+        warrantyExpiration, status, criticality, imageUrl, qrCode, 
+        specifications, notes, yearPurchased, conditionAtPurchase,
+        vendorPurchasedFrom, vendorPurchasedPhone, vendorPurchasedEmail,
+        serviceVendorName, serviceVendorPhone, serviceVendorEmail,
+        partsVendorName, partsVendorPhone, partsVendorEmail
+      } = req.body;
       
       const result = await db.execute(sql`
         UPDATE maintenance_assets SET
-          name = ${name}, description = ${description}, category_id = ${categoryId || null}, location_id = ${locationId || null},
-          manufacturer = ${manufacturer}, model = ${model}, serial_number = ${serialNumber},
-          purchase_date = ${purchaseDate ? new Date(purchaseDate) : null}, purchase_cost = ${purchaseCost},
-          warranty_expires = ${warrantyExpires ? new Date(warrantyExpires) : null}, expected_life_years = ${expectedLifeYears},
-          status = ${status}, criticality = ${criticality}, image_url = ${imageUrl}, qr_code = ${qrCode},
-          specifications = ${specifications ? JSON.stringify(specifications) : null}, document_urls = ${documentUrls || null},
-          notes = ${notes}, updated_at = NOW()
+          name = ${name || null}, 
+          description = ${description || null}, 
+          category_id = ${categoryId || null}, 
+          location_id = ${locationId || null},
+          maintenance_location_id = ${maintenanceLocationId || null},
+          manufacturer = ${manufacturer || null}, 
+          model = ${model || null}, 
+          serial_number = ${serialNumber || null},
+          purchase_date = ${purchaseDate ? new Date(purchaseDate) : null}, 
+          purchase_cost = ${purchaseCost || null},
+          warranty_expiration = ${warrantyExpiration ? new Date(warrantyExpiration) : null}, 
+          status = ${status || 'operational'}, 
+          criticality = ${criticality || 'medium'}, 
+          image_url = ${imageUrl || null}, 
+          qr_code = ${qrCode || null},
+          specifications = ${specifications ? JSON.stringify(specifications) : null},
+          notes = ${notes || null},
+          year_purchased = ${yearPurchased || null},
+          condition_at_purchase = ${conditionAtPurchase || null},
+          vendor_purchased_from = ${vendorPurchasedFrom || null},
+          vendor_purchased_phone = ${vendorPurchasedPhone || null},
+          vendor_purchased_email = ${vendorPurchasedEmail || null},
+          service_vendor_name = ${serviceVendorName || null},
+          service_vendor_phone = ${serviceVendorPhone || null},
+          service_vendor_email = ${serviceVendorEmail || null},
+          parts_vendor_name = ${partsVendorName || null},
+          parts_vendor_phone = ${partsVendorPhone || null},
+          parts_vendor_email = ${partsVendorEmail || null},
+          updated_at = NOW()
         WHERE id = ${id}
         RETURNING *
       `);

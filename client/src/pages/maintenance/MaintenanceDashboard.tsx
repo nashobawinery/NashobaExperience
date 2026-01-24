@@ -1995,12 +1995,23 @@ function NewAssetForm({
     name: "",
     description: "",
     categoryId: "",
-    locationId: "",
+    maintenanceLocationId: "",
     manufacturer: "",
     model: "",
     serialNumber: "",
     status: "operational",
     criticality: "medium",
+    yearPurchased: "",
+    conditionAtPurchase: "new",
+    vendorPurchasedFrom: "",
+    vendorPurchasedPhone: "",
+    vendorPurchasedEmail: "",
+    serviceVendorName: "",
+    serviceVendorPhone: "",
+    serviceVendorEmail: "",
+    partsVendorName: "",
+    partsVendorPhone: "",
+    partsVendorEmail: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2008,12 +2019,14 @@ function NewAssetForm({
     onSubmit({
       ...formData,
       categoryId: formData.categoryId || undefined,
-      locationId: formData.locationId || undefined,
+      maintenanceLocationId: formData.maintenanceLocationId || undefined,
+      yearPurchased: formData.yearPurchased ? parseInt(formData.yearPurchased) : undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="max-h-[60vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label htmlFor="name">Asset Name *</Label>
@@ -2051,8 +2064,8 @@ function NewAssetForm({
           </Select>
         </div>
         <div>
-          <Label htmlFor="locationId">Location</Label>
-          <Select value={formData.locationId} onValueChange={(v) => setFormData({ ...formData, locationId: v })}>
+          <Label htmlFor="maintenanceLocationId">Location</Label>
+          <Select value={formData.maintenanceLocationId} onValueChange={(v) => setFormData({ ...formData, maintenanceLocationId: v })}>
             <SelectTrigger data-testid="select-asset-location">
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
@@ -2120,8 +2133,135 @@ function NewAssetForm({
             </SelectContent>
           </Select>
         </div>
+        
+        <div className="col-span-2 border-t pt-4 mt-2">
+          <h4 className="font-medium text-sm text-muted-foreground mb-3">Purchase Information</h4>
+        </div>
+        <div>
+          <Label htmlFor="yearPurchased">Year Purchased</Label>
+          <Input
+            id="yearPurchased"
+            type="number"
+            min="1900"
+            max={new Date().getFullYear() + 1}
+            value={formData.yearPurchased}
+            onChange={(e) => setFormData({ ...formData, yearPurchased: e.target.value })}
+            placeholder="e.g., 2024"
+            data-testid="input-asset-year"
+          />
+        </div>
+        <div>
+          <Label htmlFor="conditionAtPurchase">Condition at Purchase</Label>
+          <Select value={formData.conditionAtPurchase} onValueChange={(v) => setFormData({ ...formData, conditionAtPurchase: v })}>
+            <SelectTrigger data-testid="select-asset-condition">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">New</SelectItem>
+              <SelectItem value="used">Used</SelectItem>
+              <SelectItem value="refurbished">Refurbished</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="col-span-2 border-t pt-4 mt-2">
+          <h4 className="font-medium text-sm text-muted-foreground mb-3">Vendor - Purchased From</h4>
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="vendorPurchasedFrom">Company Name</Label>
+          <Input
+            id="vendorPurchasedFrom"
+            value={formData.vendorPurchasedFrom}
+            onChange={(e) => setFormData({ ...formData, vendorPurchasedFrom: e.target.value })}
+            data-testid="input-vendor-purchased"
+          />
+        </div>
+        <div>
+          <Label htmlFor="vendorPurchasedPhone">Phone</Label>
+          <Input
+            id="vendorPurchasedPhone"
+            value={formData.vendorPurchasedPhone}
+            onChange={(e) => setFormData({ ...formData, vendorPurchasedPhone: e.target.value })}
+            data-testid="input-vendor-purchased-phone"
+          />
+        </div>
+        <div>
+          <Label htmlFor="vendorPurchasedEmail">Email</Label>
+          <Input
+            id="vendorPurchasedEmail"
+            type="email"
+            value={formData.vendorPurchasedEmail}
+            onChange={(e) => setFormData({ ...formData, vendorPurchasedEmail: e.target.value })}
+            data-testid="input-vendor-purchased-email"
+          />
+        </div>
+        
+        <div className="col-span-2 border-t pt-4 mt-2">
+          <h4 className="font-medium text-sm text-muted-foreground mb-3">Vendor - Service</h4>
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="serviceVendorName">Company Name</Label>
+          <Input
+            id="serviceVendorName"
+            value={formData.serviceVendorName}
+            onChange={(e) => setFormData({ ...formData, serviceVendorName: e.target.value })}
+            data-testid="input-vendor-service"
+          />
+        </div>
+        <div>
+          <Label htmlFor="serviceVendorPhone">Phone</Label>
+          <Input
+            id="serviceVendorPhone"
+            value={formData.serviceVendorPhone}
+            onChange={(e) => setFormData({ ...formData, serviceVendorPhone: e.target.value })}
+            data-testid="input-vendor-service-phone"
+          />
+        </div>
+        <div>
+          <Label htmlFor="serviceVendorEmail">Email</Label>
+          <Input
+            id="serviceVendorEmail"
+            type="email"
+            value={formData.serviceVendorEmail}
+            onChange={(e) => setFormData({ ...formData, serviceVendorEmail: e.target.value })}
+            data-testid="input-vendor-service-email"
+          />
+        </div>
+        
+        <div className="col-span-2 border-t pt-4 mt-2">
+          <h4 className="font-medium text-sm text-muted-foreground mb-3">Vendor - Parts</h4>
+        </div>
+        <div className="col-span-2">
+          <Label htmlFor="partsVendorName">Company Name</Label>
+          <Input
+            id="partsVendorName"
+            value={formData.partsVendorName}
+            onChange={(e) => setFormData({ ...formData, partsVendorName: e.target.value })}
+            data-testid="input-vendor-parts"
+          />
+        </div>
+        <div>
+          <Label htmlFor="partsVendorPhone">Phone</Label>
+          <Input
+            id="partsVendorPhone"
+            value={formData.partsVendorPhone}
+            onChange={(e) => setFormData({ ...formData, partsVendorPhone: e.target.value })}
+            data-testid="input-vendor-parts-phone"
+          />
+        </div>
+        <div>
+          <Label htmlFor="partsVendorEmail">Email</Label>
+          <Input
+            id="partsVendorEmail"
+            type="email"
+            value={formData.partsVendorEmail}
+            onChange={(e) => setFormData({ ...formData, partsVendorEmail: e.target.value })}
+            data-testid="input-vendor-parts-email"
+          />
+        </div>
       </div>
-      <div className="flex justify-end gap-2">
+      </div>
+      <div className="flex justify-end gap-2 pt-2 border-t">
         <Button type="submit" disabled={isPending || !formData.name} data-testid="button-submit-asset">
           {isPending ? "Creating..." : "Add Asset"}
         </Button>
