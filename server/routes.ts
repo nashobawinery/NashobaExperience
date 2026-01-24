@@ -10142,6 +10142,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hourlyRate, shiftSchedule, primaryLocationId, available, isActive, isSupervisor, notes 
       } = req.body;
       
+      // Properly format arrays for PostgreSQL
+      const skillsArray = skills ? (Array.isArray(skills) ? skills : [skills]) : null;
+      
       const result = await db.execute(sql`
         INSERT INTO maintenance_technicians (
           user_id, first_name, last_name, employee_number, is_external,
@@ -10150,12 +10153,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hourly_rate, shift_schedule, primary_location_id, available, is_active, is_supervisor, notes
         )
         VALUES (
-          ${userId || null}, ${firstName}, ${lastName}, ${employeeNumber || null}, ${isExternal ?? false},
-          ${companyName || null}, ${companyAddress || null}, ${companyCity || null}, ${companyState || null}, ${companyZip || null}, ${companyPhone || null},
-          ${email || null}, ${cellPhone || null}, ${workPhone || null}, 
-          ${skills ? (Array.isArray(skills) ? skills : [skills]) : null}, 
-          ${certifications ? JSON.stringify(certifications) : null}, ${specialties || null},
-          ${hourlyRate || null}, ${shiftSchedule || null}, ${primaryLocationId || null}, ${available ?? true}, ${isActive ?? true}, ${isSupervisor ?? false}, ${notes || null}
+          ${userId || null}, 
+          ${firstName || null}, 
+          ${lastName || null}, 
+          ${employeeNumber || null}, 
+          ${isExternal ?? false},
+          ${companyName || null}, 
+          ${companyAddress || null}, 
+          ${companyCity || null}, 
+          ${companyState || null}, 
+          ${companyZip || null}, 
+          ${companyPhone || null},
+          ${email || null}, 
+          ${cellPhone || null}, 
+          ${workPhone || null}, 
+          ${skillsArray}, 
+          ${certifications ? JSON.stringify(certifications) : null}, 
+          ${specialties || null},
+          ${hourlyRate || null}, 
+          ${shiftSchedule || null}, 
+          ${primaryLocationId || null}, 
+          ${available ?? true}, 
+          ${isActive ?? true}, 
+          ${isSupervisor ?? false}, 
+          ${notes || null}
         )
         RETURNING *
       `);
