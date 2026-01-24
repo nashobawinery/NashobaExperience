@@ -170,22 +170,36 @@ type MaintenanceLocation = {
 
 type WorkOrderNote = {
   id: string;
-  workOrderId: string;
+  workOrderId?: string;
+  work_order_id?: string;
   userId?: string;
+  user_id?: string;
   technicianId?: string;
-  noteType: string;
+  technician_id?: string;
+  noteType?: string;
+  note_type?: string;
   title?: string;
   content: string;
   previousStatus?: string;
+  previous_status?: string;
   newStatus?: string;
+  new_status?: string;
   hoursWorked?: string;
+  hours_worked?: string;
   attachmentUrls?: string[];
-  isSystemGenerated: boolean;
-  createdAt: string;
+  attachment_urls?: string[];
+  isSystemGenerated?: boolean;
+  is_system_generated?: boolean;
+  createdAt?: string;
+  created_at?: string;
   userFirstName?: string;
+  user_first_name?: string;
   userLastName?: string;
+  user_last_name?: string;
   techFirstName?: string;
+  tech_first_name?: string;
   techLastName?: string;
+  tech_last_name?: string;
 };
 
 const priorityColors: Record<string, string> = {
@@ -1604,31 +1618,42 @@ export default function MaintenanceDashboard() {
                       <p className="text-sm text-muted-foreground text-center py-4">No activity recorded yet</p>
                     ) : (
                       <div className="space-y-3">
-                        {workOrderNotes.map((note) => (
+                        {workOrderNotes.map((note) => {
+                          const noteType = note.noteType || note.note_type || 'note';
+                          const newStatus = note.newStatus || note.new_status;
+                          const previousStatus = note.previousStatus || note.previous_status;
+                          const createdAt = note.createdAt || note.created_at;
+                          const hoursWorked = note.hoursWorked || note.hours_worked;
+                          const userFirstName = note.userFirstName || note.user_first_name;
+                          const userLastName = note.userLastName || note.user_last_name;
+                          const techFirstName = note.techFirstName || note.tech_first_name;
+                          const techLastName = note.techLastName || note.tech_last_name;
+                          
+                          return (
                           <div key={note.id} className="p-3 rounded-lg bg-muted/50 border" data-testid={`note-${note.id}`}>
                             <div className="flex items-center justify-between gap-2 mb-1">
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs capitalize">{note.noteType}</Badge>
-                                {note.newStatus && note.previousStatus && (
+                                <Badge variant="outline" className="text-xs capitalize">{noteType}</Badge>
+                                {newStatus && previousStatus && (
                                   <span className="text-xs text-muted-foreground">
-                                    {note.previousStatus.replace(/_/g, ' ')} → {note.newStatus.replace(/_/g, ' ')}
+                                    {previousStatus.replace(/_/g, ' ')} → {newStatus.replace(/_/g, ' ')}
                                   </span>
                                 )}
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {format(new Date(note.createdAt), 'MMM d, yyyy h:mm a')}
+                                {createdAt ? format(new Date(createdAt), 'MMM d, yyyy h:mm a') : 'Just now'}
                               </span>
                             </div>
                             {note.title && <p className="text-sm font-medium">{note.title}</p>}
                             <p className="text-sm">{note.content}</p>
-                            {note.hoursWorked && (
-                              <p className="text-xs text-muted-foreground mt-1">Hours worked: {note.hoursWorked}</p>
+                            {hoursWorked && (
+                              <p className="text-xs text-muted-foreground mt-1">Hours worked: {hoursWorked}</p>
                             )}
                             <p className="text-xs text-muted-foreground mt-1">
-                              By: {note.userFirstName || note.techFirstName || 'System'} {note.userLastName || note.techLastName || ''}
+                              By: {userFirstName || techFirstName || 'System'} {userLastName || techLastName || ''}
                             </p>
                           </div>
-                        ))}
+                        );})}
                       </div>
                     )}
                   </ScrollArea>
