@@ -33,6 +33,7 @@ export default function StaffWorkOrderForm() {
     department: "",
     workOrderType: "repair",
     priority: "medium",
+    submitterName: staffName || "",
   });
 
   const { data: departments = [] } = useQuery<DailyReportTemplate[]>({
@@ -74,7 +75,7 @@ export default function StaffWorkOrderForm() {
     
     createWorkOrderMutation.mutate({
       ...formData,
-      requestedByName: staffName,
+      requestedByName: formData.submitterName,
     });
   };
 
@@ -181,6 +182,17 @@ export default function StaffWorkOrderForm() {
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="submitterName">Person Submitting</Label>
+                <Input
+                  id="submitterName"
+                  value={formData.submitterName}
+                  onChange={(e) => setFormData({ ...formData, submitterName: e.target.value })}
+                  placeholder="Enter your name"
+                  data-testid="input-wo-submitter-name"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="workOrderType">Type</Label>
@@ -219,13 +231,6 @@ export default function StaffWorkOrderForm() {
                   </Select>
                 </div>
               </div>
-
-              {staffName && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Submitting as:</p>
-                  <p className="font-medium">{staffName}</p>
-                </div>
-              )}
 
               <Button
                 type="submit"
