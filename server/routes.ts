@@ -9230,9 +9230,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } = req.body;
       const assetNumber = await generateAssetNumber();
       
+      // Look up category name from categoryId (category column is required)
+      let categoryName = 'Uncategorized';
+      if (categoryId) {
+        const catResult = await db.execute(sql`SELECT name FROM maintenance_categories WHERE id = ${categoryId}`);
+        if (catResult.rows.length > 0) {
+          categoryName = catResult.rows[0].name as string;
+        }
+      }
+      
       const result = await db.execute(sql`
         INSERT INTO maintenance_assets (
-          asset_number, name, description, category_id, location_id, maintenance_location_id,
+          asset_number, name, description, category, category_id, location_id, maintenance_location_id,
           manufacturer, model, serial_number, purchase_date, purchase_cost, 
           warranty_expiration, status, criticality, image_url, qr_code, 
           specifications, notes, year_purchased, condition_at_purchase,
@@ -9244,6 +9253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${assetNumber}, 
           ${name || null}, 
           ${description || null}, 
+          ${categoryName},
           ${categoryId || null}, 
           ${locationId || null},
           ${maintenanceLocationId || null},
