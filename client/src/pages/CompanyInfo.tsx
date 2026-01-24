@@ -7,12 +7,74 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ArrowLeft, Building2, Save, MapPin, Phone, Mail, Globe, 
-  Facebook, Instagram, Twitter, Linkedin, ExternalLink
+  Facebook, Instagram, Twitter, Linkedin, ExternalLink, Clock
 } from "lucide-react";
+
+interface DayHours {
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
+interface WeeklyHours {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+}
+
+const DAYS_OF_WEEK = [
+  { key: 'monday', label: 'Monday' },
+  { key: 'tuesday', label: 'Tuesday' },
+  { key: 'wednesday', label: 'Wednesday' },
+  { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' },
+  { key: 'saturday', label: 'Saturday' },
+  { key: 'sunday', label: 'Sunday' },
+] as const;
+
+const TIME_OPTIONS = [
+  '6:00 AM', '6:30 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM',
+  '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+  '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
+  '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
+  '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
+  '9:00 PM', '9:30 PM', '10:00 PM', '10:30 PM', '11:00 PM', '11:30 PM',
+];
+
+const DEFAULT_WEEKLY_HOURS: WeeklyHours = {
+  monday: { isOpen: true, openTime: '10:00 AM', closeTime: '5:00 PM' },
+  tuesday: { isOpen: true, openTime: '10:00 AM', closeTime: '5:00 PM' },
+  wednesday: { isOpen: true, openTime: '10:00 AM', closeTime: '5:00 PM' },
+  thursday: { isOpen: true, openTime: '10:00 AM', closeTime: '5:00 PM' },
+  friday: { isOpen: true, openTime: '10:00 AM', closeTime: '5:00 PM' },
+  saturday: { isOpen: true, openTime: '11:00 AM', closeTime: '6:00 PM' },
+  sunday: { isOpen: true, openTime: '11:00 AM', closeTime: '6:00 PM' },
+};
+
+function parseHoursFromString(hoursString: string | null): WeeklyHours {
+  if (!hoursString) return DEFAULT_WEEKLY_HOURS;
+  try {
+    const parsed = JSON.parse(hoursString);
+    if (parsed.monday) return parsed as WeeklyHours;
+    return DEFAULT_WEEKLY_HOURS;
+  } catch {
+    return DEFAULT_WEEKLY_HOURS;
+  }
+}
+
+function formatHoursToString(hours: WeeklyHours): string {
+  return JSON.stringify(hours);
+}
 
 interface CompanyInfo {
   id: string;
@@ -69,6 +131,7 @@ export default function CompanyInfo() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [formData, setFormData] = useState<Partial<CompanyInfo>>(defaultCompanyInfo);
+  const [weeklyHours, setWeeklyHours] = useState<WeeklyHours>(DEFAULT_WEEKLY_HOURS);
   const [hasChanges, setHasChanges] = useState(false);
 
   const { data: companyInfo, isLoading } = useQuery<CompanyInfo | null>({
@@ -81,6 +144,7 @@ export default function CompanyInfo() {
         ...defaultCompanyInfo,
         ...companyInfo,
       });
+      setWeeklyHours(parseHoursFromString(companyInfo.hoursOfOperation));
     }
   }, [companyInfo]);
 
@@ -104,8 +168,20 @@ export default function CompanyInfo() {
     setHasChanges(true);
   };
 
+  const handleDayChange = (day: keyof WeeklyHours, field: keyof DayHours, value: boolean | string) => {
+    setWeeklyHours((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value }
+    }));
+    setHasChanges(true);
+  };
+
   const handleSave = () => {
-    updateMutation.mutate(formData);
+    const dataWithHours = {
+      ...formData,
+      hoursOfOperation: formatHoursToString(weeklyHours)
+    };
+    updateMutation.mutate(dataWithHours);
   };
 
   return (
@@ -418,21 +494,71 @@ export default function CompanyInfo() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Hours of Operation
+                </CardTitle>
+                <CardDescription>Set your business hours for each day of the week</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {DAYS_OF_WEEK.map(({ key, label }) => {
+                  const dayHours = weeklyHours[key];
+                  return (
+                    <div key={key} className="flex flex-wrap items-center gap-3 py-2 border-b last:border-b-0" data-testid={`hours-row-${key}`}>
+                      <div className="w-28 font-medium">{label}</div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={dayHours.isOpen}
+                          onCheckedChange={(checked) => handleDayChange(key, 'isOpen', checked)}
+                          data-testid={`switch-${key}-open`}
+                        />
+                        <span className={`text-sm ${dayHours.isOpen ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                          {dayHours.isOpen ? 'Open' : 'Closed'}
+                        </span>
+                      </div>
+                      {dayHours.isOpen && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Select
+                            value={dayHours.openTime}
+                            onValueChange={(value) => handleDayChange(key, 'openTime', value)}
+                          >
+                            <SelectTrigger className="w-[120px]" data-testid={`select-${key}-open-time`}>
+                              <SelectValue placeholder="Open" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TIME_OPTIONS.map((time) => (
+                                <SelectItem key={time} value={time}>{time}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">to</span>
+                          <Select
+                            value={dayHours.closeTime}
+                            onValueChange={(value) => handleDayChange(key, 'closeTime', value)}
+                          >
+                            <SelectTrigger className="w-[120px]" data-testid={`select-${key}-close-time`}>
+                              <SelectValue placeholder="Close" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TIME_OPTIONS.map((time) => (
+                                <SelectItem key={time} value={time}>{time}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Additional Information</CardTitle>
-                <CardDescription>Hours of operation and other details</CardDescription>
+                <CardDescription>Other details about your company</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hoursOfOperation">Hours of Operation</Label>
-                  <Textarea
-                    id="hoursOfOperation"
-                    value={formData.hoursOfOperation || ""}
-                    onChange={(e) => handleChange("hoursOfOperation", e.target.value)}
-                    placeholder="Monday - Friday: 10am - 5pm&#10;Saturday - Sunday: 11am - 6pm"
-                    className="min-h-[100px]"
-                    data-testid="input-hours"
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="additionalInfo">Additional Notes</Label>
                   <Textarea
