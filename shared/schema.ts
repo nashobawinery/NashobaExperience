@@ -3217,6 +3217,33 @@ export const insertMaintenanceAssetCategorySchema = createInsertSchema(maintenan
 export type InsertMaintenanceAssetCategory = z.infer<typeof insertMaintenanceAssetCategorySchema>;
 export type MaintenanceAssetCategory = typeof maintenanceAssetCategories.$inferSelect;
 
+// Maintenance Locations - dedicated locations for maintenance work (defined before maintenanceAssets to avoid forward reference)
+export const maintenanceLocations = pgTable("maintenance_locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  locationType: varchar("location_type"), // building, room, area, floor, zone
+  building: varchar("building"),
+  floor: varchar("floor"),
+  room: varchar("room"),
+  address: text("address"),
+  contactName: varchar("contact_name"),
+  contactPhone: varchar("contact_phone"),
+  contactEmail: varchar("contact_email"),
+  parentLocationId: varchar("parent_location_id"), // For hierarchical locations
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_maint_loc_name").on(table.name),
+  index("idx_maint_loc_active").on(table.isActive),
+]);
+
+export const insertMaintenanceLocationSchema = createInsertSchema(maintenanceLocations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMaintenanceLocation = z.infer<typeof insertMaintenanceLocationSchema>;
+export type MaintenanceLocation = typeof maintenanceLocations.$inferSelect;
+
 // Assets - equipment and facilities tracked for maintenance
 export const maintenanceAssets = pgTable("maintenance_assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -3266,33 +3293,6 @@ export const maintenanceAssets = pgTable("maintenance_assets", {
 export const insertMaintenanceAssetSchema = createInsertSchema(maintenanceAssets).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertMaintenanceAsset = z.infer<typeof insertMaintenanceAssetSchema>;
 export type MaintenanceAsset = typeof maintenanceAssets.$inferSelect;
-
-// Maintenance Locations - dedicated locations for maintenance work
-export const maintenanceLocations = pgTable("maintenance_locations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name").notNull(),
-  description: text("description"),
-  locationType: varchar("location_type"), // building, room, area, floor, zone
-  building: varchar("building"),
-  floor: varchar("floor"),
-  room: varchar("room"),
-  address: text("address"),
-  contactName: varchar("contact_name"),
-  contactPhone: varchar("contact_phone"),
-  contactEmail: varchar("contact_email"),
-  parentLocationId: varchar("parent_location_id"), // For hierarchical locations
-  isActive: boolean("is_active").notNull().default(true),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  index("idx_maint_loc_name").on(table.name),
-  index("idx_maint_loc_active").on(table.isActive),
-]);
-
-export const insertMaintenanceLocationSchema = createInsertSchema(maintenanceLocations).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertMaintenanceLocation = z.infer<typeof insertMaintenanceLocationSchema>;
-export type MaintenanceLocation = typeof maintenanceLocations.$inferSelect;
 
 // Technicians - maintenance staff with skills (internal or external contractors)
 export const maintenanceTechnicians = pgTable("maintenance_technicians", {
