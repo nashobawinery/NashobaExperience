@@ -16143,6 +16143,55 @@ Generate a professional response:`;
     }
   });
 
+  // Get full course with lessons for CourseBuilder
+  app.get('/api/lms/admin/courses/:id/full', isAuthenticated, async (req, res) => {
+    try {
+      const course = await storage.getLmsCourse(req.params.id);
+      if (!course) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      
+      const lessons = await storage.getLmsLessons(req.params.id);
+      
+      res.json({
+        ...course,
+        lessons: lessons.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      });
+    } catch (error) {
+      console.error('Error fetching full course:', error);
+      res.status(500).json({ message: 'Failed to fetch course' });
+    }
+  });
+
+  // Get full lesson with pages and blocks for CourseBuilder
+  app.get('/api/lms/admin/lessons/:id/full', isAuthenticated, async (req, res) => {
+    try {
+      const lesson = await storage.getLmsLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: 'Lesson not found' });
+      }
+      
+      const pages = await storage.getLmsLessonPages(req.params.id);
+      
+      // Get content blocks for each page
+      const pagesWithBlocks = await Promise.all(pages.map(async (page: any) => {
+        const blocks = await storage.getLmsContentBlocks(page.id);
+        return {
+          ...page,
+          blocks: blocks.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        };
+      }));
+      
+      res.json({
+        ...lesson,
+        pages: pagesWithBlocks.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      });
+    } catch (error) {
+      console.error('Error fetching full lesson:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson' });
+    }
+  });
+
   // LMS Admin Lessons
   app.post('/api/lms/admin/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
     try {
@@ -16180,6 +16229,80 @@ Generate a professional response:`;
     }
   });
 
+  // LMS Admin Pages (for CourseBuilder)
+  app.post('/api/lms/admin/lessons/:lessonId/pages', isAuthenticated, async (req, res) => {
+    try {
+      const page = await storage.createLmsLessonPage({
+        ...req.body,
+        lessonId: req.params.lessonId
+      });
+      res.status(201).json(page);
+    } catch (error) {
+      console.error('Error creating LMS page:', error);
+      res.status(500).json({ message: 'Failed to create page' });
+    }
+  });
+
+  app.patch('/api/lms/admin/pages/:id', isAuthenticated, async (req, res) => {
+    try {
+      const page = await storage.updateLmsLessonPage(req.params.id, req.body);
+      if (!page) {
+        return res.status(404).json({ message: 'Page not found' });
+      }
+      res.json(page);
+    } catch (error) {
+      console.error('Error updating LMS page:', error);
+      res.status(500).json({ message: 'Failed to update page' });
+    }
+  });
+
+  app.delete('/api/lms/admin/pages/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsLessonPage(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS page:', error);
+      res.status(500).json({ message: 'Failed to delete page' });
+    }
+  });
+
+  // LMS Admin Content Blocks (for CourseBuilder)
+  app.post('/api/lms/admin/pages/:pageId/blocks', isAuthenticated, async (req, res) => {
+    try {
+      const block = await storage.createLmsContentBlock({
+        ...req.body,
+        pageId: req.params.pageId
+      });
+      res.status(201).json(block);
+    } catch (error) {
+      console.error('Error creating LMS block:', error);
+      res.status(500).json({ message: 'Failed to create block' });
+    }
+  });
+
+  app.patch('/api/lms/admin/blocks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const block = await storage.updateLmsContentBlock(req.params.id, req.body);
+      if (!block) {
+        return res.status(404).json({ message: 'Block not found' });
+      }
+      res.json(block);
+    } catch (error) {
+      console.error('Error updating LMS block:', error);
+      res.status(500).json({ message: 'Failed to update block' });
+    }
+  });
+
+  app.delete('/api/lms/admin/blocks/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsContentBlock(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS block:', error);
+      res.status(500).json({ message: 'Failed to delete block' });
+    }
+  });
+
   // LMS Admin Quiz/Questions (for course builder)
   app.get('/api/lms/courses/:courseId/quiz', isAuthenticated, async (req, res) => {
     try {
@@ -16207,13 +16330,33 @@ Generate a professional response:`;
 
   app.post('/api/lms/admin/courses/:courseId/quiz', isAuthenticated, async (req, res) => {
     try {
-      // First, get or create a question bank for this course
-      let bank = await storage.getLmsQuestionBanks();
-      let courseBank = bank.find((b: any) => b.courseId === req.params.courseId);
+      const courseId = req.params.courseId;
+      
+      // Get or create a quiz for this course
+      let quizzes = await storage.getLmsQuizzes(courseId);
+      let quiz = quizzes[0]; // Use the first quiz, or create one
+      
+      if (!quiz) {
+        // Create a default quiz for the course
+        quiz = await storage.createLmsQuiz({
+          courseId: courseId,
+          title: 'Course Quiz',
+          description: 'Course assessment quiz',
+          passingScore: 70,
+          timeLimit: null,
+          maxAttempts: 3,
+          shuffleQuestions: false,
+          showResults: true
+        });
+      }
+      
+      // Get or create a question bank for this course
+      let banks = await storage.getLmsQuestionBanks();
+      let courseBank = banks.find((b: any) => b.name === `Course ${courseId} Questions`);
       
       if (!courseBank) {
         courseBank = await storage.createLmsQuestionBank({
-          name: `Course ${req.params.courseId} Questions`,
+          name: `Course ${courseId} Questions`,
           description: 'Question bank for course'
         });
       }
@@ -16229,16 +16372,21 @@ Generate a professional response:`;
         points: req.body.points || 1
       });
       
-      // If there's a quiz, link the question to it
-      if (req.body.quizId) {
-        await storage.addLmsQuizQuestion({
-          quizId: req.body.quizId,
-          questionId: question.id,
-          sortOrder: req.body.sortOrder || 0
-        });
-      }
+      // Get current question count to determine sort order
+      const existingLinks = await storage.getLmsQuizQuestions(quiz.id);
       
-      res.status(201).json(question);
+      // Link the question to the quiz
+      await storage.addLmsQuizQuestion({
+        quizId: quiz.id,
+        questionId: question.id,
+        sortOrder: existingLinks.length + 1
+      });
+      
+      res.status(201).json({
+        ...question,
+        quizId: quiz.id,
+        sortOrder: existingLinks.length + 1
+      });
     } catch (error) {
       console.error('Error creating quiz question:', error);
       res.status(500).json({ message: 'Failed to create quiz question' });
