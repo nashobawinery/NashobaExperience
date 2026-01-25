@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
+import DOMPurify from "dompurify";
 import {
   CheckCircle2,
   AlertCircle,
@@ -472,7 +473,7 @@ export default function ExternalTrainingPage() {
           <div 
             key={block.id} 
             className="prose prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: block.content || '' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.content || '') }}
           />
         );
       case "image":
@@ -513,7 +514,7 @@ export default function ExternalTrainingPage() {
         const textElement = (
           <div 
             className={`prose prose-sm dark:prose-invert max-w-none ${isHorizontal ? getTextWidth() : ''}`}
-            dangerouslySetInnerHTML={{ __html: block.content || '' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.content || '') }}
           />
         );
 
