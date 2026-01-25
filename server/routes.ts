@@ -16027,6 +16027,814 @@ Generate a professional response:`;
     }
   });
 
+  // =====================
+  // LMS MODULE ROUTES
+  // =====================
+
+  // LMS Categories
+  app.get('/api/lms/categories', isAuthenticated, async (_req, res) => {
+    try {
+      const categories = await storage.getLmsCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching LMS categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.get('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const category = await storage.getLmsCategory(req.params.id);
+      if (!category) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+      res.json(category);
+    } catch (error) {
+      console.error('Error fetching LMS category:', error);
+      res.status(500).json({ message: 'Failed to fetch category' });
+    }
+  });
+
+  app.post('/api/lms/categories', isAuthenticated, async (req, res) => {
+    try {
+      const category = await storage.createLmsCategory(req.body);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error('Error creating LMS category:', error);
+      res.status(500).json({ message: 'Failed to create category' });
+    }
+  });
+
+  app.patch('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const category = await storage.updateLmsCategory(req.params.id, req.body);
+      if (!category) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+      res.json(category);
+    } catch (error) {
+      console.error('Error updating LMS category:', error);
+      res.status(500).json({ message: 'Failed to update category' });
+    }
+  });
+
+  app.delete('/api/lms/categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsCategory(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS category:', error);
+      res.status(500).json({ message: 'Failed to delete category' });
+    }
+  });
+
+  // LMS Courses
+  app.get('/api/lms/courses', isAuthenticated, async (req, res) => {
+    try {
+      const { includeArchived } = req.query;
+      const courses = await storage.getLmsCourses(includeArchived === 'true');
+      res.json(courses);
+    } catch (error) {
+      console.error('Error fetching LMS courses:', error);
+      res.status(500).json({ message: 'Failed to fetch courses' });
+    }
+  });
+
+  app.get('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+    try {
+      const course = await storage.getLmsCourse(req.params.id);
+      if (!course) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      res.json(course);
+    } catch (error) {
+      console.error('Error fetching LMS course:', error);
+      res.status(500).json({ message: 'Failed to fetch course' });
+    }
+  });
+
+  app.get('/api/lms/courses/:id/details', isAuthenticated, async (req, res) => {
+    try {
+      const course = await storage.getLmsCourseWithDetails(req.params.id);
+      if (!course) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      res.json(course);
+    } catch (error) {
+      console.error('Error fetching LMS course details:', error);
+      res.status(500).json({ message: 'Failed to fetch course details' });
+    }
+  });
+
+  app.post('/api/lms/courses', isAuthenticated, async (req, res) => {
+    try {
+      const course = await storage.createLmsCourse(req.body);
+      res.status(201).json(course);
+    } catch (error) {
+      console.error('Error creating LMS course:', error);
+      res.status(500).json({ message: 'Failed to create course' });
+    }
+  });
+
+  app.patch('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+    try {
+      const course = await storage.updateLmsCourse(req.params.id, req.body);
+      if (!course) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+      res.json(course);
+    } catch (error) {
+      console.error('Error updating LMS course:', error);
+      res.status(500).json({ message: 'Failed to update course' });
+    }
+  });
+
+  app.delete('/api/lms/courses/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsCourse(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS course:', error);
+      res.status(500).json({ message: 'Failed to delete course' });
+    }
+  });
+
+  // LMS Lessons
+  app.get('/api/lms/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
+    try {
+      const lessons = await storage.getLmsLessons(req.params.courseId);
+      res.json(lessons);
+    } catch (error) {
+      console.error('Error fetching LMS lessons:', error);
+      res.status(500).json({ message: 'Failed to fetch lessons' });
+    }
+  });
+
+  app.get('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+    try {
+      const lesson = await storage.getLmsLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: 'Lesson not found' });
+      }
+      res.json(lesson);
+    } catch (error) {
+      console.error('Error fetching LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson' });
+    }
+  });
+
+  app.get('/api/lms/lessons/:id/details', isAuthenticated, async (req, res) => {
+    try {
+      const lesson = await storage.getLmsLesson(req.params.id);
+      if (!lesson) {
+        return res.status(404).json({ message: 'Lesson not found' });
+      }
+      const contentBlocks = await storage.getLmsContentBlocks(req.params.id);
+      res.json({ ...lesson, contentBlocks });
+    } catch (error) {
+      console.error('Error fetching LMS lesson details:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson details' });
+    }
+  });
+
+  app.post('/api/lms/courses/:courseId/lessons', isAuthenticated, async (req, res) => {
+    try {
+      const lesson = await storage.createLmsLesson({
+        ...req.body,
+        courseId: req.params.courseId
+      });
+      res.status(201).json(lesson);
+    } catch (error) {
+      console.error('Error creating LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to create lesson' });
+    }
+  });
+
+  app.patch('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+    try {
+      const lesson = await storage.updateLmsLesson(req.params.id, req.body);
+      if (!lesson) {
+        return res.status(404).json({ message: 'Lesson not found' });
+      }
+      res.json(lesson);
+    } catch (error) {
+      console.error('Error updating LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to update lesson' });
+    }
+  });
+
+  app.delete('/api/lms/lessons/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsLesson(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting LMS lesson:', error);
+      res.status(500).json({ message: 'Failed to delete lesson' });
+    }
+  });
+
+  // LMS Content Blocks
+  app.get('/api/lms/lessons/:lessonId/content-blocks', isAuthenticated, async (req, res) => {
+    try {
+      const blocks = await storage.getLmsContentBlocks(req.params.lessonId);
+      res.json(blocks);
+    } catch (error) {
+      console.error('Error fetching content blocks:', error);
+      res.status(500).json({ message: 'Failed to fetch content blocks' });
+    }
+  });
+
+  app.post('/api/lms/lessons/:lessonId/content-blocks', isAuthenticated, async (req, res) => {
+    try {
+      const block = await storage.createLmsContentBlock({
+        ...req.body,
+        lessonId: req.params.lessonId
+      });
+      res.status(201).json(block);
+    } catch (error) {
+      console.error('Error creating content block:', error);
+      res.status(500).json({ message: 'Failed to create content block' });
+    }
+  });
+
+  app.patch('/api/lms/content-blocks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const block = await storage.updateLmsContentBlock(req.params.id, req.body);
+      if (!block) {
+        return res.status(404).json({ message: 'Content block not found' });
+      }
+      res.json(block);
+    } catch (error) {
+      console.error('Error updating content block:', error);
+      res.status(500).json({ message: 'Failed to update content block' });
+    }
+  });
+
+  app.delete('/api/lms/content-blocks/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsContentBlock(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting content block:', error);
+      res.status(500).json({ message: 'Failed to delete content block' });
+    }
+  });
+
+  // LMS Question Banks
+  app.get('/api/lms/question-banks', isAuthenticated, async (_req, res) => {
+    try {
+      const banks = await storage.getLmsQuestionBanks();
+      res.json(banks);
+    } catch (error) {
+      console.error('Error fetching question banks:', error);
+      res.status(500).json({ message: 'Failed to fetch question banks' });
+    }
+  });
+
+  app.get('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const bank = await storage.getLmsQuestionBank(req.params.id);
+      if (!bank) {
+        return res.status(404).json({ message: 'Question bank not found' });
+      }
+      res.json(bank);
+    } catch (error) {
+      console.error('Error fetching question bank:', error);
+      res.status(500).json({ message: 'Failed to fetch question bank' });
+    }
+  });
+
+  app.post('/api/lms/question-banks', isAuthenticated, async (req, res) => {
+    try {
+      const bank = await storage.createLmsQuestionBank(req.body);
+      res.status(201).json(bank);
+    } catch (error) {
+      console.error('Error creating question bank:', error);
+      res.status(500).json({ message: 'Failed to create question bank' });
+    }
+  });
+
+  app.patch('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const bank = await storage.updateLmsQuestionBank(req.params.id, req.body);
+      if (!bank) {
+        return res.status(404).json({ message: 'Question bank not found' });
+      }
+      res.json(bank);
+    } catch (error) {
+      console.error('Error updating question bank:', error);
+      res.status(500).json({ message: 'Failed to update question bank' });
+    }
+  });
+
+  app.delete('/api/lms/question-banks/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsQuestionBank(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting question bank:', error);
+      res.status(500).json({ message: 'Failed to delete question bank' });
+    }
+  });
+
+  // LMS Questions
+  app.get('/api/lms/question-banks/:bankId/questions', isAuthenticated, async (req, res) => {
+    try {
+      const questions = await storage.getLmsQuestions(req.params.bankId);
+      res.json(questions);
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      res.status(500).json({ message: 'Failed to fetch questions' });
+    }
+  });
+
+  app.post('/api/lms/question-banks/:bankId/questions', isAuthenticated, async (req, res) => {
+    try {
+      const question = await storage.createLmsQuestion({
+        ...req.body,
+        questionBankId: req.params.bankId
+      });
+      res.status(201).json(question);
+    } catch (error) {
+      console.error('Error creating question:', error);
+      res.status(500).json({ message: 'Failed to create question' });
+    }
+  });
+
+  app.patch('/api/lms/questions/:id', isAuthenticated, async (req, res) => {
+    try {
+      const question = await storage.updateLmsQuestion(req.params.id, req.body);
+      if (!question) {
+        return res.status(404).json({ message: 'Question not found' });
+      }
+      res.json(question);
+    } catch (error) {
+      console.error('Error updating question:', error);
+      res.status(500).json({ message: 'Failed to update question' });
+    }
+  });
+
+  app.delete('/api/lms/questions/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsQuestion(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      res.status(500).json({ message: 'Failed to delete question' });
+    }
+  });
+
+  // LMS Quizzes
+  app.get('/api/lms/courses/:courseId/quizzes', isAuthenticated, async (req, res) => {
+    try {
+      const quizzes = await storage.getLmsQuizzes(req.params.courseId);
+      res.json(quizzes);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+      res.status(500).json({ message: 'Failed to fetch quizzes' });
+    }
+  });
+
+  app.get('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const quiz = await storage.getLmsQuiz(req.params.id);
+      if (!quiz) {
+        return res.status(404).json({ message: 'Quiz not found' });
+      }
+      res.json(quiz);
+    } catch (error) {
+      console.error('Error fetching quiz:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz' });
+    }
+  });
+
+  app.get('/api/lms/quizzes/:id/questions', isAuthenticated, async (req, res) => {
+    try {
+      const questions = await storage.getLmsQuizQuestions(req.params.id);
+      res.json(questions);
+    } catch (error) {
+      console.error('Error fetching quiz questions:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz questions' });
+    }
+  });
+
+  app.post('/api/lms/courses/:courseId/quizzes', isAuthenticated, async (req, res) => {
+    try {
+      const quiz = await storage.createLmsQuiz({
+        ...req.body,
+        courseId: req.params.courseId
+      });
+      res.status(201).json(quiz);
+    } catch (error) {
+      console.error('Error creating quiz:', error);
+      res.status(500).json({ message: 'Failed to create quiz' });
+    }
+  });
+
+  app.patch('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const quiz = await storage.updateLmsQuiz(req.params.id, req.body);
+      if (!quiz) {
+        return res.status(404).json({ message: 'Quiz not found' });
+      }
+      res.json(quiz);
+    } catch (error) {
+      console.error('Error updating quiz:', error);
+      res.status(500).json({ message: 'Failed to update quiz' });
+    }
+  });
+
+  app.delete('/api/lms/quizzes/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsQuiz(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      res.status(500).json({ message: 'Failed to delete quiz' });
+    }
+  });
+
+  app.post('/api/lms/quizzes/:quizId/questions', isAuthenticated, async (req, res) => {
+    try {
+      const link = await storage.addLmsQuizQuestion({
+        quizId: req.params.quizId,
+        questionId: req.body.questionId,
+        sortOrder: req.body.sortOrder || 0
+      });
+      res.status(201).json(link);
+    } catch (error) {
+      console.error('Error adding quiz question:', error);
+      res.status(500).json({ message: 'Failed to add quiz question' });
+    }
+  });
+
+  app.delete('/api/lms/quizzes/:quizId/questions/:questionId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.removeLmsQuizQuestion(req.params.quizId, req.params.questionId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error removing quiz question:', error);
+      res.status(500).json({ message: 'Failed to remove quiz question' });
+    }
+  });
+
+  // LMS Enrollments
+  app.get('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.query;
+      const enrollments = await storage.getLmsEnrollments(
+        userId as string || req.user?.claims?.sub
+      );
+      res.json(enrollments);
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
+      res.status(500).json({ message: 'Failed to fetch enrollments' });
+    }
+  });
+
+  app.get('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+    try {
+      const enrollment = await storage.getLmsEnrollment(req.params.id);
+      if (!enrollment) {
+        return res.status(404).json({ message: 'Enrollment not found' });
+      }
+      res.json(enrollment);
+    } catch (error) {
+      console.error('Error fetching enrollment:', error);
+      res.status(500).json({ message: 'Failed to fetch enrollment' });
+    }
+  });
+
+  app.post('/api/lms/enrollments', isAuthenticated, async (req: any, res) => {
+    try {
+      const enrollment = await storage.createLmsEnrollment({
+        userId: req.body.userId || req.user?.claims?.sub,
+        courseId: req.body.courseId
+      });
+      res.status(201).json(enrollment);
+    } catch (error) {
+      console.error('Error creating enrollment:', error);
+      res.status(500).json({ message: 'Failed to create enrollment' });
+    }
+  });
+
+  app.patch('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+    try {
+      const enrollment = await storage.updateLmsEnrollment(req.params.id, req.body);
+      if (!enrollment) {
+        return res.status(404).json({ message: 'Enrollment not found' });
+      }
+      res.json(enrollment);
+    } catch (error) {
+      console.error('Error updating enrollment:', error);
+      res.status(500).json({ message: 'Failed to update enrollment' });
+    }
+  });
+
+  app.post('/api/lms/enrollments/:id/complete', isAuthenticated, async (req, res) => {
+    try {
+      const enrollment = await storage.completeLmsEnrollment(req.params.id, req.body.score);
+      if (!enrollment) {
+        return res.status(404).json({ message: 'Enrollment not found' });
+      }
+      res.json(enrollment);
+    } catch (error) {
+      console.error('Error completing enrollment:', error);
+      res.status(500).json({ message: 'Failed to complete enrollment' });
+    }
+  });
+
+  app.delete('/api/lms/enrollments/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsEnrollment(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting enrollment:', error);
+      res.status(500).json({ message: 'Failed to delete enrollment' });
+    }
+  });
+
+  // LMS Lesson Progress
+  app.get('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req, res) => {
+    try {
+      const progress = await storage.getLmsLessonProgress(req.params.enrollmentId);
+      res.json(progress);
+    } catch (error) {
+      console.error('Error fetching lesson progress:', error);
+      res.status(500).json({ message: 'Failed to fetch lesson progress' });
+    }
+  });
+
+  app.post('/api/lms/enrollments/:enrollmentId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const progress = await storage.createLmsLessonProgress({
+        userId: req.body.userId || req.user?.claims?.sub,
+        enrollmentId: req.params.enrollmentId,
+        lessonId: req.body.lessonId
+      });
+      res.status(201).json(progress);
+    } catch (error) {
+      console.error('Error creating lesson progress:', error);
+      res.status(500).json({ message: 'Failed to create lesson progress' });
+    }
+  });
+
+  app.post('/api/lms/lesson-progress/:id/complete', isAuthenticated, async (req, res) => {
+    try {
+      const progress = await storage.completeLmsLessonProgress(req.params.id);
+      if (!progress) {
+        return res.status(404).json({ message: 'Lesson progress not found' });
+      }
+      res.json(progress);
+    } catch (error) {
+      console.error('Error completing lesson:', error);
+      res.status(500).json({ message: 'Failed to complete lesson' });
+    }
+  });
+
+  // LMS Quiz Attempts
+  app.get('/api/lms/courses/:courseId/quiz-attempts', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.query;
+      const attempts = await storage.getLmsQuizAttempts(
+        req.params.courseId,
+        userId as string || req.user?.claims?.sub
+      );
+      res.json(attempts);
+    } catch (error) {
+      console.error('Error fetching quiz attempts:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz attempts' });
+    }
+  });
+
+  app.get('/api/lms/quiz-attempts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const attempt = await storage.getLmsQuizAttempt(req.params.id);
+      if (!attempt) {
+        return res.status(404).json({ message: 'Quiz attempt not found' });
+      }
+      res.json(attempt);
+    } catch (error) {
+      console.error('Error fetching quiz attempt:', error);
+      res.status(500).json({ message: 'Failed to fetch quiz attempt' });
+    }
+  });
+
+  app.post('/api/lms/quiz-attempts', isAuthenticated, async (req: any, res) => {
+    try {
+      const attempt = await storage.createLmsQuizAttempt({
+        userId: req.body.userId || req.user?.claims?.sub,
+        courseId: req.body.courseId,
+        enrollmentId: req.body.enrollmentId
+      });
+      res.status(201).json(attempt);
+    } catch (error) {
+      console.error('Error creating quiz attempt:', error);
+      res.status(500).json({ message: 'Failed to create quiz attempt' });
+    }
+  });
+
+  app.post('/api/lms/quiz-attempts/:id/complete', isAuthenticated, async (req, res) => {
+    try {
+      const attempt = await storage.completeLmsQuizAttempt(
+        req.params.id,
+        req.body.score,
+        req.body.passed
+      );
+      if (!attempt) {
+        return res.status(404).json({ message: 'Quiz attempt not found' });
+      }
+      res.json(attempt);
+    } catch (error) {
+      console.error('Error completing quiz attempt:', error);
+      res.status(500).json({ message: 'Failed to complete quiz attempt' });
+    }
+  });
+
+  // LMS Question Responses
+  app.get('/api/lms/quiz-attempts/:attemptId/responses', isAuthenticated, async (req, res) => {
+    try {
+      const responses = await storage.getLmsQuestionResponses(req.params.attemptId);
+      res.json(responses);
+    } catch (error) {
+      console.error('Error fetching question responses:', error);
+      res.status(500).json({ message: 'Failed to fetch question responses' });
+    }
+  });
+
+  app.post('/api/lms/quiz-attempts/:attemptId/responses', isAuthenticated, async (req, res) => {
+    try {
+      const response = await storage.createLmsQuestionResponse({
+        attemptId: req.params.attemptId,
+        questionId: req.body.questionId,
+        responseValue: req.body.answer || req.body.responseValue,
+        isCorrect: req.body.isCorrect
+      });
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('Error creating question response:', error);
+      res.status(500).json({ message: 'Failed to create question response' });
+    }
+  });
+
+  // LMS Certificates
+  app.get('/api/lms/certificates', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.query;
+      const certificates = await storage.getLmsCertificates(
+        userId as string || req.user?.claims?.sub
+      );
+      res.json(certificates);
+    } catch (error) {
+      console.error('Error fetching certificates:', error);
+      res.status(500).json({ message: 'Failed to fetch certificates' });
+    }
+  });
+
+  app.get('/api/lms/certificates/:id', isAuthenticated, async (req, res) => {
+    try {
+      const certificate = await storage.getLmsCertificate(req.params.id);
+      if (!certificate) {
+        return res.status(404).json({ message: 'Certificate not found' });
+      }
+      res.json(certificate);
+    } catch (error) {
+      console.error('Error fetching certificate:', error);
+      res.status(500).json({ message: 'Failed to fetch certificate' });
+    }
+  });
+
+  app.get('/api/lms/certificates/verify/:certificateNumber', async (req, res) => {
+    try {
+      const certificate = await storage.getLmsCertificateByNumber(req.params.certificateNumber);
+      if (!certificate) {
+        return res.status(404).json({ message: 'Certificate not found', valid: false });
+      }
+      res.json({ ...certificate, valid: true });
+    } catch (error) {
+      console.error('Error verifying certificate:', error);
+      res.status(500).json({ message: 'Failed to verify certificate' });
+    }
+  });
+
+  app.post('/api/lms/certificates', isAuthenticated, async (req, res) => {
+    try {
+      const certificate = await storage.createLmsCertificate(req.body);
+      res.status(201).json(certificate);
+    } catch (error) {
+      console.error('Error creating certificate:', error);
+      res.status(500).json({ message: 'Failed to create certificate' });
+    }
+  });
+
+  app.delete('/api/lms/certificates/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteLmsCertificate(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting certificate:', error);
+      res.status(500).json({ message: 'Failed to delete certificate' });
+    }
+  });
+
+  // LMS Course Ratings
+  app.get('/api/lms/courses/:courseId/ratings', isAuthenticated, async (req, res) => {
+    try {
+      const ratings = await storage.getLmsCourseRatings(req.params.courseId);
+      const averageRating = await storage.getLmsCourseAverageRating(req.params.courseId);
+      res.json({ ratings, averageRating });
+    } catch (error) {
+      console.error('Error fetching course ratings:', error);
+      res.status(500).json({ message: 'Failed to fetch course ratings' });
+    }
+  });
+
+  app.post('/api/lms/courses/:courseId/ratings', isAuthenticated, async (req: any, res) => {
+    try {
+      const rating = await storage.createLmsCourseRating({
+        courseId: req.params.courseId,
+        userId: req.body.userId || req.user?.claims?.sub,
+        rating: req.body.rating,
+        review: req.body.review
+      });
+      res.status(201).json(rating);
+    } catch (error) {
+      console.error('Error creating course rating:', error);
+      res.status(500).json({ message: 'Failed to create course rating' });
+    }
+  });
+
+  // LMS Dashboard Stats
+  app.get('/api/lms/dashboard/stats', isAuthenticated, async (_req, res) => {
+    try {
+      const stats = await storage.getLmsDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching LMS dashboard stats:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard stats' });
+    }
+  });
+
+  // LMS Training Portal PIN Authentication
+  app.post('/api/lms/portal/auth', async (req, res) => {
+    try {
+      const { pin } = req.body;
+      if (!pin) {
+        return res.status(400).json({ message: 'PIN is required' });
+      }
+      
+      // Look up staff by access code (PIN) - use existing access codes
+      const accessCode = await storage.getDailyReportAccessCodeByCode(pin);
+      
+      if (!accessCode || !accessCode.isActive) {
+        return res.status(401).json({ message: 'Invalid PIN' });
+      }
+      
+      // Return staff info for training portal session
+      res.json({
+        userId: accessCode.id,
+        displayName: accessCode.staffName,
+        department: accessCode.department
+      });
+    } catch (error) {
+      console.error('Error authenticating training portal:', error);
+      res.status(500).json({ message: 'Failed to authenticate' });
+    }
+  });
+
+  // LMS Training Portal - Get user's assigned courses
+  app.get('/api/lms/portal/courses', async (req, res) => {
+    try {
+      const { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+      
+      // Get all published courses (status != archived, includes published)
+      const allCourses = await storage.getLmsCourses(false);
+      const publishedCourses = allCourses.filter(c => c.status === 'published');
+      
+      // Get user's enrollments
+      const enrollments = await storage.getLmsEnrollments(userId as string);
+      
+      // Combine with enrollment status
+      const coursesWithProgress = publishedCourses.map(course => {
+        const enrollment = enrollments.find(e => e.courseId === course.id);
+        return {
+          ...course,
+          enrollment: enrollment || null,
+          isEnrolled: !!enrollment,
+          status: enrollment?.status || 'not_started'
+        };
+      });
+      
+      res.json(coursesWithProgress);
+    } catch (error) {
+      console.error('Error fetching portal courses:', error);
+      res.status(500).json({ message: 'Failed to fetch courses' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
   
