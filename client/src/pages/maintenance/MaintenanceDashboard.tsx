@@ -1670,35 +1670,40 @@ export default function MaintenanceDashboard() {
                       />
                     </div>
                     
-                    {editingWorkOrderFields && (
-                      <div className="flex justify-end">
-                        <Button
-                          onClick={() => {
-                            updateWorkOrderMutation.mutate({
-                              ...viewingWorkOrder,
-                              id: viewingWorkOrder.id,
-                              description: editingWorkOrderFields.description,
-                              dueDate: editingWorkOrderFields.dueDate || undefined,
-                              assignedTechnicianId: editingWorkOrderFields.assignedTechnicianId || undefined,
-                              assetId: editingWorkOrderFields.assetId || undefined,
-                              priority: editingWorkOrderFields.priority,
-                            });
-                            setViewingWorkOrder({
-                              ...viewingWorkOrder,
-                              description: editingWorkOrderFields.description,
-                              due_date: editingWorkOrderFields.dueDate,
-                              asset_id: editingWorkOrderFields.assetId,
-                              priority: editingWorkOrderFields.priority,
-                            });
-                            setEditingWorkOrderFields(null);
-                          }}
-                          disabled={updateWorkOrderMutation.isPending}
-                          data-testid="button-save-wo-changes"
-                        >
-                          {updateWorkOrderMutation.isPending ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => {
+                          const fieldsToSave = editingWorkOrderFields || {
+                            description: viewingWorkOrder.description ?? '',
+                            dueDate: viewingWorkOrder.due_date ?? '',
+                            assignedTechnicianId: '',
+                            assetId: viewingWorkOrder.asset_id ?? '',
+                            priority: viewingWorkOrder.priority,
+                          };
+                          updateWorkOrderMutation.mutate({
+                            ...viewingWorkOrder,
+                            id: viewingWorkOrder.id,
+                            description: fieldsToSave.description,
+                            dueDate: fieldsToSave.dueDate || undefined,
+                            assignedTechnicianId: fieldsToSave.assignedTechnicianId || undefined,
+                            assetId: fieldsToSave.assetId || undefined,
+                            priority: fieldsToSave.priority,
+                          });
+                          setViewingWorkOrder({
+                            ...viewingWorkOrder,
+                            description: fieldsToSave.description,
+                            due_date: fieldsToSave.dueDate,
+                            asset_id: fieldsToSave.assetId,
+                            priority: fieldsToSave.priority,
+                          });
+                          setEditingWorkOrderFields(null);
+                        }}
+                        disabled={updateWorkOrderMutation.isPending || !editingWorkOrderFields}
+                        data-testid="button-save-wo-changes"
+                      >
+                        {updateWorkOrderMutation.isPending ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <>
