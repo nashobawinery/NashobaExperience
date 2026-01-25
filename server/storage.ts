@@ -237,6 +237,57 @@ import {
   type SupportAgent,
   type InsertSupportAgentCategory,
   type SupportAgentCategory,
+  // LMS Module
+  lmsCourses,
+  lmsLessons,
+  lmsEnrollments,
+  lmsLessonProgress,
+  lmsQuizAttempts,
+  lmsQuizQuestions,
+  lmsCertificates,
+  lmsCategories,
+  lmsLessonPages,
+  lmsContentBlocks,
+  lmsQuestionBanks,
+  lmsQuestions,
+  lmsQuizzes,
+  lmsQuizQuestionLinks,
+  lmsQuestionResponses,
+  lmsCourseRatings,
+  type InsertLmsCourse,
+  type LmsCourse,
+  type InsertLmsLesson,
+  type LmsLesson,
+  type InsertLmsEnrollment,
+  type LmsEnrollment,
+  type InsertLmsLessonProgress,
+  type LmsLessonProgress,
+  type InsertLmsQuizAttempt,
+  type LmsQuizAttempt,
+  type InsertLmsQuizQuestion,
+  type LmsQuizQuestion,
+  type InsertLmsCertificate,
+  type LmsCertificate,
+  type InsertLmsCategory,
+  type LmsCategory,
+  type InsertLmsLessonPage,
+  type LmsLessonPage,
+  type InsertLmsContentBlock,
+  type LmsContentBlock,
+  type InsertLmsQuestionBank,
+  type LmsQuestionBank,
+  type InsertLmsQuestion,
+  type LmsQuestion,
+  type InsertLmsQuiz,
+  type LmsQuiz,
+  type InsertLmsQuizQuestionLink,
+  type LmsQuizQuestionLink,
+  type InsertLmsQuestionResponse,
+  type LmsQuestionResponse,
+  type InsertLmsCourseRating,
+  type LmsCourseRating,
+  type LmsCourseWithDetails,
+  type LmsEnrollmentWithDetails,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -6163,6 +6214,616 @@ export class DatabaseStorage implements IStorage {
     // If no default, return all active agents with notifications enabled
     const allAgents = await this.getActiveSupportAgents();
     return allAgents.filter(a => a.receiveEmailNotifications);
+  }
+
+  // ===================== LMS MODULE =====================
+
+  // LMS Categories
+  async getLmsCategories(): Promise<LmsCategory[]> {
+    return db.select().from(lmsCategories).orderBy(lmsCategories.sortOrder);
+  }
+
+  async getLmsCategory(id: string): Promise<LmsCategory | undefined> {
+    const [category] = await db.select().from(lmsCategories).where(eq(lmsCategories.id, id));
+    return category;
+  }
+
+  async createLmsCategory(data: InsertLmsCategory): Promise<LmsCategory> {
+    const [category] = await db.insert(lmsCategories).values(data).returning();
+    return category;
+  }
+
+  async updateLmsCategory(id: string, data: Partial<InsertLmsCategory>): Promise<LmsCategory | undefined> {
+    const [category] = await db.update(lmsCategories)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsCategories.id, id))
+      .returning();
+    return category;
+  }
+
+  async deleteLmsCategory(id: string): Promise<boolean> {
+    const result = await db.delete(lmsCategories).where(eq(lmsCategories.id, id));
+    return true;
+  }
+
+  // LMS Courses
+  async getLmsCourses(includeArchived = false): Promise<LmsCourse[]> {
+    if (includeArchived) {
+      return db.select().from(lmsCourses).orderBy(lmsCourses.sortOrder);
+    }
+    return db.select().from(lmsCourses)
+      .where(sql`${lmsCourses.status} != 'archived'`)
+      .orderBy(lmsCourses.sortOrder);
+  }
+
+  async getLmsCourse(id: string): Promise<LmsCourse | undefined> {
+    const [course] = await db.select().from(lmsCourses).where(eq(lmsCourses.id, id));
+    return course;
+  }
+
+  async getLmsCourseWithDetails(id: string): Promise<LmsCourseWithDetails | undefined> {
+    const course = await this.getLmsCourse(id);
+    if (!course) return undefined;
+
+    const lessons = await this.getLmsLessons(id);
+    const category = course.categoryId ? await this.getLmsCategory(course.categoryId) : undefined;
+    const quizQuestions = await db.select().from(lmsQuizQuestions)
+      .where(eq(lmsQuizQuestions.courseId, id))
+      .orderBy(lmsQuizQuestions.sortOrder);
+
+    return {
+      ...course,
+      category,
+      lessons,
+      quizQuestions,
+    };
+  }
+
+  async createLmsCourse(data: InsertLmsCourse): Promise<LmsCourse> {
+    const [course] = await db.insert(lmsCourses).values(data).returning();
+    return course;
+  }
+
+  async updateLmsCourse(id: string, data: Partial<InsertLmsCourse>): Promise<LmsCourse | undefined> {
+    const [course] = await db.update(lmsCourses)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsCourses.id, id))
+      .returning();
+    return course;
+  }
+
+  async deleteLmsCourse(id: string): Promise<boolean> {
+    await db.delete(lmsCourses).where(eq(lmsCourses.id, id));
+    return true;
+  }
+
+  async publishLmsCourse(id: string): Promise<LmsCourse | undefined> {
+    const [course] = await db.update(lmsCourses)
+      .set({ status: 'published', publishedAt: new Date(), updatedAt: new Date() })
+      .where(eq(lmsCourses.id, id))
+      .returning();
+    return course;
+  }
+
+  async archiveLmsCourse(id: string): Promise<LmsCourse | undefined> {
+    const [course] = await db.update(lmsCourses)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(eq(lmsCourses.id, id))
+      .returning();
+    return course;
+  }
+
+  // LMS Lessons
+  async getLmsLessons(courseId: string): Promise<LmsLesson[]> {
+    return db.select().from(lmsLessons)
+      .where(eq(lmsLessons.courseId, courseId))
+      .orderBy(lmsLessons.sortOrder);
+  }
+
+  async getLmsLesson(id: string): Promise<LmsLesson | undefined> {
+    const [lesson] = await db.select().from(lmsLessons).where(eq(lmsLessons.id, id));
+    return lesson;
+  }
+
+  async createLmsLesson(data: InsertLmsLesson): Promise<LmsLesson> {
+    const [lesson] = await db.insert(lmsLessons).values(data).returning();
+    return lesson;
+  }
+
+  async updateLmsLesson(id: string, data: Partial<InsertLmsLesson>): Promise<LmsLesson | undefined> {
+    const [lesson] = await db.update(lmsLessons)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsLessons.id, id))
+      .returning();
+    return lesson;
+  }
+
+  async deleteLmsLesson(id: string): Promise<boolean> {
+    await db.delete(lmsLessons).where(eq(lmsLessons.id, id));
+    return true;
+  }
+
+  async reorderLmsLessons(courseId: string, lessonIds: string[]): Promise<void> {
+    for (let i = 0; i < lessonIds.length; i++) {
+      await db.update(lmsLessons)
+        .set({ sortOrder: i })
+        .where(eq(lmsLessons.id, lessonIds[i]));
+    }
+  }
+
+  // LMS Lesson Pages
+  async getLmsLessonPages(lessonId: string): Promise<LmsLessonPage[]> {
+    return db.select().from(lmsLessonPages)
+      .where(eq(lmsLessonPages.lessonId, lessonId))
+      .orderBy(lmsLessonPages.sortOrder);
+  }
+
+  async getLmsLessonPage(id: string): Promise<LmsLessonPage | undefined> {
+    const [page] = await db.select().from(lmsLessonPages).where(eq(lmsLessonPages.id, id));
+    return page;
+  }
+
+  async createLmsLessonPage(data: InsertLmsLessonPage): Promise<LmsLessonPage> {
+    const [page] = await db.insert(lmsLessonPages).values(data).returning();
+    return page;
+  }
+
+  async updateLmsLessonPage(id: string, data: Partial<InsertLmsLessonPage>): Promise<LmsLessonPage | undefined> {
+    const [page] = await db.update(lmsLessonPages)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsLessonPages.id, id))
+      .returning();
+    return page;
+  }
+
+  async deleteLmsLessonPage(id: string): Promise<boolean> {
+    await db.delete(lmsLessonPages).where(eq(lmsLessonPages.id, id));
+    return true;
+  }
+
+  async reorderLmsLessonPages(lessonId: string, pageIds: string[]): Promise<void> {
+    for (let i = 0; i < pageIds.length; i++) {
+      await db.update(lmsLessonPages)
+        .set({ sortOrder: i, pageNumber: i + 1 })
+        .where(eq(lmsLessonPages.id, pageIds[i]));
+    }
+  }
+
+  // LMS Content Blocks
+  async getLmsContentBlocks(lessonId: string): Promise<LmsContentBlock[]> {
+    return db.select().from(lmsContentBlocks)
+      .where(eq(lmsContentBlocks.lessonId, lessonId))
+      .orderBy(lmsContentBlocks.sortOrder);
+  }
+
+  async getLmsPageContentBlocks(pageId: string): Promise<LmsContentBlock[]> {
+    return db.select().from(lmsContentBlocks)
+      .where(eq(lmsContentBlocks.pageId, pageId))
+      .orderBy(lmsContentBlocks.sortOrder);
+  }
+
+  async getLmsContentBlock(id: string): Promise<LmsContentBlock | undefined> {
+    const [block] = await db.select().from(lmsContentBlocks).where(eq(lmsContentBlocks.id, id));
+    return block;
+  }
+
+  async createLmsContentBlock(data: InsertLmsContentBlock): Promise<LmsContentBlock> {
+    const [block] = await db.insert(lmsContentBlocks).values(data).returning();
+    return block;
+  }
+
+  async updateLmsContentBlock(id: string, data: Partial<InsertLmsContentBlock>): Promise<LmsContentBlock | undefined> {
+    const [block] = await db.update(lmsContentBlocks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsContentBlocks.id, id))
+      .returning();
+    return block;
+  }
+
+  async deleteLmsContentBlock(id: string): Promise<boolean> {
+    await db.delete(lmsContentBlocks).where(eq(lmsContentBlocks.id, id));
+    return true;
+  }
+
+  // LMS Question Banks
+  async getLmsQuestionBanks(): Promise<LmsQuestionBank[]> {
+    return db.select().from(lmsQuestionBanks).orderBy(lmsQuestionBanks.name);
+  }
+
+  async getLmsQuestionBank(id: string): Promise<LmsQuestionBank | undefined> {
+    const [bank] = await db.select().from(lmsQuestionBanks).where(eq(lmsQuestionBanks.id, id));
+    return bank;
+  }
+
+  async createLmsQuestionBank(data: InsertLmsQuestionBank): Promise<LmsQuestionBank> {
+    const [bank] = await db.insert(lmsQuestionBanks).values(data).returning();
+    return bank;
+  }
+
+  async updateLmsQuestionBank(id: string, data: Partial<InsertLmsQuestionBank>): Promise<LmsQuestionBank | undefined> {
+    const [bank] = await db.update(lmsQuestionBanks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsQuestionBanks.id, id))
+      .returning();
+    return bank;
+  }
+
+  async deleteLmsQuestionBank(id: string): Promise<boolean> {
+    await db.delete(lmsQuestionBanks).where(eq(lmsQuestionBanks.id, id));
+    return true;
+  }
+
+  // LMS Questions
+  async getLmsQuestions(bankId: string): Promise<LmsQuestion[]> {
+    return db.select().from(lmsQuestions)
+      .where(eq(lmsQuestions.questionBankId, bankId))
+      .orderBy(lmsQuestions.createdAt);
+  }
+
+  async getLmsQuestion(id: string): Promise<LmsQuestion | undefined> {
+    const [question] = await db.select().from(lmsQuestions).where(eq(lmsQuestions.id, id));
+    return question;
+  }
+
+  async createLmsQuestion(data: InsertLmsQuestion): Promise<LmsQuestion> {
+    const [question] = await db.insert(lmsQuestions).values(data).returning();
+    return question;
+  }
+
+  async updateLmsQuestion(id: string, data: Partial<InsertLmsQuestion>): Promise<LmsQuestion | undefined> {
+    const [question] = await db.update(lmsQuestions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsQuestions.id, id))
+      .returning();
+    return question;
+  }
+
+  async deleteLmsQuestion(id: string): Promise<boolean> {
+    await db.delete(lmsQuestions).where(eq(lmsQuestions.id, id));
+    return true;
+  }
+
+  // LMS Quizzes
+  async getLmsQuizzes(courseId: string): Promise<LmsQuiz[]> {
+    return db.select().from(lmsQuizzes)
+      .where(eq(lmsQuizzes.courseId, courseId))
+      .orderBy(lmsQuizzes.sortOrder);
+  }
+
+  async getLmsQuiz(id: string): Promise<LmsQuiz | undefined> {
+    const [quiz] = await db.select().from(lmsQuizzes).where(eq(lmsQuizzes.id, id));
+    return quiz;
+  }
+
+  async getLmsQuizByLessonId(lessonId: string): Promise<LmsQuiz | undefined> {
+    const [quiz] = await db.select().from(lmsQuizzes).where(eq(lmsQuizzes.lessonId, lessonId));
+    return quiz;
+  }
+
+  async createLmsQuiz(data: InsertLmsQuiz): Promise<LmsQuiz> {
+    const [quiz] = await db.insert(lmsQuizzes).values(data).returning();
+    return quiz;
+  }
+
+  async updateLmsQuiz(id: string, data: Partial<InsertLmsQuiz>): Promise<LmsQuiz | undefined> {
+    const [quiz] = await db.update(lmsQuizzes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsQuizzes.id, id))
+      .returning();
+    return quiz;
+  }
+
+  async deleteLmsQuiz(id: string): Promise<boolean> {
+    await db.delete(lmsQuizzes).where(eq(lmsQuizzes.id, id));
+    return true;
+  }
+
+  // LMS Quiz Questions
+  async getLmsQuizQuestions(quizId: string): Promise<(LmsQuizQuestionLink & { question: LmsQuestion })[]> {
+    const links = await db.select().from(lmsQuizQuestionLinks)
+      .where(eq(lmsQuizQuestionLinks.quizId, quizId))
+      .orderBy(lmsQuizQuestionLinks.sortOrder);
+    
+    const results = [];
+    for (const link of links) {
+      const question = await this.getLmsQuestion(link.questionId);
+      if (question) {
+        results.push({ ...link, question });
+      }
+    }
+    return results;
+  }
+
+  async addLmsQuizQuestion(data: InsertLmsQuizQuestionLink): Promise<LmsQuizQuestionLink> {
+    const [link] = await db.insert(lmsQuizQuestionLinks).values(data).returning();
+    return link;
+  }
+
+  async removeLmsQuizQuestion(quizId: string, questionId: string): Promise<boolean> {
+    await db.delete(lmsQuizQuestionLinks)
+      .where(and(
+        eq(lmsQuizQuestionLinks.quizId, quizId),
+        eq(lmsQuizQuestionLinks.questionId, questionId)
+      ));
+    return true;
+  }
+
+  async reorderLmsQuizQuestions(quizId: string, questionIds: string[]): Promise<void> {
+    for (let i = 0; i < questionIds.length; i++) {
+      await db.update(lmsQuizQuestionLinks)
+        .set({ sortOrder: i })
+        .where(and(
+          eq(lmsQuizQuestionLinks.quizId, quizId),
+          eq(lmsQuizQuestionLinks.questionId, questionIds[i])
+        ));
+    }
+  }
+
+  // LMS Enrollments
+  async getLmsEnrollments(userId?: string): Promise<LmsEnrollment[]> {
+    if (userId) {
+      return db.select().from(lmsEnrollments)
+        .where(eq(lmsEnrollments.userId, userId))
+        .orderBy(desc(lmsEnrollments.enrolledAt));
+    }
+    return db.select().from(lmsEnrollments).orderBy(desc(lmsEnrollments.enrolledAt));
+  }
+
+  async getLmsEnrollmentsByStatus(status: string): Promise<LmsEnrollment[]> {
+    return db.select().from(lmsEnrollments)
+      .where(eq(lmsEnrollments.status, status as any))
+      .orderBy(desc(lmsEnrollments.enrolledAt));
+  }
+
+  async getLmsEnrollment(id: string): Promise<LmsEnrollment | undefined> {
+    const [enrollment] = await db.select().from(lmsEnrollments).where(eq(lmsEnrollments.id, id));
+    return enrollment;
+  }
+
+  async getLmsEnrollmentByUserAndCourse(userId: string, courseId: string): Promise<LmsEnrollment | undefined> {
+    const [enrollment] = await db.select().from(lmsEnrollments)
+      .where(and(
+        eq(lmsEnrollments.userId, userId),
+        eq(lmsEnrollments.courseId, courseId)
+      ));
+    return enrollment;
+  }
+
+  async getLmsEnrollmentCount(courseId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(lmsEnrollments)
+      .where(eq(lmsEnrollments.courseId, courseId));
+    return Number(result[0]?.count || 0);
+  }
+
+  async createLmsEnrollment(data: InsertLmsEnrollment): Promise<LmsEnrollment> {
+    const [enrollment] = await db.insert(lmsEnrollments).values({
+      ...data,
+      enrolledAt: new Date(),
+    }).returning();
+    return enrollment;
+  }
+
+  async updateLmsEnrollment(id: string, data: Partial<InsertLmsEnrollment>): Promise<LmsEnrollment | undefined> {
+    const [enrollment] = await db.update(lmsEnrollments)
+      .set(data)
+      .where(eq(lmsEnrollments.id, id))
+      .returning();
+    return enrollment;
+  }
+
+  async deleteLmsEnrollment(id: string): Promise<boolean> {
+    await db.delete(lmsEnrollments).where(eq(lmsEnrollments.id, id));
+    return true;
+  }
+
+  async completeLmsEnrollment(id: string, score?: number): Promise<LmsEnrollment | undefined> {
+    const [enrollment] = await db.update(lmsEnrollments)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        finalScore: score ?? null,
+      })
+      .where(eq(lmsEnrollments.id, id))
+      .returning();
+    return enrollment;
+  }
+
+  // LMS Lesson Progress
+  async getLmsLessonProgress(enrollmentId: string): Promise<LmsLessonProgress[]> {
+    return db.select().from(lmsLessonProgress)
+      .where(eq(lmsLessonProgress.enrollmentId, enrollmentId));
+  }
+
+  async getLmsLessonProgressByLesson(enrollmentId: string, lessonId: string): Promise<LmsLessonProgress | undefined> {
+    const [progress] = await db.select().from(lmsLessonProgress)
+      .where(and(
+        eq(lmsLessonProgress.enrollmentId, enrollmentId),
+        eq(lmsLessonProgress.lessonId, lessonId)
+      ));
+    return progress;
+  }
+
+  async createLmsLessonProgress(data: InsertLmsLessonProgress): Promise<LmsLessonProgress> {
+    const [progress] = await db.insert(lmsLessonProgress).values({
+      ...data,
+      startedAt: new Date(),
+    }).returning();
+    return progress;
+  }
+
+  async updateLmsLessonProgress(id: string, data: Partial<InsertLmsLessonProgress>): Promise<LmsLessonProgress | undefined> {
+    const [progress] = await db.update(lmsLessonProgress)
+      .set(data)
+      .where(eq(lmsLessonProgress.id, id))
+      .returning();
+    return progress;
+  }
+
+  async completeLmsLessonProgress(id: string): Promise<LmsLessonProgress | undefined> {
+    const [progress] = await db.update(lmsLessonProgress)
+      .set({ completedAt: new Date() })
+      .where(eq(lmsLessonProgress.id, id))
+      .returning();
+    return progress;
+  }
+
+  // LMS Quiz Attempts
+  async getLmsQuizAttempts(courseId: string, userId?: string): Promise<LmsQuizAttempt[]> {
+    if (userId) {
+      return db.select().from(lmsQuizAttempts)
+        .where(and(
+          eq(lmsQuizAttempts.courseId, courseId),
+          eq(lmsQuizAttempts.userId, userId)
+        ))
+        .orderBy(desc(lmsQuizAttempts.startedAt));
+    }
+    return db.select().from(lmsQuizAttempts)
+      .where(eq(lmsQuizAttempts.courseId, courseId))
+      .orderBy(desc(lmsQuizAttempts.startedAt));
+  }
+
+  async getLmsQuizAttempt(id: string): Promise<LmsQuizAttempt | undefined> {
+    const [attempt] = await db.select().from(lmsQuizAttempts).where(eq(lmsQuizAttempts.id, id));
+    return attempt;
+  }
+
+  async createLmsQuizAttempt(data: InsertLmsQuizAttempt): Promise<LmsQuizAttempt> {
+    const [attempt] = await db.insert(lmsQuizAttempts).values({
+      ...data,
+      startedAt: new Date(),
+    }).returning();
+    return attempt;
+  }
+
+  async updateLmsQuizAttempt(id: string, data: Partial<InsertLmsQuizAttempt>): Promise<LmsQuizAttempt | undefined> {
+    const [attempt] = await db.update(lmsQuizAttempts)
+      .set(data)
+      .where(eq(lmsQuizAttempts.id, id))
+      .returning();
+    return attempt;
+  }
+
+  async completeLmsQuizAttempt(id: string, score: number, passed: boolean): Promise<LmsQuizAttempt | undefined> {
+    const [attempt] = await db.update(lmsQuizAttempts)
+      .set({
+        completedAt: new Date(),
+        score,
+        passed,
+      })
+      .where(eq(lmsQuizAttempts.id, id))
+      .returning();
+    return attempt;
+  }
+
+  // LMS Question Responses
+  async getLmsQuestionResponses(attemptId: string): Promise<LmsQuestionResponse[]> {
+    return db.select().from(lmsQuestionResponses)
+      .where(eq(lmsQuestionResponses.attemptId, attemptId));
+  }
+
+  async createLmsQuestionResponse(data: InsertLmsQuestionResponse): Promise<LmsQuestionResponse> {
+    const [response] = await db.insert(lmsQuestionResponses).values(data).returning();
+    return response;
+  }
+
+  async updateLmsQuestionResponse(id: string, data: Partial<InsertLmsQuestionResponse>): Promise<LmsQuestionResponse | undefined> {
+    const [response] = await db.update(lmsQuestionResponses)
+      .set(data)
+      .where(eq(lmsQuestionResponses.id, id))
+      .returning();
+    return response;
+  }
+
+  // LMS Certificates
+  async getLmsCertificates(userId?: string): Promise<LmsCertificate[]> {
+    if (userId) {
+      return db.select().from(lmsCertificates)
+        .where(eq(lmsCertificates.userId, userId))
+        .orderBy(desc(lmsCertificates.issuedAt));
+    }
+    return db.select().from(lmsCertificates).orderBy(desc(lmsCertificates.issuedAt));
+  }
+
+  async getLmsCertificate(id: string): Promise<LmsCertificate | undefined> {
+    const [certificate] = await db.select().from(lmsCertificates).where(eq(lmsCertificates.id, id));
+    return certificate;
+  }
+
+  async getLmsCertificateByNumber(certificateNumber: string): Promise<LmsCertificate | undefined> {
+    const [certificate] = await db.select().from(lmsCertificates)
+      .where(eq(lmsCertificates.certificateNumber, certificateNumber));
+    return certificate;
+  }
+
+  async createLmsCertificate(data: InsertLmsCertificate): Promise<LmsCertificate> {
+    const [certificate] = await db.insert(lmsCertificates).values(data).returning();
+    return certificate;
+  }
+
+  async deleteLmsCertificate(id: string): Promise<boolean> {
+    await db.delete(lmsCertificates).where(eq(lmsCertificates.id, id));
+    return true;
+  }
+
+  // LMS Course Ratings
+  async getLmsCourseRatings(courseId: string): Promise<LmsCourseRating[]> {
+    return db.select().from(lmsCourseRatings)
+      .where(eq(lmsCourseRatings.courseId, courseId))
+      .orderBy(desc(lmsCourseRatings.createdAt));
+  }
+
+  async getLmsCourseAverageRating(courseId: string): Promise<number | null> {
+    const result = await db.select({
+      avg: sql<number>`avg(${lmsCourseRatings.rating})`,
+    })
+      .from(lmsCourseRatings)
+      .where(eq(lmsCourseRatings.courseId, courseId));
+    return result[0]?.avg ?? null;
+  }
+
+  async createLmsCourseRating(data: InsertLmsCourseRating): Promise<LmsCourseRating> {
+    const [rating] = await db.insert(lmsCourseRatings).values(data).returning();
+    return rating;
+  }
+
+  async updateLmsCourseRating(id: string, data: Partial<InsertLmsCourseRating>): Promise<LmsCourseRating | undefined> {
+    const [rating] = await db.update(lmsCourseRatings)
+      .set(data)
+      .where(eq(lmsCourseRatings.id, id))
+      .returning();
+    return rating;
+  }
+
+  // LMS Dashboard Stats
+  async getLmsDashboardStats(): Promise<{
+    totalCourses: number;
+    publishedCourses: number;
+    totalEnrollments: number;
+    completedEnrollments: number;
+    activeLearners: number;
+  }> {
+    const [courseStats] = await db.select({
+      total: sql<number>`count(*)`,
+      published: sql<number>`count(*) filter (where ${lmsCourses.status} = 'published')`,
+    }).from(lmsCourses);
+
+    const [enrollmentStats] = await db.select({
+      total: sql<number>`count(*)`,
+      completed: sql<number>`count(*) filter (where ${lmsEnrollments.status} = 'completed')`,
+    }).from(lmsEnrollments);
+
+    const [learnerStats] = await db.select({
+      active: sql<number>`count(distinct ${lmsEnrollments.userId}) filter (where ${lmsEnrollments.status} = 'in_progress')`,
+    }).from(lmsEnrollments);
+
+    return {
+      totalCourses: Number(courseStats?.total || 0),
+      publishedCourses: Number(courseStats?.published || 0),
+      totalEnrollments: Number(enrollmentStats?.total || 0),
+      completedEnrollments: Number(enrollmentStats?.completed || 0),
+      activeLearners: Number(learnerStats?.active || 0),
+    };
   }
 }
 
