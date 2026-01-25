@@ -12142,7 +12142,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Staff work order submission (no auth required - for staff portal)
   app.post('/api/maintenance/work-orders/staff', async (req, res) => {
     try {
-      const { title, description, department, workOrderType, priority, requestedByName, locationId } = req.body;
+      // Support both field names for compatibility
+      const { title, description, department, workOrderType, priority, requestedByName, submitterName, locationId } = req.body;
+      const submitter = submitterName || requestedByName;
       
       if (!title || !department) {
         return res.status(400).json({ message: 'Title and department are required' });
@@ -12154,28 +12156,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Build notes string with department and submitter info
       const noteParts = [];
       if (department) noteParts.push(`Department: ${department}`);
-      if (requestedByName) noteParts.push(`Submitted by: ${requestedByName}`);
+      if (submitter) noteParts.push(`Submitted by: ${submitter}`);
       const completionNotes = noteParts.length > 0 ? noteParts.join(' | ') : null;
       
-      // Insert directly using SQL (consistent with other maintenance endpoints)
-      // Note: department column may not exist in production yet, so storing in completion_notes
+      // Insert using SQL - requested_by is a foreign key so we only store submitter name in notes
       const result = await db.execute(sql`
         INSERT INTO maintenance_work_orders (
           work_order_number, title, description, 
-          work_order_type, priority, status, completion_notes, location_id
+          work_order_type, priority, status, completion_notes, 
+          location_id, department
         )
         VALUES (
           ${workOrderNumber}, ${title}, ${description || null}, 
           ${workOrderType || 'repair'}, ${priority || 'medium'}, 'open', 
-          ${completionNotes}, ${locationId || null}
+          ${completionNotes}, ${locationId || null}, 
+          ${department || null}
         )
         RETURNING id, work_order_number
       `);
       
       const workOrder = result.rows[0] as any;
       res.json({ id: workOrder.id, workOrderNumber: workOrder.work_order_number });
-    } catch (error) {
-      console.error('Error creating staff work order:', error);
+    } catch (error: any) {
+      console.error('Error creating staff work order:', error?.message || error);
       res.status(500).json({ message: 'Failed to create work order' });
     }
   });
