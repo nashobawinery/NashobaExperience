@@ -15,7 +15,7 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Frontend**: React with TypeScript, Vite, TanStack Query.
 - **Backend**: Express.js with TypeScript, RESTful API.
 - **Database**: PostgreSQL with Drizzle ORM (using Neon serverless driver).
-  - **Critical Note**: A single shared database is used for both development and production. Schema changes must follow a schema-first workflow using `shared/schema.ts` and Drizzle migrations to prevent data loss.
+  - **Critical Note**: Development and production use SEPARATE Neon databases. Schema changes must follow a schema-first workflow using `shared/schema.ts` and Drizzle migrations to prevent data loss.
   
   **🚨 SCHEMA-FIRST WORKFLOW:**
   1. NEVER use raw SQL (ALTER TABLE, CREATE TABLE) for schema changes
@@ -26,6 +26,13 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
   **🔍 PRE-PUBLISH VALIDATION:**
   Before publishing, run: `npx tsx scripts/validate-schema.ts`
   This shows mismatches between database and schema that would cause deletions.
+  
+  **⚡ AFTER EVERY SCHEMA CHANGE:**
+  1. Edit `shared/schema.ts` with new columns/tables
+  2. Run `npm run db:push` to sync development database
+  3. Verify changes applied with SQL query
+  4. Then publish to sync production
+  
 - **Authentication**: Replit Auth (OpenID Connect) for guest apps and platform users; separate email/password for B2B. PostgreSQL-backed sessions.
 - **Modularity**: Designed as a modular monolith with clear boundaries for independent module development.
 - **Data Synchronization**: An environment sync tool for selective data export/import and object storage synchronization.
