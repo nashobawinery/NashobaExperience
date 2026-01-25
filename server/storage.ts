@@ -6575,6 +6575,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(lmsEnrollments.enrolledAt));
   }
 
+  async getLmsEnrollmentsByCourse(courseId: string): Promise<LmsEnrollment[]> {
+    return db.select().from(lmsEnrollments)
+      .where(eq(lmsEnrollments.courseId, courseId))
+      .orderBy(desc(lmsEnrollments.enrolledAt));
+  }
+
   async getLmsEnrollment(id: string): Promise<LmsEnrollment | undefined> {
     const [enrollment] = await db.select().from(lmsEnrollments).where(eq(lmsEnrollments.id, id));
     return enrollment;
