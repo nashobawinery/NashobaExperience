@@ -6061,7 +6061,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { title, description, lessonType, content, videoUrl, documentUrl, estimatedMinutes, sortOrder } = req.body;
       const result = await db.execute(sql`
         INSERT INTO lms_lessons (course_id, title, description, lesson_type, content, video_url, document_url, estimated_minutes, sort_order)
-        VALUES (${courseId}, ${title}, ${description}, ${lessonType || 'text'}, ${content}, ${videoUrl}, ${documentUrl}, ${estimatedMinutes || 5}, ${sortOrder || 0})
+        VALUES (${courseId}, ${title || ''}, ${description || null}, ${lessonType || 'text'}, ${content || null}, ${videoUrl || null}, ${documentUrl || null}, ${estimatedMinutes || 5}, ${sortOrder || 0})
         RETURNING *
       `);
       res.json(result.rows[0]);
