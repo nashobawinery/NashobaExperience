@@ -254,6 +254,9 @@ import {
   lmsQuizQuestionLinks,
   lmsQuestionResponses,
   lmsCourseRatings,
+  lmsTrainingPortalSessions,
+  lmsStaffTrainingCodes,
+  lmsCourseDepartments,
   type InsertLmsCourse,
   type LmsCourse,
   type InsertLmsLesson,
@@ -288,6 +291,12 @@ import {
   type LmsCourseRating,
   type LmsCourseWithDetails,
   type LmsEnrollmentWithDetails,
+  type InsertLmsTrainingPortalSession,
+  type LmsTrainingPortalSession,
+  type InsertLmsStaffTrainingCode,
+  type LmsStaffTrainingCode,
+  type InsertLmsCourseDepartment,
+  type LmsCourseDepartment,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -6830,6 +6839,161 @@ export class DatabaseStorage implements IStorage {
       completedEnrollments: Number(enrollmentStats?.completed || 0),
       activeLearners: Number(learnerStats?.active || 0),
     };
+  }
+
+  // LMS Training Portal Sessions
+  async getLmsTrainingPortalSession(token: string): Promise<LmsTrainingPortalSession | undefined> {
+    const [session] = await db.select().from(lmsTrainingPortalSessions)
+      .where(eq(lmsTrainingPortalSessions.sessionToken, token));
+    return session;
+  }
+
+  async getLmsTrainingPortalSessionByUser(userId: string): Promise<LmsTrainingPortalSession | undefined> {
+    const [session] = await db.select().from(lmsTrainingPortalSessions)
+      .where(and(
+        eq(lmsTrainingPortalSessions.userId, userId),
+        eq(lmsTrainingPortalSessions.isActive, true)
+      ));
+    return session;
+  }
+
+  async createLmsTrainingPortalSession(data: InsertLmsTrainingPortalSession): Promise<LmsTrainingPortalSession> {
+    const [session] = await db.insert(lmsTrainingPortalSessions).values(data).returning();
+    return session;
+  }
+
+  async updateLmsTrainingPortalSession(id: string, data: Partial<InsertLmsTrainingPortalSession>): Promise<LmsTrainingPortalSession | undefined> {
+    const [session] = await db.update(lmsTrainingPortalSessions)
+      .set(data)
+      .where(eq(lmsTrainingPortalSessions.id, id))
+      .returning();
+    return session;
+  }
+
+  async deactivateLmsTrainingPortalSession(id: string): Promise<void> {
+    await db.update(lmsTrainingPortalSessions)
+      .set({ isActive: false })
+      .where(eq(lmsTrainingPortalSessions.id, id));
+  }
+
+  async deactivateExpiredLmsTrainingPortalSessions(): Promise<number> {
+    const result = await db.update(lmsTrainingPortalSessions)
+      .set({ isActive: false })
+      .where(and(
+        eq(lmsTrainingPortalSessions.isActive, true),
+        sql`${lmsTrainingPortalSessions.expiresAt} < NOW()`
+      ));
+    return result.rowCount || 0;
+  }
+
+  // LMS Staff Training Codes
+  async getLmsStaffTrainingCodeByUser(userId: string): Promise<LmsStaffTrainingCode | undefined> {
+    const [code] = await db.select().from(lmsStaffTrainingCodes)
+      .where(eq(lmsStaffTrainingCodes.userId, userId));
+    return code;
+  }
+
+  async getLmsStaffTrainingCodeByCode(accessCode: string): Promise<LmsStaffTrainingCode | undefined> {
+    const [code] = await db.select().from(lmsStaffTrainingCodes)
+      .where(and(
+        eq(lmsStaffTrainingCodes.accessCode, accessCode),
+        eq(lmsStaffTrainingCodes.isActive, true)
+      ));
+    return code;
+  }
+
+  async createLmsStaffTrainingCode(data: InsertLmsStaffTrainingCode): Promise<LmsStaffTrainingCode> {
+    const [code] = await db.insert(lmsStaffTrainingCodes).values(data).returning();
+    return code;
+  }
+
+  async updateLmsStaffTrainingCode(id: string, data: Partial<InsertLmsStaffTrainingCode>): Promise<LmsStaffTrainingCode | undefined> {
+    const [code] = await db.update(lmsStaffTrainingCodes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lmsStaffTrainingCodes.id, id))
+      .returning();
+    return code;
+  }
+
+  async generateLmsStaffTrainingCode(userId: string): Promise<LmsStaffTrainingCode> {
+    const accessCode = Math.floor(1000 + Math.random() * 9000).toString();
+    const existing = await this.getLmsStaffTrainingCodeByUser(userId);
+    if (existing) {
+      const [updated] = await db.update(lmsStaffTrainingCodes)
+        .set({ accessCode, isActive: true, updatedAt: new Date() })
+        .where(eq(lmsStaffTrainingCodes.userId, userId))
+        .returning();
+      return updated;
+    }
+    return this.createLmsStaffTrainingCode({ userId, accessCode, isActive: true });
+  }
+
+  // LMS Course Departments
+  async getLmsCourseDepartments(courseId: string): Promise<LmsCourseDepartment[]> {
+    return db.select().from(lmsCourseDepartments)
+      .where(eq(lmsCourseDepartments.courseId, courseId));
+  }
+
+  async getLmsCourseDepartmentsByCourse(courseId: string): Promise<string[]> {
+    const departments = await db.select({ department: lmsCourseDepartments.department })
+      .from(lmsCourseDepartments)
+      .where(eq(lmsCourseDepartments.courseId, courseId));
+    return departments.map(d => d.department);
+  }
+
+  async setLmsCourseDepartments(courseId: string, departments: { department: string; isRequired: boolean }[]): Promise<LmsCourseDepartment[]> {
+    await db.delete(lmsCourseDepartments).where(eq(lmsCourseDepartments.courseId, courseId));
+    if (departments.length === 0) return [];
+    
+    const values = departments.map(d => ({
+      courseId,
+      department: d.department,
+      isRequired: d.isRequired,
+    }));
+    
+    return db.insert(lmsCourseDepartments).values(values).returning();
+  }
+
+  async createLmsCourseDepartment(data: InsertLmsCourseDepartment): Promise<LmsCourseDepartment> {
+    const [dept] = await db.insert(lmsCourseDepartments).values(data).returning();
+    return dept;
+  }
+
+  async deleteLmsCourseDepartment(id: string): Promise<void> {
+    await db.delete(lmsCourseDepartments).where(eq(lmsCourseDepartments.id, id));
+  }
+
+  async getCoursesByDepartment(department: string): Promise<LmsCourse[]> {
+    const courseIds = await db.select({ courseId: lmsCourseDepartments.courseId })
+      .from(lmsCourseDepartments)
+      .where(eq(lmsCourseDepartments.department, department));
+    
+    if (courseIds.length === 0) return [];
+    
+    return db.select().from(lmsCourses)
+      .where(and(
+        inArray(lmsCourses.id, courseIds.map(c => c.courseId)),
+        sql`${lmsCourses.status} = 'published'`
+      ))
+      .orderBy(lmsCourses.sortOrder);
+  }
+
+  async getRequiredCoursesByDepartment(department: string): Promise<LmsCourse[]> {
+    const courseIds = await db.select({ courseId: lmsCourseDepartments.courseId })
+      .from(lmsCourseDepartments)
+      .where(and(
+        eq(lmsCourseDepartments.department, department),
+        eq(lmsCourseDepartments.isRequired, true)
+      ));
+    
+    if (courseIds.length === 0) return [];
+    
+    return db.select().from(lmsCourses)
+      .where(and(
+        inArray(lmsCourses.id, courseIds.map(c => c.courseId)),
+        sql`${lmsCourses.status} = 'published'`
+      ))
+      .orderBy(lmsCourses.sortOrder);
   }
 }
 
