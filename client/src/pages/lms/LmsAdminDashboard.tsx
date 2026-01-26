@@ -76,6 +76,11 @@ interface LmsCourse {
   enrollment_count: number;
   created_at: string;
   published_at: string | null;
+  compliance_required: boolean;
+  renewal_frequency_days: number | null;
+  regulatory_body: string | null;
+  regulatory_reference: string | null;
+  expiration_warning_days: number | null;
 }
 
 interface LmsLesson {
@@ -1129,6 +1134,71 @@ export default function LmsAdminDashboard() {
               <div className="flex items-center gap-2">
                 <Switch id="course-certificate" checked={courseDialog.course?.certificate_enabled || false} onCheckedChange={(checked) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, certificate_enabled: checked } })} data-testid="switch-course-certificate" />
                 <Label htmlFor="course-certificate">Issue certificate on completion</Label>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <h4 className="font-medium mb-3">Compliance Settings</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Switch 
+                      id="course-compliance" 
+                      checked={courseDialog.course?.compliance_required || false} 
+                      onCheckedChange={(checked) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, compliance_required: checked } })} 
+                      data-testid="switch-course-compliance" 
+                    />
+                    <Label htmlFor="course-compliance">Compliance Required</Label>
+                  </div>
+                  {courseDialog.course?.compliance_required && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="course-renewal">Renewal Frequency (days)</Label>
+                          <Input 
+                            id="course-renewal" 
+                            type="number" 
+                            value={courseDialog.course?.renewal_frequency_days || ''} 
+                            onChange={(e) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, renewal_frequency_days: parseInt(e.target.value) || null } })} 
+                            placeholder="e.g., 365" 
+                            data-testid="input-course-renewal" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="course-warning">Expiration Warning (days)</Label>
+                          <Input 
+                            id="course-warning" 
+                            type="number" 
+                            value={courseDialog.course?.expiration_warning_days || 30} 
+                            onChange={(e) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, expiration_warning_days: parseInt(e.target.value) || 30 } })} 
+                            placeholder="30" 
+                            data-testid="input-course-warning" 
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="course-regulatory-body">Regulatory Body</Label>
+                          <Input 
+                            id="course-regulatory-body" 
+                            value={courseDialog.course?.regulatory_body || ''} 
+                            onChange={(e) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, regulatory_body: e.target.value } })} 
+                            placeholder="e.g., OSHA, FDA" 
+                            data-testid="input-course-regulatory-body" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="course-regulatory-ref">Regulatory Reference</Label>
+                          <Input 
+                            id="course-regulatory-ref" 
+                            value={courseDialog.course?.regulatory_reference || ''} 
+                            onChange={(e) => setCourseDialog({ ...courseDialog, course: { ...courseDialog.course, regulatory_reference: e.target.value } })} 
+                            placeholder="e.g., 29 CFR 1910.1200" 
+                            data-testid="input-course-regulatory-ref" 
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </ScrollArea>
