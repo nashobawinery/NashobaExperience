@@ -29,6 +29,7 @@ const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
 const LmsAdminDashboard = lazy(() => import("@/pages/lms/LmsAdminDashboard"));
 const LmsLearnerPortal = lazy(() => import("@/pages/lms/LmsLearnerPortal"));
 const ExternalTrainingPage = lazy(() => import("@/pages/lms/ExternalTrainingPage"));
+const TrainingPortal = lazy(() => import("@/pages/lms/TrainingPortal"));
 
 // Lazy load Compliance module
 const ComplianceAdminDashboard = lazy(() => import("@/pages/compliance/ComplianceAdminDashboard"));
@@ -263,6 +264,14 @@ function ExternalTrainingRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <ExternalTrainingPage />
+    </Suspense>
+  );
+}
+
+function TrainingPortalRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <TrainingPortal />
     </Suspense>
   );
 }
@@ -1087,6 +1096,7 @@ function Router() {
         <Route path="/company-info" component={CompanyInfoRoute} />
         <Route path="/lms" component={LmsLearnerRoute} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
+        <Route path="/lms/portal" component={TrainingPortalRoute} />
         <Route path="/training/:token" component={ExternalTrainingRoute} />
         <Route path="/compliance/admin" component={ComplianceAdminRoute} />
         <Route path="/compliance/complete" component={ComplianceCompleteRoute} />
