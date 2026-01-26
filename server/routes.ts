@@ -17241,6 +17241,181 @@ Generate a professional response:`;
     }
   });
 
+  // LMS Training Portal - Enhanced authentication with last name verification
+  app.post('/api/lms/portal/verify', async (req, res) => {
+    try {
+      const { accessCode, lastName } = req.body;
+      if (!accessCode || !lastName) {
+        return res.status(400).json({ message: 'Access code and last name are required' });
+      }
+      
+      // Look up staff training code
+      const staffCode = await storage.getLmsStaffTrainingCodeByCode(accessCode);
+      
+      if (!staffCode || !staffCode.isActive) {
+        return res.status(401).json({ message: 'Invalid access code' });
+      }
+      
+      // Get the user to verify last name
+      const user = await storage.getPlatformUserById(staffCode.userId);
+      if (!user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+      
+      // Verify last name (case-insensitive)
+      const userLastName = user.name?.split(' ').pop()?.toLowerCase() || '';
+      if (userLastName !== lastName.toLowerCase().trim()) {
+        return res.status(401).json({ message: 'Last name does not match' });
+      }
+      
+      // Create training portal session
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours
+      
+      const session = await storage.createLmsTrainingPortalSession({
+        userId: staffCode.userId,
+        sessionToken,
+        accessCode,
+        lastName,
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null,
+        expiresAt,
+        isActive: true
+      });
+      
+      res.json({
+        sessionToken,
+        userId: staffCode.userId,
+        displayName: user.name,
+        department: user.department,
+        expiresAt
+      });
+    } catch (error) {
+      console.error('Error verifying training portal access:', error);
+      res.status(500).json({ message: 'Failed to verify access' });
+    }
+  });
+
+  // LMS Training Portal - Validate session
+  app.get('/api/lms/portal/session', async (req, res) => {
+    try {
+      const token = req.headers['x-portal-session'] as string;
+      if (!token) {
+        return res.status(401).json({ message: 'No session token provided' });
+      }
+      
+      const session = await storage.getLmsTrainingPortalSession(token);
+      if (!session || !session.isActive || new Date(session.expiresAt) < new Date()) {
+        return res.status(401).json({ message: 'Session expired or invalid' });
+      }
+      
+      const user = await storage.getPlatformUserById(session.userId);
+      
+      res.json({
+        userId: session.userId,
+        displayName: user?.name,
+        department: user?.department,
+        expiresAt: session.expiresAt
+      });
+    } catch (error) {
+      console.error('Error validating session:', error);
+      res.status(500).json({ message: 'Failed to validate session' });
+    }
+  });
+
+  // LMS Training Portal - Logout
+  app.post('/api/lms/portal/logout', async (req, res) => {
+    try {
+      const token = req.headers['x-portal-session'] as string;
+      if (token) {
+        const session = await storage.getLmsTrainingPortalSession(token);
+        if (session) {
+          await storage.deactivateLmsTrainingPortalSession(session.id);
+        }
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error logging out:', error);
+      res.status(500).json({ message: 'Failed to logout' });
+    }
+  });
+
+  // LMS Admin - Generate staff training code
+  app.post('/api/lms/admin/staff-codes/:userId', isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const code = await storage.generateLmsStaffTrainingCode(userId);
+      res.json(code);
+    } catch (error) {
+      console.error('Error generating staff code:', error);
+      res.status(500).json({ message: 'Failed to generate code' });
+    }
+  });
+
+  // LMS Admin - Get staff training code
+  app.get('/api/lms/admin/staff-codes/:userId', isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const code = await storage.getLmsStaffTrainingCodeByUser(userId);
+      res.json(code || null);
+    } catch (error) {
+      console.error('Error fetching staff code:', error);
+      res.status(500).json({ message: 'Failed to fetch code' });
+    }
+  });
+
+  // LMS Admin - Course Department Targeting
+  app.get('/api/lms/admin/courses/:courseId/departments', isAdmin, async (req, res) => {
+    try {
+      const departments = await storage.getLmsCourseDepartments(req.params.courseId);
+      res.json(departments);
+    } catch (error) {
+      console.error('Error fetching course departments:', error);
+      res.status(500).json({ message: 'Failed to fetch departments' });
+    }
+  });
+
+  app.put('/api/lms/admin/courses/:courseId/departments', isAdmin, async (req, res) => {
+    try {
+      const { departments } = req.body;
+      const result = await storage.setLmsCourseDepartments(req.params.courseId, departments || []);
+      res.json(result);
+    } catch (error) {
+      console.error('Error setting course departments:', error);
+      res.status(500).json({ message: 'Failed to set departments' });
+    }
+  });
+
+  // LMS Portal - Get courses by department
+  app.get('/api/lms/portal/courses-by-department', async (req, res) => {
+    try {
+      const { department } = req.query;
+      if (!department) {
+        return res.status(400).json({ message: 'Department is required' });
+      }
+      const courses = await storage.getCoursesByDepartment(department as string);
+      res.json(courses);
+    } catch (error) {
+      console.error('Error fetching courses by department:', error);
+      res.status(500).json({ message: 'Failed to fetch courses' });
+    }
+  });
+
+  // LMS Portal - Get required courses by department
+  app.get('/api/lms/portal/required-courses', async (req, res) => {
+    try {
+      const { department } = req.query;
+      if (!department) {
+        return res.status(400).json({ message: 'Department is required' });
+      }
+      const courses = await storage.getRequiredCoursesByDepartment(department as string);
+      res.json(courses);
+    } catch (error) {
+      console.error('Error fetching required courses:', error);
+      res.status(500).json({ message: 'Failed to fetch required courses' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
   
