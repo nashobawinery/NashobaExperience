@@ -1075,6 +1075,12 @@ export const lmsCourses = pgTable("lms_courses", {
   prerequisiteCourseIds: text("prerequisite_course_ids").array(), // Courses that must be completed first
   passingScore: integer("passing_score").notNull().default(80), // Minimum quiz score to pass
   certificateEnabled: boolean("certificate_enabled").notNull().default(false),
+  // Compliance tracking fields
+  renewalFrequencyDays: integer("renewal_frequency_days"), // How often course must be retaken (null = one-time)
+  regulatoryBody: text("regulatory_body"), // e.g., "OSHA", "State Health Dept", "FDA"
+  regulatoryReference: text("regulatory_reference"), // e.g., "29 CFR 1910.1030"
+  complianceRequired: boolean("compliance_required").notNull().default(false), // Is this mandatory training
+  expirationWarningDays: integer("expiration_warning_days").default(30), // Days before expiry to warn
   sortOrder: integer("sort_order").notNull().default(0),
   createdBy: varchar("created_by").references(() => platformUsers.id),
   publishedAt: timestamp("published_at"),
@@ -1432,6 +1438,54 @@ export const lmsExternalProgress = pgTable("lms_external_progress", {
 ]);
 
 // ============================================
+// LMS ENHANCED - Training Portal & Department Targeting
+// ============================================
+
+// LMS Training Portal Sessions - Staff access via 4-digit codes
+export const lmsTrainingPortalSessions = pgTable("lms_training_portal_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  sessionToken: varchar("session_token").notNull().unique(),
+  accessCode: varchar("access_code", { length: 4 }).notNull(), // 4-digit code used to login
+  lastName: text("last_name").notNull(), // Staff last name for verification
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastActivityAt: timestamp("last_activity_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_portal_sessions_user").on(table.userId),
+  index("idx_lms_portal_sessions_token").on(table.sessionToken),
+]);
+
+// LMS Staff Training Codes - 4-digit access codes for staff training portal
+export const lmsStaffTrainingCodes = pgTable("lms_staff_training_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }).unique(),
+  accessCode: varchar("access_code", { length: 4 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_lms_staff_codes_user").on(table.userId),
+  index("idx_lms_staff_codes_code").on(table.accessCode),
+]);
+
+// LMS Course Departments - Links courses to specific departments for targeting
+export const lmsCourseDepartments = pgTable("lms_course_departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  courseId: varchar("course_id").notNull().references(() => lmsCourses.id, { onDelete: "cascade" }),
+  department: text("department").notNull(), // Department name/key
+  isRequired: boolean("is_required").notNull().default(false), // Is training mandatory for this dept
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  unique().on(table.courseId, table.department),
+  index("idx_lms_course_depts_course").on(table.courseId),
+  index("idx_lms_course_depts_dept").on(table.department),
+]);
+
+// ============================================
 // COMPLIANCE MODULE TABLES
 // ============================================
 
@@ -1778,6 +1832,9 @@ export const insertLmsUserBadgeSchema = createInsertSchema(lmsUserBadges).omit({
 export const insertLmsCourseRatingSchema = createInsertSchema(lmsCourseRatings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLmsExternalTokenSchema = createInsertSchema(lmsExternalTokens).omit({ id: true, createdAt: true });
 export const insertLmsExternalProgressSchema = createInsertSchema(lmsExternalProgress).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsTrainingPortalSessionSchema = createInsertSchema(lmsTrainingPortalSessions).omit({ id: true, createdAt: true });
+export const insertLmsStaffTrainingCodeSchema = createInsertSchema(lmsStaffTrainingCodes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLmsCourseDepartmentSchema = createInsertSchema(lmsCourseDepartments).omit({ id: true, createdAt: true });
 
 // Compliance Insert schemas
 export const insertComplianceTaskSchema = createInsertSchema(complianceTasks).omit({ 
@@ -2050,6 +2107,15 @@ export type LmsExternalToken = typeof lmsExternalTokens.$inferSelect;
 
 export type InsertLmsExternalProgress = z.infer<typeof insertLmsExternalProgressSchema>;
 export type LmsExternalProgress = typeof lmsExternalProgress.$inferSelect;
+
+export type InsertLmsTrainingPortalSession = z.infer<typeof insertLmsTrainingPortalSessionSchema>;
+export type LmsTrainingPortalSession = typeof lmsTrainingPortalSessions.$inferSelect;
+
+export type InsertLmsStaffTrainingCode = z.infer<typeof insertLmsStaffTrainingCodeSchema>;
+export type LmsStaffTrainingCode = typeof lmsStaffTrainingCodes.$inferSelect;
+
+export type InsertLmsCourseDepartment = z.infer<typeof insertLmsCourseDepartmentSchema>;
+export type LmsCourseDepartment = typeof lmsCourseDepartments.$inferSelect;
 
 // Extended LMS types with relations
 export type LmsCourseWithDetails = LmsCourse & {
