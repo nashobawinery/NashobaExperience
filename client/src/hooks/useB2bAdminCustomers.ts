@@ -120,6 +120,7 @@ export function useCreateB2bCustomer() {
         autoGeneratePassword?: boolean;
         customPassword?: string;
         notes?: string;
+        sendCustomerEmail?: boolean;
       };
       userType?: "admin" | "sales_rep";
     }) => {

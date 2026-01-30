@@ -85,6 +85,7 @@ const createCustomerSchema = z.object({
   autoGeneratePassword: z.boolean().default(true),
   customPassword: z.string().optional(),
   notes: z.string().optional(),
+  sendCustomerEmail: z.boolean().default(true), // Option to send welcome email to customer
 }).refine((data) => {
   if (data.autoApprove && !data.tierId) {
     return false;
@@ -1174,6 +1175,7 @@ export default function AdminDashboard() {
       autoGeneratePassword: true,
       customPassword: "",
       notes: "",
+      sendCustomerEmail: true,
     },
   });
 
@@ -1695,26 +1697,39 @@ export default function AdminDashboard() {
 
   const handleCreateCustomerSubmit = async (data: CreateCustomerFormData) => {
     try {
+      // Ensure sendCustomerEmail is explicitly set (defaults to true for backward compatibility)
+      const payload = { ...data, sendCustomerEmail: data.sendCustomerEmail ?? true };
+      
       // Use different endpoint for sales rep (auto-assigns them as sales rep)
       if (currentUser?.type === 'sales_rep') {
         // Use the hook with sales_rep userType for proper endpoint routing
-        await createCustomer({ data, userType: 'sales_rep' });
+        await createCustomer({ data: payload, userType: 'sales_rep' });
 
-        toast({
-          title: "Customer Created Successfully",
-          description: data.autoApprove 
-            ? `${data.accountName} has been created and approved. You are assigned as the Sales Representative.`
-            : `${data.accountName} has been created and is pending approval. You are assigned as the Sales Representative.`,
-        });
-      } else {
-        // Admin flow - use the hook with proper data wrapper
-        const result = await createCustomer({ data, userType: 'admin' });
+        let description = `${data.accountName} has been created and is pending approval. You are assigned as the Sales Representative.`;
+        if (data.autoApprove) {
+          description = payload.sendCustomerEmail
+            ? `${data.accountName} has been created and approved. Welcome email sent to customer. You are assigned as the Sales Representative.`
+            : `${data.accountName} has been created and approved. No email was sent to the customer. You are assigned as the Sales Representative.`;
+        }
         
         toast({
           title: "Customer Created Successfully",
-          description: data.autoApprove 
+          description,
+        });
+      } else {
+        // Admin flow - use the hook with proper data wrapper
+        const result = await createCustomer({ data: payload, userType: 'admin' });
+        
+        let description = `${data.accountName} has been created and is pending approval.`;
+        if (data.autoApprove) {
+          description = payload.sendCustomerEmail
             ? `${data.accountName} has been created and approved. Login credentials have been sent to ${data.emailAddress}. The password is the last 6 digits of their phone number.`
-            : `${data.accountName} has been created and is pending approval.`,
+            : `${data.accountName} has been created and approved. No email was sent to the customer.`;
+        }
+        
+        toast({
+          title: "Customer Created Successfully",
+          description,
         });
       }
 
@@ -4762,6 +4777,32 @@ export default function AdminDashboard() {
                 </FormItem>
               )}
             />
+
+            {createCustomerForm.watch("autoApprove") && (
+              <FormField
+                control={createCustomerForm.control}
+                name="sendCustomerEmail"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2 p-4 bg-accent/20 rounded-md ml-4">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-send-customer-email"
+                      />
+                    </FormControl>
+                    <div className="flex flex-col">
+                      <FormLabel className="cursor-pointer">
+                        Send welcome email to customer
+                      </FormLabel>
+                      <span className="text-xs text-muted-foreground">
+                        Uncheck to create account without sending email notification
+                      </span>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter>
               <Button
