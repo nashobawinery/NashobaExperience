@@ -1419,7 +1419,7 @@ router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Req
 // Sales Rep: Create a new customer (auto-assigned to this sales rep)
 router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Request, res: Response) => {
   try {
-    const { tierId, autoApprove, autoGeneratePassword = true, customPassword, salesRepId: _ignored, ...customerData } = req.body;
+    const { tierId, autoApprove, autoGeneratePassword = true, customPassword, salesRepId: _ignored, sendCustomerEmail = true, ...customerData } = req.body;
     // Always use the session salesRepId, never trust client-provided salesRepId
     const salesRepId = req.session.b2bUserId;
     
@@ -1517,12 +1517,15 @@ router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Requ
             </html>
           `;
 
-          await sendgrid.send({
-            to: customer.emailAddress,
-            from: process.env.RESEND_FROM_EMAIL,
-            subject: 'Your Nashoba B2B Account is Ready',
-            html: emailHtml,
-          });
+          // Only send customer welcome email if sendCustomerEmail is true
+          if (sendCustomerEmail) {
+            await sendgrid.send({
+              to: customer.emailAddress,
+              from: process.env.RESEND_FROM_EMAIL,
+              subject: 'Your Nashoba B2B Account is Ready',
+              html: emailHtml,
+            });
+          }
         }
       } catch (emailError) {
         console.error('Failed to send approval email:', emailError);
@@ -1771,7 +1774,7 @@ router.delete('/api/b2b/sales-rep/customers/:customerId/locations/:locationId', 
 // Sales Rep: Place order for a customer assigned to them  
 router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: Request, res: Response) => {
   try {
-    const { customerId, items, notes } = req.body;
+    const { customerId, items, notes, sendCustomerEmail = true } = req.body;
     const salesRepId = req.session.b2bUserId;
 
     // Validate input
@@ -1905,7 +1908,7 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         lineTotal: item.totalPrice,
-      })));
+      })), sendCustomerEmail);
     } catch (emailError) {
       console.error('Failed to send order notifications:', emailError);
     }
@@ -2013,7 +2016,8 @@ function getAppDomain(): string {
 }
 
 // Helper function to send order notifications
-async function sendOrderNotifications(order: any, customer: any, items: any[]) {
+// sendCustomerEmail defaults to true for backward compatibility, but can be set to false to skip customer emails
+async function sendOrderNotifications(order: any, customer: any, items: any[], sendCustomerEmail: boolean = true) {
   if (!process.env.SENDGRID_API_KEY) {
     console.warn('SendGrid not configured, skipping order notifications');
     return;
@@ -2209,12 +2213,15 @@ ${order.notes ? `Order Notes:\n${order.notes}\n` : ''}
     </html>
   `;
 
-  await sendEmail(
-    customer.emailAddress,
-    `Order Received: ${order.orderNumber}`,
-    customerConfirmationHtml,
-    `Thank you for your order ${order.orderNumber}. Total: $${order.total}. You will receive an invoice with your delivery date once approved.`
-  );
+  // Only send customer confirmation if sendCustomerEmail is true
+  if (sendCustomerEmail) {
+    await sendEmail(
+      customer.emailAddress,
+      `Order Received: ${order.orderNumber}`,
+      customerConfirmationHtml,
+      `Thank you for your order ${order.orderNumber}. Total: $${order.total}. You will receive an invoice with your delivery date once approved.`
+    );
+  }
 
   // Send notification to managers/additional recipients
   const managerEmailsSetting = await storage.getB2bSetting('manager_emails');
@@ -2522,7 +2529,7 @@ router.get('/api/b2b/order-workflow/approval/:token', async (req: Request, res: 
 router.post('/api/b2b/order-workflow/approval/:token', async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
-    const { action, rejectionReason } = req.body;
+    const { action, rejectionReason, sendCustomerEmail = true } = req.body;
     
     if (!action || !['approve', 'reject'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject".' });
@@ -2652,15 +2659,17 @@ router.post('/api/b2b/order-workflow/approval/:token', async (req: Request, res:
           </html>
         `;
         
-        // Send invoice to customer
-        await sendEmail(
-          customer.emailAddress,
-          `Invoice ${invoiceNumber} - Order ${order.orderNumber}`,
-          invoiceHtml,
-          `Invoice ${invoiceNumber} for order ${order.orderNumber}. Delivery: ${deliveryDateStr}. Total: $${order.total}`
-        );
+        // Send invoice to customer (if sendCustomerEmail is true)
+        if (sendCustomerEmail) {
+          await sendEmail(
+            customer.emailAddress,
+            `Invoice ${invoiceNumber} - Order ${order.orderNumber}`,
+            invoiceHtml,
+            `Invoice ${invoiceNumber} for order ${order.orderNumber}. Delivery: ${deliveryDateStr}. Total: $${order.total}`
+          );
+        }
         
-        // Send invoice to sales rep if assigned
+        // Send invoice to sales rep if assigned (internal emails always sent)
         if (customer.salesRepId) {
           const salesRep = await storage.getSalesRep(customer.salesRepId);
           if (salesRep) {
@@ -2715,14 +2724,17 @@ router.post('/api/b2b/order-workflow/approval/:token', async (req: Request, res:
           </html>
         `;
         
-        await sendEmail(
-          customer.emailAddress,
-          `Order ${order.orderNumber} Update`,
-          rejectionEmailHtml,
-          `Your order ${order.orderNumber} could not be processed. ${rejectionReason || ''}`
-        );
+        // Only send rejection email to customer if sendCustomerEmail is true
+        if (sendCustomerEmail) {
+          await sendEmail(
+            customer.emailAddress,
+            `Order ${order.orderNumber} Update`,
+            rejectionEmailHtml,
+            `Your order ${order.orderNumber} could not be processed. ${rejectionReason || ''}`
+          );
+        }
         
-        // Notify sales rep
+        // Notify sales rep (internal emails always sent)
         if (customer.salesRepId) {
           const salesRep = await storage.getSalesRep(customer.salesRepId);
           if (salesRep) {
@@ -3192,7 +3204,8 @@ router.post('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: R
     let effectiveTierId = requestBody.tierId;
     const autoGeneratePassword = requestBody.autoGeneratePassword ?? true;
     const customPassword = requestBody.customPassword;
-    const { tierId: _, salesRepId: __, autoApprove: ___, autoGeneratePassword: ____, customPassword: _____, ...customerData } = requestBody;
+    const sendCustomerEmail = requestBody.sendCustomerEmail ?? true;
+    const { tierId: _, salesRepId: __, autoApprove: ___, autoGeneratePassword: ____, customPassword: _____, sendCustomerEmail: ______, ...customerData } = requestBody;
     
     // Sales rep authorization rules:
     // 1. Can only assign customers to themselves
@@ -3305,12 +3318,15 @@ router.post('/api/b2b/admin/customers', requireB2bAdminOrSalesRep, async (req: R
             </html>
           `;
 
-          await sendgrid.send({
-            to: customer.emailAddress,
-            from: process.env.RESEND_FROM_EMAIL,
-            subject: 'Your Nashoba B2B Account is Ready',
-            html: emailHtml,
-          });
+          // Only send customer welcome email if sendCustomerEmail is true
+          if (sendCustomerEmail) {
+            await sendgrid.send({
+              to: customer.emailAddress,
+              from: process.env.RESEND_FROM_EMAIL,
+              subject: 'Your Nashoba B2B Account is Ready',
+              html: emailHtml,
+            });
+          }
         }
       } catch (emailError) {
         console.error('Failed to send approval email:', emailError);
@@ -5234,7 +5250,7 @@ router.get('/api/b2b/admin/products', requireB2bAdminOrSalesRep, async (req: Req
 // Admin/Sales Rep: Create manual order
 router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
-    const { customerId, items, notes, orderType = 'order' } = req.body;
+    const { customerId, items, notes, orderType = 'order', sendCustomerEmail = true } = req.body;
 
     // Validate input
     if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
@@ -5411,7 +5427,7 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           lineTotal: item.totalPrice,
-        })));
+        })), sendCustomerEmail);
       } catch (emailError) {
         console.error('Failed to send order notifications:', emailError);
       }
