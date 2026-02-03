@@ -57,7 +57,7 @@ export interface SyncApplyResult {
   errors: Array<{ tableId: string; error: string }>;
 }
 
-function computeContentHash(data: Record<string, any>, fields: string[]): string {
+function computeContentHash(data: Record<string, any>, fields: string[], debugLabel?: string): string {
   // Normalize record keys to camelCase for consistent hashing
   const normalizedData = normalizeRecordKeys(data);
   const sortedData: Record<string, any> = {};
@@ -71,7 +71,14 @@ function computeContentHash(data: Record<string, any>, fields: string[]): string
     if (typeof v === 'bigint') return v.toString();
     return v;
   });
-  return crypto.createHash('md5').update(json).digest('hex');
+  const hash = crypto.createHash('md5').update(json).digest('hex');
+  
+  // Debug logging for conflict diagnosis
+  if (debugLabel) {
+    console.log(`[Sync Debug] ${debugLabel} hash=${hash.substring(0,8)} json=${json}`);
+  }
+  
+  return hash;
 }
 
 // Convert snake_case to camelCase
@@ -455,6 +462,13 @@ async function scanSingleTable(
                             prodRecord?.createdAt ? new Date(prodRecord.createdAt) : null;
       
       const state = determineRecordState(devRecord, prodRecord, devHash, prodHash, devUpdatedAt, prodUpdatedAt);
+      
+      // Debug logging for meal periods conflicts
+      if (tableConfig.id === 'resyMealPeriods' && state === 'conflict' && devHash && prodHash) {
+        console.log(`[Sync Debug] ${tableConfig.id} key=${keyString} state=${state}`);
+        computeContentHash(devRecord!, tableConfig.exportFields, `DEV ${keyString}`);
+        computeContentHash(prodRecord!, tableConfig.exportFields, `PROD ${keyString}`);
+      }
       
       switch (state) {
         case 'dev_newer': devNewer++; break;
