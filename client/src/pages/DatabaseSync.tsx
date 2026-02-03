@@ -1712,21 +1712,21 @@ export default function DatabaseSync() {
                         </Button>
                         <Button variant="outline" size="sm" onClick={selectAllDevOnly} data-testid="button-select-dev-only">
                           <ArrowRight className="h-4 w-4 mr-1" />
-                          All Dev → Prod
+                          Push All to Prod
                         </Button>
                         <Button variant="outline" size="sm" onClick={selectAllProdOnly} data-testid="button-select-prod-only">
                           <ArrowLeft className="h-4 w-4 mr-1" />
-                          All Prod → Dev
+                          Pull All to Dev
                         </Button>
                         {scanResult && scanResult.tables.some(t => t.records.some(r => r.state === 'conflict')) && (
                           <>
                             <Button variant="outline" size="sm" onClick={selectAllConflictsKeepDev} data-testid="button-conflicts-keep-dev">
                               <GitCompare className="h-4 w-4 mr-1" />
-                              Conflicts → Prod
+                              Push Conflicts to Prod
                             </Button>
                             <Button variant="outline" size="sm" onClick={selectAllConflictsKeepProd} data-testid="button-conflicts-keep-prod">
                               <GitCompare className="h-4 w-4 mr-1" />
-                              Conflicts → Dev
+                              Pull Conflicts to Dev
                             </Button>
                           </>
                         )}
@@ -1962,10 +1962,10 @@ export default function DatabaseSync() {
                                                       className={`h-7 px-2 text-xs ${currentSelection === 'dev' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
                                                       onClick={() => toggleRecordSelection(table.tableId, record.businessKey, currentSelection === 'dev' ? 'skip' : 'dev')}
                                                       disabled={record.state === 'prod_only'}
-                                                      title="Use Dev version"
+                                                      title="Push Dev version to Production"
                                                     >
                                                       <ArrowRight className="h-3 w-3 mr-1" />
-                                                      Prod
+                                                      Push to Prod
                                                     </Button>
                                                     <Button 
                                                       size="sm" 
@@ -1973,10 +1973,10 @@ export default function DatabaseSync() {
                                                       className={`h-7 px-2 text-xs ${currentSelection === 'prod' ? 'bg-green-500 hover:bg-green-600' : ''}`}
                                                       onClick={() => toggleRecordSelection(table.tableId, record.businessKey, currentSelection === 'prod' ? 'skip' : 'prod')}
                                                       disabled={record.state === 'dev_only'}
-                                                      title="Use Prod version"
+                                                      title="Pull Prod version to Development"
                                                     >
                                                       <ArrowLeft className="h-3 w-3 mr-1" />
-                                                      Dev
+                                                      Pull to Dev
                                                     </Button>
                                                   </div>
                                                 </td>
