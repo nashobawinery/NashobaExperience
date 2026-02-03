@@ -718,6 +718,13 @@ export async function applySyncOperations(
   }
   const devPool = new Pool({ connectionString: devDbUrl });
   
+  // Diagnostic logging for apply operation
+  console.log(`[Sync Apply] DEV database: ${devDbUrl.substring(0, 50)}...`);
+  console.log(`[Sync Apply] PROD database: ${prodDbUrl.substring(0, 50)}...`);
+  if (devDbUrl === prodDbUrl) {
+    console.warn(`[Sync Apply] WARNING: DEV and PROD URLs are IDENTICAL!`);
+  }
+  
   try {
     for (const tableId of Object.keys(operationsByTable)) {
       const tableOperations = operationsByTable[tableId];
