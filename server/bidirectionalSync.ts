@@ -537,6 +537,17 @@ export async function scanBidirectional(
   let totalConflicts = 0;
   let totalIdentical = 0;
   
+  // Diagnostic: Log which databases are being compared
+  const devDbUrl = process.env.DATABASE_URL || '';
+  const prodDbUrl = config.prodDatabaseUrl || '';
+  console.log(`[Sync] DEV database (DATABASE_URL): ${devDbUrl.substring(0, 50)}...`);
+  console.log(`[Sync] PROD database (from UI): ${prodDbUrl.substring(0, 50)}...`);
+  
+  // Check if they're the same database
+  if (devDbUrl && prodDbUrl && devDbUrl === prodDbUrl) {
+    console.warn(`[Sync] WARNING: DEV and PROD database URLs are IDENTICAL! This will cause sync issues.`);
+  }
+  
   const tablesToScan = config.tableIds 
     ? SYNC_TABLES.filter(t => config.tableIds!.includes(t.id) && !t.excludeFromSync)
     : SYNC_TABLES.filter(t => !t.excludeFromSync);
