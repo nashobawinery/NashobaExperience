@@ -855,6 +855,11 @@ export async function applySyncOperations(
             // Database returns snake_case columns
             const prodRecord = prodResult.rows[0] as Record<string, any>;
             
+            // Debug: log what we fetched from production
+            if (tableId === 'resyMealPeriods') {
+              console.log(`[Sync Debug] Fetched from PROD for ${tableId}:`, JSON.stringify(prodRecord));
+            }
+            
             // Helper to get value from record using camelCase field name
             const getDbValue = (fieldName: string) => {
               const snakeName = toSnakeCase(fieldName);
