@@ -904,9 +904,11 @@ export async function applySyncOperations(
                     ...updateCols.map(c => serializeValue(getDbValue(c)))
                   ];
                   
-                  console.log(`[Sync] Updating ${tableName} in dev:`, { businessKey: op.businessKey });
+                  console.log(`[Sync] Updating ${tableName} in dev:`, { businessKey: op.businessKey, updateCols, updateValues });
                   const updateQuery = `UPDATE ${escapeIdentifier(tableName)} SET ${setClauses} WHERE ${whereConditions}`;
-                  await devPool.query(updateQuery, updateValues);
+                  console.log(`[Sync] Update query: ${updateQuery}`);
+                  const updateResult = await devPool.query(updateQuery, updateValues);
+                  console.log(`[Sync] Update result: ${updateResult.rowCount} rows affected`);
                 }
               } else {
                 // Check if this table only allows updates (not inserts) due to required sensitive fields
