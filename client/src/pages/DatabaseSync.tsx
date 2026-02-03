@@ -237,7 +237,7 @@ interface SyncScanResult {
 }
 
 // Schema Push Card Component
-function SchemaPushCard() {
+function SchemaPushCard({ prodDbUrl }: { prodDbUrl?: string }) {
   const { toast } = useToast();
   const [isPushing, setIsPushing] = useState(false);
   const [isSyncingModules, setIsSyncingModules] = useState(false);
@@ -258,7 +258,7 @@ function SchemaPushCard() {
     setIsPushing(true);
     setResult(null);
     try {
-      const response = await apiRequest('POST', '/api/admin/sync/push-schema', {});
+      const response = await apiRequest('POST', '/api/admin/sync/push-schema', { prodDbUrl });
       const data = await response.json();
       setResult(data);
       if (data.success) {
@@ -291,7 +291,7 @@ function SchemaPushCard() {
     setIsSyncingModules(true);
     setResult(null);
     try {
-      const response = await apiRequest('POST', '/api/admin/sync/push-modules', {});
+      const response = await apiRequest('POST', '/api/admin/sync/push-modules', { prodDbUrl });
       const data = await response.json();
       setResult(data);
       if (data.success) {
@@ -1529,7 +1529,7 @@ export default function DatabaseSync() {
           )}
 
           {/* Schema Push Section */}
-          <SchemaPushCard />
+          <SchemaPushCard prodDbUrl={prodDbUrl} />
 
           {!isConnected ? (
             <Card>

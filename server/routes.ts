@@ -1335,12 +1335,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Push schema to production database
   app.post("/api/admin/sync/push-schema", isAdmin, async (req, res) => {
     try {
-      const prodDbUrl = process.env.PROD_DATABASE_URL;
+      // Accept prodDbUrl from request body (from connected session) or fall back to env var
+      const prodDbUrl = req.body.prodDbUrl || process.env.PROD_DATABASE_URL;
       
       if (!prodDbUrl) {
         return res.status(400).json({ 
           success: false, 
-          error: "PROD_DATABASE_URL secret is not configured. Please add it in Replit Secrets." 
+          error: "Production database URL not provided. Please connect to production first or add PROD_DATABASE_URL in Replit Secrets." 
         });
       }
       
@@ -1468,12 +1469,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync platform modules to production database
   app.post("/api/admin/sync/push-modules", isAdmin, async (req, res) => {
     try {
-      const prodDbUrl = process.env.PROD_DATABASE_URL;
+      // Accept prodDbUrl from request body (from connected session) or fall back to env var
+      const prodDbUrl = req.body.prodDbUrl || process.env.PROD_DATABASE_URL;
       
       if (!prodDbUrl) {
         return res.status(400).json({ 
           success: false, 
-          error: "PROD_DATABASE_URL secret is not configured. Please add it in Replit Secrets." 
+          error: "Production database URL not provided. Please connect to production first or add PROD_DATABASE_URL in Replit Secrets." 
         });
       }
       
