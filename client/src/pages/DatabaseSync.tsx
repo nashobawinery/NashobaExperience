@@ -1849,7 +1849,8 @@ export default function DatabaseSync() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <ScrollArea className="max-h-[600px]">
+                      <div className="space-y-2 pr-3">
                         {scanResult.tables
                           .filter(t => showAllTables || t.records.length > 0 || t.devCount !== t.prodCount)
                           .map(table => {
@@ -2008,6 +2009,7 @@ export default function DatabaseSync() {
                           </div>
                         )}
                       </div>
+                      </ScrollArea>
                     </CardContent>
                   </Card>
                 </>
