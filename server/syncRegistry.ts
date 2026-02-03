@@ -77,9 +77,14 @@ import {
   insertResyLocationHolidaySchema,
   insertResyTicketedEventDefinitionSchema,
   insertResyTicketedEventTimeslotSchema,
+  insertSupportRequestSchema,
+  insertSupportMessageSchema,
+  insertSupportAttachmentSchema,
+  insertSupportAgentSchema,
+  insertSupportAgentCategorySchema,
 } from '@shared/schema';
 
-export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports' | 'reservation';
+export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports' | 'reservation' | 'support';
 
 // Data type classification for sync safety
 export type DataType = 
@@ -121,6 +126,7 @@ export const SYNC_MODULES: Record<SyncModule, { name: string; description: strin
   rbac: { name: 'Access Control', description: 'Role-based access control configuration', icon: 'Lock' },
   platform: { name: 'Platform', description: 'Core platform configuration', icon: 'Settings' },
   reservation: { name: 'Reservations', description: 'Guest reservation and booking system', icon: 'Calendar' },
+  support: { name: 'Customer Support', description: 'Customer support tickets and knowledge base', icon: 'MessageSquare' },
 };
 
 export const SYNC_TABLES: SyncTableConfig[] = [
@@ -1150,6 +1156,73 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     supportsBackup: true,
     excludeFromSync: true,
     productionWarning: 'Ticketed event timeslots are transactional - NEVER sync from dev to production',
+  },
+  // ============ CUSTOMER SUPPORT MODULE ============
+  {
+    id: 'supportAgents',
+    name: 'Support Agents',
+    description: 'Customer support agents configuration',
+    module: 'support',
+    sheetName: 'SupportAgents',
+    businessKey: ['email'],
+    schema: insertSupportAgentSchema,
+    exportFields: ['name', 'email', 'role', 'isActive', 'specializations', 'maxActiveTickets'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'supportAgentCategories',
+    name: 'Support Agent Categories',
+    description: 'Category assignments for support agents',
+    module: 'support',
+    sheetName: 'SupportAgentCategories',
+    businessKey: ['agentId', 'category'],
+    parentTables: ['supportAgents'],
+    schema: insertSupportAgentCategorySchema,
+    exportFields: ['agentId', 'category'],
+    dataType: 'reference',
+    supportsBackup: true,
+  },
+  {
+    id: 'supportRequests',
+    name: 'Support Requests',
+    description: 'Customer support tickets',
+    module: 'support',
+    sheetName: 'SupportRequests',
+    businessKey: ['customerEmail', 'createdAt'],
+    schema: insertSupportRequestSchema,
+    exportFields: ['customerName', 'customerEmail', 'customerPhone', 'subject', 'initialMessage', 'status', 'priority', 'assignedToId', 'assignedToName', 'source', 'tags'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    productionWarning: 'Support tickets are customer data - sync carefully to avoid duplicating production tickets',
+  },
+  {
+    id: 'supportMessages',
+    name: 'Support Messages',
+    description: 'Messages within support tickets',
+    module: 'support',
+    sheetName: 'SupportMessages',
+    businessKey: ['requestId', 'createdAt'],
+    parentTables: ['supportRequests'],
+    schema: insertSupportMessageSchema,
+    exportFields: ['requestId', 'senderType', 'senderName', 'senderId', 'content', 'isInternal'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    productionWarning: 'Support messages are customer data - sync carefully',
+  },
+  {
+    id: 'supportAttachments',
+    name: 'Support Attachments',
+    description: 'File attachments in support messages',
+    module: 'support',
+    sheetName: 'SupportAttachments',
+    businessKey: ['messageId', 'fileName'],
+    parentTables: ['supportMessages'],
+    schema: insertSupportAttachmentSchema,
+    exportFields: ['messageId', 'requestId', 'fileName', 'mimeType', 'fileSize', 'storageUrl'],
+    dataType: 'transactional',
+    supportsBackup: true,
+    productionWarning: 'Support attachments are customer data - sync carefully',
   },
 ];
 
