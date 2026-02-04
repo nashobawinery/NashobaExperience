@@ -339,6 +339,8 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [aiDraftContent, setAiDraftContent] = useState("");
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
+  const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
+  const [aiGuidance, setAiGuidance] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -419,13 +421,15 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   });
 
   const generateAiDraftMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/support/requests/${requestId}/ai-draft`);
+    mutationFn: async (guidance?: string) => {
+      const res = await apiRequest("POST", `/api/support/requests/${requestId}/ai-draft`, { guidance });
       return res.json();
     },
     onSuccess: (data: { draft: string }) => {
       setAiDraftContent(data.draft);
       setAiDraftOpen(true);
+      setAiGuidanceOpen(false);
+      setAiGuidance("");
     },
     onError: () => {
       toast({ title: "Failed to generate AI response", variant: "destructive" });
@@ -546,7 +550,7 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
           <Button
             size="sm"
             variant="outline"
-            onClick={() => generateAiDraftMutation.mutate()}
+            onClick={() => setAiGuidanceOpen(true)}
             disabled={generateAiDraftMutation.isPending || request.status === "closed"}
             data-testid="button-generate-ai"
           >
@@ -679,6 +683,43 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </Button>
           </div>
         )}
+
+        <Dialog open={aiGuidanceOpen} onOpenChange={setAiGuidanceOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                AI Response Guidance
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Provide guidance for Cody to shape the response. For example: "not interested, no budget", "interested but has questions", "offer discount", etc.
+              </p>
+              <Textarea
+                value={aiGuidance}
+                onChange={(e) => setAiGuidance(e.target.value)}
+                rows={3}
+                placeholder="e.g., Customer is not interested, politely decline and thank them"
+                className="resize-none"
+                data-testid="textarea-ai-guidance"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiGuidanceOpen(false)} data-testid="button-cancel-guidance">
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => generateAiDraftMutation.mutate(aiGuidance || undefined)}
+                disabled={generateAiDraftMutation.isPending}
+                data-testid="button-generate-with-guidance"
+              >
+                <Bot className="h-4 w-4 mr-2" />
+                {generateAiDraftMutation.isPending ? "Generating..." : "Generate Response"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={aiDraftOpen} onOpenChange={setAiDraftOpen}>
           <DialogContent className="max-w-2xl">

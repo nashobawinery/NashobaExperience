@@ -13358,6 +13358,8 @@ ${webSourcesContext}${feedbackContext}`
   // Generate AI draft response (returns without saving - for preview/edit)
   app.post('/api/support/requests/:id/ai-draft', isAdmin, async (req, res) => {
     try {
+      const { guidance } = req.body || {};
+      
       const request = await storage.getSupportRequestWithMessages(req.params.id);
       if (!request) {
         return res.status(404).json({ message: 'Support request not found' });
@@ -13461,7 +13463,7 @@ ${webSourcesContext}`
           },
           { 
             role: 'user', 
-            content: `Previous conversation:\n${conversationHistory}\n\nPlease provide a helpful response to the customer's latest message. Start with a friendly greeting and use the FAQ articles and knowledge base to give accurate information.` 
+            content: `Previous conversation:\n${conversationHistory}\n\n${guidance ? `AGENT GUIDANCE: ${guidance}\n\nPlease craft the response according to this guidance from the support agent.\n\n` : ''}Please provide a helpful response to the customer's latest message. Start with a friendly greeting and use the FAQ articles and knowledge base to give accurate information.` 
           }
         ],
         max_tokens: 500
@@ -13474,6 +13476,7 @@ ${webSourcesContext}`
       }
 
       // Return the draft without saving
+      console.log(`[AI Draft] Generated with guidance: "${guidance || 'none'}"`);
       res.json({ draft: aiResponse });
     } catch (error) {
       console.error('Error generating AI draft:', error);
