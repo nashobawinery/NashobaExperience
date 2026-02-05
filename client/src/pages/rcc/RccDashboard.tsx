@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,7 +32,15 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
-  History
+  History,
+  CloudRain,
+  Cloud,
+  Sun,
+  CloudSnow,
+  CloudLightning,
+  CloudFog,
+  Thermometer,
+  RefreshCw
 } from "lucide-react";
 import type { 
   RccWeek, 
@@ -40,7 +48,8 @@ import type {
   RccCampaign, 
   RccRevenue, 
   RccAiRecommendation,
-  RccTeam 
+  RccTeam,
+  RccDailyRevenue
 } from "@shared/schema";
 
 export default function RccDashboard() {
@@ -89,6 +98,22 @@ export default function RccDashboard() {
       : Promise.resolve(null),
     enabled: !!activeWeekId,
   });
+
+  const { data: dailyRevenue } = useQuery<RccDailyRevenue[]>({
+    queryKey: ["/api/rcc/daily-revenue", activeWeekId],
+    queryFn: () => activeWeekId 
+      ? fetch(`/api/rcc/daily-revenue/${activeWeekId}`).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!activeWeekId,
+  });
+
+  // Calculate weekly totals from daily entries
+  const dailyTotals = {
+    toast: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastRevenue || '0'), 0) || 0,
+    shopify: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.shopifyRevenue || '0'), 0) || 0,
+    other: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.otherRevenue || '0'), 0) || 0,
+  };
+  const dailyGrandTotal = dailyTotals.toast + dailyTotals.shopify + dailyTotals.other;
 
   const { data: aiRecs } = useQuery<RccAiRecommendation[]>({
     queryKey: ["/api/rcc/ai-recommendations", activeWeekId],
@@ -163,9 +188,9 @@ export default function RccDashboard() {
             />
             <StatCard 
               label="Revenue" 
-              value={revenue ? `$${(parseFloat(revenue.toastTotal || '0') + parseFloat(revenue.shopifyTotal || '0') + parseFloat(revenue.otherTotal || '0')).toLocaleString()}` : 'Not entered'} 
+              value={dailyGrandTotal > 0 ? `$${dailyGrandTotal.toLocaleString()}` : 'Not entered'} 
               icon={<DollarSign className="h-4 w-4" />}
-              active={!!revenue}
+              active={dailyGrandTotal > 0}
             />
             <StatCard 
               label="Ideas" 
@@ -217,6 +242,7 @@ export default function RccDashboard() {
             <TabsContent value="revenue" className="mt-6">
               <RevenuePanel 
                 weekId={activeWeekId!}
+                week={activeWeek!}
                 revenue={revenue ?? null}
               />
             </TabsContent>
@@ -873,206 +899,412 @@ type ToastHistoricalData = {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue | null }) {
+function getWeatherIcon(condition: string | null) {
+  if (!condition) return <Cloud className="h-4 w-4 text-muted-foreground" />;
+  const c = condition.toLowerCase();
+  if (c.includes('clear') || c.includes('sunny')) return <Sun className="h-4 w-4 text-yellow-500" />;
+  if (c.includes('rain') || c.includes('drizzle')) return <CloudRain className="h-4 w-4 text-blue-500" />;
+  if (c.includes('snow')) return <CloudSnow className="h-4 w-4 text-blue-200" />;
+  if (c.includes('thunder') || c.includes('storm')) return <CloudLightning className="h-4 w-4 text-purple-500" />;
+  if (c.includes('fog')) return <CloudFog className="h-4 w-4 text-gray-400" />;
+  if (c.includes('cloud') || c.includes('partly')) return <Cloud className="h-4 w-4 text-gray-500" />;
+  return <Cloud className="h-4 w-4 text-muted-foreground" />;
+}
+
+function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek; revenue: RccRevenue | null }) {
   const { toast } = useToast();
-  const [toastTotal, setToastTotal] = useState(revenue?.toastTotal || "");
-  const [shopifyTotal, setShopifyTotal] = useState(revenue?.shopifyTotal || "");
-  const [otherTotal, setOtherTotal] = useState(revenue?.otherTotal || "");
-  const [notes, setNotes] = useState(revenue?.notes || "");
   const [whatWorked, setWhatWorked] = useState(revenue?.whatWorked || "");
   const [whatFlopped, setWhatFlopped] = useState(revenue?.whatFlopped || "");
+  const [weekNotes, setWeekNotes] = useState(revenue?.notes || "");
+
+  // Fetch daily revenue entries for the week
+  const { data: dailyRevenue, isLoading: dailyLoading } = useQuery<RccDailyRevenue[]>({
+    queryKey: ["/api/rcc/daily-revenue", weekId],
+    queryFn: () => fetch(`/api/rcc/daily-revenue/${weekId}`).then(r => r.json()),
+    enabled: !!weekId,
+  });
 
   const { data: historicalData } = useQuery<ToastHistoricalData>({
     queryKey: ["/api/rcc/toast-historical/week", weekId],
     queryFn: () => fetch(`/api/rcc/toast-historical/week/${weekId}`).then(r => r.json()),
+    enabled: !!weekId,
   });
 
-  const saveMutation = useMutation({
+  const saveWeeklyMutation = useMutation({
     mutationFn: async (data: any) => {
       return apiRequest("POST", "/api/rcc/revenue", data);
     },
     onSuccess: () => {
-      toast({ title: "Revenue saved" });
+      toast({ title: "Week notes saved" });
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/revenue"] });
     },
     onError: (error: any) => {
-      toast({ title: "Error saving revenue", description: error.message, variant: "destructive" });
+      toast({ title: "Error saving", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleSave = () => {
-    saveMutation.mutate({
+  const saveDailyMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", "/api/rcc/daily-revenue", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Daily entry saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error saving", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const fetchWeatherMutation = useMutation({
+    mutationFn: async (dateStr: string) => {
+      return apiRequest("POST", `/api/rcc/daily-revenue/${dateStr}/fetch-weather`, {});
+    },
+    onSuccess: () => {
+      toast({ title: "Weather fetched" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error fetching weather", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Guard against missing week data (after all hooks)
+  if (!week?.weekStart) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No week selected</p>
+      </div>
+    );
+  }
+
+  // Generate days of the week from week start/end
+  const weekDays: { date: string; dayOfWeek: number; displayDate: string }[] = [];
+  const startDate = parseISO(week.weekStart);
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(startDate, i);
+    weekDays.push({
+      date: format(day, 'yyyy-MM-dd'),
+      dayOfWeek: day.getDay(),
+      displayDate: format(day, 'EEE, MMM d'),
+    });
+  }
+
+  // Map daily revenue by date
+  const dailyMap = new Map<string, RccDailyRevenue>();
+  dailyRevenue?.forEach(d => dailyMap.set(d.date, d));
+
+  const handleSaveWeekNotes = () => {
+    saveWeeklyMutation.mutate({
       weekId,
-      toastTotal: toastTotal || null,
-      shopifyTotal: shopifyTotal || null,
-      otherTotal: otherTotal || null,
-      notes,
+      toastTotal: null,
+      shopifyTotal: null,
+      otherTotal: null,
+      notes: weekNotes,
       whatWorked,
       whatFlopped,
     });
   };
 
-  const total = (parseFloat(toastTotal || '0') + parseFloat(shopifyTotal || '0') + parseFloat(otherTotal || '0'));
+  // Calculate weekly totals from daily entries
+  const weeklyTotals = {
+    toast: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastRevenue || '0'), 0) || 0,
+    shopify: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.shopifyRevenue || '0'), 0) || 0,
+    other: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.otherRevenue || '0'), 0) || 0,
+  };
+  const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.other;
 
-  // Build a map of prior year date -> revenue for easy lookup
+  // Prior year comparison
   const priorYearMap = new Map<string, number>();
   historicalData?.priorYearData?.forEach(d => {
     priorYearMap.set(d.revenueDate, parseFloat(d.netRevenue || '0'));
   });
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-500" />
-              Revenue Entry
-            </CardTitle>
-            <CardDescription>Enter weekly revenue numbers</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="toast">Toast POS Total</Label>
-              <Input 
-                id="toast"
-                type="number"
-                placeholder="0.00"
-                value={toastTotal}
-                onChange={(e) => setToastTotal(e.target.value)}
-                data-testid="input-toast-total"
-              />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-green-500" />
+            Daily Revenue Tracking
+          </h3>
+          <p className="text-sm text-muted-foreground">Track revenue and weather for each day of the week</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Weekly Total</p>
+            <p className="text-2xl font-bold text-green-600">${grandTotal.toLocaleString()}</p>
+          </div>
+          {historicalData && historicalData.priorYearTotal > 0 && (
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">vs Last Year</p>
+              {(() => {
+                const pctChange = ((weeklyTotals.toast - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100;
+                const isPositive = pctChange >= 0;
+                return (
+                  <p className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                    {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
+                  </p>
+                );
+              })()}
             </div>
-            <div>
-              <Label htmlFor="shopify">Shopify Total</Label>
-              <Input 
-                id="shopify"
-                type="number"
-                placeholder="0.00"
-                value={shopifyTotal}
-                onChange={(e) => setShopifyTotal(e.target.value)}
-                data-testid="input-shopify-total"
-              />
-            </div>
-            <div>
-              <Label htmlFor="other">Other Revenue</Label>
-              <Input 
-                id="other"
-                type="number"
-                placeholder="0.00"
-                value={otherTotal}
-                onChange={(e) => setOtherTotal(e.target.value)}
-                data-testid="input-other-total"
-              />
-            </div>
-            <div className="pt-4 border-t">
-              <p className="text-sm text-muted-foreground">Total Revenue</p>
-              <p className="text-2xl font-bold text-green-600">${total.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+      </div>
 
-        {historicalData && historicalData.priorYearData?.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <History className="h-4 w-4" />
-                Prior Year Toast POS (Day-of-Week Match)
-              </CardTitle>
-              <CardDescription>Same weekday comparison from last year</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {historicalData.currentDates?.map((curr) => {
-                  const priorRevenue = priorYearMap.get(curr.priorYearDate);
-                  const currentRevenue = parseFloat(toastTotal || '0') / (historicalData.currentDates?.length || 1);
-                  const weeklyToast = parseFloat(toastTotal || '0');
-                  const pctChange = priorRevenue && priorRevenue > 0 
-                    ? ((weeklyToast - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100 
-                    : null;
-                  return (
-                    <div key={curr.date} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs w-10 justify-center">
-                          {DAY_NAMES[curr.dayOfWeek]}
-                        </Badge>
-                        <span className="text-muted-foreground">
-                          {format(parseISO(curr.date), "M/d/yy")} vs {format(parseISO(curr.priorYearDate), "M/d/yy")}
-                        </span>
-                      </div>
-                      <span className="font-medium">
-                        {priorRevenue !== undefined ? `$${priorRevenue.toLocaleString()}` : '—'}
-                      </span>
-                    </div>
-                  );
-                })}
-                <div className="flex items-center justify-between pt-2 mt-2 border-t font-semibold">
-                  <span>Prior Year Total</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">${historicalData.priorYearTotal.toLocaleString()}</span>
-                    {parseFloat(toastTotal || '0') > 0 && historicalData.priorYearTotal > 0 && (() => {
-                      const pctChange = ((parseFloat(toastTotal) - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100;
-                      const isPositive = pctChange >= 0;
-                      return (
-                        <span className={isPositive ? "text-foreground font-bold" : "text-red-600 font-bold"}>
-                          {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      <div className="grid gap-4">
+        {weekDays.map((day) => {
+          const entry = dailyMap.get(day.date);
+          return (
+            <DailyRevenueRow
+              key={day.date}
+              day={day}
+              entry={entry}
+              weekId={weekId}
+              priorYearRevenue={priorYearMap.get(historicalData?.currentDates?.find(c => c.date === day.date)?.priorYearDate || '') || null}
+              onSave={(data) => saveDailyMutation.mutate(data)}
+              onFetchWeather={() => fetchWeatherMutation.mutate(day.date)}
+              isSaving={saveDailyMutation.isPending}
+              isFetchingWeather={fetchWeatherMutation.isPending}
+            />
+          );
+        })}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Week Notes</CardTitle>
-          <CardDescription>What worked, what flopped</CardDescription>
+          <CardTitle>Weekly Summary</CardTitle>
+          <CardDescription>Overall notes for the week</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="worked" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" /> What Worked
-            </Label>
-            <Textarea 
-              id="worked"
-              placeholder="What drove revenue this week?"
-              value={whatWorked}
-              onChange={(e) => setWhatWorked(e.target.value)}
-              data-testid="input-what-worked"
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="worked" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-green-500" /> What Worked
+              </Label>
+              <Textarea 
+                id="worked"
+                placeholder="What drove revenue this week?"
+                value={whatWorked}
+                onChange={(e) => setWhatWorked(e.target.value)}
+                data-testid="input-what-worked"
+              />
+            </div>
+            <div>
+              <Label htmlFor="flopped" className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-500" /> What Flopped
+              </Label>
+              <Textarea 
+                id="flopped"
+                placeholder="What didn't work as expected?"
+                value={whatFlopped}
+                onChange={(e) => setWhatFlopped(e.target.value)}
+                data-testid="input-what-flopped"
+              />
+            </div>
           </div>
           <div>
-            <Label htmlFor="flopped" className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-500" /> What Flopped
-            </Label>
+            <Label htmlFor="weekNotes">Additional Notes</Label>
             <Textarea 
-              id="flopped"
-              placeholder="What didn't work as expected?"
-              value={whatFlopped}
-              onChange={(e) => setWhatFlopped(e.target.value)}
-              data-testid="input-what-flopped"
-            />
-          </div>
-          <div>
-            <Label htmlFor="notes">Additional Notes</Label>
-            <Textarea 
-              id="notes"
+              id="weekNotes"
               placeholder="Other observations..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              data-testid="input-notes"
+              value={weekNotes}
+              onChange={(e) => setWeekNotes(e.target.value)}
+              data-testid="input-week-notes"
             />
           </div>
-          <Button onClick={handleSave} disabled={saveMutation.isPending} className="w-full" data-testid="btn-save-revenue">
-            Save Revenue & Notes
+          <Button onClick={handleSaveWeekNotes} disabled={saveWeeklyMutation.isPending} className="w-full" data-testid="btn-save-week-notes">
+            Save Weekly Notes
           </Button>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function DailyRevenueRow({
+  day,
+  entry,
+  weekId,
+  priorYearRevenue,
+  onSave,
+  onFetchWeather,
+  isSaving,
+  isFetchingWeather,
+}: {
+  day: { date: string; dayOfWeek: number; displayDate: string };
+  entry: RccDailyRevenue | undefined;
+  weekId: number;
+  priorYearRevenue: number | null;
+  onSave: (data: any) => void;
+  onFetchWeather: () => void;
+  isSaving: boolean;
+  isFetchingWeather: boolean;
+}) {
+  const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
+  const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
+  const [otherRev, setOtherRev] = useState(entry?.otherRevenue || "");
+  const [notes, setNotes] = useState(entry?.notes || "");
+  const [expanded, setExpanded] = useState(false);
+
+  // Sync local state when entry changes (after save or weather fetch)
+  useEffect(() => {
+    setToastRev(entry?.toastRevenue || "");
+    setShopifyRev(entry?.shopifyRevenue || "");
+    setOtherRev(entry?.otherRevenue || "");
+    setNotes(entry?.notes || "");
+  }, [entry?.id, entry?.toastRevenue, entry?.shopifyRevenue, entry?.otherRevenue, entry?.notes]);
+
+  const dayTotal = parseFloat(toastRev || '0') + parseFloat(shopifyRev || '0') + parseFloat(otherRev || '0');
+  const hasWeather = entry?.weatherHigh !== null && entry?.weatherHigh !== undefined;
+
+  const handleSave = () => {
+    onSave({
+      weekId,
+      date: day.date,
+      dayOfWeek: day.dayOfWeek,
+      toastRevenue: toastRev || null,
+      shopifyRevenue: shopifyRev || null,
+      otherRevenue: otherRev || null,
+      notes,
+    });
+  };
+
+  return (
+    <Card className={expanded ? "ring-1 ring-primary/20" : ""}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setExpanded(!expanded)}
+              className="text-muted-foreground"
+              data-testid={`btn-expand-${day.date}`}
+            >
+              {expanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+            <div>
+              <p className="font-medium">{day.displayDate}</p>
+              {hasWeather && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {getWeatherIcon(entry?.weatherCondition || null)}
+                  <span>{entry?.weatherHigh}°/{entry?.weatherLow}°F</span>
+                  {entry?.weatherCondition && <span>• {entry.weatherCondition}</span>}
+                  {entry?.weatherPrecipitation && parseFloat(entry.weatherPrecipitation) > 0 && (
+                    <span>• {entry.weatherPrecipitation}mm</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 flex-wrap">
+            {!expanded && (
+              <>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Toast</p>
+                  <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-bold text-green-600">${dayTotal.toLocaleString()}</p>
+                </div>
+              </>
+            )}
+            {priorYearRevenue !== null && priorYearRevenue > 0 && (
+              <Badge variant="outline" className="text-xs">
+                PY: ${priorYearRevenue.toLocaleString()}
+              </Badge>
+            )}
+            {!hasWeather && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={onFetchWeather}
+                disabled={isFetchingWeather}
+                title="Fetch weather"
+                data-testid={`btn-fetch-weather-${day.date}`}
+              >
+                {isFetchingWeather ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Thermometer className="h-4 w-4" />}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="mt-4 pt-4 border-t space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <Label>Toast POS</Label>
+                <Input 
+                  type="number"
+                  placeholder="0.00"
+                  value={toastRev}
+                  onChange={(e) => setToastRev(e.target.value)}
+                  data-testid={`input-toast-${day.date}`}
+                />
+              </div>
+              <div>
+                <Label>Shopify</Label>
+                <Input 
+                  type="number"
+                  placeholder="0.00"
+                  value={shopifyRev}
+                  onChange={(e) => setShopifyRev(e.target.value)}
+                  data-testid={`input-shopify-${day.date}`}
+                />
+              </div>
+              <div>
+                <Label>Other</Label>
+                <Input 
+                  type="number"
+                  placeholder="0.00"
+                  value={otherRev}
+                  onChange={(e) => setOtherRev(e.target.value)}
+                  data-testid={`input-other-${day.date}`}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Daily Notes</Label>
+              <Textarea
+                placeholder="Notes about this day (events, weather impact, etc.)"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="h-20"
+                data-testid={`input-notes-${day.date}`}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                {hasWeather ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    {getWeatherIcon(entry?.weatherCondition || null)}
+                    <span>{entry?.weatherHigh}°/{entry?.weatherLow}°F</span>
+                    <span className="text-muted-foreground">• {entry?.weatherCondition}</span>
+                  </div>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={onFetchWeather}
+                    disabled={isFetchingWeather}
+                    data-testid={`btn-fetch-weather-expanded-${day.date}`}
+                  >
+                    {isFetchingWeather ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Thermometer className="h-4 w-4 mr-2" />}
+                    Fetch Weather
+                  </Button>
+                )}
+              </div>
+              <Button onClick={handleSave} disabled={isSaving} data-testid={`btn-save-${day.date}`}>
+                Save Day
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
