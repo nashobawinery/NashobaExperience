@@ -916,7 +916,7 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
 
   // Build a map of prior year date -> revenue for easy lookup
   const priorYearMap = new Map<string, number>();
-  historicalData?.priorYearData.forEach(d => {
+  historicalData?.priorYearData?.forEach(d => {
     priorYearMap.set(d.revenueDate, parseFloat(d.netRevenue || '0'));
   });
 
