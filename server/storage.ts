@@ -7220,7 +7220,7 @@ export class DatabaseStorage implements IStorage {
     const priorYearDates = currentDates.map(d => d.priorYearDate);
     const priorYearData = await db.select()
       .from(rccToastHistoricalRevenue)
-      .where(sql`${rccToastHistoricalRevenue.revenueDate} = ANY(${priorYearDates})`)
+      .where(sql`${rccToastHistoricalRevenue.revenueDate} = ANY(ARRAY[${sql.join(priorYearDates.map(d => sql`${d}`), sql`,`)}]::text[])`)
       .orderBy(rccToastHistoricalRevenue.revenueDate);
     
     const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0'), 0);
