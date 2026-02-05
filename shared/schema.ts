@@ -4609,3 +4609,21 @@ export const rccAiRecommendations = pgTable("rcc_ai_recommendations", {
 export const insertRccAiRecommendationSchema = createInsertSchema(rccAiRecommendations).omit({ id: true, createdAt: true });
 export type InsertRccAiRecommendation = z.infer<typeof insertRccAiRecommendationSchema>;
 export type RccAiRecommendation = typeof rccAiRecommendations.$inferSelect;
+
+// RCC Toast Historical Revenue - stores daily Toast POS revenue for year-over-year comparison
+export const rccToastHistoricalRevenue = pgTable("rcc_toast_historical_revenue", {
+  id: serial("id").primaryKey(),
+  revenueDate: date("revenue_date").notNull(),
+  netRevenue: numeric("net_revenue", { precision: 12, scale: 2 }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  weekOfYear: integer("week_of_year").notNull(),
+  year: integer("year").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_toast_historical_date").on(table.revenueDate),
+  index("idx_rcc_toast_historical_dow_week").on(table.dayOfWeek, table.weekOfYear, table.year),
+]);
+
+export const insertRccToastHistoricalRevenueSchema = createInsertSchema(rccToastHistoricalRevenue).omit({ id: true, createdAt: true });
+export type InsertRccToastHistoricalRevenue = z.infer<typeof insertRccToastHistoricalRevenueSchema>;
+export type RccToastHistoricalRevenue = typeof rccToastHistoricalRevenue.$inferSelect;
