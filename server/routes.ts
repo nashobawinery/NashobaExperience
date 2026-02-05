@@ -17624,6 +17624,42 @@ Generate a professional response:`;
     }
   });
 
+  // Export RCC week data (Focus, Tasks, Campaigns)
+  app.get('/api/rcc/weeks/:id/export', isAdmin, async (req, res) => {
+    try {
+      const weekId = parseInt(req.params.id);
+      const data = await storage.exportRccWeekData(weekId);
+      if (!data) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error exporting RCC week data:', error);
+      res.status(500).json({ message: 'Failed to export week data' });
+    }
+  });
+
+  // Import RCC week data (Focus, Tasks, Campaigns)
+  app.post('/api/rcc/weeks/:id/import', isAdmin, async (req, res) => {
+    try {
+      const weekId = parseInt(req.params.id);
+      const { data, clearExisting } = req.body;
+      
+      if (!data) {
+        return res.status(400).json({ message: 'No data provided' });
+      }
+
+      const result = await storage.importRccWeekData(weekId, data, { clearExisting: !!clearExisting });
+      res.json({ 
+        message: 'Import successful',
+        ...result
+      });
+    } catch (error: any) {
+      console.error('Error importing RCC week data:', error);
+      res.status(500).json({ message: error.message || 'Failed to import week data' });
+    }
+  });
+
   app.put('/api/rcc/weeks/:id', isAdmin, async (req, res) => {
     try {
       const week = await storage.updateRccWeek(parseInt(req.params.id), req.body);

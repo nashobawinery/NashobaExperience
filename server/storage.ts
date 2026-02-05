@@ -7383,6 +7383,104 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return entry;
   }
+
+  // RCC Export/Import
+  async exportRccWeekData(weekId: number): Promise<{
+    focus: { focusStatement: string | null; hookAngle: string | null; weeklyGoal: string | null };
+    tasks: Array<{ title: string; description: string | null; owner: string | null; priority: string | null }>;
+    campaigns: Array<{ channel: string; title: string; content: string | null }>;
+  } | null> {
+    const week = await this.getRccWeek(weekId);
+    if (!week) return null;
+
+    const tasks = await this.getRccTasks(weekId);
+    const campaigns = await this.getRccCampaigns(weekId);
+
+    return {
+      focus: {
+        focusStatement: week.focusStatement,
+        hookAngle: week.hookAngle,
+        weeklyGoal: week.weeklyGoal,
+      },
+      tasks: tasks.map(t => ({
+        title: t.title,
+        description: t.description,
+        owner: t.owner,
+        priority: t.priority,
+      })),
+      campaigns: campaigns.map(c => ({
+        channel: c.channel,
+        title: c.title,
+        content: c.content,
+      })),
+    };
+  }
+
+  async importRccWeekData(
+    weekId: number,
+    data: {
+      focus?: { focusStatement?: string; hookAngle?: string; weeklyGoal?: string };
+      tasks?: Array<{ title: string; description?: string; owner?: string; priority?: string }>;
+      campaigns?: Array<{ channel: string; title: string; content?: string }>;
+    },
+    options: { clearExisting?: boolean } = {}
+  ): Promise<{ tasksCreated: number; campaignsCreated: number }> {
+    const week = await this.getRccWeek(weekId);
+    if (!week) throw new Error("Week not found");
+
+    // Update focus fields if provided
+    if (data.focus) {
+      await this.updateRccWeek(weekId, {
+        focusStatement: data.focus.focusStatement || week.focusStatement,
+        hookAngle: data.focus.hookAngle || week.hookAngle,
+        weeklyGoal: data.focus.weeklyGoal || week.weeklyGoal,
+      });
+    }
+
+    // Optionally clear existing tasks and campaigns
+    if (options.clearExisting) {
+      const existingTasks = await this.getRccTasks(weekId);
+      for (const task of existingTasks) {
+        await this.deleteRccTask(task.id);
+      }
+      const existingCampaigns = await this.getRccCampaigns(weekId);
+      for (const campaign of existingCampaigns) {
+        await this.deleteRccCampaign(campaign.id);
+      }
+    }
+
+    // Create new tasks
+    let tasksCreated = 0;
+    if (data.tasks) {
+      for (const task of data.tasks) {
+        await this.createRccTask({
+          weekId,
+          title: task.title,
+          description: task.description || null,
+          owner: task.owner || null,
+          priority: task.priority || "medium",
+          status: "pending",
+        });
+        tasksCreated++;
+      }
+    }
+
+    // Create new campaigns
+    let campaignsCreated = 0;
+    if (data.campaigns) {
+      for (const campaign of data.campaigns) {
+        await this.createRccCampaign({
+          weekId,
+          channel: campaign.channel,
+          title: campaign.title,
+          content: campaign.content || null,
+        });
+        campaignsCreated++;
+      }
+    }
+
+    return { tasksCreated, campaignsCreated };
+  }
 }
 
 export const storage = new DatabaseStorage();
