@@ -341,6 +341,10 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
   const [aiGuidance, setAiGuidance] = useState("");
+  const [saveToKbOpen, setSaveToKbOpen] = useState(false);
+  const [saveToKbContent, setSaveToKbContent] = useState("");
+  const [saveToKbTitle, setSaveToKbTitle] = useState("");
+  const [saveToKbKeywords, setSaveToKbKeywords] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -479,6 +483,38 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
       toast({ title: "Failed to update status", variant: "destructive" });
     },
   });
+
+  const saveToKnowledgeBaseMutation = useMutation({
+    mutationFn: async (data: { title: string; answer: string; keywords: string[] }) => {
+      return apiRequest("POST", "/api/admin/support/canned-responses", {
+        title: data.title,
+        answer: data.answer,
+        keywords: data.keywords,
+        isActive: true,
+      });
+    },
+    onSuccess: () => {
+      setSaveToKbOpen(false);
+      setSaveToKbContent("");
+      setSaveToKbTitle("");
+      setSaveToKbKeywords("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/canned-responses"] });
+      toast({ title: "Saved to Knowledge Base", description: "This response is now available for future use" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save to knowledge base", variant: "destructive" });
+    },
+  });
+
+  const handleSaveToKnowledgeBase = () => {
+    if (!saveToKbTitle.trim() || !saveToKbContent.trim()) return;
+    const keywords = saveToKbKeywords.split(",").map(k => k.trim()).filter(k => k.length > 0);
+    saveToKnowledgeBaseMutation.mutate({
+      title: saveToKbTitle,
+      answer: saveToKbContent,
+      keywords,
+    });
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -756,6 +792,63 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={saveToKbOpen} onOpenChange={setSaveToKbOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Save to Knowledge Base
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Save this response as a canned response so Cody can use it for similar questions in the future.
+              </p>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title</label>
+                <Input
+                  value={saveToKbTitle}
+                  onChange={(e) => setSaveToKbTitle(e.target.value)}
+                  placeholder="e.g., Tasting Room Hours"
+                  data-testid="input-kb-title"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Keywords (comma-separated)</label>
+                <Input
+                  value={saveToKbKeywords}
+                  onChange={(e) => setSaveToKbKeywords(e.target.value)}
+                  placeholder="e.g., hours, schedule, open, closed"
+                  data-testid="input-kb-keywords"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Response</label>
+                <Textarea
+                  value={saveToKbContent}
+                  onChange={(e) => setSaveToKbContent(e.target.value)}
+                  rows={6}
+                  className="resize-none"
+                  data-testid="textarea-kb-content"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSaveToKbOpen(false)} data-testid="button-cancel-kb">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveToKnowledgeBase}
+                disabled={saveToKnowledgeBaseMutation.isPending || !saveToKbTitle.trim() || !saveToKbContent.trim()}
+                data-testid="button-save-kb"
+              >
+                <BookOpen className="h-4 w-4 mr-2" />
+                {saveToKnowledgeBaseMutation.isPending ? "Saving..." : "Save to Knowledge Base"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardHeader>
       
       <ScrollArea className="flex-1 p-4">
@@ -784,6 +877,25 @@ function ChatView({ requestId, onBack }: { requestId: string; onBack: () => void
                   <span>{format(new Date(message.createdAt), "h:mm a")}</span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap"><LinkifiedText text={message.content} /></p>
+                
+                {/* Save to Knowledge Base button for bot/agent responses */}
+                {(message.senderType === "bot" || message.senderType === "agent") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-xs h-7"
+                    onClick={() => {
+                      setSaveToKbContent(message.content);
+                      setSaveToKbTitle("");
+                      setSaveToKbKeywords("");
+                      setSaveToKbOpen(true);
+                    }}
+                    data-testid={`button-save-to-kb-${message.id}`}
+                  >
+                    <BookOpen className="h-3 w-3 mr-1" />
+                    Save to Knowledge Base
+                  </Button>
+                )}
                 
                 {/* Display attachments for this message */}
                 {attachmentsByMessageId[message.id]?.length > 0 && (
