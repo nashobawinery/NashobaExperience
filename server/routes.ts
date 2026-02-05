@@ -17796,6 +17796,96 @@ Generate a professional response:`;
     }
   });
 
+  // RCC Daily Revenue
+  app.get('/api/rcc/daily-revenue/:weekId', isAuthenticated, async (req, res) => {
+    try {
+      const dailyRevenue = await storage.getRccDailyRevenueByWeek(parseInt(req.params.weekId));
+      res.json(dailyRevenue);
+    } catch (error) {
+      console.error('Error fetching RCC daily revenue:', error);
+      res.status(500).json({ message: 'Failed to fetch daily revenue' });
+    }
+  });
+
+  app.post('/api/rcc/daily-revenue', isAuthenticated, async (req, res) => {
+    try {
+      const dailyRevenue = await storage.upsertRccDailyRevenue(req.body);
+      res.json(dailyRevenue);
+    } catch (error) {
+      console.error('Error saving RCC daily revenue:', error);
+      res.status(500).json({ message: 'Failed to save daily revenue' });
+    }
+  });
+
+  app.patch('/api/rcc/daily-revenue/:date/notes', isAuthenticated, async (req, res) => {
+    try {
+      const { notes } = req.body;
+      const updated = await storage.updateRccDailyRevenueNotes(req.params.date, notes);
+      if (!updated) {
+        return res.status(404).json({ message: 'Daily revenue entry not found' });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating daily revenue notes:', error);
+      res.status(500).json({ message: 'Failed to update notes' });
+    }
+  });
+
+  app.post('/api/rcc/daily-revenue/:date/fetch-weather', isAuthenticated, async (req, res) => {
+    try {
+      // Bolton, Massachusetts coordinates
+      const lat = 42.4334;
+      const lon = -71.6068;
+      const dateStr = req.params.date;
+      
+      // Fetch weather from Open-Meteo API (free, no API key required)
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code&timezone=America/New_York&start_date=${dateStr}&end_date=${dateStr}`;
+      
+      const response = await fetch(weatherUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch weather data');
+      }
+      
+      const weatherData = await response.json();
+      
+      if (!weatherData.daily || weatherData.daily.time.length === 0) {
+        return res.status(404).json({ message: 'No weather data available for this date' });
+      }
+      
+      // Convert Celsius to Fahrenheit
+      const celsiusToFahrenheit = (c: number) => Math.round((c * 9/5) + 32);
+      
+      // Map weather codes to conditions
+      const getWeatherCondition = (code: number): string => {
+        if (code === 0) return 'Clear';
+        if (code <= 3) return 'Partly Cloudy';
+        if (code <= 49) return 'Foggy';
+        if (code <= 59) return 'Drizzle';
+        if (code <= 69) return 'Rain';
+        if (code <= 79) return 'Snow';
+        if (code <= 99) return 'Thunderstorm';
+        return 'Unknown';
+      };
+      
+      const weather = {
+        high: celsiusToFahrenheit(weatherData.daily.temperature_2m_max[0]),
+        low: celsiusToFahrenheit(weatherData.daily.temperature_2m_min[0]),
+        condition: getWeatherCondition(weatherData.daily.weather_code[0]),
+        precipitation: weatherData.daily.precipitation_sum[0] || 0,
+      };
+      
+      const updated = await storage.updateRccDailyRevenueWeather(dateStr, weather);
+      if (!updated) {
+        return res.status(404).json({ message: 'Daily revenue entry not found' });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error fetching weather:', error);
+      res.status(500).json({ message: 'Failed to fetch weather data' });
+    }
+  });
+
   // RCC Learnings
   app.get('/api/rcc/learnings', isAuthenticated, async (req, res) => {
     try {
