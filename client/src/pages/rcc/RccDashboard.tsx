@@ -398,7 +398,6 @@ function ExportImportButtons({
                 variant="link" 
                 size="sm" 
                 onClick={handleDownloadTemplate}
-                className="text-primary"
                 data-testid="btn-download-template"
               >
                 <Download className="h-3 w-3 mr-1" />
@@ -453,7 +452,7 @@ function ExportImportButtons({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} data-testid="btn-cancel-import">
               Cancel
             </Button>
             <Button 
