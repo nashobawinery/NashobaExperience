@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { format, startOfWeek, endOfWeek, addWeeks, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, addDays, parseISO } from "date-fns";
 import { 
   Target, 
   Lightbulb, 
@@ -127,6 +127,7 @@ export default function RccDashboard() {
         weeks={weeks || []}
         activeWeekId={activeWeekId}
         onSelectWeek={setSelectedWeekId}
+        onWeeksChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })}
       />
 
       {!activeWeek ? (
@@ -254,24 +255,56 @@ function StatCard({ label, value, icon, active }: {
 function WeekSelector({ 
   weeks, 
   activeWeekId, 
-  onSelectWeek 
+  onSelectWeek,
+  onWeeksChanged
 }: { 
   weeks: RccWeek[]; 
   activeWeekId: number | undefined;
   onSelectWeek: (id: number | null) => void;
+  onWeeksChanged: () => void;
 }) {
+  const { toast } = useToast();
   const activeWeek = weeks.find(w => w.id === activeWeekId);
   const activeIndex = weeks.findIndex(w => w.id === activeWeekId);
+
+  const createWeekMutation = useMutation({
+    mutationFn: async (data: { weekStart: string; weekEnd: string }) => {
+      const res = await apiRequest("POST", "/api/rcc/weeks", data);
+      return res.json();
+    },
+    onSuccess: (newWeek: RccWeek) => {
+      toast({ title: "Week created" });
+      onWeeksChanged();
+      onSelectWeek(newWeek.id);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error creating week", description: error.message, variant: "destructive" });
+    },
+  });
 
   const goNext = () => {
     if (activeIndex > 0) {
       onSelectWeek(weeks[activeIndex - 1].id);
+    } else if (activeWeek) {
+      const nextStart = addDays(parseISO(activeWeek.weekStart), 7);
+      const nextEnd = addDays(parseISO(activeWeek.weekEnd), 7);
+      createWeekMutation.mutate({
+        weekStart: format(nextStart, "yyyy-MM-dd"),
+        weekEnd: format(nextEnd, "yyyy-MM-dd"),
+      });
     }
   };
 
   const goPrev = () => {
     if (activeIndex < weeks.length - 1) {
       onSelectWeek(weeks[activeIndex + 1].id);
+    } else if (activeWeek) {
+      const prevStart = addDays(parseISO(activeWeek.weekStart), -7);
+      const prevEnd = addDays(parseISO(activeWeek.weekEnd), -7);
+      createWeekMutation.mutate({
+        weekStart: format(prevStart, "yyyy-MM-dd"),
+        weekEnd: format(prevEnd, "yyyy-MM-dd"),
+      });
     }
   };
 
@@ -283,7 +316,7 @@ function WeekSelector({
         variant="outline" 
         size="icon" 
         onClick={goPrev}
-        disabled={activeIndex >= weeks.length - 1}
+        disabled={createWeekMutation.isPending}
         data-testid="btn-prev-week"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -300,7 +333,7 @@ function WeekSelector({
         variant="outline" 
         size="icon" 
         onClick={goNext}
-        disabled={activeIndex <= 0}
+        disabled={createWeekMutation.isPending}
         data-testid="btn-next-week"
       >
         <ChevronRight className="h-4 w-4" />
