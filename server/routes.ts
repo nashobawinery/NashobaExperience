@@ -17793,6 +17793,36 @@ Generate a professional response:`;
     }
   });
 
+  // RCC Toast Historical Revenue - Get prior year comparison data
+  app.get('/api/rcc/toast-historical/week/:weekId', isAuthenticated, async (req, res) => {
+    try {
+      const weekId = parseInt(req.params.weekId);
+      const week = await storage.getRccWeek(weekId);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      
+      // Get prior year data with day-of-week matching
+      const priorYearData = await storage.getRccToastHistoricalByWeek(week.weekStart, week.weekEnd);
+      res.json(priorYearData);
+    } catch (error) {
+      console.error('Error fetching Toast historical data:', error);
+      res.status(500).json({ message: 'Failed to fetch historical data' });
+    }
+  });
+
+  // RCC Toast Historical Revenue - Bulk import
+  app.post('/api/rcc/toast-historical/import', isAdmin, async (req, res) => {
+    try {
+      const { data } = req.body; // Array of { date: string, netRevenue: string }
+      const imported = await storage.importRccToastHistoricalRevenue(data);
+      res.json({ imported: imported.length });
+    } catch (error) {
+      console.error('Error importing Toast historical data:', error);
+      res.status(500).json({ message: 'Failed to import historical data' });
+    }
+  });
+
   // Initialize department calendar reminders scheduler
   initDepartmentCalendarReminders();
   

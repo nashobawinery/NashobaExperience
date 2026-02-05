@@ -304,6 +304,7 @@ import {
   rccRevenue,
   rccLearnings,
   rccAiRecommendations,
+  rccToastHistoricalRevenue,
   type InsertRccTeam,
   type RccTeam,
   type InsertRccWeek,
@@ -318,6 +319,8 @@ import {
   type RccLearning,
   type InsertRccAiRecommendation,
   type RccAiRecommendation,
+  type InsertRccToastHistoricalRevenue,
+  type RccToastHistoricalRevenue,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -7188,6 +7191,77 @@ export class DatabaseStorage implements IStorage {
   async createRccAiRecommendation(data: InsertRccAiRecommendation): Promise<RccAiRecommendation> {
     const [rec] = await db.insert(rccAiRecommendations).values(data).returning();
     return rec;
+  }
+
+  // RCC Toast Historical Revenue methods
+  async getRccToastHistoricalByWeek(weekStart: string, weekEnd: string): Promise<{ currentDates: { date: string; dayOfWeek: number }[]; priorYearData: RccToastHistoricalRevenue[]; priorYearTotal: number }> {
+    const startDate = new Date(weekStart);
+    const endDate = new Date(weekEnd);
+    
+    // Build array of current week dates with their day-of-week
+    const currentDates: { date: string; dayOfWeek: number; priorYearDate: string }[] = [];
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      // Calculate prior year date with same day of week
+      // Go back ~52 weeks to get same day of week in prior year
+      const priorYearDate = new Date(currentDate);
+      priorYearDate.setFullYear(priorYearDate.getFullYear() - 1);
+      // Adjust to same day of week
+      const priorDayOfWeek = priorYearDate.getDay();
+      const dayDiff = dayOfWeek - priorDayOfWeek;
+      priorYearDate.setDate(priorYearDate.getDate() + dayDiff);
+      
+      currentDates.push({
+        date: currentDate.toISOString().split('T')[0],
+        dayOfWeek,
+        priorYearDate: priorYearDate.toISOString().split('T')[0],
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Get prior year data for matching dates
+    const priorYearDates = currentDates.map(d => d.priorYearDate);
+    const priorYearData = await db.select()
+      .from(rccToastHistoricalRevenue)
+      .where(sql`${rccToastHistoricalRevenue.revenueDate} = ANY(${priorYearDates})`)
+      .orderBy(rccToastHistoricalRevenue.revenueDate);
+    
+    const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0'), 0);
+    
+    return {
+      currentDates: currentDates.map(d => ({ date: d.date, dayOfWeek: d.dayOfWeek, priorYearDate: d.priorYearDate })),
+      priorYearData,
+      priorYearTotal,
+    };
+  }
+
+  async importRccToastHistoricalRevenue(data: { date: string; netRevenue: string }[]): Promise<RccToastHistoricalRevenue[]> {
+    const results: RccToastHistoricalRevenue[] = [];
+    for (const item of data) {
+      const date = new Date(item.date);
+      const dayOfWeek = date.getDay();
+      const weekOfYear = Math.ceil((((date.getTime() - new Date(date.getFullYear(), 0, 1).getTime()) / 86400000) + new Date(date.getFullYear(), 0, 1).getDay() + 1) / 7);
+      const year = date.getFullYear();
+      const netRevenue = item.netRevenue.replace(/[$,]/g, '');
+      
+      // Upsert - insert or update on conflict
+      const [record] = await db.insert(rccToastHistoricalRevenue)
+        .values({
+          revenueDate: item.date,
+          netRevenue,
+          dayOfWeek,
+          weekOfYear,
+          year,
+        })
+        .onConflictDoUpdate({
+          target: rccToastHistoricalRevenue.revenueDate,
+          set: { netRevenue, dayOfWeek, weekOfYear, year },
+        })
+        .returning();
+      results.push(record);
+    }
+    return results;
   }
 }
 
