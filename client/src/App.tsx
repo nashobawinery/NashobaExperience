@@ -1112,6 +1112,7 @@ function Router() {
         <Route path="/admin/support/categories" component={SupportCategoriesRoute} />
         <Route path="/support/agent/ticket/:ticketId" component={SupportAgentTicketRoute} />
         <Route path="/rcc" component={RccDashboardRoute} />
+        <Route path="/rcc/admin" component={RccDashboardRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
