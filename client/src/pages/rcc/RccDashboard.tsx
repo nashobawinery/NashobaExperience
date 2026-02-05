@@ -146,25 +146,16 @@ export default function RccDashboard() {
           <h1 className="text-3xl font-bold tracking-tight" data-testid="rcc-title">Revenue Command Center</h1>
           <p className="text-muted-foreground">Weekly planning and execution hub</p>
         </div>
-        <CreateWeekDialog onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })} />
       </div>
 
       <WeekSelector 
         weeks={weeks || []}
         activeWeekId={activeWeekId}
         onSelectWeek={setSelectedWeekId}
-        onWeeksChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })}
       />
 
       {!activeWeek ? (
-        <Card className="mt-6">
-          <CardContent className="py-12 text-center">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No Active Week</h3>
-            <p className="text-muted-foreground mb-4">Create a week to start planning</p>
-            <CreateWeekDialog onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })} />
-          </CardContent>
-        </Card>
+        <InitializeWeeksCard onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })} />
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 mb-6">
@@ -282,56 +273,30 @@ function StatCard({ label, value, icon, active }: {
 function WeekSelector({ 
   weeks, 
   activeWeekId, 
-  onSelectWeek,
-  onWeeksChanged
+  onSelectWeek
 }: { 
   weeks: RccWeek[]; 
   activeWeekId: number | undefined;
   onSelectWeek: (id: number | null) => void;
-  onWeeksChanged: () => void;
 }) {
-  const { toast } = useToast();
   const activeWeek = weeks.find(w => w.id === activeWeekId);
   const activeIndex = weeks.findIndex(w => w.id === activeWeekId);
 
-  const createWeekMutation = useMutation({
-    mutationFn: async (data: { weekStart: string; weekEnd: string }) => {
-      const res = await apiRequest("POST", "/api/rcc/weeks", data);
-      return res.json();
-    },
-    onSuccess: (newWeek: RccWeek) => {
-      toast({ title: "Week created" });
-      onWeeksChanged();
-      onSelectWeek(newWeek.id);
-    },
-    onError: (error: any) => {
-      toast({ title: "Error creating week", description: error.message, variant: "destructive" });
-    },
-  });
+  // Weeks are sorted by weekStart descending, so:
+  // - activeIndex 0 = most recent week (can't go "next" / newer)
+  // - activeIndex last = oldest week (can't go "prev" / older)
+  const canGoNext = activeIndex > 0;
+  const canGoPrev = activeIndex < weeks.length - 1;
 
   const goNext = () => {
-    if (activeIndex > 0) {
+    if (canGoNext) {
       onSelectWeek(weeks[activeIndex - 1].id);
-    } else if (activeWeek) {
-      const nextStart = addDays(parseISO(activeWeek.weekStart), 7);
-      const nextEnd = addDays(parseISO(activeWeek.weekEnd), 7);
-      createWeekMutation.mutate({
-        weekStart: format(nextStart, "yyyy-MM-dd"),
-        weekEnd: format(nextEnd, "yyyy-MM-dd"),
-      });
     }
   };
 
   const goPrev = () => {
-    if (activeIndex < weeks.length - 1) {
+    if (canGoPrev) {
       onSelectWeek(weeks[activeIndex + 1].id);
-    } else if (activeWeek) {
-      const prevStart = addDays(parseISO(activeWeek.weekStart), -7);
-      const prevEnd = addDays(parseISO(activeWeek.weekEnd), -7);
-      createWeekMutation.mutate({
-        weekStart: format(prevStart, "yyyy-MM-dd"),
-        weekEnd: format(prevEnd, "yyyy-MM-dd"),
-      });
     }
   };
 
@@ -343,7 +308,7 @@ function WeekSelector({
         variant="outline" 
         size="icon" 
         onClick={goPrev}
-        disabled={createWeekMutation.isPending}
+        disabled={!canGoPrev}
         data-testid="btn-prev-week"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -360,7 +325,7 @@ function WeekSelector({
         variant="outline" 
         size="icon" 
         onClick={goNext}
-        disabled={createWeekMutation.isPending}
+        disabled={!canGoNext}
         data-testid="btn-next-week"
       >
         <ChevronRight className="h-4 w-4" />
@@ -369,70 +334,46 @@ function WeekSelector({
   );
 }
 
-function CreateWeekDialog({ onSuccess }: { onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
+function InitializeWeeksCard({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   
-  const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
-  
-  const createMutation = useMutation({
-    mutationFn: async (data: { weekStart: string; weekEnd: string }) => {
-      return apiRequest("POST", "/api/rcc/weeks", data);
+  const initializeMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/rcc/weeks/initialize", {});
     },
-    onSuccess: () => {
-      toast({ title: "Week created" });
-      setOpen(false);
+    onSuccess: async (res) => {
+      const data = await res.json();
+      toast({ title: "Weeks initialized", description: data.message });
       onSuccess();
     },
     onError: (error: any) => {
-      toast({ title: "Error creating week", description: error.message, variant: "destructive" });
+      toast({ title: "Error initializing weeks", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleCreate = (offset: number) => {
-    const start = addWeeks(weekStart, offset);
-    const end = addWeeks(weekEnd, offset);
-    createMutation.mutate({
-      weekStart: format(start, "yyyy-MM-dd"),
-      weekEnd: format(end, "yyyy-MM-dd"),
-    });
-  };
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button data-testid="btn-create-week">
-          <Plus className="h-4 w-4 mr-2" /> New Week
+    <Card className="mt-6">
+      <CardContent className="py-12 text-center">
+        <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h3 className="text-lg font-semibold mb-2">No Weeks Set Up</h3>
+        <p className="text-muted-foreground mb-4">
+          Initialize weeks for the year to start planning. This creates all weeks from January through next February.
+        </p>
+        <Button 
+          onClick={() => initializeMutation.mutate()}
+          disabled={initializeMutation.isPending}
+          data-testid="btn-initialize-weeks"
+        >
+          {initializeMutation.isPending ? (
+            <>Initializing...</>
+          ) : (
+            <>
+              <Calendar className="h-4 w-4 mr-2" /> Initialize Weeks
+            </>
+          )}
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Week</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <Button 
-            variant="outline" 
-            className="justify-start"
-            onClick={() => handleCreate(0)}
-            disabled={createMutation.isPending}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            This Week ({format(weekStart, "MMM d")} - {format(weekEnd, "MMM d")})
-          </Button>
-          <Button 
-            variant="outline" 
-            className="justify-start"
-            onClick={() => handleCreate(1)}
-            disabled={createMutation.isPending}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Next Week ({format(addWeeks(weekStart, 1), "MMM d")} - {format(addWeeks(weekEnd, 1), "MMM d")})
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </CardContent>
+    </Card>
   );
 }
 
