@@ -6,6 +6,7 @@ import { db } from "./db";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
+import * as XLSX from "xlsx";
 
 // Helper function to get the storage bucket for email attachments
 function getStorageBucket() {
@@ -17624,32 +17625,193 @@ Generate a professional response:`;
     }
   });
 
-  // Export RCC week data (Focus, Tasks, Campaigns)
+  // Export RCC week data as Excel (Focus, Tasks, Campaigns)
   app.get('/api/rcc/weeks/:id/export', isAdmin, async (req, res) => {
     try {
       const weekId = parseInt(req.params.id);
+      const week = await storage.getRccWeek(weekId);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      
       const data = await storage.exportRccWeekData(weekId);
       if (!data) {
         return res.status(404).json({ message: 'Week not found' });
       }
-      res.json(data);
+
+      // Create Excel workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Focus sheet
+      const focusData = [
+        ['Field', 'Value'],
+        ['Focus Statement', data.focus.focusStatement || ''],
+        ['Hook/Angle', data.focus.hookAngle || ''],
+        ['Weekly Goal', data.focus.weeklyGoal || ''],
+      ];
+      const focusSheet = XLSX.utils.aoa_to_sheet(focusData);
+      focusSheet['!cols'] = [{ wch: 20 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, focusSheet, 'Focus');
+
+      // Tasks sheet
+      const tasksData = [
+        ['Title', 'Description', 'Owner', 'Priority'],
+        ...data.tasks.map(t => [t.title, t.description || '', t.owner || '', t.priority || 'medium'])
+      ];
+      const tasksSheet = XLSX.utils.aoa_to_sheet(tasksData);
+      tasksSheet['!cols'] = [{ wch: 30 }, { wch: 50 }, { wch: 20 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, tasksSheet, 'Tasks');
+
+      // Campaigns sheet
+      const campaignsData = [
+        ['Channel', 'Title', 'Content'],
+        ...data.campaigns.map(c => [c.channel, c.title, c.content || ''])
+      ];
+      const campaignsSheet = XLSX.utils.aoa_to_sheet(campaignsData);
+      campaignsSheet['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, campaignsSheet, 'Campaigns');
+
+      // Generate buffer
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      const weekLabel = week.weekStart;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="rcc-week-${weekLabel}.xlsx"`);
+      res.send(buffer);
     } catch (error) {
       console.error('Error exporting RCC week data:', error);
       res.status(500).json({ message: 'Failed to export week data' });
     }
   });
 
-  // Import RCC week data (Focus, Tasks, Campaigns)
+  // Download blank import template
+  app.get('/api/rcc/template', isAdmin, async (_req, res) => {
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      // Focus sheet with instructions
+      const focusData = [
+        ['Field', 'Value', 'Instructions'],
+        ['Focus Statement', '', 'Enter the main theme/focus for the week'],
+        ['Hook/Angle', '', 'Enter the marketing hook or angle'],
+        ['Weekly Goal', '', 'Enter the specific goal (e.g., "20% increase in wine sales")'],
+      ];
+      const focusSheet = XLSX.utils.aoa_to_sheet(focusData);
+      focusSheet['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, focusSheet, 'Focus');
+
+      // Tasks sheet with examples
+      const tasksData = [
+        ['Title', 'Description', 'Owner', 'Priority'],
+        ['Example: Create email campaign', 'Draft and send promotional email', 'Marketing', 'high'],
+        ['Example: Update website banner', 'Change hero image for promotion', 'Web Team', 'medium'],
+        ['', '', '', ''],
+        ['', '', '', ''],
+        ['', '', '', ''],
+      ];
+      const tasksSheet = XLSX.utils.aoa_to_sheet(tasksData);
+      tasksSheet['!cols'] = [{ wch: 35 }, { wch: 50 }, { wch: 20 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, tasksSheet, 'Tasks');
+
+      // Campaigns sheet with examples
+      const campaignsData = [
+        ['Channel', 'Title', 'Content'],
+        ['email', 'Example: Weekly Newsletter', 'Email content here...'],
+        ['social', 'Example: Instagram Post', 'Post content here...'],
+        ['website', 'Example: Banner Update', 'Banner text here...'],
+        ['on-site', 'Example: Tasting Room Sign', 'Sign content here...'],
+        ['', '', ''],
+        ['', '', ''],
+      ];
+      const campaignsSheet = XLSX.utils.aoa_to_sheet(campaignsData);
+      campaignsSheet['!cols'] = [{ wch: 15 }, { wch: 35 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, campaignsSheet, 'Campaigns');
+
+      // Instructions sheet
+      const instructionsData = [
+        ['RCC Import Template Instructions'],
+        [''],
+        ['1. Fill in the Focus sheet with your weekly theme, hook, and goal'],
+        ['2. Add tasks to the Tasks sheet (delete example rows first)'],
+        ['   - Priority must be: low, medium, or high'],
+        ['3. Add campaigns to the Campaigns sheet (delete example rows first)'],
+        ['   - Channel must be: email, social, website, or on-site'],
+        ['4. Save the file and upload it using the Import button in RCC'],
+        [''],
+        ['Notes:'],
+        ['- Leave cells blank if not applicable'],
+        ['- Delete example rows before importing'],
+        ['- You can import the same template to multiple weeks'],
+      ];
+      const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
+      instructionsSheet['!cols'] = [{ wch: 70 }];
+      XLSX.utils.book_append_sheet(wb, instructionsSheet, 'Instructions');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="rcc-import-template.xlsx"');
+      res.send(buffer);
+    } catch (error) {
+      console.error('Error generating template:', error);
+      res.status(500).json({ message: 'Failed to generate template' });
+    }
+  });
+
+  // Import RCC week data from Excel or JSON
   app.post('/api/rcc/weeks/:id/import', isAdmin, async (req, res) => {
     try {
       const weekId = parseInt(req.params.id);
-      const { data, clearExisting } = req.body;
+      const { data, clearExisting, excelData } = req.body;
       
-      if (!data) {
+      let importData = data;
+      
+      // If excelData provided (base64), parse it
+      if (excelData) {
+        const buffer = Buffer.from(excelData, 'base64');
+        const wb = XLSX.read(buffer, { type: 'buffer' });
+        
+        // Parse Focus sheet
+        const focusSheet = wb.Sheets['Focus'];
+        const focusRows = XLSX.utils.sheet_to_json<{ Field: string; Value: string }>(focusSheet);
+        const focus: { focusStatement?: string; hookAngle?: string; weeklyGoal?: string } = {};
+        focusRows.forEach(row => {
+          if (row.Field === 'Focus Statement' && row.Value) focus.focusStatement = row.Value;
+          if (row.Field === 'Hook/Angle' && row.Value) focus.hookAngle = row.Value;
+          if (row.Field === 'Weekly Goal' && row.Value) focus.weeklyGoal = row.Value;
+        });
+
+        // Parse Tasks sheet
+        const tasksSheet = wb.Sheets['Tasks'];
+        const tasksRows = XLSX.utils.sheet_to_json<{ Title: string; Description?: string; Owner?: string; Priority?: string }>(tasksSheet);
+        const tasks = tasksRows
+          .filter(row => row.Title && !row.Title.startsWith('Example:'))
+          .map(row => ({
+            title: row.Title,
+            description: row.Description || null,
+            owner: row.Owner || null,
+            priority: row.Priority || 'medium',
+          }));
+
+        // Parse Campaigns sheet
+        const campaignsSheet = wb.Sheets['Campaigns'];
+        const campaignsRows = XLSX.utils.sheet_to_json<{ Channel: string; Title: string; Content?: string }>(campaignsSheet);
+        const campaigns = campaignsRows
+          .filter(row => row.Channel && row.Title && !row.Title.startsWith('Example:'))
+          .map(row => ({
+            channel: row.Channel,
+            title: row.Title,
+            content: row.Content || null,
+          }));
+
+        importData = { focus, tasks, campaigns };
+      }
+      
+      if (!importData) {
         return res.status(400).json({ message: 'No data provided' });
       }
 
-      const result = await storage.importRccWeekData(weekId, data, { clearExisting: !!clearExisting });
+      const result = await storage.importRccWeekData(weekId, importData, { clearExisting: !!clearExisting });
       res.json({ 
         message: 'Import successful',
         ...result

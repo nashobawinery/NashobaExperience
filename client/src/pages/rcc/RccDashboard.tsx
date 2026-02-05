@@ -285,36 +285,60 @@ function ExportImportButtons({
     setTargetWeekId(weekId.toString());
   }, [weekId]);
 
-  const exportMutation = useMutation({
-    mutationFn: async () => {
+  const [importFile, setImportFile] = useState<File | null>(null);
+
+  const handleExport = async () => {
+    try {
       const res = await fetch(`/api/rcc/weeks/${weekId}/export`);
       if (!res.ok) throw new Error("Export failed");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       const week = weeks.find(w => w.id === weekId);
       const weekLabel = week ? format(parseISO(week.weekStart), "yyyy-MM-dd") : weekId;
-      a.download = `rcc-week-${weekLabel}.json`;
+      a.download = `rcc-week-${weekLabel}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ title: "Export successful", description: "Week data downloaded" });
-    },
-    onError: () => {
+      toast({ title: "Export successful", description: "Excel file downloaded" });
+    } catch {
       toast({ title: "Export failed", variant: "destructive" });
     }
-  });
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await fetch('/api/rcc/template');
+      if (!res.ok) throw new Error("Failed to download template");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rcc-import-template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Template downloaded", description: "Fill it out and import" });
+    } catch {
+      toast({ title: "Failed to download template", variant: "destructive" });
+    }
+  };
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const data = JSON.parse(importData);
-      const res = await apiRequest("POST", `/api/rcc/weeks/${targetWeekId}/import`, { 
-        data, 
-        clearExisting 
-      });
+      let body: any = { clearExisting };
+      
+      if (importFile) {
+        // Read file as base64 for Excel
+        const buffer = await importFile.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+        body.excelData = base64;
+      } else if (importData) {
+        body.data = JSON.parse(importData);
+      }
+      
+      const res = await apiRequest("POST", `/api/rcc/weeks/${targetWeekId}/import`, body);
       if (!res.ok) throw new Error("Import failed");
       return res.json();
     },
@@ -325,12 +349,13 @@ function ExportImportButtons({
       });
       setImportDialogOpen(false);
       setImportData("");
+      setImportFile(null);
       onImportComplete(parseInt(targetWeekId));
     },
     onError: (error: any) => {
       toast({ 
         title: "Import failed", 
-        description: error.message || "Check your JSON format",
+        description: error.message || "Check your file format",
         variant: "destructive" 
       });
     }
@@ -339,12 +364,8 @@ function ExportImportButtons({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImportData(event.target?.result as string);
-    };
-    reader.readAsText(file);
+    setImportFile(file);
+    setImportData(""); // Clear JSON if file selected
   };
 
   return (
@@ -352,8 +373,7 @@ function ExportImportButtons({
       <Button 
         variant="outline" 
         size="sm"
-        onClick={() => exportMutation.mutate()}
-        disabled={exportMutation.isPending}
+        onClick={handleExport}
         data-testid="btn-export-week"
       >
         <Download className="h-4 w-4 mr-2" />
@@ -372,27 +392,34 @@ function ExportImportButtons({
             <DialogTitle>Import Week Data</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Need a template?</Label>
+              <Button 
+                variant="link" 
+                size="sm" 
+                onClick={handleDownloadTemplate}
+                className="text-primary"
+                data-testid="btn-download-template"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Download Template
+              </Button>
+            </div>
+            
             <div>
-              <Label>Upload JSON file</Label>
+              <Label>Upload Excel file (.xlsx)</Label>
               <Input 
                 type="file" 
-                accept=".json"
+                accept=".xlsx,.xls"
                 onChange={handleFileUpload}
                 className="mt-1"
                 data-testid="input-import-file"
               />
-            </div>
-            
-            <div>
-              <Label>Or paste JSON directly</Label>
-              <Textarea 
-                value={importData}
-                onChange={(e) => setImportData(e.target.value)}
-                placeholder='{"focus": {...}, "tasks": [...], "campaigns": [...]}'
-                rows={6}
-                className="mt-1 font-mono text-xs"
-                data-testid="textarea-import-json"
-              />
+              {importFile && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Selected: {importFile.name}
+                </p>
+              )}
             </div>
 
             <div>
@@ -431,7 +458,7 @@ function ExportImportButtons({
             </Button>
             <Button 
               onClick={() => importMutation.mutate()}
-              disabled={!importData || importMutation.isPending}
+              disabled={(!importData && !importFile) || importMutation.isPending}
               data-testid="btn-confirm-import"
             >
               {importMutation.isPending ? "Importing..." : "Import"}
