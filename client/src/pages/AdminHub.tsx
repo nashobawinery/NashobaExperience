@@ -48,6 +48,7 @@ const iconMap: Record<string, any> = {
   ClipboardList,
   Users,
   Package,
+  TrendingUp,
 };
 
 const statusColors: Record<ModuleStatus, string> = {
