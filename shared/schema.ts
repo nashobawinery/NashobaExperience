@@ -4627,3 +4627,28 @@ export const rccToastHistoricalRevenue = pgTable("rcc_toast_historical_revenue",
 export const insertRccToastHistoricalRevenueSchema = createInsertSchema(rccToastHistoricalRevenue).omit({ id: true, createdAt: true });
 export type InsertRccToastHistoricalRevenue = z.infer<typeof insertRccToastHistoricalRevenueSchema>;
 export type RccToastHistoricalRevenue = typeof rccToastHistoricalRevenue.$inferSelect;
+
+// RCC Daily Revenue - stores daily revenue entries with notes and weather for analysis
+export const rccDailyRevenue = pgTable("rcc_daily_revenue", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").notNull().references(() => rccWeeks.id),
+  date: date("date").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  toastRevenue: numeric("toast_revenue", { precision: 12, scale: 2 }),
+  shopifyRevenue: numeric("shopify_revenue", { precision: 12, scale: 2 }),
+  otherRevenue: numeric("other_revenue", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  weatherHigh: integer("weather_high"),
+  weatherLow: integer("weather_low"),
+  weatherCondition: varchar("weather_condition", { length: 50 }),
+  weatherPrecipitation: numeric("weather_precipitation", { precision: 5, scale: 2 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_daily_revenue_date").on(table.date),
+  index("idx_rcc_daily_revenue_week").on(table.weekId),
+]);
+
+export const insertRccDailyRevenueSchema = createInsertSchema(rccDailyRevenue).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRccDailyRevenue = z.infer<typeof insertRccDailyRevenueSchema>;
+export type RccDailyRevenue = typeof rccDailyRevenue.$inferSelect;
