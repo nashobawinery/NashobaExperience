@@ -7232,6 +7232,30 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async recordRccToastHistoricalRevenue(date: string, netRevenue: string): Promise<RccToastHistoricalRevenue> {
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay();
+    const startOfYear = new Date(dateObj.getFullYear(), 0, 1);
+    const weekOfYear = Math.ceil((((dateObj.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+    const year = dateObj.getFullYear();
+    const cleanRevenue = netRevenue.toString().replace(/[$,]/g, '');
+    
+    const [record] = await db.insert(rccToastHistoricalRevenue)
+      .values({
+        revenueDate: date,
+        netRevenue: cleanRevenue,
+        dayOfWeek,
+        weekOfYear,
+        year,
+      })
+      .onConflictDoUpdate({
+        target: rccToastHistoricalRevenue.revenueDate,
+        set: { netRevenue: cleanRevenue, dayOfWeek, weekOfYear, year },
+      })
+      .returning();
+    return record;
+  }
+
   async importRccToastHistoricalRevenue(data: { date: string; netRevenue: string }[]): Promise<RccToastHistoricalRevenue[]> {
     const results: RccToastHistoricalRevenue[] = [];
     for (const item of data) {

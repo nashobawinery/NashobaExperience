@@ -17677,6 +17677,16 @@ Generate a professional response:`;
   app.post('/api/rcc/revenue', isAuthenticated, async (req, res) => {
     try {
       const revenue = await storage.upsertRccRevenue(req.body);
+      
+      // Also record Toast revenue in historical table for future year-over-year comparison
+      if (req.body.toastTotal && parseFloat(req.body.toastTotal) > 0) {
+        const week = await storage.getRccWeek(req.body.weekId);
+        if (week) {
+          // Record weekly Toast total on the week's end date for historical tracking
+          await storage.recordRccToastHistoricalRevenue(week.weekEnd, req.body.toastTotal);
+        }
+      }
+      
       res.json(revenue);
     } catch (error) {
       console.error('Error saving RCC revenue:', error);

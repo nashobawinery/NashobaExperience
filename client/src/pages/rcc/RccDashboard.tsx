@@ -985,6 +985,11 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
               <div className="space-y-2">
                 {historicalData.currentDates.map((curr) => {
                   const priorRevenue = priorYearMap.get(curr.priorYearDate);
+                  const currentRevenue = parseFloat(toastTotal || '0') / (historicalData.currentDates.length || 1);
+                  const weeklyToast = parseFloat(toastTotal || '0');
+                  const pctChange = priorRevenue && priorRevenue > 0 
+                    ? ((weeklyToast - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100 
+                    : null;
                   return (
                     <div key={curr.date} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
                       <div className="flex items-center gap-2">
@@ -1003,7 +1008,18 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
                 })}
                 <div className="flex items-center justify-between pt-2 mt-2 border-t font-semibold">
                   <span>Prior Year Total</span>
-                  <span className="text-green-600">${historicalData.priorYearTotal.toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">${historicalData.priorYearTotal.toLocaleString()}</span>
+                    {parseFloat(toastTotal || '0') > 0 && historicalData.priorYearTotal > 0 && (() => {
+                      const pctChange = ((parseFloat(toastTotal) - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100;
+                      const isPositive = pctChange >= 0;
+                      return (
+                        <span className={isPositive ? "text-foreground font-bold" : "text-red-600 font-bold"}>
+                          {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             </CardContent>
