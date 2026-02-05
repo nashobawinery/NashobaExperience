@@ -305,6 +305,7 @@ import {
   rccLearnings,
   rccAiRecommendations,
   rccToastHistoricalRevenue,
+  rccDailyRevenue,
   type InsertRccTeam,
   type RccTeam,
   type InsertRccWeek,
@@ -321,6 +322,8 @@ import {
   type RccAiRecommendation,
   type InsertRccToastHistoricalRevenue,
   type RccToastHistoricalRevenue,
+  type InsertRccDailyRevenue,
+  type RccDailyRevenue,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -7282,6 +7285,51 @@ export class DatabaseStorage implements IStorage {
       results.push(record);
     }
     return results;
+  }
+
+  // RCC Daily Revenue methods
+  async getRccDailyRevenueByWeek(weekId: number): Promise<RccDailyRevenue[]> {
+    return await db.select().from(rccDailyRevenue).where(eq(rccDailyRevenue.weekId, weekId)).orderBy(rccDailyRevenue.date);
+  }
+
+  async getRccDailyRevenueByDate(dateStr: string): Promise<RccDailyRevenue | undefined> {
+    const [entry] = await db.select().from(rccDailyRevenue).where(eq(rccDailyRevenue.date, dateStr));
+    return entry;
+  }
+
+  async upsertRccDailyRevenue(data: InsertRccDailyRevenue): Promise<RccDailyRevenue> {
+    const existing = await this.getRccDailyRevenueByDate(data.date);
+    if (existing) {
+      const [entry] = await db.update(rccDailyRevenue)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(rccDailyRevenue.id, existing.id))
+        .returning();
+      return entry;
+    }
+    const [entry] = await db.insert(rccDailyRevenue).values(data).returning();
+    return entry;
+  }
+
+  async updateRccDailyRevenueNotes(dateStr: string, notes: string): Promise<RccDailyRevenue | undefined> {
+    const [entry] = await db.update(rccDailyRevenue)
+      .set({ notes, updatedAt: new Date() })
+      .where(eq(rccDailyRevenue.date, dateStr))
+      .returning();
+    return entry;
+  }
+
+  async updateRccDailyRevenueWeather(dateStr: string, weather: { high: number; low: number; condition: string; precipitation: number }): Promise<RccDailyRevenue | undefined> {
+    const [entry] = await db.update(rccDailyRevenue)
+      .set({
+        weatherHigh: weather.high,
+        weatherLow: weather.low,
+        weatherCondition: weather.condition,
+        weatherPrecipitation: weather.precipitation.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(rccDailyRevenue.date, dateStr))
+      .returning();
+    return entry;
   }
 }
 
