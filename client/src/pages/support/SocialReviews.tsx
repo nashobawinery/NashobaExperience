@@ -175,6 +175,8 @@ function ReviewDetailView({
 }) {
   const [draftResponse, setDraftResponse] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
+  const [aiGuidance, setAiGuidance] = useState("");
   const { toast } = useToast();
 
   const { data: responses = [] } = useQuery<SocialReviewResponse[]>({
@@ -203,12 +205,14 @@ function ReviewDetailView({
     },
   });
 
-  const generateAIDraft = async () => {
+  const generateAIDraft = async (guidance?: string) => {
     setIsGenerating(true);
+    setAiGuidanceOpen(false);
     try {
-      const response = await apiRequest("POST", `/api/admin/social/reviews/${review.id}/ai-draft`, {});
+      const response = await apiRequest("POST", `/api/admin/social/reviews/${review.id}/ai-draft`, { guidance });
       const data = await response.json();
       setDraftResponse(data.draft);
+      setAiGuidance("");
       toast({ title: "AI draft generated" });
     } catch (error) {
       toast({ title: "Failed to generate draft", variant: "destructive" });
@@ -350,7 +354,7 @@ function ReviewDetailView({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={generateAIDraft}
+                  onClick={() => setAiGuidanceOpen(true)}
                   disabled={isGenerating}
                   data-testid="button-generate-ai-draft"
                 >
@@ -407,6 +411,43 @@ function ReviewDetailView({
           </Card>
         </div>
       </ScrollArea>
+
+      <Dialog open={aiGuidanceOpen} onOpenChange={setAiGuidanceOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Response Guidance
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Provide guidance for Cody to shape the response. For example: "thank them warmly", "apologize for experience", "offer to make it right", etc.
+            </p>
+            <Textarea
+              value={aiGuidance}
+              onChange={(e) => setAiGuidance(e.target.value)}
+              rows={3}
+              placeholder="e.g., Thank the customer warmly and invite them back"
+              className="resize-none"
+              data-testid="textarea-ai-guidance"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiGuidanceOpen(false)} data-testid="button-cancel-guidance">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => generateAIDraft(aiGuidance || undefined)}
+              disabled={isGenerating}
+              data-testid="button-generate-with-guidance"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {isGenerating ? "Generating..." : "Generate Response"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

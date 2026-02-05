@@ -14999,6 +14999,8 @@ ${webSourcesContext}`
   // AI-generated response for social reviews
   app.post('/api/admin/social/reviews/:id/ai-draft', isAdmin, async (req, res) => {
     try {
+      const { guidance } = req.body || {};
+      
       const review = await storage.getSocialReview(req.params.id);
       if (!review) {
         return res.status(404).json({ message: 'Review not found' });
@@ -15039,7 +15041,7 @@ Platform: ${review.platform}
 Rating: ${review.rating ? `${review.rating}/5 stars` : 'N/A'}
 Reviewer: ${review.authorName || 'Anonymous'}
 Review: ${review.content || 'No content'}
-
+${guidance ? `\nAGENT GUIDANCE: ${guidance}\nPlease craft the response according to this guidance from the support agent.\n` : ''}
 Generate a professional response:`;
 
       const openai = (await import('openai')).default;
@@ -15057,6 +15059,7 @@ Generate a professional response:`;
 
       const draftResponse = completion.choices[0]?.message?.content || 'Thank you for your feedback!';
 
+      console.log(`[Social Review AI] Generated with guidance: "${guidance || 'none'}"`);
       res.json({ 
         draft: draftResponse,
         review: review
