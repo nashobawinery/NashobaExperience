@@ -25,6 +25,7 @@ import { scheduleTicketReminders, sendManualAgentNotification } from "./supportT
 import { initMaintenanceReminders } from "./maintenanceReminders";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
+import OpenAI from "openai";
 import bcrypt from "bcrypt";
 import { 
   getUserPermissions, 
@@ -17421,6 +17422,374 @@ Generate a professional response:`;
     } catch (error) {
       console.error('Error fetching required courses:', error);
       res.status(500).json({ message: 'Failed to fetch required courses' });
+    }
+  });
+
+  // ========================================
+  // RCC (Revenue Command Center) Routes
+  // ========================================
+
+  // RCC Teams
+  app.get('/api/rcc/teams', isAuthenticated, async (_req, res) => {
+    try {
+      const teams = await storage.getRccTeams();
+      res.json(teams);
+    } catch (error) {
+      console.error('Error fetching RCC teams:', error);
+      res.status(500).json({ message: 'Failed to fetch teams' });
+    }
+  });
+
+  app.post('/api/rcc/teams', isAdmin, async (req, res) => {
+    try {
+      const team = await storage.createRccTeam(req.body);
+      res.json(team);
+    } catch (error) {
+      console.error('Error creating RCC team:', error);
+      res.status(500).json({ message: 'Failed to create team' });
+    }
+  });
+
+  app.put('/api/rcc/teams/:id', isAdmin, async (req, res) => {
+    try {
+      const team = await storage.updateRccTeam(parseInt(req.params.id), req.body);
+      if (!team) {
+        return res.status(404).json({ message: 'Team not found' });
+      }
+      res.json(team);
+    } catch (error) {
+      console.error('Error updating RCC team:', error);
+      res.status(500).json({ message: 'Failed to update team' });
+    }
+  });
+
+  // RCC Weeks
+  app.get('/api/rcc/weeks', isAuthenticated, async (_req, res) => {
+    try {
+      const weeks = await storage.getRccWeeks();
+      res.json(weeks);
+    } catch (error) {
+      console.error('Error fetching RCC weeks:', error);
+      res.status(500).json({ message: 'Failed to fetch weeks' });
+    }
+  });
+
+  app.get('/api/rcc/weeks/current', isAuthenticated, async (_req, res) => {
+    try {
+      const week = await storage.getRccCurrentWeek();
+      res.json(week || null);
+    } catch (error) {
+      console.error('Error fetching current RCC week:', error);
+      res.status(500).json({ message: 'Failed to fetch current week' });
+    }
+  });
+
+  app.get('/api/rcc/weeks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const week = await storage.getRccWeek(parseInt(req.params.id));
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      res.json(week);
+    } catch (error) {
+      console.error('Error fetching RCC week:', error);
+      res.status(500).json({ message: 'Failed to fetch week' });
+    }
+  });
+
+  app.post('/api/rcc/weeks', isAdmin, async (req, res) => {
+    try {
+      const week = await storage.createRccWeek(req.body);
+      res.json(week);
+    } catch (error) {
+      console.error('Error creating RCC week:', error);
+      res.status(500).json({ message: 'Failed to create week' });
+    }
+  });
+
+  app.put('/api/rcc/weeks/:id', isAdmin, async (req, res) => {
+    try {
+      const week = await storage.updateRccWeek(parseInt(req.params.id), req.body);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      res.json(week);
+    } catch (error) {
+      console.error('Error updating RCC week:', error);
+      res.status(500).json({ message: 'Failed to update week' });
+    }
+  });
+
+  app.post('/api/rcc/weeks/:id/approve', isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const week = await storage.approveRccWeek(parseInt(req.params.id), userId);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+      res.json(week);
+    } catch (error) {
+      console.error('Error approving RCC week:', error);
+      res.status(500).json({ message: 'Failed to approve week' });
+    }
+  });
+
+  // RCC Tasks
+  app.get('/api/rcc/tasks', isAuthenticated, async (req, res) => {
+    try {
+      const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
+      const tasks = await storage.getRccTasks(weekId);
+      res.json(tasks);
+    } catch (error) {
+      console.error('Error fetching RCC tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch tasks' });
+    }
+  });
+
+  app.get('/api/rcc/ideas', isAuthenticated, async (_req, res) => {
+    try {
+      const ideas = await storage.getRccIdeas();
+      res.json(ideas);
+    } catch (error) {
+      console.error('Error fetching RCC ideas:', error);
+      res.status(500).json({ message: 'Failed to fetch ideas' });
+    }
+  });
+
+  app.get('/api/rcc/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const task = await storage.getRccTask(parseInt(req.params.id));
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error('Error fetching RCC task:', error);
+      res.status(500).json({ message: 'Failed to fetch task' });
+    }
+  });
+
+  app.post('/api/rcc/tasks', isAuthenticated, async (req, res) => {
+    try {
+      const task = await storage.createRccTask(req.body);
+      res.json(task);
+    } catch (error) {
+      console.error('Error creating RCC task:', error);
+      res.status(500).json({ message: 'Failed to create task' });
+    }
+  });
+
+  app.put('/api/rcc/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const task = await storage.updateRccTask(parseInt(req.params.id), req.body);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error('Error updating RCC task:', error);
+      res.status(500).json({ message: 'Failed to update task' });
+    }
+  });
+
+  app.delete('/api/rcc/tasks/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteRccTask(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting RCC task:', error);
+      res.status(500).json({ message: 'Failed to delete task' });
+    }
+  });
+
+  // RCC Campaigns
+  app.get('/api/rcc/campaigns', isAuthenticated, async (req, res) => {
+    try {
+      const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
+      const campaigns = await storage.getRccCampaigns(weekId);
+      res.json(campaigns);
+    } catch (error) {
+      console.error('Error fetching RCC campaigns:', error);
+      res.status(500).json({ message: 'Failed to fetch campaigns' });
+    }
+  });
+
+  app.get('/api/rcc/campaigns/:id', isAuthenticated, async (req, res) => {
+    try {
+      const campaign = await storage.getRccCampaign(parseInt(req.params.id));
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campaign not found' });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error fetching RCC campaign:', error);
+      res.status(500).json({ message: 'Failed to fetch campaign' });
+    }
+  });
+
+  app.post('/api/rcc/campaigns', isAuthenticated, async (req, res) => {
+    try {
+      const campaign = await storage.createRccCampaign(req.body);
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error creating RCC campaign:', error);
+      res.status(500).json({ message: 'Failed to create campaign' });
+    }
+  });
+
+  app.put('/api/rcc/campaigns/:id', isAuthenticated, async (req, res) => {
+    try {
+      const campaign = await storage.updateRccCampaign(parseInt(req.params.id), req.body);
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campaign not found' });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error updating RCC campaign:', error);
+      res.status(500).json({ message: 'Failed to update campaign' });
+    }
+  });
+
+  app.delete('/api/rcc/campaigns/:id', isAdmin, async (req, res) => {
+    try {
+      await storage.deleteRccCampaign(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting RCC campaign:', error);
+      res.status(500).json({ message: 'Failed to delete campaign' });
+    }
+  });
+
+  // RCC Revenue
+  app.get('/api/rcc/revenue/:weekId', isAuthenticated, async (req, res) => {
+    try {
+      const revenue = await storage.getRccRevenue(parseInt(req.params.weekId));
+      res.json(revenue || null);
+    } catch (error) {
+      console.error('Error fetching RCC revenue:', error);
+      res.status(500).json({ message: 'Failed to fetch revenue' });
+    }
+  });
+
+  app.post('/api/rcc/revenue', isAuthenticated, async (req, res) => {
+    try {
+      const revenue = await storage.upsertRccRevenue(req.body);
+      res.json(revenue);
+    } catch (error) {
+      console.error('Error saving RCC revenue:', error);
+      res.status(500).json({ message: 'Failed to save revenue' });
+    }
+  });
+
+  // RCC Learnings
+  app.get('/api/rcc/learnings', isAuthenticated, async (req, res) => {
+    try {
+      const weekId = req.query.weekId ? parseInt(req.query.weekId as string) : undefined;
+      const learnings = await storage.getRccLearnings(weekId);
+      res.json(learnings);
+    } catch (error) {
+      console.error('Error fetching RCC learnings:', error);
+      res.status(500).json({ message: 'Failed to fetch learnings' });
+    }
+  });
+
+  app.post('/api/rcc/learnings', isAuthenticated, async (req, res) => {
+    try {
+      const learning = await storage.createRccLearning(req.body);
+      res.json(learning);
+    } catch (error) {
+      console.error('Error creating RCC learning:', error);
+      res.status(500).json({ message: 'Failed to create learning' });
+    }
+  });
+
+  // RCC AI Recommendations
+  app.get('/api/rcc/ai-recommendations/:weekId', isAuthenticated, async (req, res) => {
+    try {
+      const recommendations = await storage.getRccAiRecommendations(parseInt(req.params.weekId));
+      res.json(recommendations);
+    } catch (error) {
+      console.error('Error fetching RCC AI recommendations:', error);
+      res.status(500).json({ message: 'Failed to fetch recommendations' });
+    }
+  });
+
+  app.post('/api/rcc/ai-recommendations', isAdmin, async (req, res) => {
+    try {
+      const { weekId, customPrompt } = req.body;
+      
+      // Gather context for AI
+      const week = await storage.getRccWeek(weekId);
+      const revenue = await storage.getRccRevenue(weekId);
+      const campaigns = await storage.getRccCampaigns(weekId);
+      const tasks = await storage.getRccTasks(weekId);
+      const learnings = await storage.getRccLearnings(weekId);
+      
+      // Build context summary
+      let context = `Revenue Command Center - Week Analysis\n\n`;
+      if (week) {
+        context += `Week: ${week.weekStart} to ${week.weekEnd}\n`;
+        context += `Focus: ${week.focusStatement || 'Not set'}\n`;
+        context += `Hook: ${week.hookAngle || 'Not set'}\n`;
+        context += `Goal: ${week.weeklyGoal || 'Not set'}\n\n`;
+      }
+      if (revenue) {
+        const total = (parseFloat(revenue.toastTotal || '0') + parseFloat(revenue.shopifyTotal || '0') + parseFloat(revenue.otherTotal || '0'));
+        context += `Revenue: $${total.toFixed(2)}\n`;
+        context += `What worked: ${revenue.whatWorked || 'N/A'}\n`;
+        context += `What flopped: ${revenue.whatFlopped || 'N/A'}\n\n`;
+      }
+      if (campaigns.length > 0) {
+        context += `Campaigns:\n`;
+        campaigns.forEach(c => {
+          context += `- ${c.channel}: ${c.message?.substring(0, 50)}... (${c.status})\n`;
+        });
+        context += '\n';
+      }
+      if (tasks.length > 0) {
+        const completed = tasks.filter(t => t.status === 'done').length;
+        context += `Tasks: ${completed}/${tasks.length} completed\n\n`;
+      }
+      if (learnings.length > 0) {
+        context += `Learnings:\n`;
+        learnings.forEach(l => {
+          context += `- [${l.learningType}] ${l.summary}\n`;
+        });
+      }
+
+      const prompt = customPrompt || 
+        `Based on this week's performance data, provide 3-5 specific, actionable recommendations for next week. Focus on revenue growth opportunities and tactical marketing actions.`;
+
+      // Call OpenAI
+      const openai = new OpenAI();
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a marketing strategist for a winery/distillery. Provide specific, actionable recommendations based on weekly performance data. Be concise and tactical.' },
+          { role: 'user', content: `${context}\n\n${prompt}` }
+        ],
+        max_tokens: 1000,
+      });
+
+      const recommendation = response.choices[0]?.message?.content || 'Unable to generate recommendation';
+      const tokensUsed = response.usage?.total_tokens || 0;
+
+      // Save recommendation
+      const saved = await storage.createRccAiRecommendation({
+        weekId,
+        prompt: `${context}\n\n${prompt}`,
+        recommendation,
+        model: 'gpt-4o-mini',
+        tokensUsed,
+      });
+
+      res.json(saved);
+    } catch (error) {
+      console.error('Error generating RCC AI recommendation:', error);
+      res.status(500).json({ message: 'Failed to generate recommendation' });
     }
   });
 

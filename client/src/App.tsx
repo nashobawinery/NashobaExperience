@@ -77,6 +77,9 @@ const SupportAgentsPage = lazy(() => import("@/pages/support/SupportAgentsPage")
 const SupportAgentTicketPage = lazy(() => import("@/pages/support/SupportAgentTicketPage"));
 const SupportCategoriesPage = lazy(() => import("@/pages/support/SupportCategoriesPage"));
 
+// Lazy load RCC (Revenue Command Center) module
+const RccDashboard = lazy(() => import("@/pages/rcc/RccDashboard"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -546,6 +549,24 @@ function SupportAgentTicketRoute() {
   return (
     <Suspense fallback={<PageLoader />}>
       <SupportAgentTicketPage />
+    </Suspense>
+  );
+}
+
+function RccDashboardRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <RccDashboard />
     </Suspense>
   );
 }
@@ -1090,6 +1111,7 @@ function Router() {
         <Route path="/admin/support/agents" component={SupportAgentsRoute} />
         <Route path="/admin/support/categories" component={SupportCategoriesRoute} />
         <Route path="/support/agent/ticket/:ticketId" component={SupportAgentTicketRoute} />
+        <Route path="/rcc" component={RccDashboardRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />

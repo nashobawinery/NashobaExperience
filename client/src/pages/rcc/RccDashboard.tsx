@@ -1,0 +1,1054 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { format, startOfWeek, endOfWeek, addWeeks, parseISO } from "date-fns";
+import { 
+  Target, 
+  Lightbulb, 
+  Megaphone, 
+  DollarSign, 
+  Brain, 
+  Plus, 
+  Check, 
+  ChevronLeft, 
+  ChevronRight,
+  Calendar,
+  User,
+  Clock,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle
+} from "lucide-react";
+import type { 
+  RccWeek, 
+  RccTask, 
+  RccCampaign, 
+  RccRevenue, 
+  RccAiRecommendation,
+  RccTeam 
+} from "@shared/schema";
+
+export default function RccDashboard() {
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("focus");
+  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
+  
+  const { data: weeks, isLoading: weeksLoading } = useQuery<RccWeek[]>({
+    queryKey: ["/api/rcc/weeks"],
+  });
+
+  const { data: currentWeek, isLoading: currentWeekLoading } = useQuery<RccWeek | null>({
+    queryKey: ["/api/rcc/weeks/current"],
+  });
+
+  const { data: teams } = useQuery<RccTeam[]>({
+    queryKey: ["/api/rcc/teams"],
+  });
+
+  const activeWeekId = selectedWeekId || currentWeek?.id;
+  
+  const { data: tasks } = useQuery<RccTask[]>({
+    queryKey: ["/api/rcc/tasks", activeWeekId],
+    queryFn: () => activeWeekId 
+      ? fetch(`/api/rcc/tasks?weekId=${activeWeekId}`).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!activeWeekId,
+  });
+
+  const { data: ideas } = useQuery<RccTask[]>({
+    queryKey: ["/api/rcc/ideas"],
+  });
+
+  const { data: campaigns } = useQuery<RccCampaign[]>({
+    queryKey: ["/api/rcc/campaigns", activeWeekId],
+    queryFn: () => activeWeekId 
+      ? fetch(`/api/rcc/campaigns?weekId=${activeWeekId}`).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!activeWeekId,
+  });
+
+  const { data: revenue } = useQuery<RccRevenue | null>({
+    queryKey: ["/api/rcc/revenue", activeWeekId],
+    queryFn: () => activeWeekId 
+      ? fetch(`/api/rcc/revenue/${activeWeekId}`).then(r => r.json())
+      : Promise.resolve(null),
+    enabled: !!activeWeekId,
+  });
+
+  const { data: aiRecs } = useQuery<RccAiRecommendation[]>({
+    queryKey: ["/api/rcc/ai-recommendations", activeWeekId],
+    queryFn: () => activeWeekId 
+      ? fetch(`/api/rcc/ai-recommendations/${activeWeekId}`).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!activeWeekId,
+  });
+
+  const activeWeek = weeks?.find(w => w.id === activeWeekId) || currentWeek;
+
+  if (weeksLoading || currentWeekLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <Skeleton className="h-12 w-64 mb-6" />
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight" data-testid="rcc-title">Revenue Command Center</h1>
+          <p className="text-muted-foreground">Weekly planning and execution hub</p>
+        </div>
+        <CreateWeekDialog onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })} />
+      </div>
+
+      <WeekSelector 
+        weeks={weeks || []}
+        activeWeekId={activeWeekId}
+        onSelectWeek={setSelectedWeekId}
+      />
+
+      {!activeWeek ? (
+        <Card className="mt-6">
+          <CardContent className="py-12 text-center">
+            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No Active Week</h3>
+            <p className="text-muted-foreground mb-4">Create a week to start planning</p>
+            <CreateWeekDialog onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] })} />
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 mb-6">
+            <StatCard 
+              label="Focus" 
+              value={activeWeek.focusStatement ? "Set" : "Not set"} 
+              icon={<Target className="h-4 w-4" />} 
+              active={!!activeWeek.focusStatement}
+            />
+            <StatCard 
+              label="Tasks" 
+              value={`${tasks?.filter(t => t.status === 'done').length || 0}/${tasks?.length || 0}`} 
+              icon={<Check className="h-4 w-4" />}
+              active={(tasks?.filter(t => t.status === 'done').length || 0) > 0}
+            />
+            <StatCard 
+              label="Campaigns" 
+              value={`${campaigns?.length || 0}`} 
+              icon={<Megaphone className="h-4 w-4" />}
+              active={(campaigns?.length || 0) > 0}
+            />
+            <StatCard 
+              label="Revenue" 
+              value={revenue ? `$${(parseFloat(revenue.toastTotal || '0') + parseFloat(revenue.shopifyTotal || '0') + parseFloat(revenue.otherTotal || '0')).toLocaleString()}` : 'Not entered'} 
+              icon={<DollarSign className="h-4 w-4" />}
+              active={!!revenue}
+            />
+            <StatCard 
+              label="Ideas" 
+              value={`${ideas?.length || 0}`} 
+              icon={<Lightbulb className="h-4 w-4" />}
+              active={(ideas?.length || 0) > 0}
+            />
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+            <TabsList className="grid grid-cols-5 w-full">
+              <TabsTrigger value="focus" className="flex items-center gap-2" data-testid="tab-focus">
+                <Target className="h-4 w-4" /> Focus
+              </TabsTrigger>
+              <TabsTrigger value="tasks" className="flex items-center gap-2" data-testid="tab-tasks">
+                <Lightbulb className="h-4 w-4" /> Tasks
+              </TabsTrigger>
+              <TabsTrigger value="campaigns" className="flex items-center gap-2" data-testid="tab-campaigns">
+                <Megaphone className="h-4 w-4" /> Campaigns
+              </TabsTrigger>
+              <TabsTrigger value="revenue" className="flex items-center gap-2" data-testid="tab-revenue">
+                <DollarSign className="h-4 w-4" /> Revenue
+              </TabsTrigger>
+              <TabsTrigger value="ai" className="flex items-center gap-2" data-testid="tab-ai">
+                <Brain className="h-4 w-4" /> AI
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="focus" className="mt-6">
+              <WeeklyFocusPanel week={activeWeek} />
+            </TabsContent>
+
+            <TabsContent value="tasks" className="mt-6">
+              <TasksPanel 
+                weekId={activeWeekId!}
+                tasks={tasks || []}
+                ideas={ideas || []}
+                teams={teams || []}
+              />
+            </TabsContent>
+
+            <TabsContent value="campaigns" className="mt-6">
+              <CampaignsPanel 
+                weekId={activeWeekId!}
+                campaigns={campaigns || []}
+              />
+            </TabsContent>
+
+            <TabsContent value="revenue" className="mt-6">
+              <RevenuePanel 
+                weekId={activeWeekId!}
+                revenue={revenue ?? null}
+              />
+            </TabsContent>
+
+            <TabsContent value="ai" className="mt-6">
+              <AiAdvisorPanel 
+                weekId={activeWeekId!}
+                recommendations={aiRecs || []}
+              />
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, active }: { 
+  label: string; 
+  value: string; 
+  icon: React.ReactNode;
+  active: boolean;
+}) {
+  return (
+    <Card className={active ? "border-primary/50" : ""}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">{label}</span>
+          {icon}
+        </div>
+        <p className="text-lg font-semibold mt-1">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WeekSelector({ 
+  weeks, 
+  activeWeekId, 
+  onSelectWeek 
+}: { 
+  weeks: RccWeek[]; 
+  activeWeekId: number | undefined;
+  onSelectWeek: (id: number | null) => void;
+}) {
+  const activeWeek = weeks.find(w => w.id === activeWeekId);
+  const activeIndex = weeks.findIndex(w => w.id === activeWeekId);
+
+  const goNext = () => {
+    if (activeIndex > 0) {
+      onSelectWeek(weeks[activeIndex - 1].id);
+    }
+  };
+
+  const goPrev = () => {
+    if (activeIndex < weeks.length - 1) {
+      onSelectWeek(weeks[activeIndex + 1].id);
+    }
+  };
+
+  if (!activeWeek) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-4">
+      <Button 
+        variant="outline" 
+        size="icon" 
+        onClick={goPrev}
+        disabled={activeIndex >= weeks.length - 1}
+        data-testid="btn-prev-week"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <div className="text-center min-w-[200px]">
+        <p className="text-lg font-semibold">
+          {format(parseISO(activeWeek.weekStart), "MMM d")} - {format(parseISO(activeWeek.weekEnd), "MMM d, yyyy")}
+        </p>
+        <Badge variant={activeWeek.status === 'approved' ? 'default' : 'secondary'}>
+          {activeWeek.status}
+        </Badge>
+      </div>
+      <Button 
+        variant="outline" 
+        size="icon" 
+        onClick={goNext}
+        disabled={activeIndex <= 0}
+        data-testid="btn-next-week"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function CreateWeekDialog({ onSuccess }: { onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  
+  const today = new Date();
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  
+  const createMutation = useMutation({
+    mutationFn: async (data: { weekStart: string; weekEnd: string }) => {
+      return apiRequest("POST", "/api/rcc/weeks", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Week created" });
+      setOpen(false);
+      onSuccess();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error creating week", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreate = (offset: number) => {
+    const start = addWeeks(weekStart, offset);
+    const end = addWeeks(weekEnd, offset);
+    createMutation.mutate({
+      weekStart: format(start, "yyyy-MM-dd"),
+      weekEnd: format(end, "yyyy-MM-dd"),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button data-testid="btn-create-week">
+          <Plus className="h-4 w-4 mr-2" /> New Week
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Week</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <Button 
+            variant="outline" 
+            className="justify-start"
+            onClick={() => handleCreate(0)}
+            disabled={createMutation.isPending}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            This Week ({format(weekStart, "MMM d")} - {format(weekEnd, "MMM d")})
+          </Button>
+          <Button 
+            variant="outline" 
+            className="justify-start"
+            onClick={() => handleCreate(1)}
+            disabled={createMutation.isPending}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Next Week ({format(addWeeks(weekStart, 1), "MMM d")} - {format(addWeeks(weekEnd, 1), "MMM d")})
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WeeklyFocusPanel({ week }: { week: RccWeek }) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [focus, setFocus] = useState(week.focusStatement || "");
+  const [hook, setHook] = useState(week.hookAngle || "");
+  const [goal, setGoal] = useState(week.weeklyGoal || "");
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: Partial<RccWeek>) => {
+      return apiRequest("PUT", `/api/rcc/weeks/${week.id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Focus updated" });
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error updating focus", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/rcc/weeks/${week.id}/approve`);
+    },
+    onSuccess: () => {
+      toast({ title: "Week approved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error approving week", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    updateMutation.mutate({
+      focusStatement: focus,
+      hookAngle: hook,
+      weeklyGoal: goal,
+    });
+  };
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card className="md:col-span-2 border-primary/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Weekly Focus
+          </CardTitle>
+          <CardDescription>The heart of the week - what are we focusing on?</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="focus">Focus Statement</Label>
+                <Textarea 
+                  id="focus"
+                  placeholder="What is the one thing we're focusing on this week?"
+                  value={focus}
+                  onChange={(e) => setFocus(e.target.value)}
+                  className="mt-1"
+                  data-testid="input-focus"
+                />
+              </div>
+              <div>
+                <Label htmlFor="hook">Hook / Angle</Label>
+                <Textarea 
+                  id="hook"
+                  placeholder="What's the hook or angle for this week's marketing?"
+                  value={hook}
+                  onChange={(e) => setHook(e.target.value)}
+                  className="mt-1"
+                  data-testid="input-hook"
+                />
+              </div>
+              <div>
+                <Label htmlFor="goal">Weekly Goal</Label>
+                <Textarea 
+                  id="goal"
+                  placeholder="What specific outcome do we want to achieve?"
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  className="mt-1"
+                  data-testid="input-goal"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSave} disabled={updateMutation.isPending} data-testid="btn-save-focus">
+                  Save
+                </Button>
+                <Button variant="outline" onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Focus Statement</p>
+                <p className="text-lg font-medium">{week.focusStatement || <span className="text-muted-foreground italic">Not set</span>}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Hook / Angle</p>
+                <p className="text-lg">{week.hookAngle || <span className="text-muted-foreground italic">Not set</span>}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Weekly Goal</p>
+                <p className="text-lg">{week.weeklyGoal || <span className="text-muted-foreground italic">Not set</span>}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditing(true)} data-testid="btn-edit-focus">
+                  Edit Focus
+                </Button>
+                {week.status !== 'approved' && (
+                  <Button 
+                    onClick={() => approveMutation.mutate()} 
+                    disabled={approveMutation.isPending}
+                    data-testid="btn-approve-week"
+                  >
+                    <Check className="h-4 w-4 mr-2" /> Approve Week
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function TasksPanel({ 
+  weekId, 
+  tasks, 
+  ideas,
+  teams 
+}: { 
+  weekId: number;
+  tasks: RccTask[];
+  ideas: RccTask[];
+  teams: RccTeam[];
+}) {
+  const { toast } = useToast();
+  const [newIdea, setNewIdea] = useState("");
+  const [showAddTask, setShowAddTask] = useState(false);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { title: string; weekId?: number; status: string }) => {
+      return apiRequest("POST", "/api/rcc/tasks", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Task created" });
+      setNewIdea("");
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/ideas"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error creating task", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<RccTask> }) => {
+      return apiRequest("PUT", `/api/rcc/tasks/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/ideas"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error updating task", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleAddIdea = () => {
+    if (!newIdea.trim()) return;
+    createMutation.mutate({ title: newIdea, status: "idea" });
+  };
+
+  const handlePromoteIdea = (idea: RccTask) => {
+    updateMutation.mutate({ 
+      id: idea.id, 
+      data: { weekId, status: "open" } 
+    });
+  };
+
+  const handleStatusChange = (task: RccTask, status: string) => {
+    updateMutation.mutate({ 
+      id: task.id, 
+      data: { status: status as any } 
+    });
+  };
+
+  const openTasks = tasks.filter(t => t.status === 'open');
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
+  const doneTasks = tasks.filter(t => t.status === 'done');
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-yellow-500" />
+            Idea Bank
+          </CardTitle>
+          <CardDescription>Capture ideas, promote them to tasks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-4">
+            <Input 
+              placeholder="Quick idea..." 
+              value={newIdea}
+              onChange={(e) => setNewIdea(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddIdea()}
+              data-testid="input-new-idea"
+            />
+            <Button onClick={handleAddIdea} disabled={createMutation.isPending} data-testid="btn-add-idea">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {ideas.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No ideas yet</p>
+            ) : (
+              ideas.map(idea => (
+                <div key={idea.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                  <span className="text-sm">{idea.title}</span>
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    onClick={() => handlePromoteIdea(idea)}
+                    data-testid={`btn-promote-idea-${idea.id}`}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>This Week's Tasks</CardTitle>
+          <CardDescription>Move ideas into action</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {tasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No tasks yet. Promote ideas from the bank!
+              </p>
+            ) : (
+              <>
+                {openTasks.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">OPEN</p>
+                    {openTasks.map(task => (
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                    ))}
+                  </div>
+                )}
+                {inProgressTasks.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">IN PROGRESS</p>
+                    {inProgressTasks.map(task => (
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                    ))}
+                  </div>
+                )}
+                {doneTasks.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">DONE</p>
+                    {doneTasks.map(task => (
+                      <TaskRow key={task.id} task={task} onStatusChange={handleStatusChange} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function TaskRow({ task, onStatusChange }: { task: RccTask; onStatusChange: (task: RccTask, status: string) => void }) {
+  return (
+    <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md mb-2">
+      <span className={`text-sm ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+        {task.title}
+      </span>
+      <Select 
+        value={task.status} 
+        onValueChange={(value) => onStatusChange(task, value)}
+      >
+        <SelectTrigger className="w-32 h-8" data-testid={`select-task-status-${task.id}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="open">Open</SelectItem>
+          <SelectItem value="in_progress">In Progress</SelectItem>
+          <SelectItem value="done">Done</SelectItem>
+          <SelectItem value="cancelled">Cancelled</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccCampaign[] }) {
+  const { toast } = useToast();
+  const [showAdd, setShowAdd] = useState(false);
+  const [channel, setChannel] = useState("");
+  const [message, setMessage] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { weekId: number; channel: string; message: string }) => {
+      return apiRequest("POST", "/api/rcc/campaigns", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Campaign created" });
+      setShowAdd(false);
+      setChannel("");
+      setMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error creating campaign", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<RccCampaign> }) => {
+      return apiRequest("PUT", `/api/rcc/campaigns/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error updating campaign", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleAdd = () => {
+    if (!channel.trim()) return;
+    createMutation.mutate({ weekId, channel, message });
+  };
+
+  const handleStatusChange = (campaign: RccCampaign, status: string) => {
+    updateMutation.mutate({ 
+      id: campaign.id, 
+      data: { 
+        status: status as any,
+        sentAt: status === 'sent' ? new Date() : campaign.sentAt 
+      } 
+    });
+  };
+
+  const channels = ["Email", "Instagram", "Facebook", "SMS", "In-store", "Newsletter", "Other"];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Megaphone className="h-5 w-5 text-blue-500" />
+          Campaign Tracker
+        </CardTitle>
+        <CardDescription>Track marketing efforts and results</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {showAdd ? (
+          <div className="space-y-4 mb-4 p-4 border rounded-md">
+            <div>
+              <Label>Channel</Label>
+              <Select value={channel} onValueChange={setChannel}>
+                <SelectTrigger data-testid="select-campaign-channel">
+                  <SelectValue placeholder="Select channel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map(ch => (
+                    <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Message / Description</Label>
+              <Textarea 
+                placeholder="What's the campaign about?"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                data-testid="input-campaign-message"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleAdd} disabled={createMutation.isPending} data-testid="btn-save-campaign">
+                Save Campaign
+              </Button>
+              <Button variant="outline" onClick={() => setShowAdd(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button onClick={() => setShowAdd(true)} className="mb-4" data-testid="btn-add-campaign">
+            <Plus className="h-4 w-4 mr-2" /> Add Campaign
+          </Button>
+        )}
+
+        <div className="space-y-2">
+          {campaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No campaigns yet</p>
+          ) : (
+            campaigns.map(campaign => (
+              <div key={campaign.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-md">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{campaign.channel}</Badge>
+                    <Badge variant={
+                      campaign.status === 'completed' ? 'default' : 
+                      campaign.status === 'sent' ? 'secondary' : 
+                      'outline'
+                    }>
+                      {campaign.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm mt-1">{campaign.message?.substring(0, 60)}{campaign.message && campaign.message.length > 60 ? '...' : ''}</p>
+                </div>
+                <Select 
+                  value={campaign.status} 
+                  onValueChange={(value) => handleStatusChange(campaign, value)}
+                >
+                  <SelectTrigger className="w-32 h-8" data-testid={`select-campaign-status-${campaign.id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue | null }) {
+  const { toast } = useToast();
+  const [toastTotal, setToastTotal] = useState(revenue?.toastTotal || "");
+  const [shopifyTotal, setShopifyTotal] = useState(revenue?.shopifyTotal || "");
+  const [otherTotal, setOtherTotal] = useState(revenue?.otherTotal || "");
+  const [notes, setNotes] = useState(revenue?.notes || "");
+  const [whatWorked, setWhatWorked] = useState(revenue?.whatWorked || "");
+  const [whatFlopped, setWhatFlopped] = useState(revenue?.whatFlopped || "");
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", "/api/rcc/revenue", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Revenue saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/revenue"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error saving revenue", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    saveMutation.mutate({
+      weekId,
+      toastTotal: toastTotal || null,
+      shopifyTotal: shopifyTotal || null,
+      otherTotal: otherTotal || null,
+      notes,
+      whatWorked,
+      whatFlopped,
+    });
+  };
+
+  const total = (parseFloat(toastTotal || '0') + parseFloat(shopifyTotal || '0') + parseFloat(otherTotal || '0'));
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-green-500" />
+            Revenue Entry
+          </CardTitle>
+          <CardDescription>Enter weekly revenue numbers</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="toast">Toast POS Total</Label>
+            <Input 
+              id="toast"
+              type="number"
+              placeholder="0.00"
+              value={toastTotal}
+              onChange={(e) => setToastTotal(e.target.value)}
+              data-testid="input-toast-total"
+            />
+          </div>
+          <div>
+            <Label htmlFor="shopify">Shopify Total</Label>
+            <Input 
+              id="shopify"
+              type="number"
+              placeholder="0.00"
+              value={shopifyTotal}
+              onChange={(e) => setShopifyTotal(e.target.value)}
+              data-testid="input-shopify-total"
+            />
+          </div>
+          <div>
+            <Label htmlFor="other">Other Revenue</Label>
+            <Input 
+              id="other"
+              type="number"
+              placeholder="0.00"
+              value={otherTotal}
+              onChange={(e) => setOtherTotal(e.target.value)}
+              data-testid="input-other-total"
+            />
+          </div>
+          <div className="pt-4 border-t">
+            <p className="text-sm text-muted-foreground">Total Revenue</p>
+            <p className="text-2xl font-bold text-green-600">${total.toLocaleString()}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Week Notes</CardTitle>
+          <CardDescription>What worked, what flopped</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="worked" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-500" /> What Worked
+            </Label>
+            <Textarea 
+              id="worked"
+              placeholder="What drove revenue this week?"
+              value={whatWorked}
+              onChange={(e) => setWhatWorked(e.target.value)}
+              data-testid="input-what-worked"
+            />
+          </div>
+          <div>
+            <Label htmlFor="flopped" className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-500" /> What Flopped
+            </Label>
+            <Textarea 
+              id="flopped"
+              placeholder="What didn't work as expected?"
+              value={whatFlopped}
+              onChange={(e) => setWhatFlopped(e.target.value)}
+              data-testid="input-what-flopped"
+            />
+          </div>
+          <div>
+            <Label htmlFor="notes">Additional Notes</Label>
+            <Textarea 
+              id="notes"
+              placeholder="Other observations..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              data-testid="input-notes"
+            />
+          </div>
+          <Button onClick={handleSave} disabled={saveMutation.isPending} className="w-full" data-testid="btn-save-revenue">
+            Save Revenue & Notes
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AiAdvisorPanel({ weekId, recommendations }: { weekId: number; recommendations: RccAiRecommendation[] }) {
+  const { toast } = useToast();
+  const [customPrompt, setCustomPrompt] = useState("");
+
+  const generateMutation = useMutation({
+    mutationFn: async (data: { weekId: number; customPrompt?: string }) => {
+      return apiRequest("POST", "/api/rcc/ai-recommendations", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Recommendation generated" });
+      setCustomPrompt("");
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/ai-recommendations"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error generating recommendation", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleGenerate = () => {
+    generateMutation.mutate({ weekId, customPrompt: customPrompt || undefined });
+  };
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-purple-500" />
+            AI Advisor
+          </CardTitle>
+          <CardDescription>Get AI-powered recommendations based on your week's data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Custom Question (optional)</Label>
+            <Textarea 
+              placeholder="Ask a specific question, or leave blank for general recommendations..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              data-testid="input-ai-prompt"
+            />
+          </div>
+          <Button 
+            onClick={handleGenerate} 
+            disabled={generateMutation.isPending}
+            className="w-full"
+            data-testid="btn-generate-ai"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {generateMutation.isPending ? "Generating..." : "Generate Recommendations"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Previous Recommendations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recommendations.length === 0 ? (
+            <div className="text-center py-8">
+              <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">No recommendations yet</p>
+              <p className="text-sm text-muted-foreground">Generate your first AI recommendation!</p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {recommendations.map(rec => (
+                <div key={rec.id} className="p-4 bg-muted/30 rounded-md">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant="outline">{rec.model}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(rec.createdAt), "MMM d, h:mm a")}
+                    </span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap">{rec.recommendation}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

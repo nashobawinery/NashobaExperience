@@ -297,6 +297,27 @@ import {
   type LmsStaffTrainingCode,
   type InsertLmsCourseDepartment,
   type LmsCourseDepartment,
+  rccTeams,
+  rccWeeks,
+  rccTasks,
+  rccCampaigns,
+  rccRevenue,
+  rccLearnings,
+  rccAiRecommendations,
+  type InsertRccTeam,
+  type RccTeam,
+  type InsertRccWeek,
+  type RccWeek,
+  type InsertRccTask,
+  type RccTask,
+  type InsertRccCampaign,
+  type RccCampaign,
+  type InsertRccRevenue,
+  type RccRevenue,
+  type InsertRccLearning,
+  type RccLearning,
+  type InsertRccAiRecommendation,
+  type RccAiRecommendation,
 } from "@shared/schema";
 
 // Helper function for case-insensitive comparisons
@@ -6994,6 +7015,179 @@ export class DatabaseStorage implements IStorage {
         sql`${lmsCourses.status} = 'published'`
       ))
       .orderBy(lmsCourses.sortOrder);
+  }
+
+  // ========================================
+  // RCC (Revenue Command Center) Operations
+  // ========================================
+
+  // RCC Teams
+  async getRccTeams(): Promise<RccTeam[]> {
+    return db.select().from(rccTeams).where(eq(rccTeams.isActive, true)).orderBy(rccTeams.name);
+  }
+
+  async getRccTeam(id: number): Promise<RccTeam | undefined> {
+    const [team] = await db.select().from(rccTeams).where(eq(rccTeams.id, id));
+    return team;
+  }
+
+  async createRccTeam(data: InsertRccTeam): Promise<RccTeam> {
+    const [team] = await db.insert(rccTeams).values(data).returning();
+    return team;
+  }
+
+  async updateRccTeam(id: number, data: Partial<InsertRccTeam>): Promise<RccTeam | undefined> {
+    const [team] = await db.update(rccTeams).set(data).where(eq(rccTeams.id, id)).returning();
+    return team;
+  }
+
+  // RCC Weeks
+  async getRccWeeks(): Promise<RccWeek[]> {
+    return db.select().from(rccWeeks).orderBy(desc(rccWeeks.weekStart));
+  }
+
+  async getRccWeek(id: number): Promise<RccWeek | undefined> {
+    const [week] = await db.select().from(rccWeeks).where(eq(rccWeeks.id, id));
+    return week;
+  }
+
+  async getRccCurrentWeek(): Promise<RccWeek | undefined> {
+    const today = new Date().toISOString().split('T')[0];
+    const [week] = await db.select().from(rccWeeks)
+      .where(and(
+        sql`${rccWeeks.weekStart} <= ${today}`,
+        sql`${rccWeeks.weekEnd} >= ${today}`
+      ));
+    return week;
+  }
+
+  async createRccWeek(data: InsertRccWeek): Promise<RccWeek> {
+    const [week] = await db.insert(rccWeeks).values(data).returning();
+    return week;
+  }
+
+  async updateRccWeek(id: number, data: Partial<InsertRccWeek>): Promise<RccWeek | undefined> {
+    const [week] = await db.update(rccWeeks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(rccWeeks.id, id))
+      .returning();
+    return week;
+  }
+
+  async approveRccWeek(id: number, userId: string): Promise<RccWeek | undefined> {
+    const [week] = await db.update(rccWeeks)
+      .set({ status: 'approved', approvedAt: new Date(), approvedBy: userId, updatedAt: new Date() })
+      .where(eq(rccWeeks.id, id))
+      .returning();
+    return week;
+  }
+
+  // RCC Tasks
+  async getRccTasks(weekId?: number): Promise<RccTask[]> {
+    if (weekId) {
+      return db.select().from(rccTasks).where(eq(rccTasks.weekId, weekId)).orderBy(desc(rccTasks.createdAt));
+    }
+    return db.select().from(rccTasks).orderBy(desc(rccTasks.createdAt));
+  }
+
+  async getRccIdeas(): Promise<RccTask[]> {
+    return db.select().from(rccTasks).where(eq(rccTasks.status, 'idea')).orderBy(desc(rccTasks.createdAt));
+  }
+
+  async getRccTask(id: number): Promise<RccTask | undefined> {
+    const [task] = await db.select().from(rccTasks).where(eq(rccTasks.id, id));
+    return task;
+  }
+
+  async createRccTask(data: InsertRccTask): Promise<RccTask> {
+    const [task] = await db.insert(rccTasks).values(data).returning();
+    return task;
+  }
+
+  async updateRccTask(id: number, data: Partial<InsertRccTask>): Promise<RccTask | undefined> {
+    const [task] = await db.update(rccTasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(rccTasks.id, id))
+      .returning();
+    return task;
+  }
+
+  async deleteRccTask(id: number): Promise<boolean> {
+    const result = await db.delete(rccTasks).where(eq(rccTasks.id, id));
+    return true;
+  }
+
+  // RCC Campaigns
+  async getRccCampaigns(weekId?: number): Promise<RccCampaign[]> {
+    if (weekId) {
+      return db.select().from(rccCampaigns).where(eq(rccCampaigns.weekId, weekId)).orderBy(desc(rccCampaigns.createdAt));
+    }
+    return db.select().from(rccCampaigns).orderBy(desc(rccCampaigns.createdAt));
+  }
+
+  async getRccCampaign(id: number): Promise<RccCampaign | undefined> {
+    const [campaign] = await db.select().from(rccCampaigns).where(eq(rccCampaigns.id, id));
+    return campaign;
+  }
+
+  async createRccCampaign(data: InsertRccCampaign): Promise<RccCampaign> {
+    const [campaign] = await db.insert(rccCampaigns).values(data).returning();
+    return campaign;
+  }
+
+  async updateRccCampaign(id: number, data: Partial<InsertRccCampaign>): Promise<RccCampaign | undefined> {
+    const [campaign] = await db.update(rccCampaigns)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(rccCampaigns.id, id))
+      .returning();
+    return campaign;
+  }
+
+  async deleteRccCampaign(id: number): Promise<boolean> {
+    await db.delete(rccCampaigns).where(eq(rccCampaigns.id, id));
+    return true;
+  }
+
+  // RCC Revenue
+  async getRccRevenue(weekId: number): Promise<RccRevenue | undefined> {
+    const [revenue] = await db.select().from(rccRevenue).where(eq(rccRevenue.weekId, weekId));
+    return revenue;
+  }
+
+  async upsertRccRevenue(data: InsertRccRevenue): Promise<RccRevenue> {
+    const existing = await this.getRccRevenue(data.weekId);
+    if (existing) {
+      const [revenue] = await db.update(rccRevenue)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(rccRevenue.weekId, data.weekId))
+        .returning();
+      return revenue;
+    }
+    const [revenue] = await db.insert(rccRevenue).values(data).returning();
+    return revenue;
+  }
+
+  // RCC Learnings
+  async getRccLearnings(weekId?: number): Promise<RccLearning[]> {
+    if (weekId) {
+      return db.select().from(rccLearnings).where(eq(rccLearnings.weekId, weekId)).orderBy(desc(rccLearnings.createdAt));
+    }
+    return db.select().from(rccLearnings).orderBy(desc(rccLearnings.createdAt));
+  }
+
+  async createRccLearning(data: InsertRccLearning): Promise<RccLearning> {
+    const [learning] = await db.insert(rccLearnings).values(data).returning();
+    return learning;
+  }
+
+  // RCC AI Recommendations
+  async getRccAiRecommendations(weekId: number): Promise<RccAiRecommendation[]> {
+    return db.select().from(rccAiRecommendations).where(eq(rccAiRecommendations.weekId, weekId)).orderBy(desc(rccAiRecommendations.createdAt));
+  }
+
+  async createRccAiRecommendation(data: InsertRccAiRecommendation): Promise<RccAiRecommendation> {
+    const [rec] = await db.insert(rccAiRecommendations).values(data).returning();
+    return rec;
   }
 }
 

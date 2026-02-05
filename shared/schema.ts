@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index, serial, date, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -4464,3 +4464,148 @@ export type UpdateCustomer = UpdateResyCustomer;
 
 // ========================================
 // LMS (Learning Management System) Module
+
+// ========================================
+// RCC (Revenue Command Center) Module
+// ========================================
+
+// RCC Enums
+export const rccTaskStatusEnum = pgEnum("rcc_task_status", ["idea", "open", "in_progress", "done", "cancelled"]);
+export const rccCampaignStatusEnum = pgEnum("rcc_campaign_status", ["draft", "sent", "completed"]);
+
+// RCC Teams - Groups like "Tasting Room", "Kitchen", "Marketing"
+export const rccTeams = pgTable("rcc_teams", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  color: varchar("color", { length: 7 }).default("#6366f1"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertRccTeamSchema = createInsertSchema(rccTeams).omit({ id: true, createdAt: true });
+export type InsertRccTeam = z.infer<typeof insertRccTeamSchema>;
+export type RccTeam = typeof rccTeams.$inferSelect;
+
+// RCC Weeks - The heart of the system: one focus/hook/goal per week
+export const rccWeeks = pgTable("rcc_weeks", {
+  id: serial("id").primaryKey(),
+  weekStart: date("week_start").notNull(),
+  weekEnd: date("week_end").notNull(),
+  focusStatement: text("focus_statement"),
+  hookAngle: text("hook_angle"),
+  weeklyGoal: text("weekly_goal"),
+  status: varchar("status", { length: 20 }).notNull().default("planning"),
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_weeks_start").on(table.weekStart),
+]);
+
+export const insertRccWeekSchema = createInsertSchema(rccWeeks).omit({ id: true, createdAt: true, updatedAt: true, approvedAt: true });
+export type InsertRccWeek = z.infer<typeof insertRccWeekSchema>;
+export type RccWeek = typeof rccWeeks.$inferSelect;
+
+// RCC Tasks - Ideas that become actionable tasks
+export const rccTasks = pgTable("rcc_tasks", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").references(() => rccWeeks.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: rccTaskStatusEnum("status").notNull().default("idea"),
+  ownerId: varchar("owner_id").references(() => users.id),
+  teamId: integer("team_id").references(() => rccTeams.id),
+  dueDate: date("due_date"),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_rcc_tasks_week").on(table.weekId),
+  index("idx_rcc_tasks_status").on(table.status),
+  index("idx_rcc_tasks_owner").on(table.ownerId),
+]);
+
+export const insertRccTaskSchema = createInsertSchema(rccTasks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRccTask = z.infer<typeof insertRccTaskSchema>;
+export type RccTask = typeof rccTasks.$inferSelect;
+
+// RCC Campaigns - Track marketing efforts (channel, message, result)
+export const rccCampaigns = pgTable("rcc_campaigns", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").references(() => rccWeeks.id),
+  channel: varchar("channel", { length: 100 }).notNull(),
+  message: text("message"),
+  ownerId: varchar("owner_id").references(() => users.id),
+  status: rccCampaignStatusEnum("status").notNull().default("draft"),
+  sentAt: timestamp("sent_at"),
+  result: text("result"),
+  reachCount: integer("reach_count"),
+  clickCount: integer("click_count"),
+  conversionCount: integer("conversion_count"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_rcc_campaigns_week").on(table.weekId),
+  index("idx_rcc_campaigns_status").on(table.status),
+]);
+
+export const insertRccCampaignSchema = createInsertSchema(rccCampaigns).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRccCampaign = z.infer<typeof insertRccCampaignSchema>;
+export type RccCampaign = typeof rccCampaigns.$inferSelect;
+
+// RCC Revenue - Weekly revenue entries (Toast + Shopify + notes)
+export const rccRevenue = pgTable("rcc_revenue", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").notNull().references(() => rccWeeks.id),
+  toastTotal: numeric("toast_total", { precision: 12, scale: 2 }),
+  shopifyTotal: numeric("shopify_total", { precision: 12, scale: 2 }),
+  otherTotal: numeric("other_total", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  whatWorked: text("what_worked"),
+  whatFlopped: text("what_flopped"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_revenue_week").on(table.weekId),
+]);
+
+export const insertRccRevenueSchema = createInsertSchema(rccRevenue).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRccRevenue = z.infer<typeof insertRccRevenueSchema>;
+export type RccRevenue = typeof rccRevenue.$inferSelect;
+
+// RCC Learnings - Track wins and losses for AI learning
+export const rccLearnings = pgTable("rcc_learnings", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").references(() => rccWeeks.id),
+  campaignId: integer("campaign_id").references(() => rccCampaigns.id),
+  learningType: varchar("learning_type", { length: 20 }).notNull(),
+  summary: text("summary").notNull(),
+  impact: varchar("impact", { length: 20 }),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_rcc_learnings_week").on(table.weekId),
+  index("idx_rcc_learnings_type").on(table.learningType),
+]);
+
+export const insertRccLearningSchema = createInsertSchema(rccLearnings).omit({ id: true, createdAt: true });
+export type InsertRccLearning = z.infer<typeof insertRccLearningSchema>;
+export type RccLearning = typeof rccLearnings.$inferSelect;
+
+// RCC AI Recommendations - Weekly AI-generated advice
+export const rccAiRecommendations = pgTable("rcc_ai_recommendations", {
+  id: serial("id").primaryKey(),
+  weekId: integer("week_id").notNull().references(() => rccWeeks.id),
+  prompt: text("prompt"),
+  recommendation: text("recommendation").notNull(),
+  model: varchar("model", { length: 50 }).default("gpt-4o-mini"),
+  tokensUsed: integer("tokens_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_rcc_ai_week").on(table.weekId),
+]);
+
+export const insertRccAiRecommendationSchema = createInsertSchema(rccAiRecommendations).omit({ id: true, createdAt: true });
+export type InsertRccAiRecommendation = z.infer<typeof insertRccAiRecommendationSchema>;
+export type RccAiRecommendation = typeof rccAiRecommendations.$inferSelect;
