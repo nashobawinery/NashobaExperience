@@ -7072,6 +7072,58 @@ export class DatabaseStorage implements IStorage {
     return week;
   }
 
+  async getRccWeekByDate(weekStart: string): Promise<RccWeek | undefined> {
+    const [week] = await db.select().from(rccWeeks)
+      .where(eq(rccWeeks.weekStart, weekStart));
+    return week;
+  }
+
+  async getOrCreateRccWeek(weekStart: string, weekEnd: string): Promise<RccWeek> {
+    // Check if week already exists
+    const existing = await this.getRccWeekByDate(weekStart);
+    if (existing) {
+      return existing;
+    }
+    // Create new week
+    return this.createRccWeek({ weekStart, weekEnd, status: 'draft' });
+  }
+
+  async initializeRccWeeks(): Promise<{ created: number; existing: number }> {
+    // Initialize weeks from start of current year through 4 weeks into next year
+    const today = new Date();
+    const yearStart = new Date(today.getFullYear(), 0, 1); // Jan 1
+    const yearEnd = new Date(today.getFullYear() + 1, 1, 28); // End of Feb next year
+    
+    // Find first Monday on or after Jan 1
+    let current = new Date(yearStart);
+    while (current.getDay() !== 1) {
+      current.setDate(current.getDate() + 1);
+    }
+    
+    let created = 0;
+    let existing = 0;
+    
+    while (current < yearEnd) {
+      const weekStart = current.toISOString().split('T')[0];
+      const weekEndDate = new Date(current);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().split('T')[0];
+      
+      const existingWeek = await this.getRccWeekByDate(weekStart);
+      if (existingWeek) {
+        existing++;
+      } else {
+        await this.createRccWeek({ weekStart, weekEnd, status: 'draft' });
+        created++;
+      }
+      
+      // Move to next Monday
+      current.setDate(current.getDate() + 7);
+    }
+    
+    return { created, existing };
+  }
+
   async updateRccWeek(id: number, data: Partial<InsertRccWeek>): Promise<RccWeek | undefined> {
     const [week] = await db.update(rccWeeks)
       .set({ ...data, updatedAt: new Date() })

@@ -17601,11 +17601,26 @@ Generate a professional response:`;
 
   app.post('/api/rcc/weeks', isAdmin, async (req, res) => {
     try {
-      const week = await storage.createRccWeek(req.body);
+      // Use getOrCreate to prevent duplicates
+      const week = await storage.getOrCreateRccWeek(req.body.weekStart, req.body.weekEnd);
       res.json(week);
     } catch (error) {
       console.error('Error creating RCC week:', error);
       res.status(500).json({ message: 'Failed to create week' });
+    }
+  });
+
+  // Initialize weeks for the year (idempotent - safe to call multiple times)
+  app.post('/api/rcc/weeks/initialize', isAdmin, async (_req, res) => {
+    try {
+      const result = await storage.initializeRccWeeks();
+      res.json({ 
+        message: `Initialized weeks: ${result.created} created, ${result.existing} already existed`,
+        ...result
+      });
+    } catch (error) {
+      console.error('Error initializing RCC weeks:', error);
+      res.status(500).json({ message: 'Failed to initialize weeks' });
     }
   });
 
