@@ -31,7 +31,8 @@ import {
   Sparkles,
   TrendingUp,
   TrendingDown,
-  AlertCircle
+  AlertCircle,
+  History
 } from "lucide-react";
 import type { 
   RccWeek, 
@@ -864,6 +865,14 @@ function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccC
   );
 }
 
+type ToastHistoricalData = {
+  currentDates: { date: string; dayOfWeek: number; priorYearDate: string }[];
+  priorYearData: { revenueDate: string; netRevenue: string }[];
+  priorYearTotal: number;
+};
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue | null }) {
   const { toast } = useToast();
   const [toastTotal, setToastTotal] = useState(revenue?.toastTotal || "");
@@ -872,6 +881,11 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
   const [notes, setNotes] = useState(revenue?.notes || "");
   const [whatWorked, setWhatWorked] = useState(revenue?.whatWorked || "");
   const [whatFlopped, setWhatFlopped] = useState(revenue?.whatFlopped || "");
+
+  const { data: historicalData } = useQuery<ToastHistoricalData>({
+    queryKey: ["/api/rcc/toast-historical/week", weekId],
+    queryFn: () => fetch(`/api/rcc/toast-historical/week/${weekId}`).then(r => r.json()),
+  });
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -900,56 +914,102 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
 
   const total = (parseFloat(toastTotal || '0') + parseFloat(shopifyTotal || '0') + parseFloat(otherTotal || '0'));
 
+  // Build a map of prior year date -> revenue for easy lookup
+  const priorYearMap = new Map<string, number>();
+  historicalData?.priorYearData.forEach(d => {
+    priorYearMap.set(d.revenueDate, parseFloat(d.netRevenue || '0'));
+  });
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-500" />
-            Revenue Entry
-          </CardTitle>
-          <CardDescription>Enter weekly revenue numbers</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="toast">Toast POS Total</Label>
-            <Input 
-              id="toast"
-              type="number"
-              placeholder="0.00"
-              value={toastTotal}
-              onChange={(e) => setToastTotal(e.target.value)}
-              data-testid="input-toast-total"
-            />
-          </div>
-          <div>
-            <Label htmlFor="shopify">Shopify Total</Label>
-            <Input 
-              id="shopify"
-              type="number"
-              placeholder="0.00"
-              value={shopifyTotal}
-              onChange={(e) => setShopifyTotal(e.target.value)}
-              data-testid="input-shopify-total"
-            />
-          </div>
-          <div>
-            <Label htmlFor="other">Other Revenue</Label>
-            <Input 
-              id="other"
-              type="number"
-              placeholder="0.00"
-              value={otherTotal}
-              onChange={(e) => setOtherTotal(e.target.value)}
-              data-testid="input-other-total"
-            />
-          </div>
-          <div className="pt-4 border-t">
-            <p className="text-sm text-muted-foreground">Total Revenue</p>
-            <p className="text-2xl font-bold text-green-600">${total.toLocaleString()}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              Revenue Entry
+            </CardTitle>
+            <CardDescription>Enter weekly revenue numbers</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="toast">Toast POS Total</Label>
+              <Input 
+                id="toast"
+                type="number"
+                placeholder="0.00"
+                value={toastTotal}
+                onChange={(e) => setToastTotal(e.target.value)}
+                data-testid="input-toast-total"
+              />
+            </div>
+            <div>
+              <Label htmlFor="shopify">Shopify Total</Label>
+              <Input 
+                id="shopify"
+                type="number"
+                placeholder="0.00"
+                value={shopifyTotal}
+                onChange={(e) => setShopifyTotal(e.target.value)}
+                data-testid="input-shopify-total"
+              />
+            </div>
+            <div>
+              <Label htmlFor="other">Other Revenue</Label>
+              <Input 
+                id="other"
+                type="number"
+                placeholder="0.00"
+                value={otherTotal}
+                onChange={(e) => setOtherTotal(e.target.value)}
+                data-testid="input-other-total"
+              />
+            </div>
+            <div className="pt-4 border-t">
+              <p className="text-sm text-muted-foreground">Total Revenue</p>
+              <p className="text-2xl font-bold text-green-600">${total.toLocaleString()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {historicalData && historicalData.priorYearData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" />
+                Prior Year Toast POS (Day-of-Week Match)
+              </CardTitle>
+              <CardDescription>Same weekday comparison from last year</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {historicalData.currentDates.map((curr) => {
+                  const priorRevenue = priorYearMap.get(curr.priorYearDate);
+                  return (
+                    <div key={curr.date} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs w-10 justify-center">
+                          {DAY_NAMES[curr.dayOfWeek]}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {format(parseISO(curr.date), "M/d/yy")} vs {format(parseISO(curr.priorYearDate), "M/d/yy")}
+                        </span>
+                      </div>
+                      <span className="font-medium">
+                        {priorRevenue !== undefined ? `$${priorRevenue.toLocaleString()}` : '—'}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between pt-2 mt-2 border-t font-semibold">
+                  <span>Prior Year Total</span>
+                  <span className="text-green-600">${historicalData.priorYearTotal.toLocaleString()}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
