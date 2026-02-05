@@ -972,7 +972,7 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
           </CardContent>
         </Card>
 
-        {historicalData && historicalData.priorYearData.length > 0 && (
+        {historicalData && historicalData.priorYearData?.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -983,9 +983,9 @@ function RevenuePanel({ weekId, revenue }: { weekId: number; revenue: RccRevenue
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {historicalData.currentDates.map((curr) => {
+                {historicalData.currentDates?.map((curr) => {
                   const priorRevenue = priorYearMap.get(curr.priorYearDate);
-                  const currentRevenue = parseFloat(toastTotal || '0') / (historicalData.currentDates.length || 1);
+                  const currentRevenue = parseFloat(toastTotal || '0') / (historicalData.currentDates?.length || 1);
                   const weeklyToast = parseFloat(toastTotal || '0');
                   const pctChange = priorRevenue && priorRevenue > 0 
                     ? ((weeklyToast - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100 
