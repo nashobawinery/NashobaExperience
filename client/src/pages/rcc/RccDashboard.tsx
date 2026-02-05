@@ -193,8 +193,8 @@ export default function RccDashboard() {
               active={dailyGrandTotal > 0}
             />
             <StatCard 
-              label="Ideas" 
-              value={`${ideas?.length || 0}`} 
+              label="Learnings" 
+              value={`${ideas?.length || 0} logged`} 
               icon={<Lightbulb className="h-4 w-4" />}
               active={(ideas?.length || 0) > 0}
             />
@@ -641,14 +641,14 @@ function TasksPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-yellow-500" />
-            Idea Bank
+            Learnings
           </CardTitle>
-          <CardDescription>Capture ideas, promote them to tasks</CardDescription>
+          <CardDescription>What worked, what didn't, what to try next</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4">
             <Input 
-              placeholder="Quick idea..." 
+              placeholder="Log a learning..." 
               value={newIdea}
               onChange={(e) => setNewIdea(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddIdea()}
@@ -660,7 +660,7 @@ function TasksPanel({
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {ideas.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No ideas yet</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No learnings logged yet</p>
             ) : (
               ideas.map(idea => (
                 <div key={idea.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
@@ -683,13 +683,13 @@ function TasksPanel({
       <Card>
         <CardHeader>
           <CardTitle>This Week's Tasks</CardTitle>
-          <CardDescription>Move ideas into action</CardDescription>
+          <CardDescription>Turn learnings into action</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No tasks yet. Promote ideas from the bank!
+                No tasks yet. Promote learnings to tasks!
               </p>
             ) : (
               <>
