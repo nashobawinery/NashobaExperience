@@ -24,7 +24,8 @@ import {
   Flag,
   Copy,
   Mail,
-  Upload
+  Upload,
+  BookOpen
 } from "lucide-react";
 import { SiFacebook, SiGoogle, SiYelp, SiTripadvisor } from "react-icons/si";
 import { Button } from "@/components/ui/button";
@@ -177,6 +178,9 @@ function ReviewDetailView({
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
   const [aiGuidance, setAiGuidance] = useState("");
+  const [saveToKbOpen, setSaveToKbOpen] = useState(false);
+  const [saveToKbTitle, setSaveToKbTitle] = useState("");
+  const [saveToKbKeywords, setSaveToKbKeywords] = useState("");
   const { toast } = useToast();
 
   const { data: responses = [] } = useQuery<SocialReviewResponse[]>({
@@ -204,6 +208,37 @@ function ReviewDetailView({
       toast({ title: "Response saved" });
     },
   });
+
+  const saveToKnowledgeBaseMutation = useMutation({
+    mutationFn: async (data: { title: string; answer: string; keywords: string[] }) => {
+      return apiRequest("POST", "/api/admin/support/canned-responses", {
+        title: data.title,
+        answer: data.answer,
+        keywords: data.keywords,
+        isActive: true,
+      });
+    },
+    onSuccess: () => {
+      setSaveToKbOpen(false);
+      setSaveToKbTitle("");
+      setSaveToKbKeywords("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/canned-responses"] });
+      toast({ title: "Saved to Knowledge Base", description: "This response is now available for future use" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save to knowledge base", variant: "destructive" });
+    },
+  });
+
+  const handleSaveToKnowledgeBase = () => {
+    if (!saveToKbTitle.trim() || !draftResponse.trim()) return;
+    const keywords = saveToKbKeywords.split(",").map(k => k.trim()).filter(k => k.length > 0);
+    saveToKnowledgeBaseMutation.mutate({
+      title: saveToKbTitle,
+      answer: draftResponse,
+      keywords,
+    });
+  };
 
   const generateAIDraft = async (guidance?: string) => {
     setIsGenerating(true);
@@ -396,6 +431,15 @@ function ReviewDetailView({
                     Copy
                   </Button>
                   <Button
+                    variant="outline"
+                    onClick={() => setSaveToKbOpen(true)}
+                    disabled={!draftResponse.trim()}
+                    data-testid="button-save-to-kb"
+                  >
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Save to KB
+                  </Button>
+                  <Button
                     onClick={openInPlatform}
                     data-testid="button-open-platform"
                   >
@@ -444,6 +488,63 @@ function ReviewDetailView({
             >
               <Sparkles className="h-4 w-4 mr-2" />
               {isGenerating ? "Generating..." : "Generate Response"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveToKbOpen} onOpenChange={setSaveToKbOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              Save to Knowledge Base
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Save this response as a canned response so Cody can use it for similar reviews in the future.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title</label>
+              <Input
+                value={saveToKbTitle}
+                onChange={(e) => setSaveToKbTitle(e.target.value)}
+                placeholder="e.g., Positive Review Response"
+                data-testid="input-kb-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Keywords (comma-separated)</label>
+              <Input
+                value={saveToKbKeywords}
+                onChange={(e) => setSaveToKbKeywords(e.target.value)}
+                placeholder="e.g., positive, thank you, great experience"
+                data-testid="input-kb-keywords"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Response</label>
+              <Textarea
+                value={draftResponse}
+                onChange={(e) => setDraftResponse(e.target.value)}
+                rows={6}
+                className="resize-none"
+                data-testid="textarea-kb-content"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveToKbOpen(false)} data-testid="button-cancel-kb">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveToKnowledgeBase}
+              disabled={saveToKnowledgeBaseMutation.isPending || !saveToKbTitle.trim() || !draftResponse.trim()}
+              data-testid="button-save-kb"
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              {saveToKnowledgeBaseMutation.isPending ? "Saving..." : "Save to Knowledge Base"}
             </Button>
           </DialogFooter>
         </DialogContent>
