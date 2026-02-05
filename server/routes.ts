@@ -15480,6 +15480,84 @@ Generate a professional response:`;
       }
 
       // ============================================
+      // TOAST REVENUE EMAIL DETECTION
+      // Check if this email is a revenue report from Toast POS
+      // ============================================
+      const isToastEmail = fromEmailLower.includes('toasttab.com') || 
+                           fromEmailLower.includes('toast') ||
+                           subjectLower.includes('toast');
+      const isRevenueEmail = subjectLower.includes('revenue') || 
+                             subjectLower.includes('daily') ||
+                             subjectLower.includes('net sales') ||
+                             subjectLower.includes('sales report');
+      
+      if (isToastEmail && isRevenueEmail) {
+        console.log('[Email Inbound] Detected Toast revenue email');
+        
+        const bodyText = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        // Parse date from email - look for various date formats
+        let revenueDate: string | null = null;
+        // Look for YYYY-MM-DD format
+        const isoDateMatch = bodyText.match(/(\d{4}-\d{2}-\d{2})/);
+        // Look for MM/DD/YYYY or M/D/YYYY format
+        const usDateMatch = bodyText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        // Look for "Month Day, Year" format
+        const longDateMatch = bodyText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+        
+        if (isoDateMatch) {
+          revenueDate = isoDateMatch[1];
+        } else if (usDateMatch) {
+          const month = usDateMatch[1].padStart(2, '0');
+          const day = usDateMatch[2].padStart(2, '0');
+          const year = usDateMatch[3];
+          revenueDate = `${year}-${month}-${day}`;
+        } else if (longDateMatch) {
+          const monthNames: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+          const month = monthNames[longDateMatch[1].toLowerCase().slice(0, 3)];
+          const day = longDateMatch[2].padStart(2, '0');
+          const year = longDateMatch[3];
+          revenueDate = `${year}-${month}-${day}`;
+        }
+        
+        // Parse revenue amount - look for dollar amounts
+        let revenueAmount: string | null = null;
+        // Look for patterns like "$1,234.56" or "Net Revenue: $1234" or "$699"
+        const amountMatches = bodyText.match(/\$[\d,]+(?:\.\d{2})?/g);
+        if (amountMatches && amountMatches.length > 0) {
+          // Take the largest amount found (likely the total)
+          let maxAmount = 0;
+          for (const match of amountMatches) {
+            const value = parseFloat(match.replace(/[$,]/g, ''));
+            if (value > maxAmount) {
+              maxAmount = value;
+              revenueAmount = match;
+            }
+          }
+        }
+        
+        if (revenueDate && revenueAmount) {
+          try {
+            const record = await storage.recordRccToastHistoricalRevenue(revenueDate, revenueAmount);
+            console.log('[Email Inbound] Saved Toast revenue:', revenueDate, revenueAmount, 'Record ID:', record.id);
+            
+            return res.status(200).json({
+              message: 'Toast revenue recorded',
+              date: revenueDate,
+              amount: revenueAmount,
+              recordId: record.id
+            });
+          } catch (saveErr) {
+            console.error('[Email Inbound] Failed to save Toast revenue:', saveErr);
+            // Fall through to create support ticket instead
+          }
+        } else {
+          console.log('[Email Inbound] Could not parse Toast revenue email - date:', revenueDate, 'amount:', revenueAmount);
+          // Fall through to create support ticket for manual review
+        }
+      }
+
+      // ============================================
       // SUPPORT TICKET FLOW (non-review emails)
       // ============================================
 
