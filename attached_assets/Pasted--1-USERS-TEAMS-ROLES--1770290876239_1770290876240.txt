@@ -1,0 +1,200 @@
+-- =========================================
+-- 1) USERS / TEAMS / ROLES
+-- =========================================
+
+CREATE TABLE users (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email           TEXT UNIQUE NOT NULL,
+  full_name       TEXT NOT NULL,
+  role            TEXT NOT NULL DEFAULT 'staff',  -- 'owner' | 'manager' | 'staff'
+  is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE teams (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL, -- e.g. "Retail", "Restaurant", "Events", "Marketing"
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE user_teams (
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id         UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, team_id)
+);
+
+-- =========================================
+-- 2) WEEKLY PLAN (THE HEART)
+-- =========================================
+
+CREATE TABLE weeks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_start      DATE NOT NULL,   -- Monday date
+  week_end        DATE NOT NULL,   -- Sunday date
+  theme           TEXT NOT NULL,   -- "Fall weekends", "Indoor tastings", "Club push"
+  primary_hook    TEXT NOT NULL,   -- the "why now" headline
+  primary_goal    TEXT NOT NULL,   -- "Increase tasting room traffic +10%"
+  kpi_target      JSONB NOT NULL DEFAULT '{}'::jsonb, -- e.g. {"tasting_room_rev": 45000}
+  owner_user_id   UUID REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'planned', -- 'planned'|'active'|'complete'
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (week_start)
+);
+
+-- Optional: break week focus into channels (email/site/social/on-site)
+CREATE TABLE week_channels (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID NOT NULL REFERENCES weeks(id) ON DELETE CASCADE,
+  channel         TEXT NOT NULL, -- 'website'|'email'|'sms'|'social'|'onsite'|'ads'
+  key_message     TEXT NOT NULL,
+  offer           TEXT,          -- optional: "10% tasting", "no offer"
+  cta_url         TEXT,
+  owner_user_id   UUID REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'planned',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================================
+-- 3) TASKS (ASSIGNMENT + EXECUTION)
+-- =========================================
+
+CREATE TABLE tasks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID REFERENCES weeks(id) ON DELETE SET NULL,
+  title           TEXT NOT NULL,
+  description     TEXT NOT NULL DEFAULT '',
+  team_id         UUID REFERENCES teams(id),
+  owner_user_id   UUID REFERENCES users(id),  -- who is responsible
+  due_date        DATE,
+  priority        TEXT NOT NULL DEFAULT 'medium', -- 'low'|'medium'|'high'|'urgent'
+  status          TEXT NOT NULL DEFAULT 'todo',   -- 'todo'|'doing'|'blocked'|'done'
+  tags            TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE task_comments (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id         UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id         UUID REFERENCES users(id),
+  comment         TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE task_activity_log (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id         UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id         UUID REFERENCES users(id),
+  action          TEXT NOT NULL, -- 'created'|'status_changed'|'assigned'|'updated'
+  from_value      TEXT,
+  to_value        TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================================
+-- 4) CAMPAIGNS (MESSAGES / PROMOTIONS)
+-- =========================================
+
+CREATE TABLE campaigns (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID REFERENCES weeks(id) ON DELETE SET NULL,
+  name            TEXT NOT NULL, -- "Weekend push email", "Rainy day tastings"
+  channel         TEXT NOT NULL, -- 'email'|'sms'|'website'|'social'|'push'|'ads'|'onsite'
+  audience        TEXT NOT NULL DEFAULT '', -- plain English segment description
+  offer           TEXT NOT NULL DEFAULT '',
+  message_subject TEXT NOT NULL DEFAULT '',
+  message_body    TEXT NOT NULL DEFAULT '',
+  cta_url         TEXT,
+  owner_user_id   UUID REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'draft', -- 'draft'|'scheduled'|'sent'|'cancelled'
+  scheduled_for   TIMESTAMPTZ,
+  sent_at         TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE campaign_metrics (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id     UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  metric_date     DATE NOT NULL DEFAULT CURRENT_DATE,
+  impressions     INTEGER NOT NULL DEFAULT 0,
+  clicks          INTEGER NOT NULL DEFAULT 0,
+  conversions     INTEGER NOT NULL DEFAULT 0,
+  revenue         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  notes           TEXT NOT NULL DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================================
+-- 5) REVENUE + KPI LOGGING (TOAST + SHOPIFY)
+-- =========================================
+
+CREATE TABLE revenue_daily (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_date   DATE NOT NULL,
+  source          TEXT NOT NULL, -- 'toast'|'shopify'|'manual'
+  location        TEXT NOT NULL DEFAULT 'overall', -- 'tasting_room'|'restaurant'|'events'|'retail' etc.
+  gross_sales     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  net_sales       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  transactions    INTEGER NOT NULL DEFAULT 0,
+  guests          INTEGER NOT NULL DEFAULT 0,
+  notes           TEXT NOT NULL DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (business_date, source, location)
+);
+
+CREATE TABLE kpi_weekly (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID NOT NULL REFERENCES weeks(id) ON DELETE CASCADE,
+  kpis            JSONB NOT NULL DEFAULT '{}'::jsonb, -- e.g. {"shopify_rev": 12000, "toast_rev": 55000}
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (week_id)
+);
+
+-- =========================================
+-- 6) LEARNINGS / NOTES (FOR ANALYSIS + MEMORY)
+-- =========================================
+
+CREATE TABLE learnings (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID REFERENCES weeks(id) ON DELETE SET NULL,
+  category        TEXT NOT NULL DEFAULT 'general', -- 'wins'|'losses'|'ideas'|'customer_feedback'
+  observation     TEXT NOT NULL,
+  hypothesis      TEXT NOT NULL DEFAULT '', -- "Why we think this happened"
+  next_action     TEXT NOT NULL DEFAULT '', -- "What we do next"
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================================
+-- 7) ASSETS (COPY BLOCKS / LINKS / CREATIVE REFERENCES)
+-- =========================================
+
+CREATE TABLE assets (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  week_id         UUID REFERENCES weeks(id) ON DELETE SET NULL,
+  type            TEXT NOT NULL, -- 'copy'|'image_link'|'landing_page'|'menu'|'promo'
+  title           TEXT NOT NULL,
+  content         TEXT NOT NULL, -- store copy or URL
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================================
+-- 8) OPTIONAL: IMPORT LOGS (FOR TOAST/SHOPIFY FILE IMPORTS)
+-- =========================================
+
+CREATE TABLE import_runs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source          TEXT NOT NULL, -- 'toast_csv'|'shopify_csv'|'api'
+  status          TEXT NOT NULL DEFAULT 'success', -- 'success'|'failed'
+  rows_imported   INTEGER NOT NULL DEFAULT 0,
+  error_message   TEXT NOT NULL DEFAULT '',
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+

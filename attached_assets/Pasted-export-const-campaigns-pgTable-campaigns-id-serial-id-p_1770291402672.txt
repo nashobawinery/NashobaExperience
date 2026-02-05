@@ -1,0 +1,47 @@
+export const campaigns = pgTable(
+  "campaigns",
+  {
+    id: serial("id").primaryKey(),
+    weekId: integer("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    channel: text("channel").notNull(), // email|sms|website|social|push|ads|onsite
+    audience: text("audience").notNull().default(""),
+    offer: text("offer").notNull().default(""),
+    messageSubject: text("message_subject").notNull().default(""),
+    messageBody: text("message_body").notNull().default(""),
+    ctaUrl: text("cta_url"),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("draft"), // draft|scheduled|sent|cancelled
+    scheduledFor: timestamp("scheduled_for"),
+    sentAt: timestamp("sent_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("campaigns_week_idx").on(t.weekId),
+    channelIdx: index("campaigns_channel_idx").on(t.channel),
+    statusIdx: index("campaigns_status_idx").on(t.status),
+    scheduledIdx: index("campaigns_scheduled_idx").on(t.scheduledFor),
+  })
+);
+
+export const campaignMetrics = pgTable(
+  "campaign_metrics",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    metricDate: date("metric_date").notNull(),
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    conversions: integer("conversions").notNull().default(0),
+    revenue: numeric("revenue", { precision: 12, scale: 2 }).notNull().default("0"),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    campaignIdx: index("campaign_metrics_campaign_idx").on(t.campaignId),
+    dateIdx: index("campaign_metrics_date_idx").on(t.metricDate),
+  })
+);

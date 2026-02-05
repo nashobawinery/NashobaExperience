@@ -1,0 +1,105 @@
+import { db } from "./db";
+import { teams, weeks, tasks, campaigns } from "../shared/schema";
+import { eq } from "drizzle-orm";
+
+/**
+ * Seed assumes you already have at least one user in users table.
+ * It will use the first user as owner/creator.
+ */
+export async function seedRevenueCommandCenter() {
+  const existingUsers = await db.select().from((await import("../shared/schema")).users).limit(1);
+  if (!existingUsers.length) {
+    throw new Error("No users found. Create an admin user first, then rerun seed.");
+  }
+  const ownerUserId = existingUsers[0].id as number;
+
+  // Teams
+  const teamNames = ["Retail", "Restaurant", "Events", "Marketing", "E-Commerce"];
+  for (const name of teamNames) {
+    // avoid duplicates
+    const found = await db.select().from(teams).where(eq(teams.name, name)).limit(1);
+    if (!found.length) await db.insert(teams).values({ name });
+  }
+
+  // Create current week (Mon-Sun) quickly with JS date math
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const diffToMon = (day + 6) % 7; // days since Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - diffToMon);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const weekStart = monday.toISOString().slice(0, 10);
+  const weekEnd = sunday.toISOString().slice(0, 10);
+
+  const [week] = await db
+    .insert(weeks)
+    .values({
+      weekStart,
+      weekEnd,
+      theme: "Weekend Recovery Push",
+      primaryHook: "This Weekend at Nashoba: Tastings + Farm-to-Table + Winter Comfort Menu",
+      primaryGoal: "Increase on-property traffic and tasting room revenue vs last week",
+      kpiTarget: { toast_rev: 0, shopify_rev: 0 },
+      ownerUserId,
+      status: "active",
+    })
+    .returning();
+
+  // Tasks
+  await db.insert(tasks).values([
+    {
+      weekId: week.id,
+      title: "Add 'This Weekend at Nashoba' block to homepage",
+      description: "Above the fold. One hook + CTA to plan visit.",
+      ownerUserId,
+      priority: "urgent",
+      status: "todo",
+      tags: ["website", "conversion"],
+      createdBy: ownerUserId,
+    },
+    {
+      weekId: week.id,
+      title: "Draft and send Weekend Email #1 (Thursday AM)",
+      description: "One hook, one CTA, no clutter. Include tastings + dining + event highlight.",
+      ownerUserId,
+      priority: "high",
+      status: "todo",
+      tags: ["email"],
+      createdBy: ownerUserId,
+    },
+  ]);
+
+  // Campaign draft
+  await db.insert(campaigns).values({
+    weekId: week.id,
+    name: "Weekend Push Email",
+    channel: "email",
+    audience: "All subscribers + recent purchasers (manual for now)",
+    offer: "No discount (experience + urgency)",
+    messageSubject: "This Weekend at Nashoba 🍷 Tastings + Farm-to-Table",
+    messageBody:
+      "Headline: This Weekend at Nashoba Valley\n\nHook: [insert weekly hook]\n\nWhat’s happening:\n- Tastings\n- Farm-to-table dining\n- Seasonal feature\n\nCTA: Plan your visit → [link]\n",
+    ctaUrl: "https://www.nashobawinery.com",
+    ownerUserId,
+    status: "draft",
+  });
+
+  return { ok: true, weekId: week.id };
+}
+
+// run directly (optional)
+if (require.main === module) {
+  seedRevenueCommandCenter()
+    .then((r) => {
+      console.log("Seed complete:", r);
+      process.exit(0);
+    })
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}

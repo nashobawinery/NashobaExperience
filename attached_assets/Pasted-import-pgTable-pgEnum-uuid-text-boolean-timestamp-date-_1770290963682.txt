@@ -1,0 +1,388 @@
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  text,
+  boolean,
+  timestamp,
+  date,
+  integer,
+  numeric,
+  jsonb,
+  primaryKey,
+  uniqueIndex,
+  index,
+} from "drizzle-orm/pg-core";
+
+// =====================================================
+// ENUMS (keeps data clean; optional but recommended)
+// =====================================================
+
+export const userRoleEnum = pgEnum("user_role", ["owner", "manager", "staff"]);
+
+export const weekStatusEnum = pgEnum("week_status", ["planned", "active", "complete"]);
+
+export const channelEnum = pgEnum("channel", [
+  "website",
+  "email",
+  "sms",
+  "social",
+  "onsite",
+  "ads",
+  "push",
+]);
+
+export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
+
+export const taskStatusEnum = pgEnum("task_status", ["todo", "doing", "blocked", "done"]);
+
+export const campaignStatusEnum = pgEnum("campaign_status", [
+  "draft",
+  "scheduled",
+  "sent",
+  "cancelled",
+]);
+
+export const revenueSourceEnum = pgEnum("revenue_source", ["toast", "shopify", "manual"]);
+
+export const learningCategoryEnum = pgEnum("learning_category", [
+  "general",
+  "wins",
+  "losses",
+  "ideas",
+  "customer_feedback",
+]);
+
+export const assetTypeEnum = pgEnum("asset_type", [
+  "copy",
+  "image_link",
+  "landing_page",
+  "menu",
+  "promo",
+]);
+
+export const importSourceEnum = pgEnum("import_source", ["toast_csv", "shopify_csv", "api"]);
+
+export const importStatusEnum = pgEnum("import_status", ["success", "failed"]);
+
+// =====================================================
+// 1) USERS / TEAMS / ROLES
+// =====================================================
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    fullName: text("full_name").notNull(),
+    role: userRoleEnum("role").notNull().default("staff"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    emailUnique: uniqueIndex("users_email_unique").on(t.email),
+    roleIdx: index("users_role_idx").on(t.role),
+    activeIdx: index("users_active_idx").on(t.isActive),
+  })
+);
+
+export const teams = pgTable(
+  "teams",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(), // Retail, Restaurant, Events, Marketing, etc.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    nameIdx: uniqueIndex("teams_name_unique").on(t.name),
+  })
+);
+
+export const userTeams = pgTable(
+  "user_teams",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.teamId], name: "user_teams_pk" }),
+    userIdx: index("user_teams_user_idx").on(t.userId),
+    teamIdx: index("user_teams_team_idx").on(t.teamId),
+  })
+);
+
+// =====================================================
+// 2) WEEKLY PLAN (THE HEART)
+// =====================================================
+
+export const weeks = pgTable(
+  "weeks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekStart: date("week_start").notNull(), // Monday
+    weekEnd: date("week_end").notNull(), // Sunday
+    theme: text("theme").notNull(),
+    primaryHook: text("primary_hook").notNull(),
+    primaryGoal: text("primary_goal").notNull(),
+    // targets like {"toast_rev": 55000, "shopify_rev": 12000}
+    kpiTarget: jsonb("kpi_target").notNull().default({}),
+    ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: weekStatusEnum("status").notNull().default("planned"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekStartUnique: uniqueIndex("weeks_week_start_unique").on(t.weekStart),
+    statusIdx: index("weeks_status_idx").on(t.status),
+    ownerIdx: index("weeks_owner_idx").on(t.ownerUserId),
+  })
+);
+
+export const weekChannels = pgTable(
+  "week_channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id")
+      .notNull()
+      .references(() => weeks.id, { onDelete: "cascade" }),
+    channel: channelEnum("channel").notNull(),
+    keyMessage: text("key_message").notNull(),
+    offer: text("offer"),
+    ctaUrl: text("cta_url"),
+    ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: weekStatusEnum("status").notNull().default("planned"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("week_channels_week_idx").on(t.weekId),
+    channelIdx: index("week_channels_channel_idx").on(t.channel),
+  })
+);
+
+// =====================================================
+// 3) TASKS
+// =====================================================
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+    ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    dueDate: date("due_date"),
+    priority: taskPriorityEnum("priority").notNull().default("medium"),
+    status: taskStatusEnum("status").notNull().default("todo"),
+    tags: text("tags").array().notNull().default([]),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("tasks_week_idx").on(t.weekId),
+    ownerIdx: index("tasks_owner_idx").on(t.ownerUserId),
+    teamIdx: index("tasks_team_idx").on(t.teamId),
+    statusIdx: index("tasks_status_idx").on(t.status),
+    dueIdx: index("tasks_due_idx").on(t.dueDate),
+  })
+);
+
+export const taskComments = pgTable(
+  "task_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    comment: text("comment").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index("task_comments_task_idx").on(t.taskId),
+  })
+);
+
+export const taskActivityLog = pgTable(
+  "task_activity_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // keep flexible: 'created'|'status_changed'|'assigned'|'updated'
+    fromValue: text("from_value"),
+    toValue: text("to_value"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index("task_activity_task_idx").on(t.taskId),
+    actionIdx: index("task_activity_action_idx").on(t.action),
+  })
+);
+
+// =====================================================
+// 4) CAMPAIGNS + METRICS
+// =====================================================
+
+export const campaigns = pgTable(
+  "campaigns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    channel: channelEnum("channel").notNull(),
+    audience: text("audience").notNull().default(""),
+    offer: text("offer").notNull().default(""),
+    messageSubject: text("message_subject").notNull().default(""),
+    messageBody: text("message_body").notNull().default(""),
+    ctaUrl: text("cta_url"),
+    ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: campaignStatusEnum("status").notNull().default("draft"),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("campaigns_week_idx").on(t.weekId),
+    channelIdx: index("campaigns_channel_idx").on(t.channel),
+    statusIdx: index("campaigns_status_idx").on(t.status),
+    scheduledIdx: index("campaigns_scheduled_idx").on(t.scheduledFor),
+  })
+);
+
+export const campaignMetrics = pgTable(
+  "campaign_metrics",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    metricDate: date("metric_date").notNull().defaultNow(),
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    conversions: integer("conversions").notNull().default(0),
+    revenue: numeric("revenue", { precision: 12, scale: 2 }).notNull().default("0"),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    campaignIdx: index("campaign_metrics_campaign_idx").on(t.campaignId),
+    dateIdx: index("campaign_metrics_date_idx").on(t.metricDate),
+  })
+);
+
+// =====================================================
+// 5) REVENUE (TOAST + SHOPIFY)
+// =====================================================
+
+export const revenueDaily = pgTable(
+  "revenue_daily",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessDate: date("business_date").notNull(),
+    source: revenueSourceEnum("source").notNull(),
+    location: text("location").notNull().default("overall"),
+    grossSales: numeric("gross_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+    netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+    transactions: integer("transactions").notNull().default(0),
+    guests: integer("guests").notNull().default(0),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex("revenue_daily_unique").on(t.businessDate, t.source, t.location),
+    dateIdx: index("revenue_daily_date_idx").on(t.businessDate),
+    sourceIdx: index("revenue_daily_source_idx").on(t.source),
+  })
+);
+
+export const kpiWeekly = pgTable(
+  "kpi_weekly",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id")
+      .notNull()
+      .references(() => weeks.id, { onDelete: "cascade" }),
+    // {"toast_rev": 55000, "shopify_rev": 12000, "traffic_est": 1234}
+    kpis: jsonb("kpis").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekUnique: uniqueIndex("kpi_weekly_week_unique").on(t.weekId),
+  })
+);
+
+// =====================================================
+// 6) LEARNINGS / NOTES
+// =====================================================
+
+export const learnings = pgTable(
+  "learnings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    category: learningCategoryEnum("category").notNull().default("general"),
+    observation: text("observation").notNull(),
+    hypothesis: text("hypothesis").notNull().default(""),
+    nextAction: text("next_action").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("learnings_week_idx").on(t.weekId),
+    categoryIdx: index("learnings_category_idx").on(t.category),
+  })
+);
+
+// =====================================================
+// 7) ASSETS (COPY / LINKS / CREATIVE)
+// =====================================================
+
+export const assets = pgTable(
+  "assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    weekId: uuid("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    type: assetTypeEnum("type").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(), // store copy or URL
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("assets_week_idx").on(t.weekId),
+    typeIdx: index("assets_type_idx").on(t.type),
+  })
+);
+
+// =====================================================
+// 8) IMPORT RUNS (CSV/API logs)
+// =====================================================
+
+export const importRuns = pgTable(
+  "import_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    source: importSourceEnum("source").notNull(),
+    status: importStatusEnum("status").notNull().default("success"),
+    rowsImported: integer("rows_imported").notNull().default(0),
+    errorMessage: text("error_message").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    sourceIdx: index("import_runs_source_idx").on(t.source),
+    statusIdx: index("import_runs_status_idx").on(t.status),
+  })
+);

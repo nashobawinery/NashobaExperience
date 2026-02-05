@@ -1,0 +1,61 @@
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: serial("id").primaryKey(),
+    weekId: integer("week_id").references(() => weeks.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    dueDate: date("due_date"),
+    priority: text("priority").notNull().default("medium"), // low|medium|high|urgent
+    status: text("status").notNull().default("todo"), // todo|doing|blocked|done
+    // tags as JSON for simplicity (arrays sometimes trip folks up on db:push)
+    tags: jsonb("tags").notNull().default([]),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index("tasks_week_idx").on(t.weekId),
+    ownerIdx: index("tasks_owner_idx").on(t.ownerUserId),
+    teamIdx: index("tasks_team_idx").on(t.teamId),
+    statusIdx: index("tasks_status_idx").on(t.status),
+    dueIdx: index("tasks_due_idx").on(t.dueDate),
+  })
+);
+
+export const taskComments = pgTable(
+  "task_comments",
+  {
+    id: serial("id").primaryKey(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    comment: text("comment").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index("task_comments_task_idx").on(t.taskId),
+  })
+);
+
+export const taskActivityLog = pgTable(
+  "task_activity_log",
+  {
+    id: serial("id").primaryKey(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // created|status_changed|assigned|updated
+    fromValue: text("from_value"),
+    toValue: text("to_value"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index("task_activity_task_idx").on(t.taskId),
+    actionIdx: index("task_activity_action_idx").on(t.action),
+  })
+);
