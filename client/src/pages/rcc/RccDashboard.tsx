@@ -40,7 +40,9 @@ import {
   CloudLightning,
   CloudFog,
   Thermometer,
-  RefreshCw
+  RefreshCw,
+  Download,
+  Upload
 } from "lucide-react";
 import type { 
   RccWeek, 
@@ -146,6 +148,18 @@ export default function RccDashboard() {
           <h1 className="text-3xl font-bold tracking-tight" data-testid="rcc-title">Revenue Command Center</h1>
           <p className="text-muted-foreground">Weekly planning and execution hub</p>
         </div>
+        {activeWeekId && (
+          <ExportImportButtons 
+            weekId={activeWeekId} 
+            weeks={weeks || []} 
+            onImportComplete={(targetWeekId) => {
+              queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/rcc/weeks/current"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/rcc/tasks", targetWeekId] });
+              queryClient.invalidateQueries({ queryKey: ["/api/rcc/campaigns", targetWeekId] });
+            }}
+          />
+        )}
       </div>
 
       <WeekSelector 
@@ -247,6 +261,184 @@ export default function RccDashboard() {
           </Tabs>
         </>
       )}
+    </div>
+  );
+}
+
+function ExportImportButtons({ 
+  weekId, 
+  weeks,
+  onImportComplete 
+}: { 
+  weekId: number; 
+  weeks: RccWeek[];
+  onImportComplete: (targetWeekId: number) => void;
+}) {
+  const { toast } = useToast();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importData, setImportData] = useState<string>("");
+  const [targetWeekId, setTargetWeekId] = useState<string>(weekId.toString());
+  const [clearExisting, setClearExisting] = useState(false);
+
+  // Keep target week in sync with active week
+  useEffect(() => {
+    setTargetWeekId(weekId.toString());
+  }, [weekId]);
+
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/rcc/weeks/${weekId}/export`);
+      if (!res.ok) throw new Error("Export failed");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const week = weeks.find(w => w.id === weekId);
+      const weekLabel = week ? format(parseISO(week.weekStart), "yyyy-MM-dd") : weekId;
+      a.download = `rcc-week-${weekLabel}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export successful", description: "Week data downloaded" });
+    },
+    onError: () => {
+      toast({ title: "Export failed", variant: "destructive" });
+    }
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      const data = JSON.parse(importData);
+      const res = await apiRequest("POST", `/api/rcc/weeks/${targetWeekId}/import`, { 
+        data, 
+        clearExisting 
+      });
+      if (!res.ok) throw new Error("Import failed");
+      return res.json();
+    },
+    onSuccess: (result) => {
+      toast({ 
+        title: "Import successful", 
+        description: `Created ${result.tasksCreated} tasks and ${result.campaignsCreated} campaigns` 
+      });
+      setImportDialogOpen(false);
+      setImportData("");
+      onImportComplete(parseInt(targetWeekId));
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Import failed", 
+        description: error.message || "Check your JSON format",
+        variant: "destructive" 
+      });
+    }
+  });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImportData(event.target?.result as string);
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={() => exportMutation.mutate()}
+        disabled={exportMutation.isPending}
+        data-testid="btn-export-week"
+      >
+        <Download className="h-4 w-4 mr-2" />
+        Export
+      </Button>
+      
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" data-testid="btn-import-week">
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import Week Data</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Upload JSON file</Label>
+              <Input 
+                type="file" 
+                accept=".json"
+                onChange={handleFileUpload}
+                className="mt-1"
+                data-testid="input-import-file"
+              />
+            </div>
+            
+            <div>
+              <Label>Or paste JSON directly</Label>
+              <Textarea 
+                value={importData}
+                onChange={(e) => setImportData(e.target.value)}
+                placeholder='{"focus": {...}, "tasks": [...], "campaigns": [...]}'
+                rows={6}
+                className="mt-1 font-mono text-xs"
+                data-testid="textarea-import-json"
+              />
+            </div>
+
+            <div>
+              <Label>Target Week</Label>
+              <Select value={targetWeekId} onValueChange={setTargetWeekId}>
+                <SelectTrigger className="mt-1" data-testid="select-target-week">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {weeks.map(week => (
+                    <SelectItem key={week.id} value={week.id.toString()}>
+                      {format(parseISO(week.weekStart), "MMM d")} - {format(parseISO(week.weekEnd), "MMM d, yyyy")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="clearExisting"
+                checked={clearExisting}
+                onChange={(e) => setClearExisting(e.target.checked)}
+                className="rounded"
+                data-testid="checkbox-clear-existing"
+              />
+              <Label htmlFor="clearExisting" className="text-sm font-normal">
+                Clear existing tasks and campaigns before import
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => importMutation.mutate()}
+              disabled={!importData || importMutation.isPending}
+              data-testid="btn-confirm-import"
+            >
+              {importMutation.isPending ? "Importing..." : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
