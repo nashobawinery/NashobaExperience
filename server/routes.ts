@@ -15483,27 +15483,45 @@ Generate a professional response:`;
       // TOAST REVENUE EMAIL DETECTION
       // Check if this email is a revenue report from Toast POS
       // ============================================
+      const bodyText = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const bodyLower = bodyText.toLowerCase();
+      
+      // Check sender, subject, OR body for Toast indicators
       const isToastEmail = fromEmailLower.includes('toasttab.com') || 
                            fromEmailLower.includes('toast') ||
-                           subjectLower.includes('toast');
+                           subjectLower.includes('toast') ||
+                           bodyLower.includes('toast') ||
+                           subjectLower.includes('management group'); // Toast daily summary title
+      
+      // Check for revenue-related keywords in subject or body
       const isRevenueEmail = subjectLower.includes('revenue') || 
                              subjectLower.includes('daily') ||
                              subjectLower.includes('net sales') ||
-                             subjectLower.includes('sales report');
+                             subjectLower.includes('sales report') ||
+                             subjectLower.includes('management group') || // Toast daily summary
+                             bodyLower.includes('net sales') ||
+                             bodyLower.includes('total revenue') ||
+                             bodyLower.includes('gross sales');
       
       if (isToastEmail && isRevenueEmail) {
         console.log('[Email Inbound] Detected Toast revenue email');
-        
-        const bodyText = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        console.log('[Email Inbound] Subject:', subject);
+        console.log('[Email Inbound] Body preview:', bodyText.substring(0, 500));
         
         // Parse date from email - look for various date formats
         let revenueDate: string | null = null;
+        const searchText = subject + ' ' + bodyText;
+        
         // Look for YYYY-MM-DD format
-        const isoDateMatch = bodyText.match(/(\d{4}-\d{2}-\d{2})/);
+        const isoDateMatch = searchText.match(/(\d{4}-\d{2}-\d{2})/);
         // Look for MM/DD/YYYY or M/D/YYYY format
-        const usDateMatch = bodyText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-        // Look for "Month Day, Year" format
-        const longDateMatch = bodyText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+        const usDateMatch = searchText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        // Look for "Month Day, Year" format (with year)
+        const longDateMatch = searchText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+        // Look for "Day, Month Day" format without year (e.g., "Wednesday, February 4") - assume current year
+        const shortDateMatch = searchText.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})/i);
+        
+        const monthNames: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
         
         if (isoDateMatch) {
           revenueDate = isoDateMatch[1];
@@ -15513,11 +15531,17 @@ Generate a professional response:`;
           const year = usDateMatch[3];
           revenueDate = `${year}-${month}-${day}`;
         } else if (longDateMatch) {
-          const monthNames: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
           const month = monthNames[longDateMatch[1].toLowerCase().slice(0, 3)];
           const day = longDateMatch[2].padStart(2, '0');
           const year = longDateMatch[3];
           revenueDate = `${year}-${month}-${day}`;
+        } else if (shortDateMatch) {
+          // No year in date, use current year
+          const month = monthNames[shortDateMatch[1].toLowerCase().slice(0, 3)];
+          const day = shortDateMatch[2].padStart(2, '0');
+          const year = new Date().getFullYear().toString();
+          revenueDate = `${year}-${month}-${day}`;
+          console.log('[Email Inbound] Parsed date from short format:', revenueDate);
         }
         
         // Parse revenue amount - look for dollar amounts
