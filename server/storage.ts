@@ -7203,14 +7203,10 @@ export class DatabaseStorage implements IStorage {
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
-      // Calculate prior year date with same day of week
-      // Go back ~52 weeks to get same day of week in prior year
+      // Calculate prior year date with same day of week using 52-week offset
+      // This guarantees the same day of week (52 weeks = 364 days, exactly 52*7)
       const priorYearDate = new Date(currentDate);
-      priorYearDate.setFullYear(priorYearDate.getFullYear() - 1);
-      // Adjust to same day of week
-      const priorDayOfWeek = priorYearDate.getDay();
-      const dayDiff = dayOfWeek - priorDayOfWeek;
-      priorYearDate.setDate(priorYearDate.getDate() + dayDiff);
+      priorYearDate.setDate(priorYearDate.getDate() - 364); // 52 weeks * 7 days
       
       currentDates.push({
         date: currentDate.toISOString().split('T')[0],
