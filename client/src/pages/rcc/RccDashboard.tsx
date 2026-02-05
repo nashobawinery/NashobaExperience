@@ -802,12 +802,12 @@ function TasksPanel({
             <Lightbulb className="h-5 w-5 text-yellow-500" />
             Learnings
           </CardTitle>
-          <CardDescription>What worked, what didn't, what to try next</CardDescription>
+          <CardDescription>What we observed this week</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4">
             <Input 
-              placeholder="Log a learning..." 
+              placeholder="What happened? (e.g., 'Rain reduced Saturday traffic despite promotion')" 
               value={newIdea}
               onChange={(e) => setNewIdea(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddIdea()}
