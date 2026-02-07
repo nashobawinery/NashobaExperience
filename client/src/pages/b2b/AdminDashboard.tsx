@@ -5745,7 +5745,7 @@ export default function AdminDashboard() {
                               <SelectContent>
                                 {adminProducts?.map((product) => (
                                   <SelectItem key={product.id} value={product.id}>
-                                    {product.name} - ${product.price}/case ({product.caseSize} bottles)
+                                    {product.name} - ${product.price}/bottle (${(Number(product.price) * (product.caseSize || 12)).toFixed(2)}/case of {product.caseSize})
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -5897,7 +5897,7 @@ export default function AdminDashboard() {
                               <SelectContent>
                                 {adminProducts?.map((product) => (
                                   <SelectItem key={product.id} value={product.id}>
-                                    {product.name} - ${product.price}/case ({product.caseSize} bottles)
+                                    {product.name} - ${product.price}/bottle (${(Number(product.price) * (product.caseSize || 12)).toFixed(2)}/case of {product.caseSize})
                                   </SelectItem>
                                 ))}
                               </SelectContent>
