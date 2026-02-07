@@ -2203,6 +2203,7 @@ router.get('/api/b2b/admin/reports/product-pricing-commissions', requireB2bAdmin
         category: p.category,
         sku: p.sku,
         retailPrice: p.price,
+        cost: p.cost,
         caseSize: p.caseSize,
       })),
       pricingTiers: allPricingTiers.map(t => ({

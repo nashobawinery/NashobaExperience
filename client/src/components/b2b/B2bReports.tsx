@@ -540,6 +540,7 @@ interface PricingReportData {
     category: string;
     sku: string | null;
     retailPrice: string;
+    cost: string | null;
     caseSize: number | null;
   }>;
   pricingTiers: Array<{
@@ -668,20 +669,22 @@ function ProductPricingCommissionReport() {
                   <th className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">Product</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Category</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Retail</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Cost</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Pricing Tier</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Wholesale</th>
                   {commissionTiers.map(ct => (
-                    <th key={ct.id} colSpan={2} className="text-center py-2 px-1 font-medium text-muted-foreground whitespace-nowrap border-l">
+                    <th key={ct.id} colSpan={3} className="text-center py-2 px-1 font-medium text-muted-foreground whitespace-nowrap border-l">
                       {ct.tierName} ({ct.ratePercent}%)
                     </th>
                   ))}
                 </tr>
                 <tr className="border-b">
-                  <th colSpan={5}></th>
+                  <th colSpan={6}></th>
                   {commissionTiers.map(ct => (
                     <Fragment key={`sub-${ct.id}`}>
                       <th className="text-right py-1 px-2 font-normal text-xs text-muted-foreground whitespace-nowrap border-l">Commission</th>
                       <th className="text-right py-1 px-2 font-normal text-xs text-muted-foreground whitespace-nowrap">Net Price</th>
+                      <th className="text-right py-1 px-2 font-normal text-xs text-muted-foreground whitespace-nowrap">Net After COG</th>
                     </Fragment>
                   ))}
                 </tr>
@@ -692,6 +695,7 @@ function ProductPricingCommissionReport() {
                   const retailPrice = parseFloat(product.retailPrice);
 
                   if (pricingTiers.length === 0) {
+                    const costVal = product.cost ? parseFloat(product.cost) : 0;
                     return (
                       <tr key={product.id} className="border-b last:border-0" data-testid={`row-pricing-${product.id}`}>
                         <td className="py-2.5 pr-3 font-medium">{product.name}</td>
@@ -699,16 +703,19 @@ function ProductPricingCommissionReport() {
                           <Badge variant="secondary">{fmtCategory(product.category)}</Badge>
                         </td>
                         <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{product.cost ? fmtCurrency(costVal) : '—'}</td>
                         <td className="py-2.5 px-3 text-right text-muted-foreground text-xs">No tier</td>
                         <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
                         {commissionTiers.map(ct => {
                           const rate = parseFloat(ct.ratePercent) / 100;
                           const commission = retailPrice * rate;
                           const net = retailPrice - commission;
+                          const netAfterCog = net - costVal;
                           return (
                             <Fragment key={ct.id}>
                               <td className="py-2.5 px-2 text-right text-muted-foreground border-l">{fmtCurrency(commission)}</td>
                               <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(net)}</td>
+                              <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(netAfterCog)}</td>
                             </Fragment>
                           );
                         })}
@@ -716,6 +723,7 @@ function ProductPricingCommissionReport() {
                     );
                   }
 
+                  const costVal = product.cost ? parseFloat(product.cost) : 0;
                   return pricingTiers.map((tier, tierIdx) => {
                     const discount = parseFloat(tier.discountPercentage) / 100;
                     const wholesalePrice = retailPrice * (1 - discount);
@@ -731,6 +739,7 @@ function ProductPricingCommissionReport() {
                           {tierIdx === 0 && <Badge variant="secondary">{fmtCategory(product.category)}</Badge>}
                         </td>
                         <td className="py-2.5 px-3 text-right font-medium">{tierIdx === 0 ? fmtCurrency(retailPrice) : ''}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{tierIdx === 0 ? (product.cost ? fmtCurrency(costVal) : '—') : ''}</td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <span className="text-xs">{tier.tierName}</span>
                           <span className="text-xs text-muted-foreground ml-1">(-{tier.discountPercentage}%)</span>
@@ -740,10 +749,12 @@ function ProductPricingCommissionReport() {
                           const rate = parseFloat(ct.ratePercent) / 100;
                           const commission = wholesalePrice * rate;
                           const net = wholesalePrice - commission;
+                          const netAfterCog = net - costVal;
                           return (
                             <Fragment key={ct.id}>
                               <td className="py-2.5 px-2 text-right text-muted-foreground border-l">{fmtCurrency(commission)}</td>
                               <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(net)}</td>
+                              <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(netAfterCog)}</td>
                             </Fragment>
                           );
                         })}
