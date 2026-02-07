@@ -2189,6 +2189,43 @@ router.post('/api/b2b/admin/commission-tiers/calculate', requireB2bAdminOrSalesR
   }
 });
 
+// Product Pricing & Commission Report (admin)
+router.get('/api/b2b/admin/reports/product-pricing-commissions', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const allProducts = await db.select().from(products).where(eq(products.available, true)).orderBy(products.category, products.name);
+    const allPricingTiers = await db.select().from(tierPricing).where(eq(tierPricing.active, true)).orderBy(tierPricing.sortOrder);
+    const allCommissionTiers = await db.select().from(b2bCommissionTiers).where(eq(b2bCommissionTiers.active, true)).orderBy(b2bCommissionTiers.sortOrder);
+
+    res.json({
+      products: allProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        sku: p.sku,
+        retailPrice: p.price,
+        caseSize: p.caseSize,
+      })),
+      pricingTiers: allPricingTiers.map(t => ({
+        id: t.id,
+        tierName: t.tierName,
+        category: t.category,
+        discountPercentage: t.discountPercentage,
+        commitmentCases: t.commitmentCases,
+      })),
+      commissionTiers: allCommissionTiers.map(ct => ({
+        id: ct.id,
+        tierName: ct.tierName,
+        ratePercent: ct.ratePercent,
+        minAnnualSales: ct.minAnnualSales,
+        maxAnnualSales: ct.maxAnnualSales,
+      })),
+    });
+  } catch (error) {
+    console.error('Error generating product pricing commission report:', error);
+    res.status(500).json({ error: 'Failed to generate report' });
+  }
+});
+
 // Tiered commission calculation helper
 function calculateTieredCommission(annualSales: number, tiers: any[]) {
   let totalCommission = 0;

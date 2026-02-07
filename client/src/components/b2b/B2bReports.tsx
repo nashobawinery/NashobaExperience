@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useB2bAdminOrders, useB2bAdminSalesReps, type B2bOrder, type SalesRep } from "@/hooks/useB2bAdmin";
 import { useB2bAdminCustomers } from "@/hooks/useB2bAdminCustomers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, TrendingUp, Package, Users, BarChart3, Calendar, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { DollarSign, TrendingUp, Package, Users, BarChart3, Calendar, ArrowUpRight, ArrowDownRight, Layers } from "lucide-react";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, parseISO, subMonths } from "date-fns";
 
 type DateRange = "7d" | "30d" | "90d" | "ytd" | "all";
@@ -277,6 +278,10 @@ export default function B2bReports() {
             <BarChart3 className="w-3.5 h-3.5" />
             Order Status
           </TabsTrigger>
+          <TabsTrigger value="pricing-commissions" className="gap-1.5 text-xs px-2.5" data-testid="tab-report-pricing-commissions">
+            <Layers className="w-3.5 h-3.5" />
+            Pricing &amp; Commissions
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="by-customer">
@@ -519,7 +524,245 @@ export default function B2bReports() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="pricing-commissions">
+          <ProductPricingCommissionReport />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+interface PricingReportData {
+  products: Array<{
+    id: string;
+    name: string;
+    category: string;
+    sku: string | null;
+    retailPrice: string;
+    caseSize: number | null;
+  }>;
+  pricingTiers: Array<{
+    id: string;
+    tierName: string;
+    category: string;
+    discountPercentage: string;
+    commitmentCases: number | null;
+  }>;
+  commissionTiers: Array<{
+    id: string;
+    tierName: string;
+    ratePercent: string;
+    minAnnualSales: string;
+    maxAnnualSales: string | null;
+  }>;
+}
+
+function ProductPricingCommissionReport() {
+  const { data, isLoading } = useQuery<PricingReportData>({
+    queryKey: ['/api/b2b/admin/reports/product-pricing-commissions'],
+  });
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedPricingTier, setSelectedPricingTier] = useState<string>("all");
+
+  const categories = useMemo(() => {
+    if (!data?.products) return [];
+    const cats = Array.from(new Set(data.products.map(p => p.category)));
+    return cats.sort();
+  }, [data]);
+
+  const uniquePricingTierNames = useMemo(() => {
+    if (!data?.pricingTiers) return [];
+    const names = Array.from(new Set(data.pricingTiers.map(t => t.tierName)));
+    return names;
+  }, [data]);
+
+  const filteredProducts = useMemo(() => {
+    if (!data?.products) return [];
+    if (selectedCategory === "all") return data.products;
+    return data.products.filter(p => p.category === selectedCategory);
+  }, [data, selectedCategory]);
+
+  const getPricingTiersForCategory = (category: string) => {
+    if (!data?.pricingTiers) return [];
+    return data.pricingTiers.filter(t => t.category === category);
+  };
+
+  const getDisplayPricingTiers = (category: string) => {
+    const tiers = getPricingTiersForCategory(category);
+    if (selectedPricingTier === "all") return tiers;
+    return tiers.filter(t => t.tierName === selectedPricingTier);
+  };
+
+  const commissionTiers = data?.commissionTiers || [];
+
+  const fmtCurrency = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+  const fmtCategory = (c: string) =>
+    c.replace(/_/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <Skeleton className="h-6 w-48 mb-4" />
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data || data.products.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">No product data available</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base" data-testid="text-pricing-commission-title">Product Pricing &amp; Commission Report</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Shows wholesale tier pricing for each product with commission costs and net prices per commission tier
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[160px]" data-testid="select-report-category">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c} value={c}>{fmtCategory(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedPricingTier} onValueChange={setSelectedPricingTier}>
+                <SelectTrigger className="w-[160px]" data-testid="select-report-pricing-tier">
+                  <SelectValue placeholder="All Pricing Tiers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Pricing Tiers</SelectItem>
+                  {uniquePricingTierNames.map(n => (
+                    <SelectItem key={n} value={n}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">Product</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Category</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Retail</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Pricing Tier</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Wholesale</th>
+                  {commissionTiers.map(ct => (
+                    <th key={ct.id} colSpan={2} className="text-center py-2 px-1 font-medium text-muted-foreground whitespace-nowrap border-l">
+                      {ct.tierName} ({ct.ratePercent}%)
+                    </th>
+                  ))}
+                </tr>
+                <tr className="border-b">
+                  <th colSpan={5}></th>
+                  {commissionTiers.map(ct => (
+                    <Fragment key={`sub-${ct.id}`}>
+                      <th className="text-right py-1 px-2 font-normal text-xs text-muted-foreground whitespace-nowrap border-l">Commission</th>
+                      <th className="text-right py-1 px-2 font-normal text-xs text-muted-foreground whitespace-nowrap">Net Price</th>
+                    </Fragment>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => {
+                  const pricingTiers = getDisplayPricingTiers(product.category);
+                  const retailPrice = parseFloat(product.retailPrice);
+
+                  if (pricingTiers.length === 0) {
+                    return (
+                      <tr key={product.id} className="border-b last:border-0" data-testid={`row-pricing-${product.id}`}>
+                        <td className="py-2.5 pr-3 font-medium">{product.name}</td>
+                        <td className="py-2.5 px-3">
+                          <Badge variant="secondary">{fmtCategory(product.category)}</Badge>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground text-xs">No tier</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
+                        {commissionTiers.map(ct => {
+                          const rate = parseFloat(ct.ratePercent) / 100;
+                          const commission = retailPrice * rate;
+                          const net = retailPrice - commission;
+                          return (
+                            <Fragment key={ct.id}>
+                              <td className="py-2.5 px-2 text-right text-muted-foreground border-l">{fmtCurrency(commission)}</td>
+                              <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(net)}</td>
+                            </Fragment>
+                          );
+                        })}
+                      </tr>
+                    );
+                  }
+
+                  return pricingTiers.map((tier, tierIdx) => {
+                    const discount = parseFloat(tier.discountPercentage) / 100;
+                    const wholesalePrice = retailPrice * (1 - discount);
+
+                    return (
+                      <tr
+                        key={`${product.id}-${tier.id}`}
+                        className={`border-b last:border-0 ${tierIdx > 0 ? 'bg-muted/30' : ''}`}
+                        data-testid={`row-pricing-${product.id}-${tier.tierName}`}
+                      >
+                        <td className="py-2.5 pr-3 font-medium">{tierIdx === 0 ? product.name : ''}</td>
+                        <td className="py-2.5 px-3">
+                          {tierIdx === 0 && <Badge variant="secondary">{fmtCategory(product.category)}</Badge>}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium">{tierIdx === 0 ? fmtCurrency(retailPrice) : ''}</td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <span className="text-xs">{tier.tierName}</span>
+                          <span className="text-xs text-muted-foreground ml-1">(-{tier.discountPercentage}%)</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(wholesalePrice)}</td>
+                        {commissionTiers.map(ct => {
+                          const rate = parseFloat(ct.ratePercent) / 100;
+                          const commission = wholesalePrice * rate;
+                          const net = wholesalePrice - commission;
+                          return (
+                            <Fragment key={ct.id}>
+                              <td className="py-2.5 px-2 text-right text-muted-foreground border-l">{fmtCurrency(commission)}</td>
+                              <td className="py-2.5 px-2 text-right font-medium">{fmtCurrency(net)}</td>
+                            </Fragment>
+                          );
+                        })}
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <p className="text-xs text-muted-foreground">
+              <strong>Note:</strong> Commission amounts shown are per-unit based on each commission tier rate.
+              Actual sales rep commissions use marginal brackets based on YTD collected revenue.
+              Reps with flat rate commission use their fixed percentage regardless of tier.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
