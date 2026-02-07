@@ -777,12 +777,16 @@ export async function applySyncOperations(
             
             // First, fetch the record from dev using parameterized query
             const devQuery = `SELECT * FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`;
+            console.log(`[Sync Debug] dev_to_prod query: ${devQuery}`, { whereValues, tableId, businessKey: op.businessKey });
             const devResult = await devPool.query(devQuery, whereValues);
             
             if (!devResult.rows || devResult.rows.length === 0) {
+              console.error(`[Sync Debug] Record NOT found in dev for ${tableId}:`, { businessKey: op.businessKey, query: devQuery, whereValues });
               errors.push({ tableId, error: `Record not found in dev: ${JSON.stringify(op.businessKey)}` });
               continue;
             }
+            
+            console.log(`[Sync Debug] Found dev record for ${tableId}:`, Object.keys(devResult.rows[0]));
             
             // Database returns snake_case columns - convert record keys to snake_case for access
             const devRecord = devResult.rows[0] as Record<string, any>;
@@ -859,11 +863,9 @@ export async function applySyncOperations(
                   continue;
                 }
                 // Insert new record in production
-                console.log(`[Sync] Inserting into ${tableName} in prod:`, { businessKey: op.businessKey });
-                await prodPool.query(
-                  `INSERT INTO ${escapeIdentifier(tableName)} (${insertCols}) VALUES (${insertVals})`,
-                  values
-                );
+                const insertQuery = `INSERT INTO ${escapeIdentifier(tableName)} (${insertCols}) VALUES (${insertVals})`;
+                console.log(`[Sync] Inserting into ${tableName} in prod:`, { businessKey: op.businessKey, query: insertQuery, columns, valueCount: values.length });
+                await prodPool.query(insertQuery, values);
               }
             }
             
