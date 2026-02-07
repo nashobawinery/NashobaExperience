@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, ilike, like, or, sql, inArray, isNull, gt, type SQL } from "drizzle-orm";
+import { eq, and, desc, ilike, like, or, sql, inArray, isNull, gt, gte, lt, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 import {
   products,
@@ -83,6 +83,7 @@ import {
   b2bOrders,
   b2bOrderItems,
   b2bCommissions,
+  b2bCommissionTiers,
   b2bSettings,
   b2bRolePermissions,
   b2bSlideshowSlides,
@@ -112,6 +113,8 @@ import {
   type B2bOrderItem,
   type InsertB2bCommission,
   type B2bCommission,
+  type InsertB2bCommissionTier,
+  type B2bCommissionTier,
   type InsertB2bSetting,
   type B2bSetting,
   type InsertB2bRolePermission,
@@ -590,6 +593,15 @@ export interface IStorage {
   getEarnedCommissionsNotPaid(): Promise<(B2bCommission & { order: B2bOrder & { customer: B2bCustomer }; salesRep: SalesRep })[]>;
   updateCommissionPayPeriod(commissionId: string, payPeriod: string): Promise<B2bCommission | undefined>;
   upsertCommissionByOrderAndSalesRep(data: InsertB2bCommission): Promise<{ commission: B2bCommission; action: 'created' | 'updated' }>;
+
+  // B2B - Commission Tiers
+  getCommissionTiers(): Promise<B2bCommissionTier[]>;
+  getActiveCommissionTiers(): Promise<B2bCommissionTier[]>;
+  getCommissionTier(id: string): Promise<B2bCommissionTier | undefined>;
+  createCommissionTier(data: InsertB2bCommissionTier): Promise<B2bCommissionTier>;
+  updateCommissionTier(id: string, data: Partial<InsertB2bCommissionTier>): Promise<B2bCommissionTier | undefined>;
+  deleteCommissionTier(id: string): Promise<boolean>;
+  getYtdSalesForSalesRep(salesRepId: string, year: number): Promise<number>;
 
   // B2B - Tier Commitments
   getTierCommitmentReport(): Promise<any[]>;
@@ -3804,6 +3816,60 @@ export class DatabaseStorage implements IStorage {
 
   async getAllB2bCommissions(): Promise<B2bCommission[]> {
     return await db.select().from(b2bCommissions).orderBy(desc(b2bCommissions.createdAt));
+  }
+
+  // B2B - Commission Tiers
+  async getCommissionTiers(): Promise<B2bCommissionTier[]> {
+    return await db.select().from(b2bCommissionTiers).orderBy(b2bCommissionTiers.sortOrder);
+  }
+
+  async getActiveCommissionTiers(): Promise<B2bCommissionTier[]> {
+    return await db.select().from(b2bCommissionTiers)
+      .where(eq(b2bCommissionTiers.active, true))
+      .orderBy(b2bCommissionTiers.sortOrder);
+  }
+
+  async getCommissionTier(id: string): Promise<B2bCommissionTier | undefined> {
+    const [tier] = await db.select().from(b2bCommissionTiers)
+      .where(eq(b2bCommissionTiers.id, id));
+    return tier;
+  }
+
+  async createCommissionTier(data: InsertB2bCommissionTier): Promise<B2bCommissionTier> {
+    const [tier] = await db.insert(b2bCommissionTiers).values(data).returning();
+    return tier;
+  }
+
+  async updateCommissionTier(id: string, data: Partial<InsertB2bCommissionTier>): Promise<B2bCommissionTier | undefined> {
+    const [tier] = await db.update(b2bCommissionTiers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bCommissionTiers.id, id))
+      .returning();
+    return tier;
+  }
+
+  async deleteCommissionTier(id: string): Promise<boolean> {
+    const result = await db.delete(b2bCommissionTiers).where(eq(b2bCommissionTiers.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getYtdSalesForSalesRep(salesRepId: string, year: number): Promise<number> {
+    const startOfYear = new Date(year, 0, 1);
+    const endOfYear = new Date(year + 1, 0, 1);
+    const result = await db.select({
+      total: sql<string>`COALESCE(SUM(CAST(${b2bOrders.subtotal} AS DECIMAL(12,2))), 0)`
+    })
+    .from(b2bOrders)
+    .innerJoin(b2bCustomers, eq(b2bOrders.customerId, b2bCustomers.id))
+    .where(
+      and(
+        eq(b2bCustomers.salesRepId, salesRepId),
+        gte(b2bOrders.orderDate, startOfYear),
+        lt(b2bOrders.orderDate, endOfYear),
+        inArray(b2bOrders.status, ['completed', 'paid', 'delivered'])
+      )
+    );
+    return parseFloat(result[0]?.total || '0');
   }
 
   // B2B - Email Templates

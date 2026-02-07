@@ -32,7 +32,9 @@ import {
   b2bOrders,
   b2bOrderItems,
   b2bCommissions,
+  b2bCommissionTiers,
   b2bTierAgreements,
+  insertB2bCommissionTierSchema,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
 import { generatePasswordResetEmail, generateAccessRequestEmail, generateWholesaleApplicationEmail, sendEmail, generateBrandedEmailHeader, generateBrandedEmailFooter } from './email';
@@ -2009,6 +2011,155 @@ router.patch('/api/b2b/admin/commissions/:id/paid', requireB2bAdmin, async (req:
     res.status(500).json({ error: 'Failed to mark commission as paid' });
   }
 });
+
+// ==================== Commission Tiers ====================
+
+// Get all commission tiers (admin)
+router.get('/api/b2b/admin/commission-tiers', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const tiers = await storage.getCommissionTiers();
+    res.json(tiers);
+  } catch (error) {
+    console.error('Error fetching commission tiers:', error);
+    res.status(500).json({ error: 'Failed to fetch commission tiers' });
+  }
+});
+
+// Get active commission tiers (for calculation)
+router.get('/api/b2b/admin/commission-tiers/active', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const tiers = await storage.getActiveCommissionTiers();
+    res.json(tiers);
+  } catch (error) {
+    console.error('Error fetching active commission tiers:', error);
+    res.status(500).json({ error: 'Failed to fetch active commission tiers' });
+  }
+});
+
+// Create commission tier (admin only)
+router.post('/api/b2b/admin/commission-tiers', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const data = insertB2bCommissionTierSchema.parse(req.body);
+    const tier = await storage.createCommissionTier(data);
+    res.status(201).json(tier);
+  } catch (error) {
+    console.error('Error creating commission tier:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid tier data', details: error.errors });
+    }
+    res.status(500).json({ error: 'Failed to create commission tier' });
+  }
+});
+
+// Update commission tier (admin only)
+router.patch('/api/b2b/admin/commission-tiers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tier = await storage.updateCommissionTier(id, req.body);
+    if (!tier) {
+      return res.status(404).json({ error: 'Commission tier not found' });
+    }
+    res.json(tier);
+  } catch (error) {
+    console.error('Error updating commission tier:', error);
+    res.status(500).json({ error: 'Failed to update commission tier' });
+  }
+});
+
+// Delete commission tier (admin only)
+router.delete('/api/b2b/admin/commission-tiers/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await storage.deleteCommissionTier(id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Commission tier not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting commission tier:', error);
+    res.status(500).json({ error: 'Failed to delete commission tier' });
+  }
+});
+
+// Get YTD sales for a sales rep (admin or sales rep themselves)
+router.get('/api/b2b/admin/sales-reps/:id/ytd-sales', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const ytdSales = await storage.getYtdSalesForSalesRep(id, year);
+    res.json({ salesRepId: id, year, ytdSales });
+  } catch (error) {
+    console.error('Error fetching YTD sales:', error);
+    res.status(500).json({ error: 'Failed to fetch YTD sales' });
+  }
+});
+
+// Calculate tiered commission for a given amount (preview/calculator)
+router.post('/api/b2b/admin/commission-tiers/calculate', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { annualSales } = req.body;
+    if (typeof annualSales !== 'number' || annualSales < 0) {
+      return res.status(400).json({ error: 'Invalid annual sales amount' });
+    }
+    const tiers = await storage.getActiveCommissionTiers();
+    const breakdown = calculateTieredCommission(annualSales, tiers);
+    res.json(breakdown);
+  } catch (error) {
+    console.error('Error calculating commission:', error);
+    res.status(500).json({ error: 'Failed to calculate commission' });
+  }
+});
+
+// Tiered commission calculation helper
+function calculateTieredCommission(annualSales: number, tiers: any[]) {
+  let totalCommission = 0;
+  let remainingSales = annualSales;
+  const tierBreakdown: Array<{
+    tierName: string;
+    ratePercent: number;
+    salesInTier: number;
+    commissionInTier: number;
+    minSales: number;
+    maxSales: number | null;
+  }> = [];
+
+  const sortedTiers = [...tiers].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+  for (const tier of sortedTiers) {
+    if (remainingSales <= 0) break;
+
+    const minSales = parseFloat(tier.minAnnualSales || '0');
+    const maxSales = tier.maxAnnualSales ? parseFloat(tier.maxAnnualSales) : null;
+    const rate = parseFloat(tier.ratePercent) / 100;
+
+    const tierRange = maxSales !== null ? (maxSales - minSales) : Infinity;
+    const salesAboveMin = Math.max(0, annualSales - minSales);
+    const salesInTier = Math.min(salesAboveMin, tierRange, remainingSales);
+
+    if (salesInTier > 0) {
+      const commissionInTier = salesInTier * rate;
+      totalCommission += commissionInTier;
+      remainingSales -= salesInTier;
+      tierBreakdown.push({
+        tierName: tier.tierName,
+        ratePercent: parseFloat(tier.ratePercent),
+        salesInTier: Math.round(salesInTier * 100) / 100,
+        commissionInTier: Math.round(commissionInTier * 100) / 100,
+        minSales,
+        maxSales,
+      });
+    }
+  }
+
+  const effectiveRate = annualSales > 0 ? (totalCommission / annualSales) * 100 : 0;
+
+  return {
+    annualSales,
+    totalCommission: Math.round(totalCommission * 100) / 100,
+    effectiveRate: Math.round(effectiveRate * 100) / 100,
+    tierBreakdown,
+  };
+}
 
 // Helper function to get the application domain
 function getAppDomain(): string {
