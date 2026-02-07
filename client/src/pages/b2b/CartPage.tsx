@@ -375,7 +375,10 @@ export default function CartPage() {
 
                     <div className="text-right">
                       <p className="text-lg font-semibold">${subtotal.toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{quantity} {item.unit}(s) ({item.quantityInCases.toFixed(1)} case{item.quantityInCases !== 1 ? 's' : ''})</p>
+                      <p className="text-xs text-muted-foreground">
+                        {quantity} {item.unit}{quantity !== 1 ? 's' : ''}
+                        {item.unit === 'case' && ` (${quantity * product.caseSize} bottles)`}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -398,7 +401,7 @@ export default function CartPage() {
                     <div>
                       <p className="font-medium text-sm text-primary">Tier 2 Upgrade Applied!</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Your order of {totalCases} cases qualifies for Tier 2 wholesale pricing across all categories (upgraded from {currentTier} pricing).
+                        Your order qualifies for Tier 2 wholesale pricing across all categories (upgraded from {currentTier} pricing).
                       </p>
                     </div>
                   </div>
@@ -412,16 +415,37 @@ export default function CartPage() {
                     {shouldShowTier2Upgrade ? 'Tier 2' : (currentTier || 'Retail')}
                   </Badge>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Cases:</span>
-                  <span className="font-medium" data-testid="text-total-cases">{totalCases}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Bottles:</span>
-                  <span className="font-medium">
-                    {cartItems.reduce((sum, item) => sum + (item ? item.quantity * item.product.caseSize : 0), 0)}
-                  </span>
-                </div>
+                {(() => {
+                  const bottleItems = cartItems.filter(item => item?.unit === 'bottle');
+                  const caseItems = cartItems.filter(item => item?.unit === 'case');
+                  const totalBottlesOrdered = bottleItems.reduce((sum, item) => sum + (item?.quantity || 0), 0);
+                  const totalCasesOrdered = caseItems.reduce((sum, item) => sum + (item?.quantity || 0), 0);
+                  const totalBottleEquivalent = cartItems.reduce((sum, item) => {
+                    if (!item) return sum;
+                    if (item.unit === 'bottle') return sum + item.quantity;
+                    return sum + item.quantity * item.product.caseSize;
+                  }, 0);
+                  return (
+                    <>
+                      {totalBottlesOrdered > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Bottles:</span>
+                          <span className="font-medium" data-testid="text-total-bottles">{totalBottlesOrdered}</span>
+                        </div>
+                      )}
+                      {totalCasesOrdered > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Cases:</span>
+                          <span className="font-medium" data-testid="text-total-cases">{totalCasesOrdered}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Bottles:</span>
+                        <span className="font-medium" data-testid="text-total-bottle-equivalent">{totalBottleEquivalent}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="border-t pt-4">
