@@ -1947,7 +1947,7 @@ export default function DatabaseSync() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <ScrollArea className="max-h-[600px]">
+                      <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
                       <div className="space-y-2 pr-3">
                         {scanResult.tables
                           .filter(t => showAllTables || t.records.length > 0 || t.devCount !== t.prodCount)
@@ -2107,7 +2107,7 @@ export default function DatabaseSync() {
                           </div>
                         )}
                       </div>
-                      </ScrollArea>
+                      </div>
                     </CardContent>
                   </Card>
                 </>
