@@ -414,7 +414,7 @@ export default function ProductMediaManager() {
 
       {/* Add Image Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden" data-testid="dialog-upload-image">
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col" data-testid="dialog-upload-image">
           <DialogHeader>
             <DialogTitle>Add Image for {selectedProduct?.name}</DialogTitle>
             <DialogDescription>
@@ -422,8 +422,7 @@ export default function ProductMediaManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Image Role Selection */}
+          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
             <div className="space-y-2">
               <Label htmlFor="role">Image Role</Label>
               <Select value={uploadRole} onValueChange={(value: any) => setUploadRole(value)}>
@@ -544,7 +543,7 @@ export default function ProductMediaManager() {
             </Tabs>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4 flex-shrink-0">
             <Button
               variant="outline"
               onClick={() => setShowUploadDialog(false)}
@@ -558,7 +557,7 @@ export default function ProductMediaManager() {
                 disabled={!selectedMediaId || associateMediaMutation.isPending}
                 data-testid="button-assign-from-library"
               >
-                {associateMediaMutation.isPending ? "Assigning..." : "Assign Image"}
+                {associateMediaMutation.isPending ? "Saving..." : "Save"}
               </Button>
             ) : (
               <Button
@@ -566,7 +565,7 @@ export default function ProductMediaManager() {
                 disabled={!selectedFile || uploadMediaMutation.isPending}
                 data-testid="button-confirm-upload"
               >
-                {uploadMediaMutation.isPending ? "Uploading..." : "Upload"}
+                {uploadMediaMutation.isPending ? "Uploading..." : "Upload & Save"}
               </Button>
             )}
           </DialogFooter>
