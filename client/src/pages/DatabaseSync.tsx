@@ -410,6 +410,94 @@ function SchemaPushCard({ prodDbUrl }: { prodDbUrl?: string }) {
   );
 }
 
+function CogSyncSection({ prodDbUrl }: { prodDbUrl: string }) {
+  const { toast } = useToast();
+  const [cogPreview, setCogPreview] = useState<any>(null);
+  const [isCogLoading, setIsCogLoading] = useState(false);
+  const [isCogApplying, setIsCogApplying] = useState(false);
+
+  const handleCogPreview = async () => {
+    setIsCogLoading(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync-cog-to-prod', { prodDatabaseUrl: prodDbUrl, dryRun: true });
+      const data = await response.json();
+      setCogPreview(data);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to preview COG sync", variant: "destructive" });
+    } finally {
+      setIsCogLoading(false);
+    }
+  };
+
+  const handleCogApply = async () => {
+    setIsCogApplying(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync-cog-to-prod', { prodDatabaseUrl: prodDbUrl, dryRun: false });
+      const data = await response.json();
+      setCogPreview(data);
+      toast({ title: "COG Sync Complete", description: `Updated ${data.summary.updated} products, skipped ${data.summary.skipped}` });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to apply COG sync", variant: "destructive" });
+    } finally {
+      setIsCogApplying(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button onClick={handleCogPreview} disabled={isCogLoading} variant="outline" data-testid="button-cog-preview">
+          {isCogLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          {isCogLoading ? 'Loading Preview...' : 'Preview COG Changes'}
+        </Button>
+        {cogPreview?.dryRun && cogPreview.summary.updated > 0 && (
+          <Button onClick={handleCogApply} disabled={isCogApplying} data-testid="button-cog-apply">
+            {isCogApplying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isCogApplying ? 'Applying...' : `Apply ${cogPreview.summary.updated} COG Updates`}
+          </Button>
+        )}
+      </div>
+      {cogPreview && (
+        <div className="space-y-2">
+          <div className="flex gap-3 text-sm flex-wrap">
+            <Badge variant={cogPreview.dryRun ? "outline" : "default"}>{cogPreview.dryRun ? 'Preview' : 'Applied'}</Badge>
+            <span>Will update: <strong>{cogPreview.summary.updated}</strong></span>
+            <span>Skipped: <strong>{cogPreview.summary.skipped}</strong></span>
+          </div>
+          <div className="max-h-64 overflow-y-auto border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  <th className="text-left p-2">Product</th>
+                  <th className="text-left p-2">Category</th>
+                  <th className="text-right p-2">Dev Cost</th>
+                  <th className="text-right p-2">Prod Cost</th>
+                  <th className="text-left p-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cogPreview.preview.map((row: any, i: number) => (
+                  <tr key={i} className={row.status === 'would_update' || row.status === 'updated' ? 'bg-green-500/10' : row.status.startsWith('skipped') ? 'opacity-50' : ''}>
+                    <td className="p-2">{row.name}</td>
+                    <td className="p-2">{row.category}</td>
+                    <td className="p-2 text-right">${row.devCost}</td>
+                    <td className="p-2 text-right">{row.prodCost ? `$${row.prodCost}` : '—'}</td>
+                    <td className="p-2">
+                      <Badge variant="outline" className="text-xs">
+                        {row.status === 'would_update' ? 'Will Update' : row.status === 'updated' ? 'Updated' : row.status === 'already_matching' ? 'Match' : 'Not in Prod'}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DatabaseSync() {
   const { toast } = useToast();
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
@@ -1621,7 +1709,7 @@ export default function DatabaseSync() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <Button
                       onClick={handleScanForDifferences}
                       disabled={isScanning}
@@ -1636,6 +1724,16 @@ export default function DatabaseSync() {
                       </span>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Sync Product COG to Production</CardTitle>
+                  <CardDescription>Push ONLY the cost-of-goods values from dev to production. No other product fields will be changed.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CogSyncSection prodDbUrl={prodDbUrl} />
                 </CardContent>
               </Card>
 

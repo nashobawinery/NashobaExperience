@@ -1188,6 +1188,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ ONE-TIME COG SYNC TO PRODUCTION ============
+  // Push ONLY the cost (COG) field from dev products to production, matching by name+category
+  // Does NOT modify any other product fields in production
+  app.post("/api/admin/sync-cog-to-prod", isAdmin, async (req, res) => {
+    try {
+      const { prodDatabaseUrl, dryRun } = req.body;
+      if (!prodDatabaseUrl) {
+        return res.status(400).json({ message: "Production database URL is required" });
+      }
+
+      const { Pool } = await import('@neondatabase/serverless');
+      const prodPool = new Pool({ connectionString: prodDatabaseUrl, connectionTimeoutMillis: 10000 });
+
+      const devProducts = await db.execute(sql`SELECT name, category, cost FROM products WHERE cost IS NOT NULL AND cost != 10.00`);
+      const devRows = devProducts.rows as Array<{ name: string; category: string; cost: string }>;
+
+      const preview: Array<{ name: string; category: string; devCost: string; prodCost: string | null; status: string }> = [];
+      let updatedCount = 0;
+      let skippedCount = 0;
+
+      const prodClient = await prodPool.connect();
+      try {
+        for (const devRow of devRows) {
+          const prodResult = await prodClient.query(
+            `SELECT cost FROM products WHERE name = $1 AND category = $2`,
+            [devRow.name, devRow.category]
+          );
+
+          if (prodResult.rows.length === 0) {
+            preview.push({ name: devRow.name, category: devRow.category, devCost: devRow.cost, prodCost: null, status: 'skipped_not_in_prod' });
+            skippedCount++;
+            continue;
+          }
+
+          const prodCost = prodResult.rows[0].cost;
+          const devCostStr = String(devRow.cost);
+
+          if (prodCost && String(prodCost) === devCostStr) {
+            preview.push({ name: devRow.name, category: devRow.category, devCost: devCostStr, prodCost: String(prodCost), status: 'already_matching' });
+            skippedCount++;
+            continue;
+          }
+
+          if (!dryRun) {
+            await prodClient.query(
+              `UPDATE products SET cost = $1 WHERE name = $2 AND category = $3`,
+              [devRow.cost, devRow.name, devRow.category]
+            );
+          }
+          preview.push({ name: devRow.name, category: devRow.category, devCost: devCostStr, prodCost: prodCost ? String(prodCost) : null, status: dryRun ? 'would_update' : 'updated' });
+          updatedCount++;
+        }
+      } finally {
+        prodClient.release(true);
+        await prodPool.end();
+      }
+
+      res.json({
+        success: true,
+        dryRun: !!dryRun,
+        summary: { updated: updatedCount, skipped: skippedCount, total: devRows.length },
+        preview
+      });
+    } catch (error: any) {
+      console.error("Error syncing COG to production:", error);
+      res.status(500).json({ message: error.message || "COG sync failed" });
+    }
+  });
+
   // ============ BIDIRECTIONAL SYNC API ============
   
   // Test connection to production database
