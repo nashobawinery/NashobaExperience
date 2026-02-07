@@ -3429,7 +3429,7 @@ export default function AdminDashboard() {
                     <SelectTrigger id="payroll-frequency" data-testid="select-payroll-frequency">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                       <SelectItem value="weekly">Weekly</SelectItem>
                       <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
                       <SelectItem value="monthly">Monthly</SelectItem>
@@ -3939,7 +3939,7 @@ export default function AdminDashboard() {
                 <SelectTrigger data-testid="select-tier">
                   <SelectValue placeholder="Select pricing tier" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                   {loadingActiveTiers ? (
                     <div className="p-2 text-sm text-muted-foreground">Loading tiers...</div>
                   ) : !manuallyAssignableTiers || manuallyAssignableTiers.length === 0 ? (
@@ -4166,7 +4166,7 @@ export default function AdminDashboard() {
                 <SelectTrigger data-testid="select-commission-type">
                   <SelectValue placeholder="Select commission type" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                   <SelectItem value="tiered">Tiered (Marginal Brackets)</SelectItem>
                   <SelectItem value="flat">Flat Rate Override</SelectItem>
                 </SelectContent>
@@ -4519,7 +4519,7 @@ export default function AdminDashboard() {
                         <SelectValue placeholder="Select customer type" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                       <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
                       <SelectItem value="restaurant">Restaurant</SelectItem>
                       <SelectItem value="private_club">Private Club</SelectItem>
@@ -4662,7 +4662,7 @@ export default function AdminDashboard() {
                           <SelectValue placeholder="Select tier..." />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                         {manuallyAssignableTiers?.map((tier) => (
                           <SelectItem key={tier.id} value={tier.id}>
                             {tier.tierName} ({tier.discountPercentage}% off)
@@ -4691,7 +4691,7 @@ export default function AdminDashboard() {
                             <SelectValue placeholder="Select sales rep..." />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                           {salesReps?.filter(rep => rep.active).map((rep) => (
                             <SelectItem key={rep.id} value={rep.id}>
                               {rep.firstName} {rep.lastName}
@@ -4861,7 +4861,7 @@ export default function AdminDashboard() {
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="pending_approval">Pending Approval</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
@@ -4895,7 +4895,7 @@ export default function AdminDashboard() {
                           <SelectValue placeholder="Select customer type" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                         <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="private_club">Private Club</SelectItem>
@@ -5180,7 +5180,7 @@ export default function AdminDashboard() {
                     <SelectTrigger className="flex-1" data-testid="select-featured-product">
                       <SelectValue placeholder="Select product to add..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                       {allProducts?.filter(p => 
                         !customerManualProducts.some(mp => mp.productId === p.id) &&
                         !selectedProductIds.includes(p.id)
@@ -5323,7 +5323,7 @@ export default function AdminDashboard() {
                           <SelectValue placeholder="No tier assigned" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                         {manuallyAssignableTiers?.map((tier) => (
                           <SelectItem key={tier.id} value={tier.id}>
                             {tier.tierName} ({tier.discountPercentage}% off)
@@ -5352,7 +5352,7 @@ export default function AdminDashboard() {
                             <SelectValue placeholder="No sales rep assigned" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                           {salesReps?.map((rep) => (
                             <SelectItem key={rep.id} value={rep.id}>
                               {rep.firstName} {rep.lastName}
@@ -5708,7 +5708,7 @@ export default function AdminDashboard() {
                           <SelectValue placeholder="Select customer" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                         {activeCustomers?.map((customer: any) => (
                           <SelectItem key={customer.id} value={customer.id}>
                             {customer.accountName} - {customer.tier?.tierName || "No tier"}
@@ -5751,7 +5751,7 @@ export default function AdminDashboard() {
                                   <SelectValue placeholder="Select product" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent>
+                              <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                                 {adminProducts?.map((product) => (
                                   <SelectItem key={product.id} value={product.id}>
                                     {product.name} - ${product.price}/bottle (${(Number(product.price) * (product.caseSize || 12)).toFixed(2)}/case of {product.caseSize})
@@ -5860,7 +5860,7 @@ export default function AdminDashboard() {
                           <SelectValue placeholder="Select customer" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                         {activeCustomers?.map((customer: any) => (
                           <SelectItem key={customer.id} value={customer.id}>
                             {customer.accountName} - {customer.tier?.tierName || "No tier"}
@@ -5903,7 +5903,7 @@ export default function AdminDashboard() {
                                   <SelectValue placeholder="Select product" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent>
+                              <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                                 {adminProducts?.map((product) => (
                                   <SelectItem key={product.id} value={product.id}>
                                     {product.name} - ${product.price}/bottle (${(Number(product.price) * (product.caseSize || 12)).toFixed(2)}/case of {product.caseSize})
@@ -5949,7 +5949,7 @@ export default function AdminDashboard() {
                                     <SelectValue placeholder="Select unit" />
                                   </SelectTrigger>
                                 </FormControl>
-                                <SelectContent>
+                                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                                   <SelectItem value="cases">Cases</SelectItem>
                                   <SelectItem value="bottles">Bottles</SelectItem>
                                 </SelectContent>
@@ -6226,7 +6226,7 @@ export default function AdminDashboard() {
                 <SelectTrigger data-testid="select-payment-method">
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                   <SelectItem value="check">Check</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="credit_card">Credit Card</SelectItem>
