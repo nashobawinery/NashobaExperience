@@ -801,7 +801,9 @@ export async function applySyncOperations(
               // Helper to serialize values properly (handles Date, JSON objects/arrays)
               const serializeValue = (val: any) => {
                 if (val instanceof Date) return val.toISOString();
-                // Serialize objects and arrays as JSON strings for JSONB columns
+                // Arrays: pass through natively - node-postgres handles text[] conversion
+                if (Array.isArray(val)) return val;
+                // Serialize plain objects as JSON strings for JSONB columns
                 if (val !== null && typeof val === 'object') return JSON.stringify(val);
                 return val;
               };
@@ -907,7 +909,9 @@ export async function applySyncOperations(
               // Helper to serialize values properly (handles Date, JSON objects/arrays)
               const serializeValue = (val: any) => {
                 if (val instanceof Date) return val.toISOString();
-                // Serialize objects and arrays as JSON strings for JSONB columns
+                // Arrays: pass through natively - node-postgres handles text[] conversion
+                if (Array.isArray(val)) return val;
+                // Serialize plain objects as JSON strings for JSONB columns
                 if (val !== null && typeof val === 'object') return JSON.stringify(val);
                 return val;
               };
