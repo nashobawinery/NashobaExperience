@@ -61,6 +61,7 @@ import NotesManager from "@/components/NotesManager";
 import { BookOpen } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
+import B2bReports from "@/components/b2b/B2bReports";
 import "@/docs/b2b";
 
 const createCustomerSchema = z.object({
@@ -2506,176 +2507,144 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="customers" className="space-y-6">
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Customer & Order Management</h3>
-              <TabsList className={`grid w-full h-auto ${can.viewTab('tasks') && can.viewTab('exportImport') ? 'grid-cols-4' : 'grid-cols-2'}`}>
+        <Card className="p-4">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <TabsList className="h-auto flex-wrap gap-1">
                 {can.viewTab('customers') && (
-                  <TabsTrigger value="customers" data-testid="tab-customers" className="flex items-center justify-center gap-2">
-                    <Users className="w-4 h-4" />
+                  <TabsTrigger value="customers" data-testid="tab-customers" className="gap-1.5 text-xs px-2.5">
+                    <Users className="w-3.5 h-3.5" />
                     <span>Customers</span>
                   </TabsTrigger>
                 )}
                 {can.viewTab('orders') && (
-                  <TabsTrigger value="orders" data-testid="tab-orders" className="flex items-center justify-center gap-2">
-                    <ShoppingCart className="w-4 h-4" />
+                  <TabsTrigger value="orders" data-testid="tab-orders" className="gap-1.5 text-xs px-2.5">
+                    <ShoppingCart className="w-3.5 h-3.5" />
                     <span>Orders</span>
                   </TabsTrigger>
                 )}
                 {can.viewTab('tasks') && (
-                  <TabsTrigger value="tasks" data-testid="tab-tasks" className="flex items-center justify-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />
+                  <TabsTrigger value="tasks" data-testid="tab-tasks" className="gap-1.5 text-xs px-2.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Tasks</span>
                   </TabsTrigger>
                 )}
+                {can.viewTab('reports') && (
+                  <TabsTrigger value="reports" data-testid="tab-reports" className="gap-1.5 text-xs px-2.5">
+                    <FileSignature className="w-3.5 h-3.5" />
+                    <span>Reports</span>
+                  </TabsTrigger>
+                )}
                 {can.viewTab('exportImport') && (
-                  <TabsTrigger value="data" data-testid="tab-data" className="flex items-center justify-center gap-2">
-                    <Download className="w-4 h-4" />
-                    <span>Export/Import</span>
+                  <TabsTrigger value="data" data-testid="tab-data" className="gap-1.5 text-xs px-2.5">
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Data</span>
                   </TabsTrigger>
                 )}
               </TabsList>
-            </div>
-          </Card>
 
-          {/* Marketing & Communications - Show if any tabs visible */}
-          {(can.viewTab('marketing') || can.viewTab('commitments') || can.viewTab('qrCodes')) && (
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Marketing & Communications</h3>
-              <TabsList className="grid w-full grid-cols-3 h-auto">
+              <span className="text-muted-foreground text-xs">|</span>
+
+              <TabsList className="h-auto flex-wrap gap-1">
                 {can.viewTab('marketing') && (
-                  <TabsTrigger value="marketing" data-testid="tab-marketing" className="flex items-center justify-center gap-2">
-                    <Send className="w-4 h-4" />
+                  <TabsTrigger value="marketing" data-testid="tab-marketing" className="gap-1.5 text-xs px-2.5">
+                    <Send className="w-3.5 h-3.5" />
                     <span>Marketing</span>
                   </TabsTrigger>
                 )}
                 {can.viewTab('commitments') && (
-                  <TabsTrigger value="commitments" data-testid="tab-commitments" className="flex items-center justify-center gap-2">
-                    <Calendar className="w-4 h-4" />
+                  <TabsTrigger value="commitments" data-testid="tab-commitments" className="gap-1.5 text-xs px-2.5">
+                    <Calendar className="w-3.5 h-3.5" />
                     <span>Commitments</span>
                   </TabsTrigger>
                 )}
                 {can.viewTab('qrCodes') && (
-                  <TabsTrigger value="qr-codes" data-testid="tab-qr-codes" className="flex items-center justify-center gap-2">
-                    <QrCode className="w-4 h-4" />
+                  <TabsTrigger value="qr-codes" data-testid="tab-qr-codes" className="gap-1.5 text-xs px-2.5">
+                    <QrCode className="w-3.5 h-3.5" />
                     <span>QR Codes</span>
                   </TabsTrigger>
                 )}
               </TabsList>
-            </div>
-          </Card>
-          )}
 
-          {/* Content & Configuration - Show for non-sales-reps or if sales rep can view their profile */}
-          {(can.viewTab('slideshow') || can.viewTab('salesReps') || can.viewTab('settings')) && (
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Content & Configuration</h3>
-              <TabsList className={`grid w-full h-auto ${!isSalesRep ? 'grid-cols-3' : 'grid-cols-1'}`}>
-                {can.viewTab('slideshow') && (
-                  <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="flex items-center justify-center gap-2">
-                    <Image className="w-4 h-4" />
-                    <span>Slideshow</span>
-                  </TabsTrigger>
+              <span className="text-muted-foreground text-xs">|</span>
+
+              <TabsList className="h-auto flex-wrap gap-1">
+                {(can.viewTab('payroll') || can.viewTab('commissions')) && (
+                  <>
+                    {can.viewTab('commissions') && (
+                      <TabsTrigger value="commissions" data-testid="tab-commissions" className="gap-1.5 text-xs px-2.5">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>Commissions</span>
+                      </TabsTrigger>
+                    )}
+                    {can.viewTab('payroll') && (
+                      <TabsTrigger value="payroll" data-testid="tab-payroll" className="gap-1.5 text-xs px-2.5">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>Payroll</span>
+                      </TabsTrigger>
+                    )}
+                  </>
                 )}
                 {can.viewTab('salesReps') && (
-                  <TabsTrigger value="sales-reps" data-testid="tab-sales-reps" className="flex items-center justify-center gap-2">
-                    <UserCog className="w-4 h-4" />
+                  <TabsTrigger value="sales-reps" data-testid="tab-sales-reps" className="gap-1.5 text-xs px-2.5">
+                    <UserCog className="w-3.5 h-3.5" />
                     <span>{isSalesRep ? 'My Profile' : 'Sales Reps'}</span>
                   </TabsTrigger>
                 )}
+              </TabsList>
+
+              <span className="text-muted-foreground text-xs">|</span>
+
+              <TabsList className="h-auto flex-wrap gap-1">
+                {can.viewTab('slideshow') && (
+                  <TabsTrigger value="slideshow" data-testid="tab-slideshow" className="gap-1.5 text-xs px-2.5">
+                    <Image className="w-3.5 h-3.5" />
+                    <span>Slideshow</span>
+                  </TabsTrigger>
+                )}
+                {can.viewTab('notes') && (
+                  <TabsTrigger value="notes" data-testid="tab-notes" className="gap-1.5 text-xs px-2.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Notes</span>
+                  </TabsTrigger>
+                )}
                 {can.viewTab('settings') && (
-                  <TabsTrigger value="settings" data-testid="tab-settings" className="flex items-center justify-center gap-2">
-                    <SettingsIcon className="w-4 h-4" />
+                  <TabsTrigger value="settings" data-testid="tab-settings" className="gap-1.5 text-xs px-2.5">
+                    <SettingsIcon className="w-3.5 h-3.5" />
                     <span>Settings</span>
                   </TabsTrigger>
                 )}
-              </TabsList>
-            </div>
-          </Card>
-          )}
-
-          {/* Finance & Payroll - Only show if user has access to any finance tabs */}
-          {(can.viewTab('payroll') || can.viewTab('commissions')) && (
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Finance & Payroll</h3>
-              <TabsList className={`grid w-full h-auto ${can.viewTab('payroll') && can.viewTab('commissions') ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {can.viewTab('payroll') && (
-                  <TabsTrigger value="payroll" data-testid="tab-payroll" className="flex items-center justify-center gap-2">
-                    <DollarSign className="w-4 h-4" />
-                    <span>Payroll</span>
-                  </TabsTrigger>
-                )}
-                {can.viewTab('commissions') && (
-                  <TabsTrigger value="commissions" data-testid="tab-commissions" className="flex items-center justify-center gap-2">
-                    <DollarSign className="w-4 h-4" />
-                    <span>Commissions</span>
-                  </TabsTrigger>
-                )}
-              </TabsList>
-            </div>
-          </Card>
-          )}
-
-          {/* Improvements - Notes tab */}
-          {can.viewTab('notes') && (
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Improvements</h3>
-              <TabsList className="w-full h-auto">
-                <TabsTrigger value="notes" data-testid="tab-notes" className="flex items-center justify-center gap-2 flex-1">
-                  <BookOpen className="w-4 h-4" />
-                  <span>Improvement Notes</span>
+                <TabsTrigger value="documentation" data-testid="tab-documentation" className="gap-1.5 text-xs px-2.5">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Help</span>
                 </TabsTrigger>
               </TabsList>
             </div>
-          </Card>
-          )}
 
-          {/* Product Management - Links to Tasting Admin */}
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Product Management</h3>
-              <p className="text-xs text-muted-foreground">Products are shared with the Tasting Experience app</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.href = '/admin?tab=products&from=b2b'}
-                  data-testid="button-link-products"
-                  className="flex items-center justify-center gap-2"
-                >
-                  <Package className="w-4 h-4" />
-                  <span>Products</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.href = '/admin?tab=product-media&from=b2b'}
-                  data-testid="button-link-product-media"
-                  className="flex items-center justify-center gap-2"
-                >
-                  <Image className="w-4 h-4" />
-                  <span>Product Media</span>
-                </Button>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = '/admin?tab=products&from=b2b'}
+                data-testid="button-link-products"
+                className="gap-1.5 text-xs"
+              >
+                <Package className="w-3.5 h-3.5" />
+                Products
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = '/admin?tab=product-media&from=b2b'}
+                data-testid="button-link-product-media"
+                className="gap-1.5 text-xs"
+              >
+                <Image className="w-3.5 h-3.5" />
+                Product Media
+              </Button>
             </div>
-          </Card>
-
-          {/* Help & Documentation */}
-          <Card className="p-4">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Help & Resources</h3>
-              <TabsList className="w-full h-auto">
-                <TabsTrigger value="documentation" data-testid="tab-documentation" className="flex items-center justify-center gap-2 flex-1">
-                  <BookOpen className="w-4 h-4" />
-                  <span>Documentation</span>
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
 
         {/* CUSTOMERS TAB */}
         <TabsContent value="customers" className="space-y-6">
@@ -2959,6 +2928,10 @@ export default function AdminDashboard() {
         {/* TASKS TAB */}
         <TabsContent value="tasks">
           <TasksPage />
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <B2bReports />
         </TabsContent>
 
         {/* EXPORT/IMPORT TAB */}

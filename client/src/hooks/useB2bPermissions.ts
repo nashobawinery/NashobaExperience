@@ -57,6 +57,7 @@ function convertDbToRolePermissions(
     qrCodes: convertTabPermission(tabPerms.qrCodes, defaultPerms.tabs.qrCodes),
     slideshow: convertTabPermission(tabPerms.slideshow, defaultPerms.tabs.slideshow),
     notes: convertTabPermission(tabPerms.notes, defaultPerms.tabs.notes),
+    reports: convertTabPermission(tabPerms.reports, defaultPerms.tabs.reports),
     payroll: convertTabPermission(tabPerms.payroll, defaultPerms.tabs.payroll),
     commissions: convertTabPermission(tabPerms.commissions, defaultPerms.tabs.commissions),
     salesReps: convertTabPermission(tabPerms.salesReps, defaultPerms.tabs.salesReps),

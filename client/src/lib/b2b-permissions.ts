@@ -32,6 +32,7 @@ export interface RolePermissions {
     qrCodes: TabPermission;
     slideshow: TabPermission;
     notes: TabPermission;
+    reports: TabPermission;
     payroll: TabPermission;
     commissions: TabPermission;
     salesReps: TabPermission;
@@ -60,6 +61,7 @@ export const rolePermissions: Record<B2bUserRole, RolePermissions> = {
       qrCodes: { canView: true, canCreate: true },
       slideshow: { canView: true, canCreate: true, canEdit: true, canDelete: true },
       notes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+      reports: { canView: true },
       payroll: { canView: true, canCreate: true, canEdit: true },
       commissions: { canView: true, canCreate: true, canEdit: true },
       salesReps: { canView: true, canCreate: true, canEdit: true, canDelete: true },
@@ -98,6 +100,7 @@ export const rolePermissions: Record<B2bUserRole, RolePermissions> = {
       qrCodes: { canView: true, canCreate: false }, // View only
       slideshow: { canView: false }, // No access
       notes: { canView: true, canCreate: true, canEdit: true, canDelete: true }, // Full access
+      reports: { canView: true, scopeToAssigned: true }, // View reports scoped to assigned customers
       payroll: { canView: false }, // No access
       commissions: { 
         canView: true, 
@@ -134,6 +137,7 @@ export const rolePermissions: Record<B2bUserRole, RolePermissions> = {
       qrCodes: { canView: true, canCreate: true },
       slideshow: { canView: true, canCreate: true, canEdit: true, canDelete: false },
       notes: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+      reports: { canView: true },
       payroll: { canView: true, canCreate: false, canEdit: false }, // View only
       commissions: { canView: true, canCreate: false, canEdit: false }, // View only
       salesReps: { canView: true, canCreate: false, canEdit: false }, // View only
@@ -160,6 +164,7 @@ export const rolePermissions: Record<B2bUserRole, RolePermissions> = {
       qrCodes: { canView: true, canCreate: false },
       slideshow: { canView: true, canCreate: false, canEdit: false },
       notes: { canView: true, canCreate: false, canEdit: false },
+      reports: { canView: true },
       payroll: { canView: true, canCreate: false, canEdit: false },
       commissions: { canView: true, canCreate: false, canEdit: false },
       salesReps: { canView: true, canCreate: false, canEdit: false },
