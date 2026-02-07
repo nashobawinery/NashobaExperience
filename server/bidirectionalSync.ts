@@ -756,10 +756,21 @@ export async function applySyncOperations(
       for (const op of tableOperations) {
         try {
           // Build WHERE clause for business key - properly parameterized
-          const whereConditions = businessKeys.map((key, idx) => 
-            `${escapeIdentifier(key)} = $${idx + 1}`
-          ).join(' AND ');
-          const whereValues = businessKeys.map(key => op.businessKey[key]);
+          // Handle NULL values with IS NULL instead of = $N
+          let paramIdx = 0;
+          const whereParts: string[] = [];
+          const whereValues: any[] = [];
+          for (const key of businessKeys) {
+            const val = op.businessKey[key];
+            if (val === null || val === undefined) {
+              whereParts.push(`${escapeIdentifier(key)} IS NULL`);
+            } else {
+              paramIdx++;
+              whereParts.push(`${escapeIdentifier(key)} = $${paramIdx}`);
+              whereValues.push(val);
+            }
+          }
+          const whereConditions = whereParts.join(' AND ');
           
           if (op.direction === 'dev_to_prod') {
             // Copy from dev to prod
@@ -825,7 +836,7 @@ export async function applySyncOperations(
                 const updateCols = columns.filter(c => !businessKeys.includes(c));
                 if (updateCols.length > 0) {
                   const setClauses = updateCols.map((c, i) => 
-                    `${escapeIdentifier(c)} = $${businessKeys.length + i + 1}`
+                    `${escapeIdentifier(c)} = $${whereValues.length + i + 1}`
                   ).join(', ');
                   const updateValues = [
                     ...whereValues,
@@ -924,7 +935,7 @@ export async function applySyncOperations(
                 const updateCols = columns.filter(c => !businessKeys.includes(c));
                 if (updateCols.length > 0) {
                   const setClauses = updateCols.map((c, i) => 
-                    `${escapeIdentifier(c)} = $${businessKeys.length + i + 1}`
+                    `${escapeIdentifier(c)} = $${whereValues.length + i + 1}`
                   ).join(', ');
                   const updateValues = [
                     ...whereValues,
