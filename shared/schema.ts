@@ -435,6 +435,7 @@ export const salesReps = pgTable("sales_reps", {
   passwordHash: varchar("password_hash").notNull(),
   phoneNumber: varchar("phone_number"),
   territory: varchar("territory"),
+  commissionType: varchar("commission_type").notNull().default('tiered'),
   commissionPercentage: decimal("commission_percentage", { precision: 5, scale: 2 }).notNull().default('0'),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
