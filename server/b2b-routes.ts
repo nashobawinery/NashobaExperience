@@ -1343,23 +1343,18 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
 
     const order = await storage.createB2bOrder(orderData as any, orderItems as any);
 
-    // Create commission record if customer has a sales rep
+    // Create commission record if customer has a sales rep (using tiered brackets)
     if (customer.salesRepId) {
       try {
-        const salesRep = await storage.getSalesRep(customer.salesRepId);
-        if (salesRep) {
-          const commissionPercentage = parseFloat(salesRep.commissionPercentage);
-          const commissionAmount = (subtotal * commissionPercentage) / 100;
-          
-          await storage.createCommission({
-            orderId: order.id,
-            salesRepId: customer.salesRepId,
-            orderTotal: subtotal.toFixed(2),
-            commissionPercentage: commissionPercentage.toFixed(2),
-            commissionAmount: commissionAmount.toFixed(2),
-            status: 'pending',
-          });
-        }
+        const { commissionAmount, effectiveRate } = await calculateOrderCommission(customer.salesRepId, subtotal);
+        await storage.createCommission({
+          orderId: order.id,
+          salesRepId: customer.salesRepId,
+          orderTotal: subtotal.toFixed(2),
+          commissionPercentage: effectiveRate.toFixed(2),
+          commissionAmount: commissionAmount.toFixed(2),
+          status: 'pending',
+        });
       } catch (commissionError) {
         console.error('Failed to create commission record:', commissionError);
       }
@@ -1887,20 +1882,19 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
       lineTotal: item.totalPrice,
     })));
 
-    // Create commission record for the sales rep
-    const salesRep = await storage.getSalesRep(salesRepId!);
-    if (salesRep && salesRep.commissionPercentage) {
-      const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
-      const commissionAmount = (subtotal * commissionPercentage) / 100;
-      
+    // Create commission record for the sales rep (using tiered brackets)
+    try {
+      const { commissionAmount, effectiveRate } = await calculateOrderCommission(salesRepId!, subtotal);
       await storage.createCommission({
         orderId: order.id,
         salesRepId: salesRepId!,
         orderTotal: subtotal.toFixed(2),
-        commissionPercentage: commissionPercentage.toString(),
+        commissionPercentage: effectiveRate.toFixed(2),
         commissionAmount: commissionAmount.toFixed(2),
         status: 'pending',
       });
+    } catch (commissionError) {
+      console.error('Failed to create commission record:', commissionError);
     }
 
     // Send order notifications (delivery date workflow email to sales rep)
@@ -2159,6 +2153,42 @@ function calculateTieredCommission(annualSales: number, tiers: any[]) {
     effectiveRate: Math.round(effectiveRate * 100) / 100,
     tierBreakdown,
   };
+}
+
+// Calculate marginal commission for a specific order based on YTD position
+// ytdSalesBefore = cumulative sales BEFORE this order
+// orderAmount = the order's subtotal
+// Returns the commission amount and effective rate for this specific order
+async function calculateOrderCommission(salesRepId: string, orderAmount: number, ytdSalesBefore?: number): Promise<{ commissionAmount: number; effectiveRate: number }> {
+  const tiers = await storage.getActiveCommissionTiers();
+  
+  if (tiers.length === 0) {
+    // Fallback to flat rate from sales rep if no tiers configured
+    const salesRep = await storage.getSalesRep(salesRepId);
+    if (salesRep && salesRep.commissionPercentage) {
+      const rate = parseFloat(salesRep.commissionPercentage.toString());
+      return {
+        commissionAmount: Math.round((orderAmount * rate / 100) * 100) / 100,
+        effectiveRate: rate,
+      };
+    }
+    return { commissionAmount: 0, effectiveRate: 0 };
+  }
+
+  // If ytdSalesBefore not provided, calculate it
+  if (ytdSalesBefore === undefined) {
+    const year = new Date().getFullYear();
+    ytdSalesBefore = await storage.getYtdSalesForSalesRep(salesRepId, year);
+  }
+
+  // Calculate commission using marginal brackets
+  // Commission = total commission on (ytdBefore + orderAmount) - total commission on (ytdBefore)
+  const commissionWithOrder = calculateTieredCommission(ytdSalesBefore + orderAmount, tiers);
+  const commissionBefore = calculateTieredCommission(ytdSalesBefore, tiers);
+  const commissionAmount = Math.round((commissionWithOrder.totalCommission - commissionBefore.totalCommission) * 100) / 100;
+  const effectiveRate = orderAmount > 0 ? Math.round((commissionAmount / orderAmount) * 10000) / 100 : 0;
+
+  return { commissionAmount, effectiveRate };
 }
 
 // Helper function to get the application domain
@@ -5547,22 +5577,21 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       lineTotal: isReturn ? (-parseFloat(item.totalPrice)).toFixed(2) : item.totalPrice,
     })));
 
-    // Create commission record if customer has sales rep
+    // Create commission record if customer has sales rep (using tiered brackets)
     // For returns, create a negative commission adjustment
     if (customer.salesRepId) {
-      const salesRep = await storage.getSalesRep(customer.salesRepId);
-      if (salesRep && salesRep.commissionPercentage) {
-        const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
-        const commissionAmount = (subtotal * commissionPercentage) / 100;
-        
+      try {
+        const { commissionAmount, effectiveRate } = await calculateOrderCommission(customer.salesRepId, subtotal);
         await storage.createCommission({
           orderId: order.id,
           salesRepId: customer.salesRepId,
           orderTotal: isReturn ? (-subtotal).toFixed(2) : subtotal.toFixed(2),
-          commissionPercentage: commissionPercentage.toString(),
+          commissionPercentage: effectiveRate.toFixed(2),
           commissionAmount: isReturn ? (-commissionAmount).toFixed(2) : commissionAmount.toFixed(2),
-          status: isReturn ? 'earned' : 'pending', // Returns are immediately applied
+          status: isReturn ? 'earned' : 'pending',
         });
+      } catch (commissionError) {
+        console.error('Failed to create commission record:', commissionError);
       }
     }
 
@@ -5992,39 +6021,40 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
         .where(eq(b2bOrders.id, id));
     });
 
-    // 4. Recalculate commissions if customer has sales rep
-    const oldTotal = parseFloat(existingOrder.total);
-    const newTotal = total;
-    
+    // 4. Recalculate commissions if customer has sales rep (using tiered brackets)
+    // For edits, subtract old order total from YTD to get the correct ytdSalesBefore
     if (customer.salesRepId) {
-      const salesRep = await storage.getSalesRep(customer.salesRepId);
-      if (salesRep && salesRep.commissionPercentage) {
-        const commissionPercentage = parseFloat(salesRep.commissionPercentage.toString());
-        const newCommissionAmount = (newTotal * commissionPercentage) / 100;
+      try {
+        const year = new Date().getFullYear();
+        const currentYtd = await storage.getYtdSalesForSalesRep(customer.salesRepId, year);
+        const oldOrderTotal = parseFloat(existingOrder.subtotal || existingOrder.total);
+        const ytdBeforeThisOrder = Math.max(0, currentYtd - oldOrderTotal);
         
-        // Get existing commission records
+        const { commissionAmount: newCommissionAmount, effectiveRate } = await calculateOrderCommission(customer.salesRepId, total, ytdBeforeThisOrder);
+        
         const commissions = await storage.getCommissionsByOrderId(id);
         
         if (commissions.length > 0) {
-          // Update existing commission
           const commission = commissions[0];
           await db.update(b2bCommissions)
             .set({
               orderTotal: total.toFixed(2),
+              commissionPercentage: effectiveRate.toFixed(2),
               commissionAmount: newCommissionAmount.toFixed(2),
             })
             .where(eq(b2bCommissions.id, commission.id));
         } else {
-          // Create new commission if none exists
           await storage.createCommission({
             orderId: id,
             salesRepId: customer.salesRepId,
             orderTotal: total.toFixed(2),
-            commissionPercentage: commissionPercentage.toString(),
+            commissionPercentage: effectiveRate.toFixed(2),
             commissionAmount: newCommissionAmount.toFixed(2),
             status: 'pending',
           });
         }
+      } catch (commissionError) {
+        console.error('Failed to recalculate commission:', commissionError);
       }
     }
 
@@ -6978,17 +7008,15 @@ router.post('/api/b2b/admin/backfill-commissions', requireB2bAdmin, async (req: 
       const salesRep = await storage.getSalesRep(customer.salesRepId);
       if (!salesRep) continue;
 
-      // Calculate commission amount
+      // Calculate commission amount using tiered brackets
       const subtotal = parseFloat(order.subtotal);
-      const commissionPercentage = parseFloat(salesRep.commissionPercentage);
-      const commissionAmount = (subtotal * commissionPercentage) / 100;
+      const { commissionAmount, effectiveRate } = await calculateOrderCommission(customer.salesRepId, subtotal);
 
-      // Create commission
       await storage.createCommission({
         orderId: order.id,
         salesRepId: customer.salesRepId,
         orderTotal: order.subtotal,
-        commissionPercentage: commissionPercentage.toFixed(2),
+        commissionPercentage: effectiveRate.toFixed(2),
         commissionAmount: commissionAmount.toFixed(2),
         status: order.status === 'completed' ? 'earned' : 'pending',
       });

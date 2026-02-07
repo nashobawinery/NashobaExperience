@@ -51,6 +51,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreVertical, Truck, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { CommissionTierManager } from "@/components/b2b/CommissionTierManager";
 import { B2bSlideshowManager } from "@/components/b2b/B2bSlideshowManager";
 import { EmailTemplateManager } from "@/components/b2b/EmailTemplateManager";
 import B2bQRCodes from "@/components/b2b/B2bQRCodes";
@@ -3298,6 +3299,8 @@ export default function AdminDashboard() {
 
         {/* COMMISSIONS TAB */}
         <TabsContent value="commissions" className="space-y-4">
+          {currentUser?.type === 'admin' && <CommissionTierManager />}
+
           <Card>
             <CardHeader>
               <CardTitle className="font-serif flex items-center gap-2">

@@ -42,7 +42,7 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
 - **Platform Foundation**: Shared tables for module registry, user management with global and module-specific roles, cross-module audit logging, shared locations, equipment, and document storage.
 - **LMS Module**: Mobile-first microlearning with course catalog, lessons, quizzes, progress tracking, and certification.
 - **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations, shopping cart, and tasting surveys.
-- **B2B Wholesale Platform**: Customer and order management, category-specific pricing, multi-location support, multi-step email-based sales order workflow, and commission system.
+- **B2B Wholesale Platform**: Customer and order management, category-specific pricing, multi-location support, multi-step email-based sales order workflow, and tiered commission system with marginal brackets (like tax brackets) based on YTD collected revenue. Admin-manageable commission tiers stored in `b2b_commission_tiers` table. Commission calculator preview for admin. Falls back to flat rate from sales rep if no tiers configured.
 - **Compliance Module**: Calendar-based task management for regulatory deadlines with recurrence, reminders, audit history, and portal credential management.
 - **Reservations Module**: Complete dining reservation system with customer-facing booking, experience selection, time slot booking, Stripe payments, and availability management.
 - **Daily Reports Module**: Managers log incidents and track procedure completion using customizable templates and a status-based review workflow.
