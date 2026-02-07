@@ -515,6 +515,7 @@ export default function DatabaseSync() {
   const [isScanning, setIsScanning] = useState(false);
   const [expandedSyncTables, setExpandedSyncTables] = useState<Set<string>>(new Set());
   const [showAllTables, setShowAllTables] = useState(false);
+  const [scanTableSearch, setScanTableSearch] = useState("");
   
   // Sync selection state: key is "tableId:businessKeyString", value is sync direction
   const [syncSelections, setSyncSelections] = useState<Record<string, 'dev' | 'prod' | 'skip'>>({});
@@ -1945,12 +1946,22 @@ export default function DatabaseSync() {
                           />
                         </div>
                       </div>
+                      <div className="mt-2">
+                        <Input
+                          placeholder="Search tables..."
+                          value={scanTableSearch}
+                          onChange={(e) => setScanTableSearch(e.target.value)}
+                          className="max-w-sm"
+                          data-testid="input-scan-table-search"
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
                       <div className="space-y-2 pr-3">
                         {scanResult.tables
                           .filter(t => showAllTables || t.records.length > 0 || t.devCount !== t.prodCount)
+                          .filter(t => !scanTableSearch || t.tableName.toLowerCase().includes(scanTableSearch.toLowerCase()) || t.tableId.toLowerCase().includes(scanTableSearch.toLowerCase()))
                           .map(table => {
                             const hasChanges = table.records.length > 0;
                             const isExpanded = expandedSyncTables.has(table.tableId);
