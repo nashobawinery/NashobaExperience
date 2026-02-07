@@ -675,6 +675,18 @@ export const b2bCommissions = pgTable("b2b_commissions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const b2bCommissionTiers = pgTable("b2b_commission_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tierName: varchar("tier_name").notNull(),
+  minAnnualSales: decimal("min_annual_sales", { precision: 12, scale: 2 }).notNull().default('0'),
+  maxAnnualSales: decimal("max_annual_sales", { precision: 12, scale: 2 }),
+  ratePercent: decimal("rate_percent", { precision: 5, scale: 2 }).notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const b2bSettings = pgTable("b2b_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   settingKey: varchar("setting_key").notNull().unique(),
@@ -1783,6 +1795,7 @@ export const insertB2bTierAgreementSchema = createInsertSchema(b2bTierAgreements
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertB2bCommissionTierSchema = createInsertSchema(b2bCommissionTiers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
 export const insertB2bRolePermissionSchema = createInsertSchema(b2bRolePermissions).omit({ id: true, updatedAt: true });
 export const insertB2bPasswordResetTokenSchema = createInsertSchema(b2bPasswordResetTokens).omit({ id: true, createdAt: true, used: true });
@@ -1980,6 +1993,9 @@ export type B2bOrderItem = typeof b2bOrderItems.$inferSelect;
 
 export type InsertB2bCommission = z.infer<typeof insertB2bCommissionSchema>;
 export type B2bCommission = typeof b2bCommissions.$inferSelect;
+
+export type InsertB2bCommissionTier = z.infer<typeof insertB2bCommissionTierSchema>;
+export type B2bCommissionTier = typeof b2bCommissionTiers.$inferSelect;
 
 export type InsertB2bSetting = z.infer<typeof insertB2bSettingSchema>;
 export type B2bSetting = typeof b2bSettings.$inferSelect;
