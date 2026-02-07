@@ -986,6 +986,7 @@ export default function AdminDashboard() {
     email: "",
     phoneNumber: "",
     territory: "",
+    commissionType: "tiered",
     commissionPercentage: "",
     password: "",
   });
@@ -1623,6 +1624,7 @@ export default function AdminDashboard() {
         await updateSalesRep({
           id: salesRepDialog.salesRep.id,
           ...salesRepForm,
+          commissionType: salesRepForm.commissionType,
           commissionPercentage: salesRepForm.commissionPercentage ? parseFloat(salesRepForm.commissionPercentage) : 0,
           password: salesRepForm.password || undefined,
         });
@@ -1644,6 +1646,7 @@ export default function AdminDashboard() {
 
         await createSalesRep({
           ...salesRepForm,
+          commissionType: salesRepForm.commissionType,
           commissionPercentage: salesRepForm.commissionPercentage ? parseFloat(salesRepForm.commissionPercentage) : 0,
         });
         
@@ -1660,6 +1663,7 @@ export default function AdminDashboard() {
         email: "",
         phoneNumber: "",
         territory: "",
+        commissionType: "tiered",
         commissionPercentage: "",
         password: "",
       });
@@ -1680,6 +1684,7 @@ export default function AdminDashboard() {
         email: salesRep.email,
         phoneNumber: salesRep.phoneNumber || "",
         territory: salesRep.territory || "",
+        commissionType: salesRep.commissionType || "tiered",
         commissionPercentage: salesRep.commissionPercentage || "",
         password: "",
       });
@@ -1690,6 +1695,7 @@ export default function AdminDashboard() {
         email: "",
         phoneNumber: "",
         territory: "",
+        commissionType: "tiered",
         commissionPercentage: "",
         password: "",
       });
@@ -3082,7 +3088,11 @@ export default function AdminDashboard() {
                             <p className="text-xs text-muted-foreground">Territory: {rep.territory}</p>
                           )}
                           <p className="text-xs text-muted-foreground">
-                            Commission: <span className="font-semibold">{(rep as any).commissionPercentage || 0}%</span>
+                            Commission: <span className="font-semibold">
+                              {(rep as any).commissionType === 'flat'
+                                ? `${(rep as any).commissionPercentage || 0}% flat`
+                                : 'Tiered'}
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -4148,22 +4158,45 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="commissionPercentage">Commission Percentage (%) *</Label>
-              <Input
-                id="commissionPercentage"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={salesRepForm.commissionPercentage}
-                onChange={(e) => setSalesRepForm({ ...salesRepForm, commissionPercentage: e.target.value })}
-                data-testid="input-commission-percentage"
-                required
-              />
+              <Label htmlFor="commissionType">Commission Structure</Label>
+              <Select
+                value={salesRepForm.commissionType}
+                onValueChange={(value) => setSalesRepForm({ ...salesRepForm, commissionType: value })}
+              >
+                <SelectTrigger data-testid="select-commission-type">
+                  <SelectValue placeholder="Select commission type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tiered">Tiered (Marginal Brackets)</SelectItem>
+                  <SelectItem value="flat">Flat Rate Override</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                Percentage of order total earned as commission (e.g., 5 for 5%)
+                {salesRepForm.commissionType === 'tiered'
+                  ? "Commission calculated using YTD-based tier brackets"
+                  : "Fixed percentage applied to every order regardless of tiers"}
               </p>
             </div>
+
+            {salesRepForm.commissionType === 'flat' && (
+              <div className="space-y-2">
+                <Label htmlFor="commissionPercentage">Flat Commission Rate (%) *</Label>
+                <Input
+                  id="commissionPercentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={salesRepForm.commissionPercentage}
+                  onChange={(e) => setSalesRepForm({ ...salesRepForm, commissionPercentage: e.target.value })}
+                  data-testid="input-commission-percentage"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fixed percentage of order total earned as commission (e.g., 5 for 5%)
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password">

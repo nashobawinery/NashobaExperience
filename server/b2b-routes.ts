@@ -1413,6 +1413,91 @@ router.get('/api/b2b/sales-rep/commissions', requireB2bSalesRep, async (req: Req
   }
 });
 
+// Sales Rep: Get own profile (read-only)
+router.get('/api/b2b/sales-rep/profile', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const salesRep = await storage.getSalesRep(req.session.b2bUserId!);
+    if (!salesRep) {
+      return res.status(404).json({ error: 'Sales rep not found' });
+    }
+    const { passwordHash, ...profile } = salesRep;
+    res.json(profile);
+  } catch (error) {
+    console.error('Error fetching sales rep profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Sales Rep: Get tier progress (YTD position within commission tiers)
+router.get('/api/b2b/sales-rep/tier-progress', requireB2bSalesRep, async (req: Request, res: Response) => {
+  try {
+    const salesRepId = req.session.b2bUserId!;
+    const salesRep = await storage.getSalesRep(salesRepId);
+    if (!salesRep) {
+      return res.status(404).json({ error: 'Sales rep not found' });
+    }
+
+    const year = new Date().getFullYear();
+    const ytdSales = await storage.getYtdSalesForSalesRep(salesRepId, year);
+    const tiers = await storage.getActiveCommissionTiers();
+
+    const commissionType = salesRep.commissionType || 'tiered';
+    const flatRate = parseFloat(salesRep.commissionPercentage?.toString() || '0');
+
+    if (commissionType === 'flat' || tiers.length === 0) {
+      const totalCommission = Math.round((ytdSales * flatRate / 100) * 100) / 100;
+      return res.json({
+        commissionType,
+        flatRate,
+        ytdSales,
+        year,
+        totalCommission,
+        effectiveRate: flatRate,
+        tierBreakdown: [],
+        tiers: [],
+      });
+    }
+
+    const result = calculateTieredCommission(ytdSales, tiers);
+    const sortedTiers = [...tiers].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    const tierProgress = sortedTiers.map((tier: any) => {
+      const minSales = parseFloat(tier.minAnnualSales || '0');
+      const maxSales = tier.maxAnnualSales ? parseFloat(tier.maxAnnualSales) : null;
+      const tierRange = maxSales !== null ? (maxSales - minSales) : null;
+      const salesInTier = Math.max(0, Math.min(ytdSales - minSales, tierRange || Infinity));
+      const progress = tierRange ? Math.min((salesInTier / tierRange) * 100, 100) : (ytdSales > minSales ? 100 : 0);
+      const isComplete = tierRange ? salesInTier >= tierRange : false;
+      const isActive = ytdSales >= minSales && !isComplete;
+
+      return {
+        tierName: tier.tierName,
+        ratePercent: parseFloat(tier.ratePercent),
+        minSales,
+        maxSales,
+        salesInTier: Math.round(salesInTier * 100) / 100,
+        progress: Math.round(progress * 100) / 100,
+        isComplete,
+        isActive,
+        remaining: isComplete ? 0 : (tierRange ? Math.round((tierRange - salesInTier) * 100) / 100 : null),
+      };
+    });
+
+    res.json({
+      commissionType,
+      ytdSales,
+      year,
+      totalCommission: result.totalCommission,
+      effectiveRate: result.effectiveRate,
+      tierBreakdown: result.tierBreakdown,
+      tierProgress,
+    });
+  } catch (error) {
+    console.error('Error fetching tier progress:', error);
+    res.status(500).json({ error: 'Failed to fetch tier progress' });
+  }
+});
+
 // Sales Rep: Create a new customer (auto-assigned to this sales rep)
 router.post('/api/b2b/sales-rep/customers', requireB2bSalesRep, async (req: Request, res: Response) => {
   try {
@@ -2160,11 +2245,19 @@ function calculateTieredCommission(annualSales: number, tiers: any[]) {
 // orderAmount = the order's subtotal
 // Returns the commission amount and effective rate for this specific order
 async function calculateOrderCommission(salesRepId: string, orderAmount: number, ytdSalesBefore?: number): Promise<{ commissionAmount: number; effectiveRate: number }> {
+  const salesRep = await storage.getSalesRep(salesRepId);
+  
+  if (salesRep?.commissionType === 'flat') {
+    const rate = parseFloat(salesRep.commissionPercentage?.toString() || '0');
+    return {
+      commissionAmount: Math.round((orderAmount * rate / 100) * 100) / 100,
+      effectiveRate: rate,
+    };
+  }
+
   const tiers = await storage.getActiveCommissionTiers();
   
   if (tiers.length === 0) {
-    // Fallback to flat rate from sales rep if no tiers configured
-    const salesRep = await storage.getSalesRep(salesRepId);
     if (salesRep && salesRep.commissionPercentage) {
       const rate = parseFloat(salesRep.commissionPercentage.toString());
       return {
@@ -2175,14 +2268,11 @@ async function calculateOrderCommission(salesRepId: string, orderAmount: number,
     return { commissionAmount: 0, effectiveRate: 0 };
   }
 
-  // If ytdSalesBefore not provided, calculate it
   if (ytdSalesBefore === undefined) {
     const year = new Date().getFullYear();
     ytdSalesBefore = await storage.getYtdSalesForSalesRep(salesRepId, year);
   }
 
-  // Calculate commission using marginal brackets
-  // Commission = total commission on (ytdBefore + orderAmount) - total commission on (ytdBefore)
   const commissionWithOrder = calculateTieredCommission(ytdSalesBefore + orderAmount, tiers);
   const commissionBefore = calculateTieredCommission(ytdSalesBefore, tiers);
   const commissionAmount = Math.round((commissionWithOrder.totalCommission - commissionBefore.totalCommission) * 100) / 100;
