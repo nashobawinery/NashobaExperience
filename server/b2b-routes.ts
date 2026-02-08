@@ -5749,15 +5749,37 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
 // Sales reps only see orders from their assigned customers (server-side filtering)
 router.get('/api/b2b/admin/orders', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
   try {
+    let orders: any[];
+    
     // For sales reps, use SQL-scoped query to only return orders from their assigned customers
     if ((req.session as any).b2bUserType === 'sales_rep') {
       const salesRepId = (req.session as any).b2bUserId;
-      const orders = await storage.getB2bOrdersBySalesRep(salesRepId);
-      return res.json(orders);
+      orders = await storage.getB2bOrdersBySalesRep(salesRepId);
+    } else {
+      orders = await storage.getAllB2bOrders();
     }
     
-    // For admins, return all orders
-    const orders = await storage.getAllB2bOrders();
+    // Batch-fetch all order items to include with orders (needed for reports like Sales by Product)
+    const orderIds = orders.map(o => o.id);
+    if (orderIds.length > 0) {
+      const allItems = await db
+        .select()
+        .from(b2bOrderItems)
+        .where(inArray(b2bOrderItems.orderId, orderIds));
+      
+      const itemsByOrder = new Map<string, typeof allItems>();
+      for (const item of allItems) {
+        const existing = itemsByOrder.get(item.orderId) || [];
+        existing.push(item);
+        itemsByOrder.set(item.orderId, existing);
+      }
+      
+      orders = orders.map(order => ({
+        ...order,
+        items: itemsByOrder.get(order.id) || [],
+      }));
+    }
+    
     res.json(orders);
   } catch (error) {
     console.error('Error fetching orders:', error);

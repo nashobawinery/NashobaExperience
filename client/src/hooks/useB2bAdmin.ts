@@ -28,11 +28,14 @@ export interface B2bOrderItem {
   orderId: string;
   productId: string;
   productName: string;
-  productSku: string;
+  productSku?: string;
+  sku?: string;
   quantity: number;
-  caseSize: number;
+  caseSize?: number;
   unitPrice: string;
-  totalPrice: string;
+  totalPrice?: string;
+  lineTotal?: string;
+  retailPrice?: string;
 }
 
 export interface SalesRep {

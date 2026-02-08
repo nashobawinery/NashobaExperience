@@ -107,7 +107,7 @@ export default function B2bReports() {
       if (!order.items) return;
       order.items.forEach((item) => {
         const existing = map.get(item.productId) || { name: item.productName, total: 0, quantity: 0 };
-        existing.total += parseFloat(item.totalPrice || "0");
+        existing.total += parseFloat(item.lineTotal || item.totalPrice || "0");
         existing.quantity += item.quantity;
         map.set(item.productId, existing);
       });
