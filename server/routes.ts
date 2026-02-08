@@ -18133,7 +18133,35 @@ Generate a professional response:`;
   // RCC Daily Revenue
   app.get('/api/rcc/daily-revenue/:weekId', isAuthenticated, async (req, res) => {
     try {
-      const dailyRevenue = await storage.getRccDailyRevenueByWeek(parseInt(req.params.weekId));
+      const weekId = parseInt(req.params.weekId);
+      let dailyRevenue = await storage.getRccDailyRevenueByWeek(weekId);
+      
+      // Auto-create daily entries for all 7 days if fewer than 7 exist
+      if (dailyRevenue.length < 7) {
+        const week = await storage.getRccWeek(weekId);
+        if (week?.weekStart) {
+          const existingDates = new Set(dailyRevenue.map(d => d.date));
+          const [y, m, d] = week.weekStart.split('-').map(Number);
+          const startDate = new Date(y, m - 1, d);
+          
+          for (let i = 0; i < 7; i++) {
+            const dayDate = new Date(startDate);
+            dayDate.setDate(dayDate.getDate() + i);
+            const dateStr = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, '0')}-${String(dayDate.getDate()).padStart(2, '0')}`;
+            
+            if (!existingDates.has(dateStr)) {
+              await storage.upsertRccDailyRevenue({
+                weekId,
+                date: dateStr,
+                dayOfWeek: dayDate.getDay(),
+              });
+            }
+          }
+          
+          dailyRevenue = await storage.getRccDailyRevenueByWeek(weekId);
+        }
+      }
+      
       res.json(dailyRevenue);
     } catch (error) {
       console.error('Error fetching RCC daily revenue:', error);
@@ -18167,12 +18195,10 @@ Generate a professional response:`;
 
   app.post('/api/rcc/daily-revenue/:date/fetch-weather', isAuthenticated, async (req, res) => {
     try {
-      // Bolton, Massachusetts coordinates
       const lat = 42.4334;
       const lon = -71.6068;
       const dateStr = req.params.date;
       
-      // Fetch weather from Open-Meteo API (free, no API key required)
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code&timezone=America/New_York&start_date=${dateStr}&end_date=${dateStr}`;
       
       const response = await fetch(weatherUrl);
@@ -18186,10 +18212,8 @@ Generate a professional response:`;
         return res.status(404).json({ message: 'No weather data available for this date' });
       }
       
-      // Convert Celsius to Fahrenheit
       const celsiusToFahrenheit = (c: number) => Math.round((c * 9/5) + 32);
       
-      // Map weather codes to conditions
       const getWeatherCondition = (code: number): string => {
         if (code === 0) return 'Clear';
         if (code <= 3) return 'Partly Cloudy';
@@ -18208,9 +18232,31 @@ Generate a professional response:`;
         precipitation: weatherData.daily.precipitation_sum[0] || 0,
       };
       
+      // Auto-create the daily revenue entry if it doesn't exist yet
+      let existing = await storage.getRccDailyRevenueByDate(dateStr);
+      if (!existing) {
+        const [yearStr, monthStr, dayStr] = dateStr.split('-');
+        const dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+        const dayOfWeek = dateObj.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(dateObj);
+        monday.setDate(monday.getDate() + mondayOffset);
+        const weekStartStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+        const weekEndStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+        
+        const week = await storage.getOrCreateRccWeek(weekStartStr, weekEndStr);
+        await storage.upsertRccDailyRevenue({
+          weekId: week.id,
+          date: dateStr,
+          dayOfWeek,
+        });
+      }
+      
       const updated = await storage.updateRccDailyRevenueWeather(dateStr, weather);
       if (!updated) {
-        return res.status(404).json({ message: 'Daily revenue entry not found' });
+        return res.status(404).json({ message: 'Failed to save weather data' });
       }
       
       res.json(updated);
