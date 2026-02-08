@@ -223,8 +223,11 @@ export async function scanForDifferences(
         tableConfig.businessKey
       );
       
+      // Normalize dev records from snake_case to camelCase for consistent key extraction
+      const normalizedDevRecords = devRecords.map(r => normalizeRecordKeys(r));
+      
       const devByKey = new Map<string, Record<string, any>>();
-      for (const record of devRecords) {
+      for (const record of normalizedDevRecords) {
         const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
         const keyString = businessKeyToString(keyValue);
         devByKey.set(keyString, record);
@@ -317,7 +320,10 @@ export async function getTablePreview(
     tableConfig.businessKey
   );
   
-  const comparison: SyncRecord[] = devRecords.slice(0, limit).map(devRecord => {
+  // Normalize records from snake_case to camelCase
+  const normalizedDevRecords = devRecords.map(r => normalizeRecordKeys(r));
+  
+  const comparison: SyncRecord[] = normalizedDevRecords.slice(0, limit).map(devRecord => {
     const keyValue = getBusinessKeyValue(devRecord, tableConfig.businessKey);
     const devHash = computeContentHash(devRecord, tableConfig.exportFields);
     const devUpdatedAt = devRecord.updatedAt ? new Date(devRecord.updatedAt) : 
@@ -340,7 +346,7 @@ export async function getTablePreview(
   
   return {
     tableConfig,
-    devRecords: devRecords.slice(0, limit),
+    devRecords: normalizedDevRecords.slice(0, limit),
     prodRecords: [],
     comparison,
   };
@@ -412,14 +418,17 @@ async function scanSingleTable(
       try { await pool.end(); } catch {} // Ignore end errors
     }
     
+    // CRITICAL: Normalize ALL records to camelCase for consistent key extraction and comparison
+    // db.execute(sql.raw(...)) returns snake_case column names from PostgreSQL
+    const normalizedDevRecords = devRecords.map(r => normalizeRecordKeys(r));
+    
     const devByKey = new Map<string, Record<string, any>>();
-    for (const record of devRecords) {
+    for (const record of normalizedDevRecords) {
       const keyValue = getBusinessKeyValue(record, tableConfig.businessKey);
       const keyString = businessKeyToString(keyValue);
       devByKey.set(keyString, record);
     }
     
-    // CRITICAL: Normalize production records from snake_case to camelCase before key extraction
     const normalizedProdRecords = prodRecords.map(r => normalizeRecordKeys(r));
     
     const prodByKey = new Map<string, Record<string, any>>();
@@ -521,8 +530,34 @@ async function scanSingleTable(
     };
     
   } catch (error: any) {
-    console.error(`[Sync] Error scanning table ${tableConfig.id}:`, error.message);
-    return null;
+    console.error(`[Sync] Error scanning table ${tableConfig.id}:`, error.message, error.stack);
+    return {
+      tableId: tableConfig.id,
+      tableName: tableConfig.name,
+      module: tableConfig.module,
+      dataType: tableConfig.dataType,
+      devCount: 0,
+      prodCount: 0,
+      devNewer: 0,
+      prodNewer: 0,
+      conflicts: 0,
+      identical: 0,
+      devOnly: 0,
+      prodOnly: 0,
+      records: [{
+        tableId: tableConfig.id,
+        businessKey: { _error: true },
+        devData: { error: error.message },
+        prodData: null,
+        devUpdatedAt: null,
+        prodUpdatedAt: null,
+        devHash: null,
+        prodHash: null,
+        state: 'conflict' as RecordState,
+        recommendation: 'manual_review' as const,
+        selected: 'skip' as const,
+      }],
+    };
   }
 }
 
@@ -1021,6 +1056,7 @@ export function getSyncSummary(scanResult: SyncScanResult): {
     rbac: { tables: 0, differences: 0 },
     platform: { tables: 0, differences: 0 },
     reservation: { tables: 0, differences: 0 },
+    support: { tables: 0, differences: 0 },
   };
   
   const byDataType: Record<DataType, { tables: number; differences: number }> = {
