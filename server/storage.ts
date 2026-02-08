@@ -7344,7 +7344,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${rccToastHistoricalRevenue.revenueDate} = ANY(ARRAY[${sql.join(priorYearDates.map(d => sql`${d}`), sql`,`)}]::date[])`)
       .orderBy(rccToastHistoricalRevenue.revenueDate);
     
-    const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0'), 0);
+    const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0') + parseFloat(d.shopifyRevenue || '0'), 0);
     
     return {
       currentDates: currentDates.map(d => ({ date: d.date, dayOfWeek: d.dayOfWeek, priorYearDate: d.priorYearDate })),

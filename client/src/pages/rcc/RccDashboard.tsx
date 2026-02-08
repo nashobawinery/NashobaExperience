@@ -1052,7 +1052,7 @@ function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccC
 
 type ToastHistoricalData = {
   currentDates: { date: string; dayOfWeek: number; priorYearDate: string }[];
-  priorYearData: { revenueDate: string; netRevenue: string }[];
+  priorYearData: { revenueDate: string; netRevenue: string; shopifyRevenue: string | null }[];
   priorYearTotal: number;
 };
 
@@ -1173,10 +1173,12 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
   };
   const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.other;
 
-  // Prior year comparison
-  const priorYearMap = new Map<string, number>();
+  // Prior year comparison (Toast + Shopify combined)
+  const priorYearMap = new Map<string, { toast: number; shopify: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
-    priorYearMap.set(d.revenueDate, parseFloat(d.netRevenue || '0'));
+    const toast = parseFloat(d.netRevenue || '0');
+    const shopify = parseFloat(d.shopifyRevenue || '0');
+    priorYearMap.set(d.revenueDate, { toast, shopify, total: toast + shopify });
   });
 
   return (
@@ -1196,14 +1198,17 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
           </div>
           {historicalData && historicalData.priorYearTotal > 0 && (
             <div className="text-right">
-              <p className="text-sm text-muted-foreground">vs Last Year</p>
+              <p className="text-sm text-muted-foreground">vs Prior Year</p>
               {(() => {
-                const pctChange = ((weeklyTotals.toast - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100;
+                const pctChange = ((grandTotal - historicalData.priorYearTotal) / historicalData.priorYearTotal) * 100;
                 const isPositive = pctChange >= 0;
                 return (
-                  <p className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                    {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
-                  </p>
+                  <>
+                    <p className={`text-lg font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                      {isPositive ? '+' : ''}{pctChange.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">PY: ${historicalData.priorYearTotal.toLocaleString()}</p>
+                  </>
                 );
               })()}
             </div>
@@ -1221,6 +1226,7 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
               entry={entry}
               weekId={weekId}
               priorYearRevenue={priorYearMap.get(historicalData?.currentDates?.find(c => c.date === day.date)?.priorYearDate || '') || null}
+              priorYearDate={historicalData?.currentDates?.find(c => c.date === day.date)?.priorYearDate || null}
               onSave={(data) => saveDailyMutation.mutate(data)}
               onFetchWeather={() => fetchWeatherMutation.mutate(day.date)}
               isSaving={saveDailyMutation.isPending}
@@ -1286,6 +1292,7 @@ function DailyRevenueRow({
   entry,
   weekId,
   priorYearRevenue,
+  priorYearDate,
   onSave,
   onFetchWeather,
   isSaving,
@@ -1294,7 +1301,8 @@ function DailyRevenueRow({
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
   weekId: number;
-  priorYearRevenue: number | null;
+  priorYearRevenue: { toast: number; shopify: number; total: number } | null;
+  priorYearDate: string | null;
   onSave: (data: any) => void;
   onFetchWeather: () => void;
   isSaving: boolean;
@@ -1371,9 +1379,9 @@ function DailyRevenueRow({
                 </div>
               </>
             )}
-            {priorYearRevenue !== null && priorYearRevenue > 0 && (
-              <Badge variant="outline" className="text-xs">
-                PY: ${priorYearRevenue.toLocaleString()}
+            {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
+              <Badge variant="outline" className="text-xs" title={priorYearDate ? `Prior year: ${priorYearDate}${priorYearRevenue.toast > 0 ? ` | Toast: $${priorYearRevenue.toast.toLocaleString()}` : ''}${priorYearRevenue.shopify > 0 ? ` | Shopify: $${priorYearRevenue.shopify.toLocaleString()}` : ''}` : ''}>
+                PY: ${priorYearRevenue.total.toLocaleString()}
               </Badge>
             )}
             {!hasWeather && (

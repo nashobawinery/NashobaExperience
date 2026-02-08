@@ -4627,11 +4627,12 @@ export const insertRccAiRecommendationSchema = createInsertSchema(rccAiRecommend
 export type InsertRccAiRecommendation = z.infer<typeof insertRccAiRecommendationSchema>;
 export type RccAiRecommendation = typeof rccAiRecommendations.$inferSelect;
 
-// RCC Toast Historical Revenue - stores daily Toast POS revenue for year-over-year comparison
+// RCC Toast Historical Revenue - stores daily revenue for year-over-year comparison (Toast + Shopify)
 export const rccToastHistoricalRevenue = pgTable("rcc_toast_historical_revenue", {
   id: serial("id").primaryKey(),
   revenueDate: date("revenue_date").notNull(),
   netRevenue: numeric("net_revenue", { precision: 12, scale: 2 }).notNull(),
+  shopifyRevenue: numeric("shopify_revenue", { precision: 12, scale: 2 }),
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
   weekOfYear: integer("week_of_year").notNull(),
   year: integer("year").notNull(),
