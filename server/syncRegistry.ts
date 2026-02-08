@@ -300,7 +300,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     sheetName: 'TierPricing',
     businessKey: ['tierName'],
     schema: insertTierPricingSchema,
-    exportFields: ['tierName', 'description', 'discountPercentage', 'volumeRequirement', 'paymentTerms', 'isActive', 'sortOrder', 'wineDiscount', 'spiritsDiscount', 'beerDiscount', 'cannedCocktailDiscount', 'cannedWineDiscount', 'ciderDiscount'],
+    exportFields: ['tierName', 'description', 'discountPercentage', 'sortOrder', 'active', 'commitmentCases', 'category'],
     dataType: 'reference',
     supportsBackup: true,
   },
