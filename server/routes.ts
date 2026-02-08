@@ -15632,8 +15632,60 @@ Generate a professional response:`;
         
         if (revenueDate && revenueAmount) {
           try {
+            const cleanAmount = revenueAmount.replace(/[$,]/g, '');
             const record = await storage.recordRccToastHistoricalRevenue(revenueDate, revenueAmount);
-            console.log('[Email Inbound] Saved Toast revenue:', revenueDate, revenueAmount, 'Record ID:', record.id);
+            console.log('[Email Inbound] Saved Toast historical revenue:', revenueDate, revenueAmount, 'Record ID:', record.id);
+            
+            // Also auto-populate the daily revenue entry for the current RCC week
+            try {
+              // Parse date components directly to avoid timezone issues
+              const [yearStr, monthStr, dayStr] = revenueDate.split('-');
+              const revDateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+              const dayOfWeek = revDateObj.getDay();
+              
+              // Find the Monday (week start) for this date
+              const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+              const monday = new Date(revDateObj);
+              monday.setDate(monday.getDate() + mondayOffset);
+              const weekStartStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+              const sunday = new Date(monday);
+              sunday.setDate(sunday.getDate() + 6);
+              const weekEndStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+              
+              // Get or create the week
+              const week = await storage.getOrCreateRccWeek(weekStartStr, weekEndStr);
+              
+              // Check if daily entry exists already
+              const existingDaily = await storage.getRccDailyRevenueByDate(revenueDate);
+              if (existingDaily) {
+                // Update toast revenue only, preserve all other existing fields
+                await storage.upsertRccDailyRevenue({
+                  weekId: existingDaily.weekId,
+                  date: existingDaily.date,
+                  dayOfWeek: existingDaily.dayOfWeek,
+                  toastRevenue: cleanAmount,
+                  shopifyRevenue: existingDaily.shopifyRevenue,
+                  otherRevenue: existingDaily.otherRevenue,
+                  notes: existingDaily.notes,
+                  weatherHigh: existingDaily.weatherHigh,
+                  weatherLow: existingDaily.weatherLow,
+                  weatherCondition: existingDaily.weatherCondition,
+                  weatherPrecipitation: existingDaily.weatherPrecipitation,
+                });
+                console.log('[Email Inbound] Updated daily revenue entry for', revenueDate);
+              } else {
+                // Create new daily entry
+                await storage.upsertRccDailyRevenue({
+                  weekId: week.id,
+                  date: revenueDate,
+                  dayOfWeek,
+                  toastRevenue: cleanAmount,
+                });
+                console.log('[Email Inbound] Created daily revenue entry for', revenueDate);
+              }
+            } catch (dailyErr) {
+              console.error('[Email Inbound] Failed to save daily revenue (historical still saved):', dailyErr);
+            }
             
             return res.status(200).json({
               message: 'Toast revenue recorded',
