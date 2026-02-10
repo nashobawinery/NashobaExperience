@@ -1173,12 +1173,12 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
   };
   const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.other;
 
-  // Prior year comparison (Toast + Shopify combined)
-  const priorYearMap = new Map<string, { toast: number; shopify: number; total: number }>();
+  const priorYearMap = new Map<string, { toast: number; shopify: number; other: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
     const toast = parseFloat(d.netRevenue || '0');
     const shopify = parseFloat(d.shopifyRevenue || '0');
-    priorYearMap.set(d.revenueDate, { toast, shopify, total: toast + shopify });
+    const other = parseFloat(d.otherRevenue || '0');
+    priorYearMap.set(d.revenueDate, { toast, shopify, other, total: toast + shopify + other });
   });
 
   return (
@@ -1301,7 +1301,7 @@ function DailyRevenueRow({
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
   weekId: number;
-  priorYearRevenue: { toast: number; shopify: number; total: number } | null;
+  priorYearRevenue: { toast: number; shopify: number; other: number; total: number } | null;
   priorYearDate: string | null;
   onSave: (data: any) => void;
   onFetchWeather: () => void;
@@ -1444,8 +1444,8 @@ function DailyRevenueRow({
                   <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">PY Total</p>
-                  <p className="text-xs font-medium">${priorYearRevenue.total.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">PY Other</p>
+                  <p className="text-xs font-medium">${(priorYearRevenue.other || 0).toLocaleString()}</p>
                 </div>
               </div>
             )}
