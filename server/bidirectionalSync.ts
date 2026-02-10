@@ -67,9 +67,8 @@ function computeContentHash(data: Record<string, any>, fields: string[], debugLa
     }
   }
   const json = JSON.stringify(sortedData, (_, v) => {
-    if (v instanceof Date) return v.toISOString();
     if (typeof v === 'bigint') return v.toString();
-    return v;
+    return normalizeValue(v);
   });
   const hash = crypto.createHash('md5').update(json).digest('hex');
   
@@ -91,12 +90,25 @@ function camelToSnake(str: string): string {
   return str.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
-// Normalize record keys to camelCase for consistent comparison
+function normalizeValue(value: any): any {
+  if (value === null || value === undefined) return value;
+  if (value instanceof Date) {
+    const iso = value.toISOString();
+    if (iso.endsWith('T00:00:00.000Z')) return iso.split('T')[0];
+    return iso;
+  }
+  if (typeof value === 'string') {
+    const dateMatch = value.match(/^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?Z?$/);
+    if (dateMatch) return dateMatch[1];
+  }
+  return value;
+}
+
 function normalizeRecordKeys(record: Record<string, any>): Record<string, any> {
   const normalized: Record<string, any> = {};
   for (const [key, value] of Object.entries(record)) {
     const camelKey = snakeToCamel(key);
-    normalized[camelKey] = value;
+    normalized[camelKey] = normalizeValue(value);
   }
   return normalized;
 }
