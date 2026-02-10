@@ -16010,11 +16010,16 @@ Generate a professional response:`;
           }
         } else {
           console.log('[Email Inbound] Could not parse Shopify/Report Pundit revenue email - date:', shopifyDate, 'amount:', shopifyAmount);
-          // Don't fall through to support ticket for Report Pundit emails with CSV - log it
-          if (isReportPundit && attachments.length > 0) {
+          if (attachments.length > 0) {
             console.log('[Email Inbound] Report Pundit email had attachments but could not extract revenue. Attachment filenames:', 
               attachments.map(a => a.filename).join(', '));
           }
+        }
+
+        // Always return for Report Pundit emails - never let them become support tickets
+        if (isReportPundit) {
+          console.log('[Email Inbound] Report Pundit email handled - not forwarding to support');
+          return res.status(200).json({ message: 'Report Pundit email processed (not sent to support)' });
         }
       }
 
