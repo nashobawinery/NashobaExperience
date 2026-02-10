@@ -826,6 +826,25 @@ export async function applySyncOperations(
             // Database returns snake_case columns - convert record keys to snake_case for access
             const devRecord = devResult.rows[0] as Record<string, any>;
             
+            // Remap weekId for rccDailyRevenue - find correct week in target db by date
+            if (tableId === 'rccDailyRevenue' && devRecord['week_id']) {
+              const dateVal = devRecord['date'];
+              if (dateVal) {
+                try {
+                  const weekResult = await prodPool.query(
+                    `SELECT id FROM rcc_weeks WHERE week_start <= $1 AND week_end >= $1`,
+                    [dateVal]
+                  );
+                  if (weekResult.rows.length > 0) {
+                    console.log(`[Sync] Remapped weekId for date ${dateVal}: ${devRecord['week_id']} -> ${weekResult.rows[0].id}`);
+                    devRecord['week_id'] = weekResult.rows[0].id;
+                  }
+                } catch (err) {
+                  console.warn(`[Sync] Could not remap weekId for date ${dateVal}:`, err);
+                }
+              }
+            }
+            
             // Helper to get value from record using camelCase field name
             const getDbValue = (fieldName: string) => {
               const snakeName = toSnakeCase(fieldName);

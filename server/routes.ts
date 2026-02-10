@@ -18672,6 +18672,74 @@ Generate a professional response:`;
     }
   });
 
+  // RCC Admin: Repair daily revenue weekId mappings and sync from historical data
+  app.post('/api/rcc/admin/repair-daily-revenue', isAdmin, async (_req, res) => {
+    try {
+      console.log('[RCC Repair] Starting daily revenue repair...');
+      const allWeeks = await storage.getRccWeeks();
+      const allDailyRevenue = await storage.getAllRccDailyRevenue();
+      
+      let fixedCount = 0;
+      let syncedCount = 0;
+      const errors: string[] = [];
+      
+      for (const entry of allDailyRevenue) {
+        const [y, m, d] = entry.date.split('-').map(Number);
+        const entryDate = new Date(y, m - 1, d);
+        
+        const correctWeek = allWeeks.find(w => {
+          const [wy, wm, wd] = w.weekStart.split('-').map(Number);
+          const [ey, em, ed] = w.weekEnd.split('-').map(Number);
+          const weekStart = new Date(wy, wm - 1, wd);
+          const weekEnd = new Date(ey, em - 1, ed);
+          weekEnd.setHours(23, 59, 59);
+          return entryDate >= weekStart && entryDate <= weekEnd;
+        });
+        
+        if (!correctWeek) {
+          errors.push(`No week found for date ${entry.date}`);
+          continue;
+        }
+        
+        if (entry.weekId !== correctWeek.id) {
+          await storage.upsertRccDailyRevenue({
+            ...entry,
+            weekId: correctWeek.id,
+          });
+          fixedCount++;
+          console.log(`[RCC Repair] Fixed weekId for ${entry.date}: ${entry.weekId} -> ${correctWeek.id}`);
+        }
+        
+        if (!entry.toastRevenue) {
+          const hist = await storage.getRccToastHistoricalRevenueByDate(entry.date);
+          if (hist && parseFloat(hist.netRevenue || '0') > 0) {
+            await storage.upsertRccDailyRevenue({
+              weekId: correctWeek.id,
+              date: entry.date,
+              dayOfWeek: entry.dayOfWeek,
+              toastRevenue: hist.netRevenue,
+              shopifyRevenue: entry.shopifyRevenue,
+              otherRevenue: entry.otherRevenue,
+              notes: entry.notes,
+              weatherHigh: entry.weatherHigh,
+              weatherLow: entry.weatherLow,
+              weatherCondition: entry.weatherCondition,
+              weatherPrecipitation: entry.weatherPrecipitation,
+            });
+            syncedCount++;
+            console.log(`[RCC Repair] Synced Toast revenue for ${entry.date}: $${hist.netRevenue}`);
+          }
+        }
+      }
+      
+      console.log(`[RCC Repair] Complete: ${fixedCount} weekIds fixed, ${syncedCount} Toast entries synced, ${errors.length} errors`);
+      res.json({ success: true, fixedCount, syncedCount, errors, totalEntries: allDailyRevenue.length });
+    } catch (error) {
+      console.error('Error repairing daily revenue:', error);
+      res.status(500).json({ message: 'Failed to repair daily revenue' });
+    }
+  });
+
   // RCC Learnings
   app.get('/api/rcc/learnings', isAuthenticated, async (req, res) => {
     try {

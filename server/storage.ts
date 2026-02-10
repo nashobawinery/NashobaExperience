@@ -7446,6 +7446,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // RCC Daily Revenue methods
+  async getAllRccDailyRevenue(): Promise<RccDailyRevenue[]> {
+    return await db.select().from(rccDailyRevenue).orderBy(rccDailyRevenue.date);
+  }
+
   async getRccDailyRevenueByWeek(weekId: number): Promise<RccDailyRevenue[]> {
     return await db.select().from(rccDailyRevenue).where(eq(rccDailyRevenue.weekId, weekId)).orderBy(rccDailyRevenue.date);
   }

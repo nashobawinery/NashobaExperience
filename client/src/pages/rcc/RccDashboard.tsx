@@ -368,8 +368,40 @@ function ExportImportButtons({
     setImportData(""); // Clear JSON if file selected
   };
 
+  const [repairing, setRepairing] = useState(false);
+  const handleRepairData = async () => {
+    setRepairing(true);
+    try {
+      const res = await apiRequest("POST", "/api/rcc/admin/repair-daily-revenue");
+      if (!res.ok) throw new Error("Repair failed");
+      const result = await res.json();
+      toast({ 
+        title: "Revenue data repaired", 
+        description: `Fixed ${result.fixedCount} week mappings, synced ${result.syncedCount} Toast entries across ${result.totalEntries} records` 
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue"] });
+      if (weekId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+      }
+    } catch {
+      toast({ title: "Repair failed", variant: "destructive" });
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleRepairData}
+        disabled={repairing}
+        data-testid="btn-repair-revenue"
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${repairing ? 'animate-spin' : ''}`} />
+        {repairing ? "Repairing..." : "Repair Data"}
+      </Button>
       <Button 
         variant="outline" 
         size="sm"
