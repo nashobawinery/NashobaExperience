@@ -1783,7 +1783,7 @@ export default function DatabaseSync() {
                     </Button>
                     {scanResult && (
                       <span className="text-sm text-muted-foreground">
-                        Last scanned: {new Date(scanResult.scannedAt).toLocaleString()}
+                        Last scanned: {new Date(scanResult.scannedAt).toLocaleString('en-US')}
                       </span>
                     )}
                   </div>
