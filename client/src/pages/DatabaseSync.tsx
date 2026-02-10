@@ -2131,10 +2131,9 @@ export default function DatabaseSync() {
                                           Clear
                                         </Button>
                                       </div>
-                                      <div className="border rounded-lg overflow-hidden">
-                                      <ScrollArea className="max-h-[400px]">
+                                      <div className="border rounded-lg max-h-[400px] overflow-y-auto">
                                         <table className="w-full text-sm">
-                                          <thead className="bg-muted sticky top-0">
+                                          <thead className="bg-muted sticky top-0 z-10">
                                             <tr>
                                               <th className="text-left p-2">Business Key</th>
                                               <th className="text-left p-2">State</th>
@@ -2166,10 +2165,10 @@ export default function DatabaseSync() {
                                                   </Badge>
                                                 </td>
                                                 <td className="p-2 text-xs text-muted-foreground">
-                                                  {record.devUpdatedAt ? new Date(record.devUpdatedAt).toLocaleString() : '-'}
+                                                  {record.devUpdatedAt ? new Date(record.devUpdatedAt).toLocaleString('en-US') : '-'}
                                                 </td>
                                                 <td className="p-2 text-xs text-muted-foreground">
-                                                  {record.prodUpdatedAt ? new Date(record.prodUpdatedAt).toLocaleString() : '-'}
+                                                  {record.prodUpdatedAt ? new Date(record.prodUpdatedAt).toLocaleString('en-US') : '-'}
                                                 </td>
                                                 <td className="p-2">
                                                   <div className="flex items-center gap-1">
@@ -2206,7 +2205,6 @@ export default function DatabaseSync() {
                                             Showing first 50 of {table.records.length} records
                                           </div>
                                         )}
-                                      </ScrollArea>
                                       </div>
                                     </div>
                                   ) : (
