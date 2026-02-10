@@ -508,7 +508,10 @@ export default function DatabaseSync() {
   const [mediaSyncResult, setMediaSyncResult] = useState<MediaSyncResult | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['tasting', 'b2b']));
   
-  const [prodDbUrl, setProdDbUrl] = useState<string>('');
+  const DEFAULT_PROD_DB_URL = 'postgresql://neondb_owner:npg_ZwW7KqdEG6OA@ep-nameless-base-afdwzc1s.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require';
+  const [prodDbUrl, setProdDbUrl] = useState<string>(() => {
+    return localStorage.getItem('sync_prod_db_url') || DEFAULT_PROD_DB_URL;
+  });
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [scanResult, setScanResult] = useState<SyncScanResult | null>(null);
@@ -1694,7 +1697,10 @@ export default function DatabaseSync() {
                     id="prod-db-url"
                     placeholder="postgres://user:password@host:port/database"
                     value={prodDbUrl}
-                    onChange={(e) => setProdDbUrl(e.target.value)}
+                    onChange={(e) => {
+                      setProdDbUrl(e.target.value);
+                      localStorage.setItem('sync_prod_db_url', e.target.value);
+                    }}
                     className="font-mono text-xs"
                     data-testid="input-prod-db-url"
                   />
