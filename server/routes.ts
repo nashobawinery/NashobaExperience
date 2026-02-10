@@ -15703,36 +15703,52 @@ Generate a professional response:`;
       }
 
       // ============================================
-      // SHOPIFY REVENUE EMAIL DETECTION
-      // Check if this email is a daily sales report from Shopify
+      // SHOPIFY / REPORT PUNDIT REVENUE EMAIL DETECTION
+      // Detects Report Pundit order reports (Shopify) with CSV attachments
+      // Also handles direct Shopify revenue emails
       // ============================================
-      const isShopifyEmail = fromEmailLower.includes('shopify') ||
+      const isReportPundit = fromName.toLowerCase().includes('report pundit') ||
+                              fromEmailLower.includes('reportpundit') ||
+                              subjectLower.includes('report pundit');
+      const isShopifyEmail = isReportPundit ||
+                              fromEmailLower.includes('shopify') ||
                               subjectLower.includes('shopify') ||
                               bodyLower.includes('shopify');
+      const isOrderReport = subjectLower.includes('order report') ||
+                             subjectLower.includes('daily sales') ||
+                             subjectLower.includes('sales summary') ||
+                             subjectLower.includes('sales report') ||
+                             subjectLower.includes('daily total') ||
+                             (subjectLower.includes('new report') && subjectLower.includes('order')) ||
+                             bodyLower.includes('total sales') ||
+                             bodyLower.includes('net sales') ||
+                             bodyLower.includes('gross sales') ||
+                             bodyLower.includes('total orders') ||
+                             subjectLower.includes('order');
 
-      const isShopifySalesEmail = subjectLower.includes('daily sales') ||
-                                   subjectLower.includes('sales summary') ||
-                                   subjectLower.includes('daily total') ||
-                                   subjectLower.includes('order') ||
-                                   bodyLower.includes('total sales') ||
-                                   bodyLower.includes('net sales') ||
-                                   bodyLower.includes('gross sales') ||
-                                   bodyLower.includes('total orders');
-
-      if (isShopifyEmail && isShopifySalesEmail) {
-        console.log('[Email Inbound] Detected Shopify revenue email');
+      if (isShopifyEmail && isOrderReport) {
+        console.log('[Email Inbound] Detected Shopify/Report Pundit revenue email');
         console.log('[Email Inbound] Subject:', subject);
-        console.log('[Email Inbound] Body preview:', bodyText.substring(0, 500));
+        console.log('[Email Inbound] From:', from);
+        console.log('[Email Inbound] Attachments:', attachments.length);
 
+        // Parse the report date from subject
+        // Subject format: "New report - Order Report from Feb 9, 2026 12:00 AM to Feb 10, 2026 12:00 AM"
         let shopifyDate: string | null = null;
         const shopifySearchText = subject + ' ' + bodyText;
 
+        // Look for "from Month Day, Year" pattern in subject (Report Pundit format)
+        const fromDateMatch = shopifySearchText.match(/from\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
         const shopifyIsoMatch = shopifySearchText.match(/(\d{4}-\d{2}-\d{2})/);
         const shopifyUsMatch = shopifySearchText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
         const shopifyLongMatch = shopifySearchText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
-        const shopifyShortMatch = shopifySearchText.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})/i);
 
-        if (shopifyIsoMatch) {
+        if (fromDateMatch) {
+          const month = monthNames[fromDateMatch[1].toLowerCase().slice(0, 3)];
+          const day = fromDateMatch[2].padStart(2, '0');
+          shopifyDate = `${fromDateMatch[3]}-${month}-${day}`;
+          console.log('[Email Inbound] Parsed Shopify date from "from" pattern:', shopifyDate);
+        } else if (shopifyIsoMatch) {
           shopifyDate = shopifyIsoMatch[1];
         } else if (shopifyUsMatch) {
           const month = shopifyUsMatch[1].padStart(2, '0');
@@ -15742,23 +15758,111 @@ Generate a professional response:`;
           const month = monthNames[shopifyLongMatch[1].toLowerCase().slice(0, 3)];
           const day = shopifyLongMatch[2].padStart(2, '0');
           shopifyDate = `${shopifyLongMatch[3]}-${month}-${day}`;
-        } else if (shopifyShortMatch) {
-          const month = monthNames[shopifyShortMatch[1].toLowerCase().slice(0, 3)];
-          const day = shopifyShortMatch[2].padStart(2, '0');
-          const year = new Date().getFullYear().toString();
-          shopifyDate = `${year}-${month}-${day}`;
-          console.log('[Email Inbound] Parsed Shopify date from short format:', shopifyDate);
         }
 
+        // Try to extract revenue from CSV attachment first (Report Pundit sends CSV)
         let shopifyAmount: string | null = null;
-        const shopifyAmountMatches = bodyText.match(/\$[\d,]+(?:\.\d{2})?/g);
-        if (shopifyAmountMatches && shopifyAmountMatches.length > 0) {
-          let maxAmount = 0;
-          for (const match of shopifyAmountMatches) {
-            const value = parseFloat(match.replace(/[$,]/g, ''));
-            if (value > maxAmount) {
-              maxAmount = value;
-              shopifyAmount = match;
+
+        if (attachments.length > 0) {
+          for (const attachment of attachments) {
+            const filename = attachment.filename?.toLowerCase() || '';
+            const isCSV = filename.endsWith('.csv') || 
+                          attachment.type?.includes('csv') || 
+                          attachment.type?.includes('text/plain') ||
+                          filename.includes('order_report') ||
+                          filename.includes('report');
+
+            if (isCSV && attachment.content) {
+              try {
+                const csvContent = typeof attachment.content === 'string' 
+                  ? attachment.content 
+                  : attachment.content.toString('utf8');
+                console.log('[Email Inbound] Parsing CSV attachment:', filename, '(', csvContent.length, 'chars)');
+                console.log('[Email Inbound] CSV preview:', csvContent.substring(0, 500));
+
+                // Parse CSV to find total revenue
+                const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
+                if (lines.length > 1) {
+                  const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase().replace(/"/g, ''));
+                  console.log('[Email Inbound] CSV headers:', headers.join(', '));
+
+                  // Look for total/revenue/amount/sales/net_sales/gross_sales columns
+                  const totalColIndex = headers.findIndex((h: string) => 
+                    h === 'total' || h === 'total_sales' || h === 'net_sales' || 
+                    h === 'gross_sales' || h === 'amount' || h === 'total_price' || 
+                    h === 'subtotal_price' || h === 'revenue' || h === 'net_revenue' ||
+                    h === 'order_total' || h === 'total sales' || h === 'net sales' ||
+                    h === 'subtotal' || h === 'total_line_price'
+                  );
+
+                  if (totalColIndex >= 0) {
+                    let totalRevenue = 0;
+                    let orderCount = 0;
+                    for (let i = 1; i < lines.length; i++) {
+                      // Handle CSV fields that may contain commas inside quotes
+                      const fields: string[] = [];
+                      let current = '';
+                      let inQuotes = false;
+                      for (const char of lines[i]) {
+                        if (char === '"') {
+                          inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                          fields.push(current.trim());
+                          current = '';
+                        } else {
+                          current += char;
+                        }
+                      }
+                      fields.push(current.trim());
+
+                      if (fields.length > totalColIndex) {
+                        const val = parseFloat(fields[totalColIndex].replace(/[$",]/g, ''));
+                        if (!isNaN(val)) {
+                          totalRevenue += val;
+                          orderCount++;
+                        }
+                      }
+                    }
+
+                    if (orderCount > 0) {
+                      shopifyAmount = totalRevenue.toFixed(2);
+                      console.log(`[Email Inbound] Parsed CSV: ${orderCount} orders, total revenue: $${shopifyAmount}`);
+                    }
+                  } else {
+                    console.log('[Email Inbound] Could not find total/revenue column in CSV headers:', headers.join(', '));
+                    // Fallback: try to find any dollar amounts in the CSV
+                    const allAmounts = csvContent.match(/\$?[\d,]+\.\d{2}/g);
+                    if (allAmounts && allAmounts.length > 0) {
+                      let total = 0;
+                      for (const amt of allAmounts) {
+                        const val = parseFloat(amt.replace(/[$,]/g, ''));
+                        if (!isNaN(val) && val > 0) total += val;
+                      }
+                      if (total > 0) {
+                        shopifyAmount = total.toFixed(2);
+                        console.log(`[Email Inbound] CSV fallback - summed dollar amounts: $${shopifyAmount}`);
+                      }
+                    }
+                  }
+                }
+              } catch (csvErr) {
+                console.error('[Email Inbound] Failed to parse CSV attachment:', csvErr);
+              }
+            }
+          }
+        }
+
+        // Fallback: try to extract from email body if no CSV attachment found
+        if (!shopifyAmount) {
+          const shopifyAmountMatches = bodyText.match(/\$[\d,]+(?:\.\d{2})?/g);
+          if (shopifyAmountMatches && shopifyAmountMatches.length > 0) {
+            let maxAmount = 0;
+            for (const match of shopifyAmountMatches) {
+              const value = parseFloat(match.replace(/[$,]/g, ''));
+              if (value > maxAmount) {
+                maxAmount = value;
+                shopifyAmount = match.replace(/[$,]/g, '');
+              }
             }
           }
         }
@@ -15770,10 +15874,10 @@ Generate a professional response:`;
             const existingHistorical = await storage.getRccToastHistoricalRevenueByDate(shopifyDate);
             if (existingHistorical) {
               await storage.updateRccToastHistoricalShopifyRevenue(shopifyDate, cleanShopifyAmount);
-              console.log('[Email Inbound] Updated historical Shopify revenue:', shopifyDate, shopifyAmount);
+              console.log('[Email Inbound] Updated historical Shopify revenue:', shopifyDate, '$' + cleanShopifyAmount);
             } else {
               await storage.recordRccHistoricalShopifyRevenue(shopifyDate, cleanShopifyAmount);
-              console.log('[Email Inbound] Created historical Shopify revenue:', shopifyDate, shopifyAmount);
+              console.log('[Email Inbound] Created historical Shopify revenue:', shopifyDate, '$' + cleanShopifyAmount);
             }
 
             try {
@@ -15819,15 +15923,20 @@ Generate a professional response:`;
             }
 
             return res.status(200).json({
-              message: 'Shopify revenue recorded',
+              message: 'Shopify revenue recorded from Report Pundit',
               date: shopifyDate,
-              amount: shopifyAmount,
+              amount: '$' + cleanShopifyAmount,
             });
           } catch (saveErr) {
             console.error('[Email Inbound] Failed to save Shopify revenue:', saveErr);
           }
         } else {
-          console.log('[Email Inbound] Could not parse Shopify revenue email - date:', shopifyDate, 'amount:', shopifyAmount);
+          console.log('[Email Inbound] Could not parse Shopify/Report Pundit revenue email - date:', shopifyDate, 'amount:', shopifyAmount);
+          // Don't fall through to support ticket for Report Pundit emails with CSV - log it
+          if (isReportPundit && attachments.length > 0) {
+            console.log('[Email Inbound] Report Pundit email had attachments but could not extract revenue. Attachment filenames:', 
+              attachments.map(a => a.filename).join(', '));
+          }
         }
       }
 
