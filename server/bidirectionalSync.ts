@@ -885,13 +885,38 @@ export async function applySyncOperations(
               
               // Check if record exists in prod
               const existsResult = await prodPool.query(
-                `SELECT 1 FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`,
+                `SELECT * FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`,
                 whereValues
               );
               
               if (existsResult.rows.length > 0) {
-                // Update existing record in production
-                const updateCols = columns.filter(c => !businessKeys.includes(c));
+                const prodRecord = existsResult.rows[0] as Record<string, any>;
+                const mergeFields = tableConfig.mergeFields || [];
+                
+                let updateCols = columns.filter(c => !businessKeys.includes(c));
+                
+                if (mergeFields.length > 0) {
+                  const isEmptyValue = (val: any) => {
+                    if (val === null || val === undefined || val === '') return true;
+                    const num = Number(val);
+                    if (!isNaN(num) && num === 0) return true;
+                    return false;
+                  };
+                  updateCols = updateCols.filter(c => {
+                    if (!mergeFields.includes(c)) return true;
+                    const prodVal = prodRecord[toSnakeCase(c)];
+                    const devVal = getDbValue(c);
+                    if (!isEmptyValue(prodVal)) {
+                      if (!isEmptyValue(devVal) && String(prodVal) !== String(devVal)) {
+                        console.log(`[Sync Merge] Skipping ${c} for ${tableName} - prod has ${prodVal}, dev has ${devVal}`);
+                      }
+                      return false;
+                    }
+                    return !isEmptyValue(devVal);
+                  });
+                  console.log(`[Sync Merge] ${tableName} merge: updating ${updateCols.length} fields (${updateCols.join(', ')})`);
+                }
+                
                 if (updateCols.length > 0) {
                   const setClauses = updateCols.map((c, i) => 
                     `${escapeIdentifier(c)} = $${whereValues.length + i + 1}`
@@ -968,8 +993,27 @@ export async function applySyncOperations(
                 continue;
               }
               
+              // Remap weekId for rccDailyRevenue from prod to dev
+              if (tableId === 'rccDailyRevenue' && prodRecord['week_id']) {
+                const dateVal = prodRecord['date'];
+                if (dateVal) {
+                  try {
+                    const weekResult = await devPool.query(
+                      `SELECT id FROM rcc_weeks WHERE week_start <= $1 AND week_end >= $1`,
+                      [dateVal]
+                    );
+                    if (weekResult.rows.length > 0) {
+                      console.log(`[Sync] Remapped weekId for date ${dateVal}: ${prodRecord['week_id']} -> ${weekResult.rows[0].id} (prod_to_dev)`);
+                      prodRecord['week_id'] = weekResult.rows[0].id;
+                    }
+                  } catch (err) {
+                    console.warn(`[Sync] Could not remap weekId for date ${dateVal}:`, err);
+                  }
+                }
+              }
+              
               // Check if record exists in dev
-              const devExistsQuery = `SELECT 1 FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`;
+              const devExistsQuery = `SELECT * FROM ${escapeIdentifier(tableName)} WHERE ${whereConditions}`;
               const existsResult = await devPool.query(devExistsQuery, whereValues);
               const existsInDev = existsResult.rows && existsResult.rows.length > 0;
               
@@ -987,8 +1031,33 @@ export async function applySyncOperations(
               const values = columns.map(c => serializeValue(getDbValue(c)));
               
               if (existsInDev) {
-                // Update existing record in dev
-                const updateCols = columns.filter(c => !businessKeys.includes(c));
+                const devRecord = existsResult.rows[0] as Record<string, any>;
+                const mergeFieldsList = tableConfig.mergeFields || [];
+                
+                let updateCols = columns.filter(c => !businessKeys.includes(c));
+                
+                if (mergeFieldsList.length > 0) {
+                  const isEmptyValue = (val: any) => {
+                    if (val === null || val === undefined || val === '') return true;
+                    const num = Number(val);
+                    if (!isNaN(num) && num === 0) return true;
+                    return false;
+                  };
+                  updateCols = updateCols.filter(c => {
+                    if (!mergeFieldsList.includes(c)) return true;
+                    const devVal = devRecord[toSnakeCase(c)];
+                    const prodVal = getDbValue(c);
+                    if (!isEmptyValue(devVal)) {
+                      if (!isEmptyValue(prodVal) && String(devVal) !== String(prodVal)) {
+                        console.log(`[Sync Merge] Skipping ${c} for ${tableName} (prod_to_dev) - dev has ${devVal}, prod has ${prodVal}`);
+                      }
+                      return false;
+                    }
+                    return !isEmptyValue(prodVal);
+                  });
+                  console.log(`[Sync Merge] ${tableName} merge (prod_to_dev): updating ${updateCols.length} fields (${updateCols.join(', ')})`);
+                }
+                
                 if (updateCols.length > 0) {
                   const setClauses = updateCols.map((c, i) => 
                     `${escapeIdentifier(c)} = $${whereValues.length + i + 1}`

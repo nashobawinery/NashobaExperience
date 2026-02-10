@@ -124,6 +124,7 @@ export interface SyncTableConfig {
   productionWarning?: string;
   // NEW: Only allow updates, not inserts (for tables with required sensitive fields)
   updateOnly?: boolean;
+  mergeFields?: string[];
 }
 
 export const SYNC_MODULES: Record<SyncModule, { name: string; description: string; icon: string }> = {
@@ -1345,6 +1346,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     parentTables: ['rccWeeks'],
     schema: insertRccDailyRevenueSchema,
     exportFields: ['weekId', 'date', 'dayOfWeek', 'toastRevenue', 'shopifyRevenue', 'otherRevenue', 'notes', 'weatherHigh', 'weatherLow', 'weatherCondition', 'weatherPrecipitation'],
+    mergeFields: ['toastRevenue', 'shopifyRevenue', 'otherRevenue', 'notes', 'weatherHigh', 'weatherLow', 'weatherCondition', 'weatherPrecipitation'],
     dataType: 'user_generated',
     supportsBackup: true,
   },
