@@ -7,6 +7,8 @@ import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { encryptPassword, decryptPassword } from "./crypto";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import * as XLSX from "xlsx";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 // Helper function to get the storage bucket for email attachments
 function getStorageBucket() {
@@ -15765,14 +15767,94 @@ Generate a professional response:`;
 
         if (attachments.length > 0) {
           for (const attachment of attachments) {
+            if (shopifyAmount) break;
             const filename = attachment.filename?.toLowerCase() || '';
-            const isCSV = filename.endsWith('.csv') || 
-                          attachment.type?.includes('csv') || 
-                          attachment.type?.includes('text/plain') ||
-                          filename.includes('order_report') ||
-                          filename.includes('report');
+            const mimeType = attachment.type?.toLowerCase() || '';
 
-            if (isCSV && attachment.content) {
+            // Check if it's a PDF attachment
+            const isPDF = filename.endsWith('.pdf') || mimeType.includes('pdf');
+            // Check if it's a CSV attachment
+            const isCSV = filename.endsWith('.csv') || 
+                          mimeType.includes('csv') || 
+                          mimeType.includes('text/plain');
+
+            if (isPDF && attachment.content) {
+              try {
+                const pdfBuffer = Buffer.isBuffer(attachment.content) 
+                  ? attachment.content 
+                  : Buffer.from(attachment.content, 'utf8');
+                console.log('[Email Inbound] Parsing PDF attachment:', filename, '(', pdfBuffer.length, 'bytes)');
+
+                const pdfData = await pdfParse(pdfBuffer);
+                const pdfText = pdfData.text || '';
+                console.log('[Email Inbound] PDF text preview:', pdfText.substring(0, 1000));
+
+                // Strategy 1: Look for a "Total" or "Grand Total" line with a dollar amount
+                const grandTotalMatch = pdfText.match(/(?:grand\s*total|total\s*(?:sales|revenue|amount))\s*[:\s]*\$?([\d,]+\.?\d*)/i);
+                if (grandTotalMatch) {
+                  shopifyAmount = grandTotalMatch[1].replace(/,/g, '');
+                  console.log(`[Email Inbound] PDF grand total found: $${shopifyAmount}`);
+                }
+
+                // Strategy 2: Look for a table with dollar amounts and sum them
+                if (!shopifyAmount) {
+                  const dollarAmounts = pdfText.match(/\$\s*([\d,]+\.\d{2})/g);
+                  if (dollarAmounts && dollarAmounts.length > 0) {
+                    // If there's exactly one dollar amount, it's likely the total
+                    if (dollarAmounts.length === 1) {
+                      shopifyAmount = dollarAmounts[0].replace(/[$,\s]/g, '');
+                      console.log(`[Email Inbound] PDF single dollar amount: $${shopifyAmount}`);
+                    } else {
+                      // Multiple amounts - look for the largest one as "total" or sum line items
+                      // Check if the last dollar amount on a "Total" line is the sum
+                      const lines = pdfText.split(/\n/);
+                      for (const line of lines) {
+                        if (/total/i.test(line) && !/sub\s*total/i.test(line)) {
+                          const lineAmounts = line.match(/\$?\s*([\d,]+\.\d{2})/g);
+                          if (lineAmounts && lineAmounts.length > 0) {
+                            const lastAmt = lineAmounts[lineAmounts.length - 1].replace(/[$,\s]/g, '');
+                            shopifyAmount = lastAmt;
+                            console.log(`[Email Inbound] PDF total line amount: $${shopifyAmount}`);
+                            break;
+                          }
+                        }
+                      }
+
+                      // Fallback: sum all individual order amounts (skip the largest if it looks like a total)
+                      if (!shopifyAmount) {
+                        const amounts = dollarAmounts.map(a => parseFloat(a.replace(/[$,\s]/g, '')));
+                        const maxAmt = Math.max(...amounts);
+                        const sumWithoutMax = amounts.filter(a => a !== maxAmt).reduce((s, a) => s + a, 0);
+                        // If the max is close to the sum of the rest, it's a total row
+                        if (Math.abs(maxAmt - sumWithoutMax) < 1) {
+                          shopifyAmount = maxAmt.toFixed(2);
+                          console.log(`[Email Inbound] PDF detected total row: $${shopifyAmount}`);
+                        } else {
+                          // Sum all amounts as individual orders
+                          const total = amounts.reduce((s, a) => s + a, 0);
+                          shopifyAmount = total.toFixed(2);
+                          console.log(`[Email Inbound] PDF summed all amounts: $${shopifyAmount} (${amounts.length} values)`);
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // Strategy 3: Look for plain numbers after "Total" labels without $ signs
+                if (!shopifyAmount) {
+                  const totalNumberMatch = pdfText.match(/total\s*[:\s]*([\d,]+\.?\d*)/i);
+                  if (totalNumberMatch) {
+                    const val = parseFloat(totalNumberMatch[1].replace(/,/g, ''));
+                    if (val > 0) {
+                      shopifyAmount = val.toFixed(2);
+                      console.log(`[Email Inbound] PDF total number (no $): $${shopifyAmount}`);
+                    }
+                  }
+                }
+              } catch (pdfErr) {
+                console.error('[Email Inbound] Failed to parse PDF attachment:', pdfErr);
+              }
+            } else if (isCSV && attachment.content) {
               try {
                 const csvContent = typeof attachment.content === 'string' 
                   ? attachment.content 
@@ -15780,13 +15862,11 @@ Generate a professional response:`;
                 console.log('[Email Inbound] Parsing CSV attachment:', filename, '(', csvContent.length, 'chars)');
                 console.log('[Email Inbound] CSV preview:', csvContent.substring(0, 500));
 
-                // Parse CSV to find total revenue
                 const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
                 if (lines.length > 1) {
                   const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase().replace(/"/g, ''));
                   console.log('[Email Inbound] CSV headers:', headers.join(', '));
 
-                  // Look for total/revenue/amount/sales/net_sales/gross_sales columns
                   const totalColIndex = headers.findIndex((h: string) => 
                     h === 'total' || h === 'total_sales' || h === 'net_sales' || 
                     h === 'gross_sales' || h === 'amount' || h === 'total_price' || 
@@ -15799,7 +15879,6 @@ Generate a professional response:`;
                     let totalRevenue = 0;
                     let orderCount = 0;
                     for (let i = 1; i < lines.length; i++) {
-                      // Handle CSV fields that may contain commas inside quotes
                       const fields: string[] = [];
                       let current = '';
                       let inQuotes = false;
@@ -15830,7 +15909,6 @@ Generate a professional response:`;
                     }
                   } else {
                     console.log('[Email Inbound] Could not find total/revenue column in CSV headers:', headers.join(', '));
-                    // Fallback: try to find any dollar amounts in the CSV
                     const allAmounts = csvContent.match(/\$?[\d,]+\.\d{2}/g);
                     if (allAmounts && allAmounts.length > 0) {
                       let total = 0;
