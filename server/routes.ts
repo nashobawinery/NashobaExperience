@@ -18482,6 +18482,36 @@ Generate a professional response:`;
         }
       }
 
+      // Auto-sync Toast revenue from historical table for any daily entries missing it (non-blocking)
+      const missingToastDays = dailyRevenue.filter(d => !d.toastRevenue);
+      if (missingToastDays.length > 0) {
+        (async () => {
+          try {
+            for (const dayEntry of missingToastDays) {
+              const hist = await storage.getRccToastHistoricalRevenueByDate(dayEntry.date);
+              if (hist && parseFloat(hist.netRevenue || '0') > 0) {
+                await storage.upsertRccDailyRevenue({
+                  weekId: dayEntry.weekId,
+                  date: dayEntry.date,
+                  dayOfWeek: dayEntry.dayOfWeek,
+                  toastRevenue: hist.netRevenue,
+                  shopifyRevenue: dayEntry.shopifyRevenue,
+                  otherRevenue: dayEntry.otherRevenue,
+                  notes: dayEntry.notes,
+                  weatherHigh: dayEntry.weatherHigh,
+                  weatherLow: dayEntry.weatherLow,
+                  weatherCondition: dayEntry.weatherCondition,
+                  weatherPrecipitation: dayEntry.weatherPrecipitation,
+                });
+                console.log(`[RCC] Auto-synced Toast revenue for ${dayEntry.date}: $${hist.netRevenue}`);
+              }
+            }
+          } catch (err) {
+            console.error('[RCC] Failed to auto-sync Toast revenue:', err);
+          }
+        })();
+      }
+
       // Auto-fetch weather for past dates missing weather data (non-blocking)
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
