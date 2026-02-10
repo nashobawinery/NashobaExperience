@@ -15555,6 +15555,7 @@ Generate a professional response:`;
       // ============================================
       const bodyText = textBody || htmlBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const bodyLower = bodyText.toLowerCase();
+      const monthNames: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
       
       // Check sender, subject, OR body for Toast indicators
       const isToastEmail = fromEmailLower.includes('toasttab.com') || 
@@ -15590,8 +15591,6 @@ Generate a professional response:`;
         const longDateMatch = searchText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
         // Look for "Day, Month Day" format without year (e.g., "Wednesday, February 4") - assume current year
         const shortDateMatch = searchText.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})/i);
-        
-        const monthNames: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
         
         if (isoDateMatch) {
           revenueDate = isoDateMatch[1];
@@ -15700,6 +15699,135 @@ Generate a professional response:`;
         } else {
           console.log('[Email Inbound] Could not parse Toast revenue email - date:', revenueDate, 'amount:', revenueAmount);
           // Fall through to create support ticket for manual review
+        }
+      }
+
+      // ============================================
+      // SHOPIFY REVENUE EMAIL DETECTION
+      // Check if this email is a daily sales report from Shopify
+      // ============================================
+      const isShopifyEmail = fromEmailLower.includes('shopify') ||
+                              subjectLower.includes('shopify') ||
+                              bodyLower.includes('shopify');
+
+      const isShopifySalesEmail = subjectLower.includes('daily sales') ||
+                                   subjectLower.includes('sales summary') ||
+                                   subjectLower.includes('daily total') ||
+                                   subjectLower.includes('order') ||
+                                   bodyLower.includes('total sales') ||
+                                   bodyLower.includes('net sales') ||
+                                   bodyLower.includes('gross sales') ||
+                                   bodyLower.includes('total orders');
+
+      if (isShopifyEmail && isShopifySalesEmail) {
+        console.log('[Email Inbound] Detected Shopify revenue email');
+        console.log('[Email Inbound] Subject:', subject);
+        console.log('[Email Inbound] Body preview:', bodyText.substring(0, 500));
+
+        let shopifyDate: string | null = null;
+        const shopifySearchText = subject + ' ' + bodyText;
+
+        const shopifyIsoMatch = shopifySearchText.match(/(\d{4}-\d{2}-\d{2})/);
+        const shopifyUsMatch = shopifySearchText.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        const shopifyLongMatch = shopifySearchText.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+        const shopifyShortMatch = shopifySearchText.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})/i);
+
+        if (shopifyIsoMatch) {
+          shopifyDate = shopifyIsoMatch[1];
+        } else if (shopifyUsMatch) {
+          const month = shopifyUsMatch[1].padStart(2, '0');
+          const day = shopifyUsMatch[2].padStart(2, '0');
+          shopifyDate = `${shopifyUsMatch[3]}-${month}-${day}`;
+        } else if (shopifyLongMatch) {
+          const month = monthNames[shopifyLongMatch[1].toLowerCase().slice(0, 3)];
+          const day = shopifyLongMatch[2].padStart(2, '0');
+          shopifyDate = `${shopifyLongMatch[3]}-${month}-${day}`;
+        } else if (shopifyShortMatch) {
+          const month = monthNames[shopifyShortMatch[1].toLowerCase().slice(0, 3)];
+          const day = shopifyShortMatch[2].padStart(2, '0');
+          const year = new Date().getFullYear().toString();
+          shopifyDate = `${year}-${month}-${day}`;
+          console.log('[Email Inbound] Parsed Shopify date from short format:', shopifyDate);
+        }
+
+        let shopifyAmount: string | null = null;
+        const shopifyAmountMatches = bodyText.match(/\$[\d,]+(?:\.\d{2})?/g);
+        if (shopifyAmountMatches && shopifyAmountMatches.length > 0) {
+          let maxAmount = 0;
+          for (const match of shopifyAmountMatches) {
+            const value = parseFloat(match.replace(/[$,]/g, ''));
+            if (value > maxAmount) {
+              maxAmount = value;
+              shopifyAmount = match;
+            }
+          }
+        }
+
+        if (shopifyDate && shopifyAmount) {
+          try {
+            const cleanShopifyAmount = shopifyAmount.replace(/[$,]/g, '');
+
+            const existingHistorical = await storage.getRccToastHistoricalRevenueByDate(shopifyDate);
+            if (existingHistorical) {
+              await storage.updateRccToastHistoricalShopifyRevenue(shopifyDate, cleanShopifyAmount);
+              console.log('[Email Inbound] Updated historical Shopify revenue:', shopifyDate, shopifyAmount);
+            } else {
+              await storage.recordRccHistoricalShopifyRevenue(shopifyDate, cleanShopifyAmount);
+              console.log('[Email Inbound] Created historical Shopify revenue:', shopifyDate, shopifyAmount);
+            }
+
+            try {
+              const [yearStr, monthStr, dayStr] = shopifyDate.split('-');
+              const revDateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+              const dayOfWeek = revDateObj.getDay();
+              const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+              const monday = new Date(revDateObj);
+              monday.setDate(monday.getDate() + mondayOffset);
+              const weekStartStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+              const sunday = new Date(monday);
+              sunday.setDate(sunday.getDate() + 6);
+              const weekEndStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+
+              const week = await storage.getOrCreateRccWeek(weekStartStr, weekEndStr);
+              const existingDaily = await storage.getRccDailyRevenueByDate(shopifyDate);
+              if (existingDaily) {
+                await storage.upsertRccDailyRevenue({
+                  weekId: existingDaily.weekId,
+                  date: existingDaily.date,
+                  dayOfWeek: existingDaily.dayOfWeek,
+                  toastRevenue: existingDaily.toastRevenue,
+                  shopifyRevenue: cleanShopifyAmount,
+                  otherRevenue: existingDaily.otherRevenue,
+                  notes: existingDaily.notes,
+                  weatherHigh: existingDaily.weatherHigh,
+                  weatherLow: existingDaily.weatherLow,
+                  weatherCondition: existingDaily.weatherCondition,
+                  weatherPrecipitation: existingDaily.weatherPrecipitation,
+                });
+                console.log('[Email Inbound] Updated daily Shopify revenue for', shopifyDate);
+              } else {
+                await storage.upsertRccDailyRevenue({
+                  weekId: week.id,
+                  date: shopifyDate,
+                  dayOfWeek,
+                  shopifyRevenue: cleanShopifyAmount,
+                });
+                console.log('[Email Inbound] Created daily Shopify revenue entry for', shopifyDate);
+              }
+            } catch (dailyErr) {
+              console.error('[Email Inbound] Failed to save Shopify daily revenue (historical still saved):', dailyErr);
+            }
+
+            return res.status(200).json({
+              message: 'Shopify revenue recorded',
+              date: shopifyDate,
+              amount: shopifyAmount,
+            });
+          } catch (saveErr) {
+            console.error('[Email Inbound] Failed to save Shopify revenue:', saveErr);
+          }
+        } else {
+          console.log('[Email Inbound] Could not parse Shopify revenue email - date:', shopifyDate, 'amount:', shopifyAmount);
         }
       }
 
@@ -18160,6 +18288,62 @@ Generate a professional response:`;
           
           dailyRevenue = await storage.getRccDailyRevenueByWeek(weekId);
         }
+      }
+
+      // Auto-fetch weather for past dates missing weather data (non-blocking)
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const missingWeatherDays = dailyRevenue.filter(d => 
+        !d.weatherHigh && d.date <= todayStr
+      );
+
+      if (missingWeatherDays.length > 0) {
+        // Fetch weather in background - don't block the response
+        (async () => {
+          try {
+            const lat = 42.4334;
+            const lon = -71.6068;
+            const dates = missingWeatherDays.map(d => d.date).sort();
+            const startDate = dates[0];
+            const endDate = dates[dates.length - 1];
+
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code&timezone=America/New_York&start_date=${startDate}&end_date=${endDate}`;
+            const response = await fetch(weatherUrl);
+            if (!response.ok) return;
+
+            const weatherData = await response.json();
+            if (!weatherData.daily?.time) return;
+
+            const celsiusToFahrenheit = (c: number) => Math.round((c * 9/5) + 32);
+            const getWeatherCondition = (code: number): string => {
+              if (code === 0) return 'Clear';
+              if (code <= 3) return 'Partly Cloudy';
+              if (code <= 49) return 'Foggy';
+              if (code <= 59) return 'Drizzle';
+              if (code <= 69) return 'Rain';
+              if (code <= 79) return 'Snow';
+              if (code <= 99) return 'Thunderstorm';
+              return 'Unknown';
+            };
+
+            const missingDateSet = new Set(dates);
+            for (let i = 0; i < weatherData.daily.time.length; i++) {
+              const dateStr = weatherData.daily.time[i];
+              if (!missingDateSet.has(dateStr)) continue;
+
+              const weather = {
+                high: celsiusToFahrenheit(weatherData.daily.temperature_2m_max[i]),
+                low: celsiusToFahrenheit(weatherData.daily.temperature_2m_min[i]),
+                condition: getWeatherCondition(weatherData.daily.weather_code[i]),
+                precipitation: weatherData.daily.precipitation_sum[i] || 0,
+              };
+              await storage.updateRccDailyRevenueWeather(dateStr, weather);
+            }
+            console.log(`[RCC Weather] Auto-fetched weather for ${dates.length} days: ${startDate} to ${endDate}`);
+          } catch (err) {
+            console.error('[RCC Weather] Auto-fetch failed:', err);
+          }
+        })();
       }
       
       res.json(dailyRevenue);

@@ -7377,6 +7377,46 @@ export class DatabaseStorage implements IStorage {
     return record;
   }
 
+  async getRccToastHistoricalRevenueByDate(date: string): Promise<RccToastHistoricalRevenue | undefined> {
+    const [record] = await db.select().from(rccToastHistoricalRevenue).where(eq(rccToastHistoricalRevenue.revenueDate, date));
+    return record;
+  }
+
+  async updateRccToastHistoricalShopifyRevenue(date: string, shopifyRevenue: string): Promise<RccToastHistoricalRevenue | undefined> {
+    const clean = shopifyRevenue.replace(/[$,]/g, '');
+    const [record] = await db.update(rccToastHistoricalRevenue)
+      .set({ shopifyRevenue: clean })
+      .where(eq(rccToastHistoricalRevenue.revenueDate, date))
+      .returning();
+    return record;
+  }
+
+  async recordRccHistoricalShopifyRevenue(date: string, shopifyRevenue: string): Promise<RccToastHistoricalRevenue> {
+    const [yearStr, monthStr, dayStr] = date.split('-');
+    const dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+    const dayOfWeek = dateObj.getDay();
+    const startOfYear = new Date(dateObj.getFullYear(), 0, 1);
+    const weekOfYear = Math.ceil((((dateObj.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+    const year = dateObj.getFullYear();
+    const clean = shopifyRevenue.replace(/[$,]/g, '');
+
+    const [record] = await db.insert(rccToastHistoricalRevenue)
+      .values({
+        revenueDate: date,
+        netRevenue: '0',
+        shopifyRevenue: clean,
+        dayOfWeek,
+        weekOfYear,
+        year,
+      })
+      .onConflictDoUpdate({
+        target: rccToastHistoricalRevenue.revenueDate,
+        set: { shopifyRevenue: clean },
+      })
+      .returning();
+    return record;
+  }
+
   async importRccToastHistoricalRevenue(data: { date: string; netRevenue: string }[]): Promise<RccToastHistoricalRevenue[]> {
     const results: RccToastHistoricalRevenue[] = [];
     for (const item of data) {
