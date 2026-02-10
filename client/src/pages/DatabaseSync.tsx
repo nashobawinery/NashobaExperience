@@ -760,6 +760,62 @@ export default function DatabaseSync() {
     setSyncSelections(newSelections);
   };
 
+  const selectAutoForTable = (tableId: string) => {
+    if (!scanResult) return;
+    const table = scanResult.tables.find(t => t.tableId === tableId);
+    if (!table) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const record of table.records) {
+      const key = getRecordKey(tableId, record.businessKey);
+      if (record.state === 'dev_only' || record.state === 'dev_newer') {
+        newSelections[key] = 'dev';
+      } else if (record.state === 'prod_only' || record.state === 'prod_newer') {
+        newSelections[key] = 'prod';
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  const selectDevOnlyForTable = (tableId: string) => {
+    if (!scanResult) return;
+    const table = scanResult.tables.find(t => t.tableId === tableId);
+    if (!table) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const record of table.records) {
+      if (record.state === 'dev_only' || record.state === 'dev_newer') {
+        const key = getRecordKey(tableId, record.businessKey);
+        newSelections[key] = 'dev';
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  const selectProdOnlyForTable = (tableId: string) => {
+    if (!scanResult) return;
+    const table = scanResult.tables.find(t => t.tableId === tableId);
+    if (!table) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const record of table.records) {
+      if (record.state === 'prod_only' || record.state === 'prod_newer') {
+        const key = getRecordKey(tableId, record.businessKey);
+        newSelections[key] = 'prod';
+      }
+    }
+    setSyncSelections(newSelections);
+  };
+
+  const clearSelectionsForTable = (tableId: string) => {
+    if (!scanResult) return;
+    const table = scanResult.tables.find(t => t.tableId === tableId);
+    if (!table) return;
+    const newSelections: Record<string, 'dev' | 'prod' | 'skip'> = { ...syncSelections };
+    for (const record of table.records) {
+      const key = getRecordKey(tableId, record.businessKey);
+      delete newSelections[key];
+    }
+    setSyncSelections(newSelections);
+  };
+
   // Select all following recommendations
   const selectAllRecommended = () => {
     if (!scanResult) return;
@@ -2024,7 +2080,52 @@ export default function DatabaseSync() {
                                 </CollapsibleTrigger>
                                 <CollapsibleContent>
                                   {table.records.length > 0 ? (
-                                    <div className="mt-2 ml-8 border rounded-lg overflow-hidden">
+                                    <div className="mt-2 ml-8">
+                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          onClick={() => selectAutoForTable(table.tableId)}
+                                          data-testid={`button-auto-select-${table.tableId}`}
+                                        >
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Auto Select All
+                                        </Button>
+                                        {table.devOnly > 0 && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-blue-600 border-blue-500/30"
+                                            onClick={() => selectDevOnlyForTable(table.tableId)}
+                                            data-testid={`button-select-dev-only-${table.tableId}`}
+                                          >
+                                            <ArrowRight className="h-3 w-3 mr-1" />
+                                            {table.devOnly} Dev to Prod
+                                          </Button>
+                                        )}
+                                        {table.prodOnly > 0 && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-green-600 border-green-500/30"
+                                            onClick={() => selectProdOnlyForTable(table.tableId)}
+                                            data-testid={`button-select-prod-only-${table.tableId}`}
+                                          >
+                                            <ArrowLeft className="h-3 w-3 mr-1" />
+                                            {table.prodOnly} Prod to Dev
+                                          </Button>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => clearSelectionsForTable(table.tableId)}
+                                          data-testid={`button-clear-${table.tableId}`}
+                                        >
+                                          <X className="h-3 w-3 mr-1" />
+                                          Clear
+                                        </Button>
+                                      </div>
+                                      <div className="border rounded-lg overflow-hidden">
                                       <ScrollArea className="max-h-[400px]">
                                         <table className="w-full text-sm">
                                           <thead className="bg-muted sticky top-0">
@@ -2100,6 +2201,7 @@ export default function DatabaseSync() {
                                           </div>
                                         )}
                                       </ScrollArea>
+                                      </div>
                                     </div>
                                   ) : (
                                     <div className="mt-2 ml-8 p-4 border rounded-lg text-center text-muted-foreground">
