@@ -1428,11 +1428,6 @@ function DailyRevenueRow({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="text-sm font-medium">
-                Day Total: <span className="text-green-600">${dayTotal.toLocaleString()}</span>
-              </div>
-            </div>
             {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
               <div className="grid gap-4 md:grid-cols-3" data-testid={`py-comparison-${day.date}`}>
                 <div>
@@ -1449,6 +1444,11 @@ function DailyRevenueRow({
                 </div>
               </div>
             )}
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="text-sm font-medium">
+                Day Total for {day.displayDate}: <span className="text-green-600">${dayTotal.toLocaleString()}</span>
+              </div>
+            </div>
             <div>
               <Label>Daily Notes</Label>
               <Textarea
