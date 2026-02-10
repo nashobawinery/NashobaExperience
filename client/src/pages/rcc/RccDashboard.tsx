@@ -42,7 +42,8 @@ import {
   Thermometer,
   RefreshCw,
   Download,
-  Upload
+  Upload,
+  BookOpen
 } from "lucide-react";
 import type { 
   RccWeek, 
@@ -206,7 +207,7 @@ export default function RccDashboard() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid grid-cols-5 w-full">
+            <TabsList className="grid grid-cols-6 w-full">
               <TabsTrigger value="focus" className="flex items-center gap-2" data-testid="tab-focus">
                 <Target className="h-4 w-4" /> Focus
               </TabsTrigger>
@@ -221,6 +222,9 @@ export default function RccDashboard() {
               </TabsTrigger>
               <TabsTrigger value="ai" className="flex items-center gap-2" data-testid="tab-ai">
                 <Brain className="h-4 w-4" /> AI
+              </TabsTrigger>
+              <TabsTrigger value="docs" className="flex items-center gap-2" data-testid="tab-docs">
+                <BookOpen className="h-4 w-4" /> Docs
               </TabsTrigger>
             </TabsList>
 
@@ -257,6 +261,10 @@ export default function RccDashboard() {
                 weekId={activeWeekId!}
                 recommendations={aiRecs || []}
               />
+            </TabsContent>
+
+            <TabsContent value="docs" className="mt-6">
+              <RccDocsPanel />
             </TabsContent>
           </Tabs>
         </>
@@ -1603,6 +1611,161 @@ function AiAdvisorPanel({ weekId, recommendations }: { weekId: number; recommend
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RccDocsPanel() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            Revenue Command Center Guide
+          </CardTitle>
+          <CardDescription>
+            How to use the RCC to track sales, manage marketing, and leverage AI insights
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <section>
+            <h3 className="text-lg font-semibold mb-2">What is the RCC?</h3>
+            <p className="text-sm text-muted-foreground">
+              The Revenue Command Center is Nashoba Valley's weekly operating system for driving revenue. It tracks daily sales from Toast POS and Shopify, manages marketing campaigns, and uses AI to help you understand how your marketing efforts are impacting sales performance.
+            </p>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">The Weekly Rhythm</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Monday - Plan the Week</p>
+                <p className="text-xs text-muted-foreground mt-1">Set theme, hook, and goal. Assign 3-7 tasks with owners. Create 1-3 campaign drafts.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Tue-Sun - Execute</p>
+                <p className="text-xs text-muted-foreground mt-1">Update task statuses, send campaigns, track progress.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Daily - Log Revenue</p>
+                <p className="text-xs text-muted-foreground mt-1">Enter Toast and Shopify totals. Toast emails are captured automatically.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Fri-Sun - Record Learnings</p>
+                <p className="text-xs text-muted-foreground mt-1">Log wins, losses, ideas, and customer feedback.</p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">Tab Guide</h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-md">
+                <Target className="h-5 w-5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Focus</p>
+                  <p className="text-xs text-muted-foreground">Set the weekly theme, primary hook (the "why now" headline), and measurable goal. Keep the hook consistent across all marketing channels.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-md">
+                <Lightbulb className="h-5 w-5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Tasks</p>
+                  <p className="text-xs text-muted-foreground">The execution engine. Every task has an owner, due date, and status (To Do, Doing, Blocked, Done). Keep tasks small (1-2 hours) and use "Blocked" early.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-md">
+                <Megaphone className="h-5 w-5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Campaigns</p>
+                  <p className="text-xs text-muted-foreground">Track marketing messages across channels: email, website, social, on-site signage, ads. Record the copy, audience, offer, and results for future reference.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-md">
+                <DollarSign className="h-5 w-5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Revenue</p>
+                  <p className="text-xs text-muted-foreground">Daily scoreboard showing Toast POS and Shopify sales. Toast emails are auto-captured. Compare against prior year (same day of week, 52-week offset). Weather data is pulled automatically.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-md">
+                <Brain className="h-5 w-5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">AI Advisor</p>
+                  <p className="text-xs text-muted-foreground">AI-powered recommendations based on your weekly focus, campaigns, revenue trends, and learnings. Use it to spot patterns and get suggestions on what to try next.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">Revenue Data Sources</h3>
+            <div className="space-y-2">
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Toast POS (Automatic)</p>
+                <p className="text-xs text-muted-foreground">Daily summary emails from Toast are automatically parsed and entered. If an email is missed, you can manually enter the amount.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Shopify (Manual / PDF Import)</p>
+                <p className="text-xs text-muted-foreground">Enter Shopify revenue manually or upload Report Pundit PDF exports for bulk import.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Prior Year Comparison</p>
+                <p className="text-xs text-muted-foreground">Each day is compared to the same day of the week from last year (52-week / 364-day offset) for accurate day-of-week alignment.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">Weather Data</p>
+                <p className="text-xs text-muted-foreground">High/low temps, conditions, and precipitation are automatically pulled from Open-Meteo for Bolton, MA to help correlate weather with sales.</p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">Tips for Success</h3>
+            <ul className="space-y-2 text-sm text-muted-foreground list-none p-0">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                <span>Keep the weekly hook simple and consistent across all channels</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                <span>Assign fewer tasks but finish them - completion beats volume</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                <span>Track campaigns even if results are unknown - you'll improve over time</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                <span>Treat learnings as mandatory - they make the whole system smarter</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                <span>Consistency beats perfection - enter revenue numbers the same way every time</span>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">Troubleshooting</h3>
+            <div className="space-y-2">
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">"I'm not sure what to do this week."</p>
+                <p className="text-xs text-muted-foreground">Go to the Focus tab and read the Primary Hook and Primary Goal, then check Tasks for your assignments.</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">"A task is blocked."</p>
+                <p className="text-xs text-muted-foreground">Set status to Blocked and add a comment explaining what you need (approval, copy, image, decision).</p>
+              </div>
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="font-medium text-sm">"Revenue looks wrong."</p>
+                <p className="text-xs text-muted-foreground">Check the date, source (Toast vs Shopify), and add a note explaining any mismatch.</p>
+              </div>
+            </div>
+          </section>
         </CardContent>
       </Card>
     </div>
