@@ -1359,6 +1359,7 @@ function DailyRevenueRow({
   const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
   const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
   const [otherRev, setOtherRev] = useState(entry?.otherRevenue || "");
+  const [otherSource, setOtherSource] = useState(entry?.otherRevenueSource || "");
   const [notes, setNotes] = useState(entry?.notes || "");
   const [expanded, setExpanded] = useState(false);
 
@@ -1367,8 +1368,9 @@ function DailyRevenueRow({
     setToastRev(entry?.toastRevenue || "");
     setShopifyRev(entry?.shopifyRevenue || "");
     setOtherRev(entry?.otherRevenue || "");
+    setOtherSource(entry?.otherRevenueSource || "");
     setNotes(entry?.notes || "");
-  }, [entry?.id, entry?.toastRevenue, entry?.shopifyRevenue, entry?.otherRevenue, entry?.notes]);
+  }, [entry?.id, entry?.toastRevenue, entry?.shopifyRevenue, entry?.otherRevenue, entry?.otherRevenueSource, entry?.notes]);
 
   const dayTotal = parseFloat(toastRev || '0') + parseFloat(shopifyRev || '0') + parseFloat(otherRev || '0');
   const hasWeather = entry?.weatherHigh !== null && entry?.weatherHigh !== undefined;
@@ -1381,6 +1383,7 @@ function DailyRevenueRow({
       toastRevenue: toastRev || null,
       shopifyRevenue: shopifyRev || null,
       otherRevenue: otherRev || null,
+      otherRevenueSource: otherSource || null,
       notes,
     });
   };
@@ -1467,13 +1470,23 @@ function DailyRevenueRow({
               </div>
               <div>
                 <Label>Other</Label>
-                <Input 
-                  type="number"
-                  placeholder="0.00"
-                  value={otherRev}
-                  onChange={(e) => setOtherRev(e.target.value)}
-                  data-testid={`input-other-${day.date}`}
-                />
+                <div className="flex gap-2">
+                  <Input 
+                    type="number"
+                    placeholder="0.00"
+                    value={otherRev}
+                    onChange={(e) => setOtherRev(e.target.value)}
+                    className="w-28 flex-shrink-0"
+                    data-testid={`input-other-${day.date}`}
+                  />
+                  <Input 
+                    type="text"
+                    placeholder="Source (e.g. event, catering)"
+                    value={otherSource}
+                    onChange={(e) => setOtherSource(e.target.value)}
+                    data-testid={`input-other-source-${day.date}`}
+                  />
+                </div>
               </div>
             </div>
             {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
