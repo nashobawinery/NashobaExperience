@@ -18512,6 +18512,42 @@ Generate a professional response:`;
         })();
       }
 
+      // Auto-sync wholesale (B2B) revenue from b2b_orders (non-blocking)
+      const missingWholesaleDays = dailyRevenue.filter(d => d.wholesaleRevenue == null);
+      if (missingWholesaleDays.length > 0) {
+        (async () => {
+          try {
+            const week = await storage.getRccWeek(weekId);
+            if (week) {
+              const wholesaleByDate = await storage.getB2bWholesaleRevenueByDateRange(week.weekStart, week.weekEnd);
+              for (const dayEntry of missingWholesaleDays) {
+                const wholesaleAmount = wholesaleByDate[dayEntry.date];
+                if (wholesaleAmount && parseFloat(wholesaleAmount) > 0) {
+                  await storage.upsertRccDailyRevenue({
+                    weekId: dayEntry.weekId,
+                    date: dayEntry.date,
+                    dayOfWeek: dayEntry.dayOfWeek,
+                    toastRevenue: dayEntry.toastRevenue,
+                    shopifyRevenue: dayEntry.shopifyRevenue,
+                    otherRevenue: dayEntry.otherRevenue,
+                    otherRevenueSource: dayEntry.otherRevenueSource,
+                    wholesaleRevenue: wholesaleAmount,
+                    notes: dayEntry.notes,
+                    weatherHigh: dayEntry.weatherHigh,
+                    weatherLow: dayEntry.weatherLow,
+                    weatherCondition: dayEntry.weatherCondition,
+                    weatherPrecipitation: dayEntry.weatherPrecipitation,
+                  });
+                  console.log(`[RCC] Auto-synced wholesale revenue for ${dayEntry.date}: $${wholesaleAmount}`);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[RCC] Failed to auto-sync wholesale revenue:', err);
+          }
+        })();
+      }
+
       // Auto-fetch weather for past dates missing weather data (non-blocking)
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

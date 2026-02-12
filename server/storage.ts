@@ -7494,6 +7494,27 @@ export class DatabaseStorage implements IStorage {
     return entry;
   }
 
+  async getB2bWholesaleRevenueByDateRange(startDate: string, endDate: string): Promise<Record<string, string>> {
+    const results = await db.execute(sql`
+      SELECT 
+        DATE(order_date) as order_day,
+        SUM(CAST(total AS NUMERIC)) as day_total
+      FROM b2b_orders 
+      WHERE status IN ('completed', 'awaiting_payment', 'delivered')
+        AND DATE(order_date) >= ${startDate}
+        AND DATE(order_date) <= ${endDate}
+      GROUP BY DATE(order_date)
+    `);
+    const byDate: Record<string, string> = {};
+    for (const row of results.rows as any[]) {
+      const dateStr = typeof row.order_day === 'string' 
+        ? row.order_day.split('T')[0] 
+        : new Date(row.order_day).toISOString().split('T')[0];
+      byDate[dateStr] = parseFloat(row.day_total).toFixed(2);
+    }
+    return byDate;
+  }
+
   // RCC Export/Import
   async exportRccWeekData(weekId: number): Promise<{
     focus: { focusStatement: string | null; hookAngle: string | null; weeklyGoal: string | null };

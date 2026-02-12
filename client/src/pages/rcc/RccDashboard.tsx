@@ -116,9 +116,10 @@ export default function RccDashboard() {
   const dailyTotals = {
     toast: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastRevenue || '0'), 0) || 0,
     shopify: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.shopifyRevenue || '0'), 0) || 0,
+    wholesale: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.wholesaleRevenue || '0'), 0) || 0,
     other: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.otherRevenue || '0'), 0) || 0,
   };
-  const dailyGrandTotal = dailyTotals.toast + dailyTotals.shopify + dailyTotals.other;
+  const dailyGrandTotal = dailyTotals.toast + dailyTotals.shopify + dailyTotals.wholesale + dailyTotals.other;
 
   const { data: aiRecs } = useQuery<RccAiRecommendation[]>({
     queryKey: ["/api/rcc/ai-recommendations", activeWeekId],
@@ -1217,9 +1218,10 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
   const weeklyTotals = {
     toast: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastRevenue || '0'), 0) || 0,
     shopify: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.shopifyRevenue || '0'), 0) || 0,
+    wholesale: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.wholesaleRevenue || '0'), 0) || 0,
     other: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.otherRevenue || '0'), 0) || 0,
   };
-  const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.other;
+  const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.wholesale + weeklyTotals.other;
 
   const priorYearMap = new Map<string, { toast: number; shopify: number; other: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
@@ -1372,7 +1374,8 @@ function DailyRevenueRow({
     setNotes(entry?.notes || "");
   }, [entry?.id, entry?.toastRevenue, entry?.shopifyRevenue, entry?.otherRevenue, entry?.otherRevenueSource, entry?.notes]);
 
-  const dayTotal = parseFloat(toastRev || '0') + parseFloat(shopifyRev || '0') + parseFloat(otherRev || '0');
+  const wholesaleRev = entry?.wholesaleRevenue || "";
+  const dayTotal = parseFloat(toastRev || '0') + parseFloat(shopifyRev || '0') + parseFloat(wholesaleRev || '0') + parseFloat(otherRev || '0');
   const hasWeather = entry?.weatherHigh !== null && entry?.weatherHigh !== undefined;
 
   const handleSave = () => {
@@ -1447,7 +1450,7 @@ function DailyRevenueRow({
 
         {expanded && (
           <div className="mt-4 pt-4 border-t space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label>Toast POS</Label>
                 <Input 
@@ -1466,6 +1469,17 @@ function DailyRevenueRow({
                   value={shopifyRev}
                   onChange={(e) => setShopifyRev(e.target.value)}
                   data-testid={`input-shopify-${day.date}`}
+                />
+              </div>
+              <div>
+                <Label>Wholesale (B2B)</Label>
+                <Input 
+                  type="number"
+                  placeholder="Auto-synced"
+                  value={wholesaleRev}
+                  disabled
+                  className="bg-muted"
+                  data-testid={`input-wholesale-${day.date}`}
                 />
               </div>
               <div>
@@ -1490,7 +1504,7 @@ function DailyRevenueRow({
               </div>
             </div>
             {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
-              <div className="grid gap-4 md:grid-cols-3" data-testid={`py-comparison-${day.date}`}>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" data-testid={`py-comparison-${day.date}`}>
                 <div>
                   <p className="text-xs text-muted-foreground">PY Toast{priorYearDate ? ` (${priorYearDate})` : ''}</p>
                   <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString()}</p>
@@ -1498,6 +1512,10 @@ function DailyRevenueRow({
                 <div>
                   <p className="text-xs text-muted-foreground">PY Shopify</p>
                   <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">PY Wholesale</p>
+                  <p className="text-xs font-medium">-</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">PY Other</p>

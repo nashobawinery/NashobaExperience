@@ -4656,6 +4656,7 @@ export const rccDailyRevenue = pgTable("rcc_daily_revenue", {
   shopifyRevenue: numeric("shopify_revenue", { precision: 12, scale: 2 }),
   otherRevenue: numeric("other_revenue", { precision: 12, scale: 2 }),
   otherRevenueSource: varchar("other_revenue_source", { length: 255 }),
+  wholesaleRevenue: numeric("wholesale_revenue", { precision: 12, scale: 2 }),
   notes: text("notes"),
   weatherHigh: integer("weather_high"),
   weatherLow: integer("weather_low"),
