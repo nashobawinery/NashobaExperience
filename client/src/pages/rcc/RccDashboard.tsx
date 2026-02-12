@@ -1103,6 +1103,7 @@ type ToastHistoricalData = {
   currentDates: { date: string; dayOfWeek: number; priorYearDate: string }[];
   priorYearData: { revenueDate: string; netRevenue: string; shopifyRevenue: string | null }[];
   priorYearTotal: number;
+  priorYearWholesale: Record<string, string>;
 };
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1223,13 +1224,22 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
   };
   const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.wholesale + weeklyTotals.other;
 
-  const priorYearMap = new Map<string, { toast: number; shopify: number; other: number; total: number }>();
+  const priorYearMap = new Map<string, { toast: number; shopify: number; wholesale: number; other: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
     const toast = parseFloat(d.netRevenue || '0');
     const shopify = parseFloat(d.shopifyRevenue || '0');
     const other = parseFloat(d.otherRevenue || '0');
-    priorYearMap.set(d.revenueDate, { toast, shopify, other, total: toast + shopify + other });
+    const wholesale = parseFloat(historicalData?.priorYearWholesale?.[d.revenueDate] || '0');
+    priorYearMap.set(d.revenueDate, { toast, shopify, wholesale, other, total: toast + shopify + wholesale + other });
   });
+  if (historicalData?.priorYearWholesale) {
+    Object.entries(historicalData.priorYearWholesale).forEach(([date, amount]) => {
+      if (!priorYearMap.has(date)) {
+        const wholesale = parseFloat(amount || '0');
+        priorYearMap.set(date, { toast: 0, shopify: 0, wholesale, other: 0, total: wholesale });
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -1351,7 +1361,7 @@ function DailyRevenueRow({
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
   weekId: number;
-  priorYearRevenue: { toast: number; shopify: number; other: number; total: number } | null;
+  priorYearRevenue: { toast: number; shopify: number; wholesale: number; other: number; total: number } | null;
   priorYearDate: string | null;
   onSave: (data: any) => void;
   onFetchWeather: () => void;
@@ -1515,7 +1525,7 @@ function DailyRevenueRow({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">PY Wholesale</p>
-                  <p className="text-xs font-medium">-</p>
+                  <p className="text-xs font-medium">${(priorYearRevenue.wholesale || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">PY Other</p>

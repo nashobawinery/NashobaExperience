@@ -7315,19 +7315,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   // RCC Toast Historical Revenue methods
-  async getRccToastHistoricalByWeek(weekStart: string, weekEnd: string): Promise<{ currentDates: { date: string; dayOfWeek: number }[]; priorYearData: RccToastHistoricalRevenue[]; priorYearTotal: number }> {
+  async getRccToastHistoricalByWeek(weekStart: string, weekEnd: string): Promise<{ currentDates: { date: string; dayOfWeek: number }[]; priorYearData: RccToastHistoricalRevenue[]; priorYearTotal: number; priorYearWholesale: Record<string, string> }> {
     const startDate = new Date(weekStart);
     const endDate = new Date(weekEnd);
     
-    // Build array of current week dates with their day-of-week
     const currentDates: { date: string; dayOfWeek: number; priorYearDate: string }[] = [];
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
-      // Calculate prior year date with same day of week using 52-week offset
-      // This guarantees the same day of week (52 weeks = 364 days, exactly 52*7)
       const priorYearDate = new Date(currentDate);
-      priorYearDate.setDate(priorYearDate.getDate() - 364); // 52 weeks * 7 days
+      priorYearDate.setDate(priorYearDate.getDate() - 364);
       
       currentDates.push({
         date: currentDate.toISOString().split('T')[0],
@@ -7337,19 +7334,26 @@ export class DatabaseStorage implements IStorage {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    // Get prior year data for matching dates
     const priorYearDates = currentDates.map(d => d.priorYearDate);
     const priorYearData = await db.select()
       .from(rccToastHistoricalRevenue)
       .where(sql`${rccToastHistoricalRevenue.revenueDate} = ANY(ARRAY[${sql.join(priorYearDates.map(d => sql`${d}`), sql`,`)}]::date[])`)
       .orderBy(rccToastHistoricalRevenue.revenueDate);
     
-    const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0') + parseFloat(d.shopifyRevenue || '0'), 0);
+    const sortedDates = [...priorYearDates].sort();
+    let priorYearWholesale: Record<string, string> = {};
+    if (sortedDates.length > 0) {
+      priorYearWholesale = await this.getB2bWholesaleRevenueByDateRange(sortedDates[0], sortedDates[sortedDates.length - 1]);
+    }
+    
+    const wholesaleTotal = Object.values(priorYearWholesale).reduce((sum, v) => sum + parseFloat(v || '0'), 0);
+    const priorYearTotal = priorYearData.reduce((sum, d) => sum + parseFloat(d.netRevenue || '0') + parseFloat(d.shopifyRevenue || '0'), 0) + wholesaleTotal;
     
     return {
       currentDates: currentDates.map(d => ({ date: d.date, dayOfWeek: d.dayOfWeek, priorYearDate: d.priorYearDate })),
       priorYearData,
       priorYearTotal,
+      priorYearWholesale,
     };
   }
 
