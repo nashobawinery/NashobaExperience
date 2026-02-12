@@ -27,6 +27,7 @@ import {
   Calendar,
   User,
   Clock,
+  ArrowLeft,
   ArrowRight,
   Sparkles,
   TrendingUp,
@@ -57,6 +58,7 @@ import type {
 
 export default function RccDashboard() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("focus");
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   
@@ -144,6 +146,12 @@ export default function RccDashboard() {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/")} data-testid="button-return-hub">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Return to Hub
+        </Button>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight" data-testid="rcc-title">Revenue Command Center</h1>
