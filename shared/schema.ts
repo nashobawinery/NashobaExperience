@@ -4672,3 +4672,54 @@ export const rccDailyRevenue = pgTable("rcc_daily_revenue", {
 export const insertRccDailyRevenueSchema = createInsertSchema(rccDailyRevenue).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertRccDailyRevenue = z.infer<typeof insertRccDailyRevenueSchema>;
 export type RccDailyRevenue = typeof rccDailyRevenue.$inferSelect;
+
+// Toast Guests - synced from Toast POS guest/loyalty data
+export const toastGuests = pgTable("toast_guests", {
+  id: serial("id").primaryKey(),
+  guestGuid: varchar("guest_guid", { length: 64 }).notNull(),
+  email1: varchar("email1", { length: 255 }),
+  email1MarketingPreference: varchar("email1_marketing_preference", { length: 50 }),
+  phone1: varchar("phone1", { length: 30 }),
+  phone1MarketingPreference: varchar("phone1_marketing_preference", { length: 50 }),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  firstVisitDate: timestamp("first_visit_date"),
+  lastVisitDate: timestamp("last_visit_date"),
+  lastDiningBehavior: varchar("last_dining_behavior", { length: 50 }),
+  totalVisits: integer("total_visits").default(0),
+  diningBehaviors: varchar("dining_behaviors", { length: 255 }),
+  averageSpend: numeric("average_spend", { precision: 12, scale: 2 }),
+  averageTip: numeric("average_tip", { precision: 12, scale: 2 }),
+  averageTipPercentage: numeric("average_tip_percentage", { precision: 8, scale: 6 }),
+  lifetimeSpend: numeric("lifetime_spend", { precision: 14, scale: 2 }),
+  email2: varchar("email2", { length: 255 }),
+  email2MarketingPreference: varchar("email2_marketing_preference", { length: 50 }),
+  phone2: varchar("phone2", { length: 30 }),
+  phone2MarketingPreference: varchar("phone2_marketing_preference", { length: 50 }),
+  email3: varchar("email3", { length: 255 }),
+  email3MarketingPreference: varchar("email3_marketing_preference", { length: 50 }),
+  phone3: varchar("phone3", { length: 30 }),
+  phone3MarketingPreference: varchar("phone3_marketing_preference", { length: 50 }),
+  email4: varchar("email4", { length: 255 }),
+  email4MarketingPreference: varchar("email4_marketing_preference", { length: 50 }),
+  phone4: varchar("phone4", { length: 30 }),
+  phone4MarketingPreference: varchar("phone4_marketing_preference", { length: 50 }),
+  email5: varchar("email5", { length: 255 }),
+  email5MarketingPreference: varchar("email5_marketing_preference", { length: 50 }),
+  phone5: varchar("phone5", { length: 30 }),
+  phone5MarketingPreference: varchar("phone5_marketing_preference", { length: 50 }),
+  daysSinceLastVisit: integer("days_since_last_visit"),
+  reactivationSegment: varchar("reactivation_segment", { length: 50 }),
+  importedAt: timestamp("imported_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_toast_guests_guid").on(table.guestGuid),
+  index("idx_toast_guests_email1").on(table.email1),
+  index("idx_toast_guests_last_visit").on(table.lastVisitDate),
+  index("idx_toast_guests_segment").on(table.reactivationSegment),
+  index("idx_toast_guests_lifetime_spend").on(table.lifetimeSpend),
+]);
+
+export const insertToastGuestSchema = createInsertSchema(toastGuests).omit({ id: true, importedAt: true, updatedAt: true });
+export type InsertToastGuest = z.infer<typeof insertToastGuestSchema>;
+export type ToastGuest = typeof toastGuests.$inferSelect;

@@ -15,7 +15,7 @@ import {
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
   Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList,
-  LogOut, User, Lock, ChevronDown, Lightbulb, Info
+  LogOut, User, Lock, ChevronDown, Lightbulb, Info, UserCheck
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -49,6 +49,7 @@ const iconMap: Record<string, any> = {
   Users,
   Package,
   TrendingUp,
+  UserCheck,
 };
 
 const statusColors: Record<ModuleStatus, string> = {

@@ -1,13 +1,372 @@
 import { Router } from "express";
+import { db } from "../db";
+import { toastGuests } from "@shared/schema";
+import { sql, eq, and, gte, lte, like, or, desc, asc, count } from "drizzle-orm";
 
 const router = Router();
 
 router.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    module: "reactivation",
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ status: "ok", module: "reactivation", timestamp: new Date().toISOString() });
+});
+
+router.get("/segments", async (_req, res) => {
+  try {
+    const results = await db.execute(sql`
+      SELECT 
+        reactivation_segment,
+        COUNT(*) as customer_count,
+        COALESCE(AVG(total_visits), 0) as avg_visits,
+        COALESCE(AVG(CAST(lifetime_spend AS FLOAT)), 0) as avg_lifetime_spend,
+        COALESCE(AVG(CAST(average_spend AS FLOAT)), 0) as avg_spend_per_visit,
+        COALESCE(AVG(days_since_last_visit), 0) as avg_days_inactive,
+        COUNT(CASE WHEN email1 IS NOT NULL AND email1 != '' THEN 1 END) as with_email,
+        COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as with_phone,
+        SUM(CAST(COALESCE(lifetime_spend, '0') AS FLOAT)) as total_lifetime_revenue
+      FROM toast_guests
+      WHERE reactivation_segment IS NOT NULL
+      GROUP BY reactivation_segment
+      ORDER BY 
+        CASE reactivation_segment
+          WHEN 'active' THEN 1
+          WHEN 'at_risk' THEN 2
+          WHEN 'lapsed' THEN 3
+          WHEN 'dormant' THEN 4
+          WHEN 'lost' THEN 5
+        END
+    `);
+
+    const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests`);
+
+    res.json({
+      segments: results.rows.map((r: any) => ({
+        segment: r.reactivation_segment,
+        customerCount: Number(r.customer_count),
+        avgVisits: Math.round(Number(r.avg_visits) * 10) / 10,
+        avgLifetimeSpend: Math.round(Number(r.avg_lifetime_spend) * 100) / 100,
+        avgSpendPerVisit: Math.round(Number(r.avg_spend_per_visit) * 100) / 100,
+        avgDaysInactive: Math.round(Number(r.avg_days_inactive)),
+        withEmail: Number(r.with_email),
+        withPhone: Number(r.with_phone),
+        totalLifetimeRevenue: Math.round(Number(r.total_lifetime_revenue) * 100) / 100,
+      })),
+      totalCustomers: Number((totalCustomers.rows[0] as any).total),
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching segments:", error);
+    res.status(500).json({ error: "Failed to fetch segment data" });
+  }
+});
+
+router.get("/customers", async (req, res) => {
+  try {
+    const {
+      segment,
+      search,
+      sortBy = "lifetime_spend",
+      sortDir = "desc",
+      page = "1",
+      limit = "50",
+      hasEmail,
+      hasPhone,
+      marketingOptIn,
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: ReturnType<typeof sql>[] = [];
+
+    if (segment && segment !== "all") {
+      if (segment === "unknown") {
+        conditions.push(sql`reactivation_segment IS NULL`);
+      } else {
+        conditions.push(sql`reactivation_segment = ${segment}`);
+      }
+    }
+
+    if (search) {
+      const searchStr = `%${search}%`;
+      conditions.push(sql`(
+        first_name ILIKE ${searchStr} OR 
+        last_name ILIKE ${searchStr} OR 
+        email1 ILIKE ${searchStr} OR 
+        phone1 ILIKE ${searchStr} OR 
+        CONCAT(first_name, ' ', last_name) ILIKE ${searchStr}
+      )`);
+    }
+
+    if (hasEmail === "true") {
+      conditions.push(sql`email1 IS NOT NULL AND email1 != ''`);
+    }
+    if (hasPhone === "true") {
+      conditions.push(sql`phone1 IS NOT NULL AND phone1 != ''`);
+    }
+    if (marketingOptIn === "true") {
+      conditions.push(sql`email1_marketing_preference = 'OPT_IN'`);
+    }
+
+    const whereClause = conditions.length > 0
+      ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+      : sql``;
+
+    const allowedSorts: Record<string, string> = {
+      lifetime_spend: "CAST(COALESCE(lifetime_spend, '0') AS FLOAT)",
+      total_visits: "COALESCE(total_visits, 0)",
+      last_visit: "last_visit_date",
+      average_spend: "CAST(COALESCE(average_spend, '0') AS FLOAT)",
+      days_inactive: "COALESCE(days_since_last_visit, 99999)",
+      first_name: "first_name",
+      last_name: "last_name",
+    };
+    const sortColumn = allowedSorts[sortBy as string] || allowedSorts.lifetime_spend;
+    const sortDirection = sortDir === "asc" ? "ASC" : "DESC";
+    const orderClause = sql.raw(`ORDER BY ${sortColumn} ${sortDirection} NULLS LAST`);
+
+    const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests ${whereClause}`);
+    const totalRecords = Number((countResult.rows[0] as any).total);
+
+    const dataResult = await db.execute(sql`
+      SELECT id, guest_guid, email1, email1_marketing_preference, phone1, phone1_marketing_preference,
+        first_name, last_name, first_visit_date, last_visit_date, last_dining_behavior,
+        total_visits, dining_behaviors, average_spend, average_tip, lifetime_spend,
+        days_since_last_visit, reactivation_segment
+      FROM toast_guests
+      ${whereClause}
+      ${orderClause}
+      LIMIT ${limitNum} OFFSET ${offset}
+    `);
+
+    res.json({
+      customers: dataResult.rows.map((r: any) => ({
+        id: r.id,
+        guestGuid: r.guest_guid,
+        email: r.email1,
+        emailOptIn: r.email1_marketing_preference === "OPT_IN",
+        phone: r.phone1,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        firstVisitDate: r.first_visit_date,
+        lastVisitDate: r.last_visit_date,
+        lastDiningBehavior: r.last_dining_behavior,
+        totalVisits: r.total_visits,
+        diningBehaviors: r.dining_behaviors,
+        averageSpend: r.average_spend ? parseFloat(r.average_spend) : null,
+        averageTip: r.average_tip ? parseFloat(r.average_tip) : null,
+        lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : null,
+        daysSinceLastVisit: r.days_since_last_visit,
+        segment: r.reactivation_segment,
+      })),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalRecords,
+        totalPages: Math.ceil(totalRecords / limitNum),
+      },
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching customers:", error);
+    res.status(500).json({ error: "Failed to fetch customers" });
+  }
+});
+
+router.get("/customers/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid customer ID" });
+    }
+    const result = await db.execute(sql`SELECT * FROM toast_guests WHERE id = ${id}`);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    const r: any = result.rows[0];
+    res.json({
+      id: r.id,
+      guestGuid: r.guest_guid,
+      emails: [
+        { email: r.email1, preference: r.email1_marketing_preference },
+        { email: r.email2, preference: r.email2_marketing_preference },
+        { email: r.email3, preference: r.email3_marketing_preference },
+        { email: r.email4, preference: r.email4_marketing_preference },
+        { email: r.email5, preference: r.email5_marketing_preference },
+      ].filter(e => e.email),
+      phones: [
+        { phone: r.phone1, preference: r.phone1_marketing_preference },
+        { phone: r.phone2, preference: r.phone2_marketing_preference },
+        { phone: r.phone3, preference: r.phone3_marketing_preference },
+        { phone: r.phone4, preference: r.phone4_marketing_preference },
+        { phone: r.phone5, preference: r.phone5_marketing_preference },
+      ].filter(p => p.phone),
+      firstName: r.first_name,
+      lastName: r.last_name,
+      firstVisitDate: r.first_visit_date,
+      lastVisitDate: r.last_visit_date,
+      lastDiningBehavior: r.last_dining_behavior,
+      totalVisits: r.total_visits,
+      diningBehaviors: r.dining_behaviors,
+      averageSpend: r.average_spend ? parseFloat(r.average_spend) : null,
+      averageTip: r.average_tip ? parseFloat(r.average_tip) : null,
+      averageTipPercentage: r.average_tip_percentage ? parseFloat(r.average_tip_percentage) : null,
+      lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : null,
+      daysSinceLastVisit: r.days_since_last_visit,
+      segment: r.reactivation_segment,
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching customer:", error);
+    res.status(500).json({ error: "Failed to fetch customer" });
+  }
+});
+
+router.get("/high-value", async (req, res) => {
+  try {
+    const { segment, limit: lim = "20" } = req.query;
+    const limitNum = Math.min(100, parseInt(lim as string) || 20);
+
+    const validSegments = ["at_risk", "lapsed", "dormant"];
+    const segmentCondition = (segment && segment !== "all" && validSegments.includes(segment as string))
+      ? sql`AND reactivation_segment = ${segment}`
+      : sql``;
+
+    const result = await db.execute(sql`
+      SELECT id, first_name, last_name, email1, phone1, total_visits,
+        lifetime_spend, average_spend, days_since_last_visit, reactivation_segment,
+        last_visit_date, email1_marketing_preference
+      FROM toast_guests
+      WHERE lifetime_spend IS NOT NULL 
+        AND CAST(lifetime_spend AS FLOAT) > 0
+        AND reactivation_segment IN ('at_risk', 'lapsed', 'dormant')
+        ${segmentCondition}
+      ORDER BY CAST(lifetime_spend AS FLOAT) DESC
+      LIMIT ${limitNum}
+    `);
+
+    res.json({
+      customers: result.rows.map((r: any) => ({
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email1,
+        phone: r.phone1,
+        emailOptIn: r.email1_marketing_preference === "OPT_IN",
+        totalVisits: r.total_visits,
+        lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : 0,
+        averageSpend: r.average_spend ? parseFloat(r.average_spend) : 0,
+        daysSinceLastVisit: r.days_since_last_visit,
+        segment: r.reactivation_segment,
+        lastVisitDate: r.last_visit_date,
+      })),
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching high-value:", error);
+    res.status(500).json({ error: "Failed to fetch high-value customers" });
+  }
+});
+
+router.get("/analytics", async (_req, res) => {
+  try {
+    const spendDistribution = await db.execute(sql`
+      SELECT spend_range, count FROM (
+        SELECT 
+          CASE 
+            WHEN CAST(COALESCE(lifetime_spend, '0') AS FLOAT) = 0 THEN '$0'
+            WHEN CAST(lifetime_spend AS FLOAT) < 50 THEN '$1-$49'
+            WHEN CAST(lifetime_spend AS FLOAT) < 100 THEN '$50-$99'
+            WHEN CAST(lifetime_spend AS FLOAT) < 250 THEN '$100-$249'
+            WHEN CAST(lifetime_spend AS FLOAT) < 500 THEN '$250-$499'
+            WHEN CAST(lifetime_spend AS FLOAT) < 1000 THEN '$500-$999'
+            ELSE '$1000+'
+          END as spend_range,
+          CASE 
+            WHEN CAST(COALESCE(lifetime_spend, '0') AS FLOAT) = 0 THEN 1
+            WHEN CAST(lifetime_spend AS FLOAT) < 50 THEN 2
+            WHEN CAST(lifetime_spend AS FLOAT) < 100 THEN 3
+            WHEN CAST(lifetime_spend AS FLOAT) < 250 THEN 4
+            WHEN CAST(lifetime_spend AS FLOAT) < 500 THEN 5
+            WHEN CAST(lifetime_spend AS FLOAT) < 1000 THEN 6
+            ELSE 7
+          END as sort_order,
+          COUNT(*) as count
+        FROM toast_guests
+        GROUP BY spend_range, sort_order
+      ) sub ORDER BY sort_order
+    `);
+
+    const visitDistribution = await db.execute(sql`
+      SELECT visit_range, count FROM (
+        SELECT 
+          CASE 
+            WHEN COALESCE(total_visits, 0) = 0 THEN '0 visits'
+            WHEN total_visits = 1 THEN '1 visit'
+            WHEN total_visits BETWEEN 2 AND 5 THEN '2-5 visits'
+            WHEN total_visits BETWEEN 6 AND 10 THEN '6-10 visits'
+            WHEN total_visits BETWEEN 11 AND 25 THEN '11-25 visits'
+            WHEN total_visits BETWEEN 26 AND 50 THEN '26-50 visits'
+            ELSE '50+ visits'
+          END as visit_range,
+          CASE 
+            WHEN COALESCE(total_visits, 0) = 0 THEN 1
+            WHEN total_visits = 1 THEN 2
+            WHEN total_visits BETWEEN 2 AND 5 THEN 3
+            WHEN total_visits BETWEEN 6 AND 10 THEN 4
+            WHEN total_visits BETWEEN 11 AND 25 THEN 5
+            WHEN total_visits BETWEEN 26 AND 50 THEN 6
+            ELSE 7
+          END as sort_order,
+          COUNT(*) as count
+        FROM toast_guests
+        GROUP BY visit_range, sort_order
+      ) sub ORDER BY sort_order
+    `);
+
+    const reachability = await db.execute(sql`
+      SELECT 
+        COUNT(CASE WHEN email1 IS NOT NULL AND email1 != '' AND email1_marketing_preference = 'OPT_IN' THEN 1 END) as email_opt_in,
+        COUNT(CASE WHEN email1 IS NOT NULL AND email1 != '' AND email1_marketing_preference = 'OPT_OUT' THEN 1 END) as email_opt_out,
+        COUNT(CASE WHEN email1 IS NOT NULL AND email1 != '' AND (email1_marketing_preference IS NULL OR email1_marketing_preference NOT IN ('OPT_IN', 'OPT_OUT')) THEN 1 END) as email_unknown,
+        COUNT(CASE WHEN email1 IS NULL OR email1 = '' THEN 1 END) as no_email,
+        COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as has_phone,
+        COUNT(*) as total
+      FROM toast_guests
+    `);
+
+    const atRiskRevenue = await db.execute(sql`
+      SELECT 
+        reactivation_segment,
+        SUM(CAST(COALESCE(lifetime_spend, '0') AS FLOAT)) as total_at_risk_revenue,
+        COUNT(*) as count
+      FROM toast_guests
+      WHERE reactivation_segment IN ('at_risk', 'lapsed', 'dormant')
+      GROUP BY reactivation_segment
+    `);
+
+    res.json({
+      spendDistribution: spendDistribution.rows.map((r: any) => ({
+        range: r.spend_range,
+        count: Number(r.count),
+      })),
+      visitDistribution: visitDistribution.rows.map((r: any) => ({
+        range: r.visit_range,
+        count: Number(r.count),
+      })),
+      reachability: {
+        emailOptIn: Number((reachability.rows[0] as any).email_opt_in),
+        emailOptOut: Number((reachability.rows[0] as any).email_opt_out),
+        emailUnknown: Number((reachability.rows[0] as any).email_unknown),
+        noEmail: Number((reachability.rows[0] as any).no_email),
+        hasPhone: Number((reachability.rows[0] as any).has_phone),
+        total: Number((reachability.rows[0] as any).total),
+      },
+      atRiskRevenue: atRiskRevenue.rows.map((r: any) => ({
+        segment: r.reactivation_segment,
+        totalRevenue: Math.round(Number(r.total_at_risk_revenue) * 100) / 100,
+        count: Number(r.count),
+      })),
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
 });
 
 export default router;
