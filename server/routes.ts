@@ -24,6 +24,7 @@ import resyRouter from "./resy-routes";
 import proceduresRouter from "./procedures-routes";
 import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
+import loyaltyRouter from "./reactivation/loyalty-routes";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
@@ -111,6 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mount Reactivation (Boomerang) routes
   app.use("/api/reactivation", reactivationRouter);
+  app.use("/api/boomerang", loyaltyRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();

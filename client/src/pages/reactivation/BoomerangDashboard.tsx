@@ -1,18 +1,24 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { 
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
   ArrowLeft, Users, DollarSign, TrendingDown, Mail, Phone, Search,
   ChevronLeft, ChevronRight, AlertTriangle, Clock, UserX, UserCheck,
-  BarChart3, Filter, Eye, X
+  BarChart3, Filter, Eye, Target, Award, Gift, Zap, Share2,
+  Plus, Play, Pause, Trash2, RefreshCw, TrendingUp, PieChart,
+  Percent, Hash, Star, Crown, Gem, ShieldCheck
 } from "lucide-react";
 
 interface SegmentData {
@@ -61,6 +67,17 @@ const SEGMENT_CONFIG: Record<string, { label: string; color: string; icon: typeo
   lost: { label: "Lost", color: "bg-muted text-muted-foreground", icon: UserX, description: "365+ days since last visit" },
 };
 
+const RFM_SEGMENT_CONFIG: Record<string, { label: string; color: string; icon: typeof Star; description: string }> = {
+  champions: { label: "Champions", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: Crown, description: "Best customers: recent, frequent, high spend" },
+  loyal_customers: { label: "Loyal", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: Star, description: "Regular visitors with good engagement" },
+  big_spenders: { label: "Big Spenders", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200", icon: Gem, description: "High monetary value customers" },
+  new_customers: { label: "New", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200", icon: UserCheck, description: "Recently acquired, low frequency" },
+  at_risk_high_value: { label: "At Risk HV", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", icon: AlertTriangle, description: "High-value customers slipping away" },
+  needs_attention: { label: "Needs Attention", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", icon: Clock, description: "Previously engaged, declining activity" },
+  hibernating: { label: "Hibernating", color: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200", icon: TrendingDown, description: "Long time since last visit" },
+  potential: { label: "Potential", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200", icon: TrendingUp, description: "Room to grow in all dimensions" },
+};
+
 function formatCurrency(val: number | null | undefined): string {
   if (val == null) return "$0";
   return `$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -77,6 +94,9 @@ function SegmentBadge({ segment }: { segment: string | null }) {
   return <Badge className={config.color}>{config.label}</Badge>;
 }
 
+// ==========================================
+// OVERVIEW TAB
+// ==========================================
 function SegmentOverview() {
   const { data, isLoading } = useQuery<{ segments: SegmentData[]; totalCustomers: number }>({
     queryKey: ["/api/reactivation/segments"],
@@ -156,66 +176,771 @@ function SegmentOverview() {
   );
 }
 
-function HighValueTargets() {
-  const [segment, setSegment] = useState("all");
-  const { data, isLoading } = useQuery<{ customers: Customer[] }>({
-    queryKey: ["/api/reactivation/high-value", segment],
+// ==========================================
+// RFM SEGMENTATION TAB
+// ==========================================
+function RfmTab() {
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery<{
+    computed: boolean;
+    totalScored: number;
+    segments: { segment: string; customerCount: number; avgRfmScore: number; avgRecency: number; avgFrequency: number; avgMonetary: number; avgLifetimeSpend: number; avgVisits: number; withEmail: number }[];
+    distribution: { score: number; count: number }[];
+  }>({
+    queryKey: ["/api/boomerang/rfm/summary"],
+  });
+
+  const computeMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/boomerang/rfm/compute"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/rfm/summary"] });
+      toast({ title: "RFM scores computed", description: "All customer scores updated" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to compute RFM scores", variant: "destructive" }),
+  });
+
+  const maxCount = data?.distribution?.reduce((max, d) => Math.max(max, d.count), 0) || 1;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
+        <div>
+          <h3 className="font-semibold">RFM Segmentation</h3>
+          <p className="text-sm text-muted-foreground">Recency, Frequency, Monetary scoring for smarter targeting</p>
+        </div>
+        <Button onClick={() => computeMutation.mutate()} disabled={computeMutation.isPending} data-testid="button-compute-rfm">
+          <RefreshCw className={`h-4 w-4 mr-2 ${computeMutation.isPending ? "animate-spin" : ""}`} />
+          {computeMutation.isPending ? "Computing..." : "Compute RFM Scores"}
+        </Button>
+      </div>
+
+      {!data?.computed && !isLoading && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">RFM Scores Not Computed Yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Click "Compute RFM Scores" to analyze all customers</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {data?.computed && (
+        <>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Customers Scored</p>
+                  <p className="text-2xl font-bold" data-testid="text-rfm-total">{data.totalScored.toLocaleString()}</p>
+                </div>
+                <Separator orientation="vertical" className="h-10 hidden sm:block" />
+                <div>
+                  <p className="text-sm text-muted-foreground">RFM Segments</p>
+                  <p className="text-2xl font-bold">{data.segments.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {data.segments.map(seg => {
+              const config = RFM_SEGMENT_CONFIG[seg.segment] || { label: seg.segment, color: "bg-muted", icon: Users, description: "" };
+              const Icon = config.icon;
+              return (
+                <Card key={seg.segment} data-testid={`card-rfm-${seg.segment}`}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4" />
+                        <span className="font-semibold text-sm">{config.label}</span>
+                      </div>
+                      <Badge className={config.color}>{seg.customerCount.toLocaleString()}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{config.description}</p>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <span className="text-muted-foreground">Avg RFM</span>
+                      <span className="text-right font-medium">{seg.avgRfmScore}/15</span>
+                      <span className="text-muted-foreground">R / F / M</span>
+                      <span className="text-right font-medium">{seg.avgRecency} / {seg.avgFrequency} / {seg.avgMonetary}</span>
+                      <span className="text-muted-foreground">Avg LTV</span>
+                      <span className="text-right font-medium">{formatCurrency(seg.avgLifetimeSpend)}</span>
+                      <span className="text-muted-foreground">Reachable</span>
+                      <span className="text-right font-medium">{seg.customerCount > 0 ? Math.round(seg.withEmail / seg.customerCount * 100) : 0}%</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {data.distribution && data.distribution.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Score Distribution (3-15)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="flex items-end gap-1 h-32">
+                  {data.distribution.map((d) => (
+                    <div key={d.score} className="flex-1 flex flex-col items-center gap-1">
+                      <div
+                        className="w-full bg-primary/70 rounded-t"
+                        style={{ height: `${(d.count / maxCount) * 100}%`, minHeight: d.count > 0 ? "4px" : "0" }}
+                        data-testid={`bar-rfm-${d.score}`}
+                      />
+                      <span className="text-[10px] text-muted-foreground">{d.score}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// LOYALTY PROGRAM TAB
+// ==========================================
+function LoyaltyTab() {
+  const { toast } = useToast();
+  const [enrollSegment, setEnrollSegment] = useState("active");
+
+  const { data: stats, isLoading: statsLoading } = useQuery<{
+    totalMembers: number;
+    outstandingPoints: number;
+    lifetimePointsIssued: number;
+    recentTransactions: number;
+    tierBreakdown: { tier: string; color: string; memberCount: number; totalPoints: number; avgLifetimePoints: number }[];
+  }>({
+    queryKey: ["/api/boomerang/loyalty/stats"],
+  });
+
+  const { data: tiers } = useQuery<{ tiers: any[] }>({
+    queryKey: ["/api/boomerang/loyalty/tiers"],
+  });
+
+  const enrollMutation = useMutation({
+    mutationFn: (body: any) => apiRequest("POST", "/api/boomerang/loyalty/enroll-batch", body),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/loyalty"] });
+      toast({ title: "Enrollment complete", description: data.message });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to enroll customers", variant: "destructive" }),
+  });
+
+  const tierIcons = [ShieldCheck, Star, Crown, Gem];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
+        <div>
+          <h3 className="font-semibold">Loyalty Program</h3>
+          <p className="text-sm text-muted-foreground">Points, tiers, and rewards to drive repeat visits</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={enrollSegment} onValueChange={setEnrollSegment}>
+            <SelectTrigger className="w-[140px]" data-testid="select-enroll-segment">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="at_risk">At Risk</SelectItem>
+              <SelectItem value="lapsed">Lapsed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={() => enrollMutation.mutate({ segment: enrollSegment, limit: 500 })} disabled={enrollMutation.isPending} data-testid="button-enroll-batch">
+            <Users className="h-4 w-4 mr-2" />
+            {enrollMutation.isPending ? "Enrolling..." : "Enroll Batch"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Total Members</p>
+            <p className="text-2xl font-bold" data-testid="text-loyalty-members">{stats?.totalMembers?.toLocaleString() || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Outstanding Points</p>
+            <p className="text-2xl font-bold">{stats?.outstandingPoints?.toLocaleString() || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Lifetime Points Issued</p>
+            <p className="text-2xl font-bold">{stats?.lifetimePointsIssued?.toLocaleString() || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">30-Day Transactions</p>
+            <p className="text-2xl font-bold">{stats?.recentTransactions?.toLocaleString() || 0}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {(tiers?.tiers || []).map((tier: any, i: number) => {
+          const Icon = tierIcons[i] || Award;
+          const breakdown = stats?.tierBreakdown?.find(t => t.tier === tier.name);
+          return (
+            <Card key={tier.id} data-testid={`card-tier-${tier.id}`}>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: tier.color + "33" }}>
+                    <Icon className="w-4 h-4" style={{ color: tier.color }} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{tier.name}</p>
+                    <p className="text-xs text-muted-foreground">{tier.min_points.toLocaleString()}+ points</p>
+                  </div>
+                </div>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Members</span>
+                    <span className="font-medium">{breakdown?.memberCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Multiplier</span>
+                    <span className="font-medium">{tier.points_multiplier}x</span>
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                  {(tier.benefits as string[] || []).slice(0, 3).map((b: string, j: number) => (
+                    <p key={j} className="text-xs text-muted-foreground flex items-start gap-1">
+                      <Gift className="w-3 h-3 mt-0.5 shrink-0" />{b}
+                    </p>
+                  ))}
+                  {(tier.benefits as string[] || []).length > 3 && (
+                    <p className="text-xs text-muted-foreground">+{(tier.benefits as string[]).length - 3} more</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// CAMPAIGNS TAB
+// ==========================================
+function CampaignsTab() {
+  const { toast } = useToast();
+  const [showCreate, setShowCreate] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [form, setForm] = useState({ name: "", description: "", type: "winback", channel: "email", status: "draft", targetSegment: "", budget: "", costPerSend: "", startDate: "", endDate: "" });
+
+  const { data, isLoading } = useQuery<{ campaigns: any[] }>({
+    queryKey: ["/api/boomerang/campaigns", statusFilter],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "20" });
-      if (segment !== "all") params.set("segment", segment);
-      const res = await fetch(`/api/reactivation/high-value?${params}`);
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`/api/boomerang/campaigns?${params}`);
       return res.json();
     },
   });
 
+  const createMutation = useMutation({
+    mutationFn: (body: any) => apiRequest("POST", "/api/boomerang/campaigns", body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/campaigns"] });
+      setShowCreate(false);
+      setForm({ name: "", description: "", type: "winback", channel: "email", status: "draft", targetSegment: "", budget: "", costPerSend: "", startDate: "", endDate: "" });
+      toast({ title: "Campaign created" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create campaign", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/boomerang/campaigns/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/campaigns"] });
+      toast({ title: "Campaign deleted" });
+    },
+  });
+
+  const statusColors: Record<string, string> = {
+    draft: "bg-muted text-muted-foreground",
+    active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    paused: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    completed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  };
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Select value={segment} onValueChange={setSegment}>
-          <SelectTrigger className="w-[180px]" data-testid="select-hv-segment">
-            <SelectValue placeholder="All reactivatable" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Reactivatable</SelectItem>
-            <SelectItem value="at_risk">At Risk Only</SelectItem>
-            <SelectItem value="lapsed">Lapsed Only</SelectItem>
-            <SelectItem value="dormant">Dormant Only</SelectItem>
-          </SelectContent>
-        </Select>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
+        <div>
+          <h3 className="font-semibold">Campaigns & Offers</h3>
+          <p className="text-sm text-muted-foreground">Create and track marketing campaigns with coupon offers</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[130px]" data-testid="select-campaign-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={() => setShowCreate(true)} data-testid="button-create-campaign">
+            <Plus className="h-4 w-4 mr-2" /> New Campaign
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-12 animate-pulse bg-muted rounded" />)}</div>
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 animate-pulse bg-muted rounded" />)}</div>
+      ) : (data?.campaigns || []).length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Gift className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">No Campaigns Yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Create your first campaign to start targeting customers</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {data?.campaigns?.map((c: any) => {
+            const totalSpend = parseFloat(c.budget || "0");
+            const totalRev = parseFloat(c.total_revenue || "0");
+            const roi = totalSpend > 0 ? Math.round((totalRev - totalSpend) / totalSpend * 100) : 0;
+            const convRate = c.total_sent > 0 ? Math.round(c.total_converted / c.total_sent * 100) : 0;
+
+            return (
+              <Card key={c.id} data-testid={`card-campaign-${c.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3 justify-between flex-wrap">
+                    <div className="space-y-1 flex-1 min-w-[200px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold">{c.name}</span>
+                        <Badge className={statusColors[c.status] || "bg-muted"}>{c.status}</Badge>
+                        <Badge variant="outline">{c.type}</Badge>
+                        <Badge variant="outline">{c.channel}</Badge>
+                      </div>
+                      {c.description && <p className="text-sm text-muted-foreground">{c.description}</p>}
+                      {c.target_segment && <p className="text-xs text-muted-foreground">Target: {c.target_segment}</p>}
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap text-sm">
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Sent</p>
+                        <p className="font-bold">{c.total_sent}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Converted</p>
+                        <p className="font-bold">{c.total_converted}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Conv %</p>
+                        <p className="font-bold">{convRate}%</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Revenue</p>
+                        <p className="font-bold">{formatCurrency(totalRev)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">ROI</p>
+                        <p className={`font-bold ${roi >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>{roi}%</p>
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(c.id)} data-testid={`button-delete-campaign-${c.id}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Campaign Name</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Spring Win-Back Campaign" data-testid="input-campaign-name" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Campaign goals and notes" data-testid="input-campaign-desc" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Type</Label>
+                <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+                  <SelectTrigger data-testid="select-campaign-type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="winback">Win-Back</SelectItem>
+                    <SelectItem value="retention">Retention</SelectItem>
+                    <SelectItem value="acquisition">Acquisition</SelectItem>
+                    <SelectItem value="upsell">Upsell</SelectItem>
+                    <SelectItem value="referral">Referral</SelectItem>
+                    <SelectItem value="seasonal">Seasonal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Channel</Label>
+                <Select value={form.channel} onValueChange={v => setForm(f => ({ ...f, channel: v }))}>
+                  <SelectTrigger data-testid="select-campaign-channel"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="social">Social</SelectItem>
+                    <SelectItem value="on_site">On-Site</SelectItem>
+                    <SelectItem value="digital_ads">Digital Ads</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Target Segment</Label>
+              <Select value={form.targetSegment} onValueChange={v => setForm(f => ({ ...f, targetSegment: v }))}>
+                <SelectTrigger data-testid="select-campaign-target"><SelectValue placeholder="All customers" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Customers</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="at_risk">At Risk</SelectItem>
+                  <SelectItem value="lapsed">Lapsed</SelectItem>
+                  <SelectItem value="dormant">Dormant</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Budget ($)</Label>
+                <Input type="number" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))} placeholder="500" data-testid="input-campaign-budget" />
+              </div>
+              <div>
+                <Label>Cost Per Send ($)</Label>
+                <Input type="number" step="0.01" value={form.costPerSend} onChange={e => setForm(f => ({ ...f, costPerSend: e.target.value }))} placeholder="0.05" data-testid="input-campaign-cps" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button onClick={() => createMutation.mutate(form)} disabled={!form.name || createMutation.isPending} data-testid="button-save-campaign">
+              {createMutation.isPending ? "Creating..." : "Create Campaign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ==========================================
+// AUTOMATIONS TAB
+// ==========================================
+function AutomationsTab() {
+  const { toast } = useToast();
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", triggerType: "inactivity", actionType: "send_offer", conditions: { daysInactive: 45, hasEmail: true } as Record<string, any> });
+
+  const { data, isLoading } = useQuery<{ rules: any[] }>({
+    queryKey: ["/api/boomerang/automations"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (body: any) => apiRequest("POST", "/api/boomerang/automations", body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/automations"] });
+      setShowCreate(false);
+      toast({ title: "Automation created" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create automation", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/boomerang/automations/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/automations"] });
+      toast({ title: "Automation deleted" });
+    },
+  });
+
+  const simulateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/boomerang/automations/${id}/simulate`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: `${data.eligibleCustomers.toLocaleString()} eligible customers`, description: `Rule: ${data.ruleName}` });
+    },
+  });
+
+  const triggerLabels: Record<string, string> = {
+    inactivity: "Inactivity Trigger",
+    rfm_segment: "RFM Segment",
+    visit_milestone: "Visit Milestone",
+    spend_threshold: "Spend Threshold",
+    birthday: "Birthday",
+    segment_change: "Segment Change",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
+        <div>
+          <h3 className="font-semibold">Automated Triggers</h3>
+          <p className="text-sm text-muted-foreground">Set rules to automatically target customers based on behavior</p>
+        </div>
+        <Button onClick={() => setShowCreate(true)} data-testid="button-create-automation">
+          <Plus className="h-4 w-4 mr-2" /> New Automation
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 animate-pulse bg-muted rounded" />)}</div>
+      ) : (data?.rules || []).length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">No Automations Yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Create automation rules to put customer engagement on autopilot</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {data?.rules?.map((r: any) => (
+            <Card key={r.id} data-testid={`card-automation-${r.id}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 justify-between flex-wrap">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Zap className={`w-4 h-4 ${r.is_active ? "text-yellow-500" : "text-muted-foreground"}`} />
+                      <span className="font-semibold">{r.name}</span>
+                      <Badge variant={r.is_active ? "default" : "outline"}>{r.is_active ? "Active" : "Paused"}</Badge>
+                      <Badge variant="outline">{triggerLabels[r.trigger_type] || r.trigger_type}</Badge>
+                    </div>
+                    {r.description && <p className="text-sm text-muted-foreground mt-1">{r.description}</p>}
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                      <span>Triggered: {r.total_triggered}</span>
+                      <span>Converted: {r.total_converted}</span>
+                      {r.offer_name && <span>Offer: {r.offer_name}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="icon" variant="ghost" onClick={() => simulateMutation.mutate(r.id)} data-testid={`button-simulate-${r.id}`}>
+                      <Play className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} data-testid={`button-delete-automation-${r.id}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Automation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Automation Name</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. 45-Day Win-Back" data-testid="input-automation-name" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="What this automation does" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Trigger Type</Label>
+                <Select value={form.triggerType} onValueChange={v => setForm(f => ({ ...f, triggerType: v }))}>
+                  <SelectTrigger data-testid="select-trigger-type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inactivity">Inactivity (Days)</SelectItem>
+                    <SelectItem value="rfm_segment">RFM Segment</SelectItem>
+                    <SelectItem value="visit_milestone">Visit Milestone</SelectItem>
+                    <SelectItem value="spend_threshold">Spend Threshold</SelectItem>
+                    <SelectItem value="segment_change">Segment Change</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Action</Label>
+                <Select value={form.actionType} onValueChange={v => setForm(f => ({ ...f, actionType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="send_offer">Send Offer</SelectItem>
+                    <SelectItem value="send_email">Send Email</SelectItem>
+                    <SelectItem value="add_points">Add Points</SelectItem>
+                    <SelectItem value="upgrade_tier">Upgrade Tier</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {form.triggerType === "inactivity" && (
+              <div>
+                <Label>Days Inactive Threshold</Label>
+                <Input type="number" value={form.conditions.daysInactive || ""} onChange={e => setForm(f => ({ ...f, conditions: { ...f.conditions, daysInactive: parseInt(e.target.value) } }))} placeholder="45" data-testid="input-days-inactive" />
+              </div>
+            )}
+            {form.triggerType === "rfm_segment" && (
+              <div>
+                <Label>Target RFM Segment</Label>
+                <Select value={form.conditions.rfmSegment || ""} onValueChange={v => setForm(f => ({ ...f, conditions: { ...f.conditions, rfmSegment: v } }))}>
+                  <SelectTrigger><SelectValue placeholder="Select segment" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(RFM_SEGMENT_CONFIG).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button onClick={() => createMutation.mutate(form)} disabled={!form.name || createMutation.isPending} data-testid="button-save-automation">
+              {createMutation.isPending ? "Creating..." : "Create Automation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ==========================================
+// REFERRALS TAB
+// ==========================================
+function ReferralsTab() {
+  const { toast } = useToast();
+  const [genSegment, setGenSegment] = useState("active");
+
+  const { data: stats } = useQuery<{
+    totalCodes: number;
+    activeCodes: number;
+    totalReferrals: number;
+    totalConverted: number;
+    conversionRate: number;
+    totalPointsEarned: number;
+  }>({
+    queryKey: ["/api/boomerang/referrals/stats"],
+  });
+
+  const { data: codesData, isLoading } = useQuery<{ codes: any[]; pagination: any }>({
+    queryKey: ["/api/boomerang/referrals/codes"],
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: (body: any) => apiRequest("POST", "/api/boomerang/referrals/generate-batch", body),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/boomerang/referrals"] });
+      toast({ title: "Referral codes generated", description: data.message });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to generate codes", variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
+        <div>
+          <h3 className="font-semibold">Referral Program</h3>
+          <p className="text-sm text-muted-foreground">Turn loyal customers into brand advocates</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={genSegment} onValueChange={setGenSegment}>
+            <SelectTrigger className="w-[130px]" data-testid="select-referral-segment">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="at_risk">At Risk</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={() => generateMutation.mutate({ segment: genSegment, limit: 100 })} disabled={generateMutation.isPending} data-testid="button-generate-codes">
+            <Hash className="h-4 w-4 mr-2" />
+            {generateMutation.isPending ? "Generating..." : "Generate Codes"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Active Codes</p>
+            <p className="text-2xl font-bold" data-testid="text-active-codes">{stats?.activeCodes || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Total Referrals</p>
+            <p className="text-2xl font-bold">{stats?.totalReferrals || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Converted</p>
+            <p className="text-2xl font-bold">{stats?.totalConverted || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Conversion Rate</p>
+            <p className="text-2xl font-bold">{stats?.conversionRate || 0}%</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 animate-pulse bg-muted rounded" />)}</div>
+      ) : (codesData?.codes || []).length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Share2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-medium">No Referral Codes Yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Generate codes for your most loyal customers</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" data-testid="table-high-value">
+          <table className="w-full text-sm" data-testid="table-referral-codes">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="p-2">Customer</th>
-                <th className="p-2">Contact</th>
-                <th className="p-2 text-right">Visits</th>
-                <th className="p-2 text-right">Lifetime</th>
-                <th className="p-2 text-right">Avg/Visit</th>
-                <th className="p-2 text-right">Days Inactive</th>
-                <th className="p-2">Segment</th>
+                <th className="p-2">Code</th>
+                <th className="p-2 text-right">Referrals</th>
+                <th className="p-2 text-right">Converted</th>
+                <th className="p-2 text-right">Points Earned</th>
+                <th className="p-2">Status</th>
               </tr>
             </thead>
             <tbody>
-              {data?.customers?.map((c) => (
-                <tr key={c.id} className="border-b hover-elevate" data-testid={`row-hv-customer-${c.id}`}>
-                  <td className="p-2 font-medium">{c.firstName} {c.lastName}</td>
-                  <td className="p-2">
-                    <div className="flex items-center gap-1">
-                      {c.email && <Mail className="w-3 h-3 text-muted-foreground" />}
-                      {c.phone && <Phone className="w-3 h-3 text-muted-foreground" />}
-                      {c.emailOptIn && <Badge variant="outline" className="text-xs py-0">Opt-in</Badge>}
-                    </div>
-                  </td>
-                  <td className="p-2 text-right">{c.totalVisits}</td>
-                  <td className="p-2 text-right font-semibold">{formatCurrency(c.lifetimeSpend)}</td>
-                  <td className="p-2 text-right">{formatCurrency(c.averageSpend)}</td>
-                  <td className="p-2 text-right">{c.daysSinceLastVisit ?? "N/A"}</td>
-                  <td className="p-2"><SegmentBadge segment={c.segment} /></td>
+              {codesData?.codes?.map((c: any) => (
+                <tr key={c.id} className="border-b" data-testid={`row-referral-${c.id}`}>
+                  <td className="p-2 font-medium">{c.first_name} {c.last_name}</td>
+                  <td className="p-2"><code className="bg-muted px-2 py-0.5 rounded text-xs">{c.code}</code></td>
+                  <td className="p-2 text-right">{c.total_referrals}</td>
+                  <td className="p-2 text-right">{c.total_converted}</td>
+                  <td className="p-2 text-right">{c.total_points_earned}</td>
+                  <td className="p-2"><Badge variant={c.is_active ? "default" : "outline"}>{c.is_active ? "Active" : "Inactive"}</Badge></td>
                 </tr>
               ))}
             </tbody>
@@ -226,6 +951,225 @@ function HighValueTargets() {
   );
 }
 
+// ==========================================
+// ANALYTICS TAB (Enhanced)
+// ==========================================
+function AnalyticsTab() {
+  const { data: reactivationData, isLoading: reactLoading } = useQuery<{
+    spendDistribution: { range: string; count: number }[];
+    visitDistribution: { range: string; count: number }[];
+    reachability: { emailOptIn: number; emailOptOut: number; emailUnknown: number; noEmail: number; hasPhone: number; total: number };
+    atRiskRevenue: { segment: string; totalRevenue: number; count: number }[];
+  }>({
+    queryKey: ["/api/reactivation/analytics"],
+  });
+
+  const { data: retentionData, isLoading: retLoading } = useQuery<{
+    cac: number;
+    avgLtv: number;
+    avgVisitsPerCustomer: number;
+    roi: number;
+    retentionRate: number;
+    totalCampaignSpend: number;
+    totalCampaignRevenue: number;
+    totalRedemptions: number;
+    totalRedemptionValue: number;
+    avgOrderValue: number;
+    channelPerformance: { channel: string; campaigns: number; sent: number; converted: number; revenue: number; conversionRate: number }[];
+  }>({
+    queryKey: ["/api/boomerang/retention/metrics"],
+  });
+
+  const isLoading = reactLoading || retLoading;
+
+  if (isLoading) {
+    return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-32 animate-pulse bg-muted rounded" />)}</div>;
+  }
+
+  const reachability = reactivationData?.reachability;
+  const maxSpend = reactivationData?.spendDistribution?.reduce((max, d) => Math.max(max, d.count), 0) || 1;
+  const maxVisit = reactivationData?.visitDistribution?.reduce((max, d) => Math.max(max, d.count), 0) || 1;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="font-semibold">Retention & Performance Metrics</h3>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Customer Acq. Cost</p>
+            <p className="text-2xl font-bold" data-testid="text-cac">{formatCurrency(retentionData?.cac || 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Avg Lifetime Value</p>
+            <p className="text-2xl font-bold" data-testid="text-ltv">{formatCurrency(retentionData?.avgLtv || 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Campaign ROI</p>
+            <p className={`text-2xl font-bold ${(retentionData?.roi || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid="text-roi">
+              {retentionData?.roi || 0}%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Retention Rate</p>
+            <p className="text-2xl font-bold" data-testid="text-retention">{retentionData?.retentionRate || 0}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Avg Visits/Customer</p>
+            <p className="text-2xl font-bold">{retentionData?.avgVisitsPerCustomer || 0}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Spend Distribution</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              {reactivationData?.spendDistribution?.map((d) => (
+                <div key={d.range} className="flex items-center gap-2" data-testid={`bar-spend-${d.range}`}>
+                  <span className="text-xs w-16 text-right text-muted-foreground">{d.range}</span>
+                  <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
+                    <div className="h-full bg-primary/70 rounded" style={{ width: `${(d.count / maxSpend) * 100}%` }} />
+                  </div>
+                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Visit Distribution</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              {reactivationData?.visitDistribution?.map((d) => (
+                <div key={d.range} className="flex items-center gap-2" data-testid={`bar-visit-${d.range}`}>
+                  <span className="text-xs w-16 text-right text-muted-foreground">{d.range}</span>
+                  <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
+                    <div className="h-full bg-primary/70 rounded" style={{ width: `${(d.count / maxVisit) * 100}%` }} />
+                  </div>
+                  <span className="text-xs w-14 text-muted-foreground">{d.count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {reachability && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Reachability</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+              <div>
+                <p className="text-xs text-muted-foreground">Email Opt-In</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{reachability.emailOptIn.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{Math.round(reachability.emailOptIn / reachability.total * 100)}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Email Opt-Out</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{reachability.emailOptOut.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{Math.round(reachability.emailOptOut / reachability.total * 100)}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Email Unknown</p>
+                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{reachability.emailUnknown.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{Math.round(reachability.emailUnknown / reachability.total * 100)}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">No Email</p>
+                <p className="text-lg font-bold text-muted-foreground">{reachability.noEmail.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{Math.round(reachability.noEmail / reachability.total * 100)}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Has Phone</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{reachability.hasPhone.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{Math.round(reachability.hasPhone / reachability.total * 100)}%</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {reactivationData?.atRiskRevenue && reactivationData.atRiskRevenue.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Revenue at Risk by Segment</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {reactivationData.atRiskRevenue.map((r) => {
+                const config = SEGMENT_CONFIG[r.segment];
+                return (
+                  <div key={r.segment} className="text-center">
+                    <Badge className={config?.color || "bg-muted"}>{config?.label || r.segment}</Badge>
+                    <p className="text-xl font-bold mt-1">{formatCurrency(r.totalRevenue)}</p>
+                    <p className="text-xs text-muted-foreground">{r.count.toLocaleString()} customers</p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(retentionData?.channelPerformance || []).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Channel Performance</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="p-2">Channel</th>
+                    <th className="p-2 text-right">Campaigns</th>
+                    <th className="p-2 text-right">Sent</th>
+                    <th className="p-2 text-right">Converted</th>
+                    <th className="p-2 text-right">Conv %</th>
+                    <th className="p-2 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {retentionData?.channelPerformance?.map((ch) => (
+                    <tr key={ch.channel} className="border-b">
+                      <td className="p-2 font-medium capitalize">{ch.channel.replace("_", " ")}</td>
+                      <td className="p-2 text-right">{ch.campaigns}</td>
+                      <td className="p-2 text-right">{ch.sent}</td>
+                      <td className="p-2 text-right">{ch.converted}</td>
+                      <td className="p-2 text-right">{ch.conversionRate}%</td>
+                      <td className="p-2 text-right font-medium">{formatCurrency(ch.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// CUSTOMER BROWSER
+// ==========================================
 function CustomerBrowser() {
   const [segment, setSegment] = useState("all");
   const [search, setSearch] = useState("");
@@ -247,12 +1191,7 @@ function CustomerBrowser() {
   const { data, isLoading } = useQuery<{ customers: Customer[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>({
     queryKey: ["/api/reactivation/customers", segment, debouncedSearch, sortBy, sortDir, page, hasEmail, marketingOptIn],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "25",
-        sortBy,
-        sortDir,
-      });
+      const params = new URLSearchParams({ page: String(page), limit: "25", sortBy, sortDir });
       if (segment !== "all") params.set("segment", segment);
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (hasEmail) params.set("hasEmail", "true");
@@ -278,18 +1217,10 @@ function CustomerBrowser() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, or phone..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-8"
-            data-testid="input-customer-search"
-          />
+          <Input placeholder="Search name, email, or phone..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-8" data-testid="input-customer-search" />
         </div>
         <Select value={segment} onValueChange={(v) => { setSegment(v); setPage(1); }}>
-          <SelectTrigger className="w-[150px]" data-testid="select-segment-filter">
-            <SelectValue placeholder="All segments" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[150px]" data-testid="select-segment-filter"><SelectValue placeholder="All segments" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Segments</SelectItem>
             <SelectItem value="active">Active</SelectItem>
@@ -297,13 +1228,10 @@ function CustomerBrowser() {
             <SelectItem value="lapsed">Lapsed</SelectItem>
             <SelectItem value="dormant">Dormant</SelectItem>
             <SelectItem value="lost">Lost</SelectItem>
-            <SelectItem value="unknown">Unknown</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-[150px]" data-testid="select-sort">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-[150px]" data-testid="select-sort"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="lifetime_spend">Lifetime Spend</SelectItem>
             <SelectItem value="total_visits">Total Visits</SelectItem>
@@ -312,19 +1240,10 @@ function CustomerBrowser() {
             <SelectItem value="days_inactive">Days Inactive</SelectItem>
           </SelectContent>
         </Select>
-        <Button
-          size="icon"
-          variant={sortDir === "desc" ? "default" : "outline"}
-          onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
-          data-testid="button-sort-dir"
-        >
+        <Button size="icon" variant={sortDir === "desc" ? "default" : "outline"} onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")} data-testid="button-sort-dir">
           <BarChart3 className="h-4 w-4" />
         </Button>
-        <Button
-          variant={filtersOpen ? "default" : "outline"}
-          onClick={() => setFiltersOpen(!filtersOpen)}
-          data-testid="button-filters"
-        >
+        <Button variant={filtersOpen ? "default" : "outline"} onClick={() => setFiltersOpen(!filtersOpen)} data-testid="button-filters">
           <Filter className="h-4 w-4 mr-1" /> Filters
         </Button>
       </div>
@@ -419,7 +1338,6 @@ function CustomerBrowser() {
                   <span className="text-sm text-muted-foreground">{customerDetail.daysSinceLastVisit} days since last visit</span>
                 )}
               </div>
-
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-muted-foreground">First Visit</p>
@@ -446,7 +1364,6 @@ function CustomerBrowser() {
                   <p className="font-medium">{customerDetail.lastDiningBehavior || "N/A"}</p>
                 </div>
               </div>
-
               {customerDetail.emails.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold mb-1">Email Addresses</p>
@@ -461,7 +1378,6 @@ function CustomerBrowser() {
                   ))}
                 </div>
               )}
-
               {customerDetail.phones.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold mb-1">Phone Numbers</p>
@@ -473,7 +1389,6 @@ function CustomerBrowser() {
                   ))}
                 </div>
               )}
-
               {customerDetail.diningBehaviors && (
                 <div>
                   <p className="text-sm font-semibold mb-1">Dining Behaviors</p>
@@ -492,173 +1407,136 @@ function CustomerBrowser() {
   );
 }
 
-function AnalyticsTab() {
-  const { data, isLoading } = useQuery<{
-    spendDistribution: { range: string; count: number }[];
-    visitDistribution: { range: string; count: number }[];
-    reachability: { emailOptIn: number; emailOptOut: number; emailUnknown: number; noEmail: number; hasPhone: number; total: number };
-    atRiskRevenue: { segment: string; totalRevenue: number; count: number }[];
-  }>({
-    queryKey: ["/api/reactivation/analytics"],
+// ==========================================
+// HIGH VALUE TARGETS
+// ==========================================
+function HighValueTargets() {
+  const [segment, setSegment] = useState("all");
+  const { data, isLoading } = useQuery<{ customers: Customer[] }>({
+    queryKey: ["/api/reactivation/high-value", segment],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: "20" });
+      if (segment !== "all") params.set("segment", segment);
+      const res = await fetch(`/api/reactivation/high-value?${params}`);
+      return res.json();
+    },
   });
 
-  if (isLoading) {
-    return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-32 animate-pulse bg-muted rounded" />)}</div>;
-  }
-
-  const reachability = data?.reachability;
-
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Spend Distribution</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {data?.spendDistribution?.map(d => {
-              const maxCount = Math.max(...(data.spendDistribution?.map(x => x.count) || [1]));
-              return (
-                <div key={d.range} className="flex items-center gap-2 text-sm" data-testid={`bar-spend-${d.range}`}>
-                  <span className="w-20 text-muted-foreground text-xs">{d.range}</span>
-                  <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
-                    <div className="h-full bg-primary/60 rounded" style={{ width: `${(d.count / maxCount) * 100}%` }} />
-                  </div>
-                  <span className="w-16 text-right text-xs font-medium">{d.count.toLocaleString()}</span>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Visit Frequency</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {data?.visitDistribution?.map(d => {
-              const maxCount = Math.max(...(data.visitDistribution?.map(x => x.count) || [1]));
-              return (
-                <div key={d.range} className="flex items-center gap-2 text-sm" data-testid={`bar-visit-${d.range}`}>
-                  <span className="w-20 text-muted-foreground text-xs">{d.range}</span>
-                  <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
-                    <div className="h-full bg-primary/60 rounded" style={{ width: `${(d.count / maxCount) * 100}%` }} />
-                  </div>
-                  <span className="w-16 text-right text-xs font-medium">{d.count.toLocaleString()}</span>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Select value={segment} onValueChange={setSegment}>
+          <SelectTrigger className="w-[180px]" data-testid="select-hv-segment"><SelectValue placeholder="All reactivatable" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Reactivatable</SelectItem>
+            <SelectItem value="at_risk">At Risk Only</SelectItem>
+            <SelectItem value="lapsed">Lapsed Only</SelectItem>
+            <SelectItem value="dormant">Dormant Only</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Email Reachability</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reachability && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Marketing Opt-In</span>
-                  <span className="font-medium text-green-600 dark:text-green-400">{reachability.emailOptIn.toLocaleString()} ({Math.round(reachability.emailOptIn / reachability.total * 100)}%)</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Opted Out</span>
-                  <span className="font-medium text-red-600 dark:text-red-400">{reachability.emailOptOut.toLocaleString()} ({Math.round(reachability.emailOptOut / reachability.total * 100)}%)</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Unknown Preference</span>
-                  <span className="font-medium">{reachability.emailUnknown.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">No Email</span>
-                  <span className="font-medium">{reachability.noEmail.toLocaleString()}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Has Phone</span>
-                  <span className="font-medium">{reachability.hasPhone.toLocaleString()} ({Math.round(reachability.hasPhone / reachability.total * 100)}%)</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Revenue at Risk</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data?.atRiskRevenue?.map(r => {
-              const config = SEGMENT_CONFIG[r.segment];
-              return (
-                <div key={r.segment} className="flex justify-between items-center text-sm py-1" data-testid={`risk-revenue-${r.segment}`}>
-                  <div className="flex items-center gap-2">
-                    <SegmentBadge segment={r.segment} />
-                    <span className="text-muted-foreground">{r.count.toLocaleString()} customers</span>
-                  </div>
-                  <span className="font-semibold">{formatCurrency(r.totalRevenue)}</span>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
+      {isLoading ? (
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-12 animate-pulse bg-muted rounded" />)}</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" data-testid="table-high-value">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="p-2">Customer</th>
+                <th className="p-2">Contact</th>
+                <th className="p-2 text-right">Visits</th>
+                <th className="p-2 text-right">Lifetime</th>
+                <th className="p-2 text-right">Avg/Visit</th>
+                <th className="p-2 text-right">Days Inactive</th>
+                <th className="p-2">Segment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.customers?.map((c) => (
+                <tr key={c.id} className="border-b hover-elevate" data-testid={`row-hv-customer-${c.id}`}>
+                  <td className="p-2 font-medium">{c.firstName} {c.lastName}</td>
+                  <td className="p-2">
+                    <div className="flex items-center gap-1">
+                      {c.email && <Mail className="w-3 h-3 text-muted-foreground" />}
+                      {c.phone && <Phone className="w-3 h-3 text-muted-foreground" />}
+                      {c.emailOptIn && <Badge variant="outline" className="text-xs py-0">Opt-in</Badge>}
+                    </div>
+                  </td>
+                  <td className="p-2 text-right">{c.totalVisits}</td>
+                  <td className="p-2 text-right font-semibold">{formatCurrency(c.lifetimeSpend)}</td>
+                  <td className="p-2 text-right">{formatCurrency(c.averageSpend)}</td>
+                  <td className="p-2 text-right">{c.daysSinceLastVisit ?? "N/A"}</td>
+                  <td className="p-2"><SegmentBadge segment={c.segment} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
+// ==========================================
+// MAIN DASHBOARD
+// ==========================================
 export default function BoomerangDashboard() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto p-4 space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="button-back-hub">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold" data-testid="text-page-title">Boomerang Reactivation Engine</h1>
-            <p className="text-sm text-muted-foreground">Customer reactivation powered by Toast POS data</p>
-          </div>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Link href="/">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-xl font-bold" data-testid="text-page-title">Boomerang Reactivation Engine</h1>
+          <p className="text-sm text-muted-foreground">Customer loyalty, retention & reactivation platform</p>
         </div>
-
-        <Tabs defaultValue="overview" data-testid="tabs-boomerang">
-          <TabsList>
-            <TabsTrigger value="overview" data-testid="tab-overview">
-              <Users className="h-4 w-4 mr-1" /> Overview
-            </TabsTrigger>
-            <TabsTrigger value="high-value" data-testid="tab-high-value">
-              <DollarSign className="h-4 w-4 mr-1" /> High Value Targets
-            </TabsTrigger>
-            <TabsTrigger value="customers" data-testid="tab-customers">
-              <Search className="h-4 w-4 mr-1" /> Customer Browser
-            </TabsTrigger>
-            <TabsTrigger value="analytics" data-testid="tab-analytics">
-              <BarChart3 className="h-4 w-4 mr-1" /> Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-4">
-            <SegmentOverview />
-          </TabsContent>
-
-          <TabsContent value="high-value" className="mt-4">
-            <HighValueTargets />
-          </TabsContent>
-
-          <TabsContent value="customers" className="mt-4">
-            <CustomerBrowser />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-4">
-            <AnalyticsTab />
-          </TabsContent>
-        </Tabs>
       </div>
+
+      <Tabs defaultValue="overview">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="overview" data-testid="tab-overview">
+            <Users className="h-4 w-4 mr-1" /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="rfm" data-testid="tab-rfm">
+            <Target className="h-4 w-4 mr-1" /> RFM
+          </TabsTrigger>
+          <TabsTrigger value="loyalty" data-testid="tab-loyalty">
+            <Award className="h-4 w-4 mr-1" /> Loyalty
+          </TabsTrigger>
+          <TabsTrigger value="campaigns" data-testid="tab-campaigns">
+            <Gift className="h-4 w-4 mr-1" /> Campaigns
+          </TabsTrigger>
+          <TabsTrigger value="automations" data-testid="tab-automations">
+            <Zap className="h-4 w-4 mr-1" /> Automations
+          </TabsTrigger>
+          <TabsTrigger value="referrals" data-testid="tab-referrals">
+            <Share2 className="h-4 w-4 mr-1" /> Referrals
+          </TabsTrigger>
+          <TabsTrigger value="high-value" data-testid="tab-high-value">
+            <DollarSign className="h-4 w-4 mr-1" /> High Value
+          </TabsTrigger>
+          <TabsTrigger value="customers" data-testid="tab-customers">
+            <Search className="h-4 w-4 mr-1" /> Customers
+          </TabsTrigger>
+          <TabsTrigger value="analytics" data-testid="tab-analytics">
+            <BarChart3 className="h-4 w-4 mr-1" /> Analytics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview"><SegmentOverview /></TabsContent>
+        <TabsContent value="rfm"><RfmTab /></TabsContent>
+        <TabsContent value="loyalty"><LoyaltyTab /></TabsContent>
+        <TabsContent value="campaigns"><CampaignsTab /></TabsContent>
+        <TabsContent value="automations"><AutomationsTab /></TabsContent>
+        <TabsContent value="referrals"><ReferralsTab /></TabsContent>
+        <TabsContent value="high-value"><HighValueTargets /></TabsContent>
+        <TabsContent value="customers"><CustomerBrowser /></TabsContent>
+        <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+      </Tabs>
     </div>
   );
 }

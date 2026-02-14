@@ -4723,3 +4723,218 @@ export const toastGuests = pgTable("toast_guests", {
 export const insertToastGuestSchema = createInsertSchema(toastGuests).omit({ id: true, importedAt: true, updatedAt: true });
 export type InsertToastGuest = z.infer<typeof insertToastGuestSchema>;
 export type ToastGuest = typeof toastGuests.$inferSelect;
+
+// ==========================================
+// Boomerang Loyalty & Retention System
+// ==========================================
+
+export const boomerangRfmScores = pgTable("boomerang_rfm_scores", {
+  id: serial("id").primaryKey(),
+  toastGuestId: integer("toast_guest_id").notNull(),
+  recencyScore: integer("recency_score").notNull(),
+  frequencyScore: integer("frequency_score").notNull(),
+  monetaryScore: integer("monetary_score").notNull(),
+  rfmTotal: integer("rfm_total").notNull(),
+  rfmSegment: varchar("rfm_segment", { length: 50 }).notNull(),
+  computedAt: timestamp("computed_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_rfm_guest").on(table.toastGuestId),
+  index("idx_boomerang_rfm_segment").on(table.rfmSegment),
+]);
+
+export const insertBoomerangRfmScoreSchema = createInsertSchema(boomerangRfmScores).omit({ id: true, computedAt: true });
+export type InsertBoomerangRfmScore = z.infer<typeof insertBoomerangRfmScoreSchema>;
+export type BoomerangRfmScore = typeof boomerangRfmScores.$inferSelect;
+
+export const boomerangLoyaltyTiers = pgTable("boomerang_loyalty_tiers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 50 }).notNull(),
+  minPoints: integer("min_points").notNull().default(0),
+  pointsMultiplier: numeric("points_multiplier", { precision: 4, scale: 2 }).notNull().default("1.00"),
+  benefits: jsonb("benefits").$type<string[]>().default([]),
+  color: varchar("color", { length: 20 }).notNull().default("#94a3b8"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBoomerangLoyaltyTierSchema = createInsertSchema(boomerangLoyaltyTiers).omit({ id: true, createdAt: true });
+export type InsertBoomerangLoyaltyTier = z.infer<typeof insertBoomerangLoyaltyTierSchema>;
+export type BoomerangLoyaltyTier = typeof boomerangLoyaltyTiers.$inferSelect;
+
+export const boomerangLoyaltyAccounts = pgTable("boomerang_loyalty_accounts", {
+  id: serial("id").primaryKey(),
+  toastGuestId: integer("toast_guest_id").notNull(),
+  tierId: integer("tier_id"),
+  pointsBalance: integer("points_balance").notNull().default(0),
+  lifetimePoints: integer("lifetime_points").notNull().default(0),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+  lastActivityAt: timestamp("last_activity_at"),
+}, (table) => [
+  uniqueIndex("idx_boomerang_loyalty_guest").on(table.toastGuestId),
+]);
+
+export const insertBoomerangLoyaltyAccountSchema = createInsertSchema(boomerangLoyaltyAccounts).omit({ id: true, enrolledAt: true });
+export type InsertBoomerangLoyaltyAccount = z.infer<typeof insertBoomerangLoyaltyAccountSchema>;
+export type BoomerangLoyaltyAccount = typeof boomerangLoyaltyAccounts.$inferSelect;
+
+export const boomerangPointsLedger = pgTable("boomerang_points_ledger", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").notNull(),
+  points: integer("points").notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  source: varchar("source", { length: 50 }).notNull(),
+  description: text("description"),
+  referenceId: varchar("reference_id", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_points_account").on(table.accountId),
+]);
+
+export const insertBoomerangPointsLedgerSchema = createInsertSchema(boomerangPointsLedger).omit({ id: true, createdAt: true });
+export type InsertBoomerangPointsLedger = z.infer<typeof insertBoomerangPointsLedgerSchema>;
+export type BoomerangPointsLedger = typeof boomerangPointsLedger.$inferSelect;
+
+export const boomerangCampaigns = pgTable("boomerang_campaigns", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  targetSegment: varchar("target_segment", { length: 50 }),
+  targetRfmSegment: varchar("target_rfm_segment", { length: 50 }),
+  channel: varchar("channel", { length: 50 }).notNull().default("email"),
+  budget: numeric("budget", { precision: 12, scale: 2 }),
+  costPerSend: numeric("cost_per_send", { precision: 8, scale: 4 }),
+  totalSent: integer("total_sent").notNull().default(0),
+  totalOpened: integer("total_opened").notNull().default(0),
+  totalClicked: integer("total_clicked").notNull().default(0),
+  totalConverted: integer("total_converted").notNull().default(0),
+  totalRevenue: numeric("total_revenue", { precision: 14, scale: 2 }).default("0"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertBoomerangCampaignSchema = createInsertSchema(boomerangCampaigns).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBoomerangCampaign = z.infer<typeof insertBoomerangCampaignSchema>;
+export type BoomerangCampaign = typeof boomerangCampaigns.$inferSelect;
+
+export const boomerangOffers = pgTable("boomerang_offers", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id"),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  offerType: varchar("offer_type", { length: 30 }).notNull(),
+  discountValue: numeric("discount_value", { precision: 10, scale: 2 }),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }),
+  minPurchase: numeric("min_purchase", { precision: 10, scale: 2 }),
+  couponCode: varchar("coupon_code", { length: 50 }),
+  maxRedemptions: integer("max_redemptions"),
+  currentRedemptions: integer("current_redemptions").notNull().default(0),
+  pointsCost: integer("points_cost"),
+  isActive: boolean("is_active").notNull().default(true),
+  validFrom: timestamp("valid_from"),
+  validUntil: timestamp("valid_until"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_offers_campaign").on(table.campaignId),
+  index("idx_boomerang_offers_code").on(table.couponCode),
+]);
+
+export const insertBoomerangOfferSchema = createInsertSchema(boomerangOffers).omit({ id: true, currentRedemptions: true, createdAt: true });
+export type InsertBoomerangOffer = z.infer<typeof insertBoomerangOfferSchema>;
+export type BoomerangOffer = typeof boomerangOffers.$inferSelect;
+
+export const boomerangRedemptions = pgTable("boomerang_redemptions", {
+  id: serial("id").primaryKey(),
+  offerId: integer("offer_id").notNull(),
+  toastGuestId: integer("toast_guest_id"),
+  campaignId: integer("campaign_id"),
+  orderValue: numeric("order_value", { precision: 12, scale: 2 }),
+  discountApplied: numeric("discount_applied", { precision: 10, scale: 2 }),
+  channel: varchar("channel", { length: 50 }),
+  redeemedAt: timestamp("redeemed_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_redemptions_offer").on(table.offerId),
+  index("idx_boomerang_redemptions_guest").on(table.toastGuestId),
+]);
+
+export const insertBoomerangRedemptionSchema = createInsertSchema(boomerangRedemptions).omit({ id: true, redeemedAt: true });
+export type InsertBoomerangRedemption = z.infer<typeof insertBoomerangRedemptionSchema>;
+export type BoomerangRedemption = typeof boomerangRedemptions.$inferSelect;
+
+export const boomerangAutomationRules = pgTable("boomerang_automation_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  triggerType: varchar("trigger_type", { length: 50 }).notNull(),
+  conditions: jsonb("conditions").$type<Record<string, any>>().default({}),
+  offerId: integer("offer_id"),
+  actionType: varchar("action_type", { length: 50 }).notNull().default("send_offer"),
+  actionConfig: jsonb("action_config").$type<Record<string, any>>().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  totalTriggered: integer("total_triggered").notNull().default(0),
+  totalConverted: integer("total_converted").notNull().default(0),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBoomerangAutomationRuleSchema = createInsertSchema(boomerangAutomationRules).omit({ id: true, totalTriggered: true, totalConverted: true, lastTriggeredAt: true, createdAt: true });
+export type InsertBoomerangAutomationRule = z.infer<typeof insertBoomerangAutomationRuleSchema>;
+export type BoomerangAutomationRule = typeof boomerangAutomationRules.$inferSelect;
+
+export const boomerangAutomationExecutions = pgTable("boomerang_automation_executions", {
+  id: serial("id").primaryKey(),
+  ruleId: integer("rule_id").notNull(),
+  toastGuestId: integer("toast_guest_id").notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("triggered"),
+  convertedAt: timestamp("converted_at"),
+  triggeredAt: timestamp("triggered_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_auto_exec_rule").on(table.ruleId),
+  index("idx_boomerang_auto_exec_guest").on(table.toastGuestId),
+]);
+
+export const insertBoomerangAutomationExecutionSchema = createInsertSchema(boomerangAutomationExecutions).omit({ id: true, triggeredAt: true });
+export type InsertBoomerangAutomationExecution = z.infer<typeof insertBoomerangAutomationExecutionSchema>;
+export type BoomerangAutomationExecution = typeof boomerangAutomationExecutions.$inferSelect;
+
+export const boomerangReferralCodes = pgTable("boomerang_referral_codes", {
+  id: serial("id").primaryKey(),
+  toastGuestId: integer("toast_guest_id").notNull(),
+  code: varchar("code", { length: 20 }).notNull(),
+  totalReferrals: integer("total_referrals").notNull().default(0),
+  totalConverted: integer("total_converted").notNull().default(0),
+  totalPointsEarned: integer("total_points_earned").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_boomerang_referral_code").on(table.code),
+  index("idx_boomerang_referral_guest").on(table.toastGuestId),
+]);
+
+export const insertBoomerangReferralCodeSchema = createInsertSchema(boomerangReferralCodes).omit({ id: true, totalReferrals: true, totalConverted: true, totalPointsEarned: true, createdAt: true });
+export type InsertBoomerangReferralCode = z.infer<typeof insertBoomerangReferralCodeSchema>;
+export type BoomerangReferralCode = typeof boomerangReferralCodes.$inferSelect;
+
+export const boomerangReferrals = pgTable("boomerang_referrals", {
+  id: serial("id").primaryKey(),
+  referralCodeId: integer("referral_code_id").notNull(),
+  referrerId: integer("referrer_id").notNull(),
+  refereeId: integer("referee_id"),
+  refereeName: varchar("referee_name", { length: 200 }),
+  refereeEmail: varchar("referee_email", { length: 255 }),
+  status: varchar("status", { length: 30 }).notNull().default("pending"),
+  firstVisitAt: timestamp("first_visit_at"),
+  pointsAwarded: integer("points_awarded").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_boomerang_referrals_code").on(table.referralCodeId),
+  index("idx_boomerang_referrals_referrer").on(table.referrerId),
+])
+
+export const insertBoomerangReferralSchema = createInsertSchema(boomerangReferrals).omit({ id: true, createdAt: true });
+export type InsertBoomerangReferral = z.infer<typeof insertBoomerangReferralSchema>;
+export type BoomerangReferral = typeof boomerangReferrals.$inferSelect;
