@@ -18,19 +18,30 @@ export function isShopifyAvailable(): boolean {
   if (Date.now() < shopifyUnavailableUntil) {
     return false;
   }
+  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   const clientId = process.env.SHOPIFY_CLIENT_ID;
   const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-  return !!(clientId && clientSecret && storeDomain);
+  return !!(storeDomain && (accessToken || (clientId && clientSecret)));
 }
 
 export async function getShopifyToken(): Promise<string> {
+  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+  const directToken = process.env.SHOPIFY_ACCESS_TOKEN;
+
+  if (!storeDomain) {
+    throw new ShopifyNotInstalledError("SHOPIFY_STORE_DOMAIN not configured");
+  }
+
+  if (directToken) {
+    return directToken;
+  }
+
   const clientId = process.env.SHOPIFY_CLIENT_ID;
   const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
 
-  if (!clientId || !clientSecret || !storeDomain) {
-    throw new ShopifyNotInstalledError("Shopify API credentials not configured (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET, SHOPIFY_STORE_DOMAIN)");
+  if (!clientId || !clientSecret) {
+    throw new ShopifyNotInstalledError("Shopify API credentials not configured (SHOPIFY_ACCESS_TOKEN or SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET required)");
   }
 
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
