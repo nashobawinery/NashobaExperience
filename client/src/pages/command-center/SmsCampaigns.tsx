@@ -76,8 +76,8 @@ export function SmsCampaignsTab() {
     queryKey: ["/api/sms/campaigns"],
   });
 
-  const { data: campaignDetail } = useQuery<{ campaign: any; messages: any[] }>({
-    queryKey: ["/api/sms/campaigns", showDetail],
+  const { data: campaignDetail, isLoading: detailLoading } = useQuery<{ campaign: any; messages: any[] }>({
+    queryKey: ["/api/sms/campaigns", String(showDetail)],
     enabled: !!showDetail,
   });
 
