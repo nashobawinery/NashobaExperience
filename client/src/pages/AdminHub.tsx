@@ -202,14 +202,17 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
   // Count of accessible active modules
   const activeModuleCount = accessibleModules.filter(m => m.status === 'active').length;
 
+  const modulesWithoutAdminSuffix = ['/command-center'];
+
   const navigateToModule = (routePrefix: string, status: ModuleStatus, moduleKey: string) => {
-    // Check access before navigating
     if (!hasModuleAccess(moduleKey)) {
       return;
     }
     if (status === 'active') {
       if (routePrefix === '/app') {
         setLocation('/admin');
+      } else if (modulesWithoutAdminSuffix.includes(routePrefix)) {
+        setLocation(routePrefix);
       } else {
         setLocation(`${routePrefix}/admin`);
       }
