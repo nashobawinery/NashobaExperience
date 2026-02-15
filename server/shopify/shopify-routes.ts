@@ -108,11 +108,15 @@ router.get("/customers/count", isAuthenticated, async (_req: Request, res: Respo
 router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Response) => {
   try {
     const customers = await fetchAllShopifyCustomers();
+    const { db: database } = await import("../db");
+    const { sql: sqlTag } = await import("drizzle-orm");
+
     let imported = 0;
     let updated = 0;
+    let merged = 0;
 
     for (const customer of customers) {
-      const email = customer.email?.trim();
+      const email = customer.email?.trim()?.toLowerCase();
       const phone = customer.phone?.trim();
       const firstName = customer.first_name?.trim();
       const lastName = customer.last_name?.trim();
@@ -137,14 +141,14 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
         else if (daysSince <= 365) segment = "dormant";
       }
 
-      const { db: database } = await import("../db");
-      const { sql: sqlTag } = await import("drizzle-orm");
-
       const existing = await database.execute(sqlTag`
         SELECT id FROM toast_guests WHERE guest_guid = ${guestGuid}
       `);
 
+      let shopifyGuestId: number;
+
       if (existing.rows.length > 0) {
+        shopifyGuestId = (existing.rows[0] as any).id;
         await database.execute(sqlTag`
           UPDATE toast_guests SET
             email1 = COALESCE(NULLIF(${email || ""}, ''), email1),
@@ -156,17 +160,18 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
             average_spend = ${avgSpend.toFixed(2)},
             days_since_last_visit = ${daysSince},
             reactivation_segment = ${segment},
+            source = 'shopify',
             updated_at = NOW()
           WHERE guest_guid = ${guestGuid}
         `);
         updated++;
       } else {
-        await database.execute(sqlTag`
+        const insertResult = await database.execute(sqlTag`
           INSERT INTO toast_guests (
             guest_guid, email1, phone1, first_name, last_name,
             first_visit_date, last_visit_date, total_visits,
             average_spend, lifetime_spend, days_since_last_visit,
-            reactivation_segment, imported_at, updated_at
+            reactivation_segment, source, imported_at, updated_at
           ) VALUES (
             ${guestGuid}, ${email || null}, ${phone || null},
             ${firstName || null}, ${lastName || null},
@@ -174,16 +179,71 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
             ${lastOrderDate || new Date()},
             ${ordersCount},
             ${avgSpend.toFixed(2)}, ${totalSpent.toFixed(2)},
-            ${daysSince}, ${segment},
+            ${daysSince}, ${segment}, 'shopify',
             NOW(), NOW()
           )
           ON CONFLICT (guest_guid) DO UPDATE SET
             total_visits = ${ordersCount},
             lifetime_spend = ${totalSpent.toFixed(2)},
             average_spend = ${avgSpend.toFixed(2)},
+            source = 'shopify',
             updated_at = NOW()
+          RETURNING id
         `);
+        shopifyGuestId = (insertResult.rows[0] as any).id;
         imported++;
+      }
+
+      if (email) {
+        const toastMatch = await database.execute(sqlTag`
+          SELECT id, first_name, last_name FROM toast_guests 
+          WHERE LOWER(email1) = ${email} AND source = 'toast'
+          LIMIT 1
+        `);
+
+        if (toastMatch.rows.length > 0) {
+          const toastGuest = toastMatch.rows[0] as any;
+
+          const existingLink = await database.execute(sqlTag`
+            SELECT canonical_id FROM customer_identity_links WHERE guest_id = ${shopifyGuestId}
+          `);
+
+          let canonicalId: number;
+
+          if (existingLink.rows.length > 0) {
+            canonicalId = (existingLink.rows[0] as any).canonical_id;
+          } else {
+            const toastLink = await database.execute(sqlTag`
+              SELECT canonical_id FROM customer_identity_links WHERE guest_id = ${toastGuest.id}
+            `);
+
+            if (toastLink.rows.length > 0) {
+              canonicalId = (toastLink.rows[0] as any).canonical_id;
+            } else {
+              const canonResult = await database.execute(sqlTag`
+                INSERT INTO customer_identities (primary_email, primary_phone, merged_first_name, merged_last_name)
+                VALUES (${email}, ${phone || null}, ${toastGuest.first_name || firstName || null}, ${toastGuest.last_name || lastName || null})
+                RETURNING id
+              `);
+              canonicalId = (canonResult.rows[0] as any).id;
+
+              await database.execute(sqlTag`
+                INSERT INTO customer_identity_links (canonical_id, guest_id, source)
+                VALUES (${canonicalId}, ${toastGuest.id}, 'toast')
+                ON CONFLICT (guest_id) DO NOTHING
+              `);
+            }
+
+            await database.execute(sqlTag`
+              INSERT INTO customer_identity_links (canonical_id, guest_id, source)
+              VALUES (${canonicalId}, ${shopifyGuestId}, 'shopify')
+              ON CONFLICT (guest_id) DO NOTHING
+            `);
+          }
+
+          merged++;
+          console.log(`[Shopify Sync] Merged customer: ${email} (Toast #${toastGuest.id} + Shopify #${shopifyGuestId} -> Canonical #${canonicalId})`);
+        }
       }
     }
 
@@ -192,6 +252,7 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
       totalFetched: customers.length,
       imported,
       updated,
+      merged,
     });
   } catch (err: any) {
     console.error("[Shopify] Customer sync error:", err.message);

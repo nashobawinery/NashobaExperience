@@ -52,12 +52,32 @@ interface Customer {
   lifetimeSpend: number | null;
   daysSinceLastVisit: number | null;
   segment: string | null;
+  source: string;
+  isMerged: boolean;
+  canonicalId: number | null;
+}
+
+interface LinkedRecord {
+  id: number;
+  guestGuid: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  totalVisits: number;
+  lifetimeSpend: number | null;
+  averageSpend: number | null;
+  daysSinceLastVisit: number | null;
+  segment: string | null;
+  source: string;
+  linkedAt: string;
 }
 
 interface CustomerDetail extends Customer {
   emails: { email: string; preference: string }[];
   phones: { phone: string; preference: string }[];
   averageTipPercentage: number | null;
+  linkedRecords: LinkedRecord[];
 }
 
 const SEGMENT_CONFIG: Record<string, { label: string; color: string; icon: typeof UserCheck; description: string }> = {
@@ -95,11 +115,26 @@ function SegmentBadge({ segment }: { segment: string | null }) {
   return <Badge className={config.color}>{config.label}</Badge>;
 }
 
+const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
+  toast: { label: "Toast", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  shopify: { label: "Shopify", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
+};
+
+function SourceBadge({ source, isMerged }: { source: string; isMerged?: boolean }) {
+  const config = SOURCE_CONFIG[source] || { label: source, color: "bg-muted text-muted-foreground" };
+  return (
+    <div className="flex items-center gap-1">
+      <Badge className={config.color} variant="secondary">{config.label}</Badge>
+      {isMerged && <Badge variant="outline" className="text-xs"><Share2 className="h-3 w-3 mr-0.5" />Merged</Badge>}
+    </div>
+  );
+}
+
 // ==========================================
 // OVERVIEW TAB
 // ==========================================
 function SegmentOverview() {
-  const { data, isLoading } = useQuery<{ segments: SegmentData[]; totalCustomers: number }>({
+  const { data, isLoading } = useQuery<{ segments: SegmentData[]; totalCustomers: number; sourceCounts?: Record<string, number>; mergedCount?: number }>({
     queryKey: ["/api/reactivation/segments"],
   });
 
@@ -137,6 +172,31 @@ function SegmentOverview() {
               <p className="text-sm text-muted-foreground">At-Risk Revenue</p>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400" data-testid="text-at-risk-revenue">{formatCurrency(reactivatableRevenue)}</p>
             </div>
+            {data?.sourceCounts && Object.keys(data.sourceCounts).length > 1 && (
+              <>
+                <Separator orientation="vertical" className="h-10 hidden sm:block" />
+                <div className="flex items-center gap-3">
+                  {data.sourceCounts.toast != null && (
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Toast</p>
+                      <p className="text-lg font-bold text-orange-600 dark:text-orange-400" data-testid="text-toast-count">{data.sourceCounts.toast.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {data.sourceCounts.shopify != null && (
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Shopify</p>
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-shopify-count">{data.sourceCounts.shopify.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {(data.mergedCount ?? 0) > 0 && (
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Merged</p>
+                      <p className="text-lg font-bold" data-testid="text-merged-count">{data.mergedCount?.toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1182,6 +1242,7 @@ function CustomerBrowser() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hasEmail, setHasEmail] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState("all");
 
   const handleSearch = (val: string) => {
     setSearch(val);
@@ -1190,13 +1251,14 @@ function CustomerBrowser() {
   };
 
   const { data, isLoading } = useQuery<{ customers: Customer[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>({
-    queryKey: ["/api/reactivation/customers", segment, debouncedSearch, sortBy, sortDir, page, hasEmail, marketingOptIn],
+    queryKey: ["/api/reactivation/customers", segment, debouncedSearch, sortBy, sortDir, page, hasEmail, marketingOptIn, sourceFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: "25", sortBy, sortDir });
       if (segment !== "all") params.set("segment", segment);
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (hasEmail) params.set("hasEmail", "true");
       if (marketingOptIn) params.set("marketingOptIn", "true");
+      if (sourceFilter !== "all") params.set("source", sourceFilter);
       const res = await fetch(`/api/reactivation/customers?${params}`);
       return res.json();
     },
@@ -1229,6 +1291,15 @@ function CustomerBrowser() {
             <SelectItem value="lapsed">Lapsed</SelectItem>
             <SelectItem value="dormant">Dormant</SelectItem>
             <SelectItem value="lost">Lost</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-[130px]" data-testid="select-source-filter"><SelectValue placeholder="All sources" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="toast">Toast</SelectItem>
+            <SelectItem value="shopify">Shopify</SelectItem>
+            <SelectItem value="merged">Merged</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={setSortBy}>
@@ -1282,6 +1353,7 @@ function CustomerBrowser() {
                   <th className="p-2 text-right">Avg/Visit</th>
                   <th className="p-2 text-right">Days Inactive</th>
                   <th className="p-2">Segment</th>
+                  <th className="p-2">Source</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -1300,6 +1372,7 @@ function CustomerBrowser() {
                     <td className="p-2 text-right">{formatCurrency(c.averageSpend)}</td>
                     <td className="p-2 text-right">{c.daysSinceLastVisit ?? "N/A"}</td>
                     <td className="p-2"><SegmentBadge segment={c.segment} /></td>
+                    <td className="p-2"><SourceBadge source={(c as any).source || "toast"} isMerged={(c as any).isMerged} /></td>
                     <td className="p-2">
                       <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedCustomer(c.id); }} data-testid={`button-view-${c.id}`}>
                         <Eye className="h-4 w-4" />
@@ -1333,8 +1406,9 @@ function CustomerBrowser() {
           </DialogHeader>
           {customerDetail && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <SegmentBadge segment={customerDetail.segment} />
+                <SourceBadge source={(customerDetail as any).source || "toast"} isMerged={(customerDetail as any).isMerged} />
                 {customerDetail.daysSinceLastVisit != null && (
                   <span className="text-sm text-muted-foreground">{customerDetail.daysSinceLastVisit} days since last visit</span>
                 )}
@@ -1396,6 +1470,21 @@ function CustomerBrowser() {
                   <div className="flex flex-wrap gap-1">
                     {customerDetail.diningBehaviors.split(",").map((b, i) => (
                       <Badge key={i} variant="outline" className="text-xs">{b.trim()}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(customerDetail as any).linkedRecords?.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-1">Linked Customer Records</p>
+                  <div className="space-y-1">
+                    {(customerDetail as any).linkedRecords.map((lr: any) => (
+                      <div key={lr.id} className="flex items-center gap-2 text-sm p-2 rounded-md bg-muted/50">
+                        <SourceBadge source={lr.source || "toast"} />
+                        <span className="font-medium">{lr.firstName} {lr.lastName}</span>
+                        {lr.email && <span className="text-muted-foreground text-xs">{lr.email}</span>}
+                        <span className="ml-auto text-xs text-muted-foreground">{formatCurrency(lr.lifetimeSpend)}</span>
+                      </div>
                     ))}
                   </div>
                 </div>

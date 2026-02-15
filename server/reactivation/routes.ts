@@ -37,6 +37,13 @@ router.get("/segments", async (_req, res) => {
 
     const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests`);
 
+    const sourceStats = await db.execute(sql`
+      SELECT source, COUNT(*) as count FROM toast_guests GROUP BY source
+    `);
+    const mergedCount = await db.execute(sql`
+      SELECT COUNT(DISTINCT canonical_id) as count FROM customer_identity_links
+    `);
+
     res.json({
       segments: results.rows.map((r: any) => ({
         segment: r.reactivation_segment,
@@ -50,6 +57,8 @@ router.get("/segments", async (_req, res) => {
         totalLifetimeRevenue: Math.round(Number(r.total_lifetime_revenue) * 100) / 100,
       })),
       totalCustomers: Number((totalCustomers.rows[0] as any).total),
+      sourceCounts: Object.fromEntries(sourceStats.rows.map((r: any) => [r.source, Number(r.count)])),
+      mergedCount: Number((mergedCount.rows[0] as any).count),
     });
   } catch (error: any) {
     console.error("[Reactivation] Error fetching segments:", error);
@@ -69,6 +78,7 @@ router.get("/customers", async (req, res) => {
       hasEmail,
       hasPhone,
       marketingOptIn,
+      source,
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
@@ -105,6 +115,13 @@ router.get("/customers", async (req, res) => {
     if (marketingOptIn === "true") {
       conditions.push(sql`email1_marketing_preference = 'OPT_IN'`);
     }
+    if (source && source !== "all") {
+      if (source === "merged") {
+        conditions.push(sql`id IN (SELECT cil.guest_id FROM customer_identity_links cil GROUP BY cil.guest_id)`);
+      } else {
+        conditions.push(sql`source = ${source}`);
+      }
+    }
 
     const whereClause = conditions.length > 0
       ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
@@ -127,11 +144,14 @@ router.get("/customers", async (req, res) => {
     const totalRecords = Number((countResult.rows[0] as any).total);
 
     const dataResult = await db.execute(sql`
-      SELECT id, guest_guid, email1, email1_marketing_preference, phone1, phone1_marketing_preference,
-        first_name, last_name, first_visit_date, last_visit_date, last_dining_behavior,
-        total_visits, dining_behaviors, average_spend, average_tip, lifetime_spend,
-        days_since_last_visit, reactivation_segment
-      FROM toast_guests
+      SELECT tg.id, tg.guest_guid, tg.email1, tg.email1_marketing_preference, tg.phone1, tg.phone1_marketing_preference,
+        tg.first_name, tg.last_name, tg.first_visit_date, tg.last_visit_date, tg.last_dining_behavior,
+        tg.total_visits, tg.dining_behaviors, tg.average_spend, tg.average_tip, tg.lifetime_spend,
+        tg.days_since_last_visit, tg.reactivation_segment, tg.source,
+        CASE WHEN cil.canonical_id IS NOT NULL THEN true ELSE false END as is_merged,
+        cil.canonical_id
+      FROM toast_guests tg
+      LEFT JOIN customer_identity_links cil ON cil.guest_id = tg.id
       ${whereClause}
       ${orderClause}
       LIMIT ${limitNum} OFFSET ${offset}
@@ -156,6 +176,9 @@ router.get("/customers", async (req, res) => {
         lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : null,
         daysSinceLastVisit: r.days_since_last_visit,
         segment: r.reactivation_segment,
+        source: r.source || "toast",
+        isMerged: r.is_merged,
+        canonicalId: r.canonical_id,
       })),
       pagination: {
         page: pageNum,
@@ -181,6 +204,35 @@ router.get("/customers/:id", async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
     const r: any = result.rows[0];
+
+    let linkedRecords: any[] = [];
+    const linkResult = await db.execute(sql`
+      SELECT cil.canonical_id, cil.source as link_source, cil.linked_at,
+        tg.id as linked_guest_id, tg.guest_guid, tg.first_name, tg.last_name,
+        tg.email1, tg.phone1, tg.total_visits, tg.lifetime_spend, tg.average_spend,
+        tg.days_since_last_visit, tg.reactivation_segment, tg.source
+      FROM customer_identity_links cil
+      JOIN customer_identity_links cil2 ON cil2.canonical_id = cil.canonical_id AND cil2.guest_id = ${id}
+      JOIN toast_guests tg ON tg.id = cil.guest_id
+      WHERE cil.guest_id != ${id}
+    `);
+
+    linkedRecords = linkResult.rows.map((lr: any) => ({
+      id: lr.linked_guest_id,
+      guestGuid: lr.guest_guid,
+      firstName: lr.first_name,
+      lastName: lr.last_name,
+      email: lr.email1,
+      phone: lr.phone1,
+      totalVisits: lr.total_visits,
+      lifetimeSpend: lr.lifetime_spend ? parseFloat(lr.lifetime_spend) : null,
+      averageSpend: lr.average_spend ? parseFloat(lr.average_spend) : null,
+      daysSinceLastVisit: lr.days_since_last_visit,
+      segment: lr.reactivation_segment,
+      source: lr.source,
+      linkedAt: lr.linked_at,
+    }));
+
     res.json({
       id: r.id,
       guestGuid: r.guest_guid,
@@ -211,6 +263,9 @@ router.get("/customers/:id", async (req, res) => {
       lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : null,
       daysSinceLastVisit: r.days_since_last_visit,
       segment: r.reactivation_segment,
+      source: r.source || "toast",
+      isMerged: linkedRecords.length > 0,
+      linkedRecords,
     });
   } catch (error: any) {
     console.error("[Reactivation] Error fetching customer:", error);

@@ -4710,6 +4710,7 @@ export const toastGuests = pgTable("toast_guests", {
   phone5MarketingPreference: varchar("phone5_marketing_preference", { length: 50 }),
   daysSinceLastVisit: integer("days_since_last_visit"),
   reactivationSegment: varchar("reactivation_segment", { length: 50 }),
+  source: varchar("source", { length: 20 }).notNull().default("toast"),
   importedAt: timestamp("imported_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -4718,11 +4719,44 @@ export const toastGuests = pgTable("toast_guests", {
   index("idx_toast_guests_last_visit").on(table.lastVisitDate),
   index("idx_toast_guests_segment").on(table.reactivationSegment),
   index("idx_toast_guests_lifetime_spend").on(table.lifetimeSpend),
+  index("idx_toast_guests_source").on(table.source),
 ]);
 
 export const insertToastGuestSchema = createInsertSchema(toastGuests).omit({ id: true, importedAt: true, updatedAt: true });
 export type InsertToastGuest = z.infer<typeof insertToastGuestSchema>;
 export type ToastGuest = typeof toastGuests.$inferSelect;
+
+export const customerIdentities = pgTable("customer_identities", {
+  id: serial("id").primaryKey(),
+  primaryEmail: varchar("primary_email", { length: 255 }),
+  primaryPhone: varchar("primary_phone", { length: 30 }),
+  mergedFirstName: varchar("merged_first_name", { length: 100 }),
+  mergedLastName: varchar("merged_last_name", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_customer_identities_email").on(table.primaryEmail),
+  index("idx_customer_identities_phone").on(table.primaryPhone),
+]);
+
+export const insertCustomerIdentitySchema = createInsertSchema(customerIdentities).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCustomerIdentity = z.infer<typeof insertCustomerIdentitySchema>;
+export type CustomerIdentity = typeof customerIdentities.$inferSelect;
+
+export const customerIdentityLinks = pgTable("customer_identity_links", {
+  id: serial("id").primaryKey(),
+  canonicalId: integer("canonical_id").notNull(),
+  guestId: integer("guest_id").notNull(),
+  source: varchar("source", { length: 20 }).notNull(),
+  linkedAt: timestamp("linked_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_identity_links_guest").on(table.guestId),
+  index("idx_identity_links_canonical").on(table.canonicalId),
+]);
+
+export const insertCustomerIdentityLinkSchema = createInsertSchema(customerIdentityLinks).omit({ id: true, linkedAt: true });
+export type InsertCustomerIdentityLink = z.infer<typeof insertCustomerIdentityLinkSchema>;
+export type CustomerIdentityLink = typeof customerIdentityLinks.$inferSelect;
 
 // ==========================================
 // Boomerang Loyalty & Retention System
