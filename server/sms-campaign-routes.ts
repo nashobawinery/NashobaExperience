@@ -82,7 +82,7 @@ router.post("/campaigns/:id/preview", isAuthenticated, async (req, res) => {
     const countResult = await db.execute(sql`
       SELECT COUNT(*) as total FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
-      AND phone1_marketing_preference != 'OPT_OUT'
+      AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
       ${segmentCondition}
     `);
 
@@ -90,7 +90,7 @@ router.post("/campaigns/:id/preview", isAuthenticated, async (req, res) => {
       SELECT id, first_name, last_name, phone1, reactivation_segment, lifetime_spend, last_visit_date
       FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
-      AND phone1_marketing_preference != 'OPT_OUT'
+      AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
       ${segmentCondition}
       ORDER BY lifetime_spend DESC NULLS LAST
       LIMIT 10
@@ -135,7 +135,7 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
     const recipients = await db.execute(sql`
       SELECT id, first_name, last_name, phone1 FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
-      AND phone1_marketing_preference != 'OPT_OUT'
+      AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
       ${segmentCondition}
       AND id NOT IN (SELECT toast_guest_id FROM sms_messages WHERE campaign_id = ${parseInt(id)} AND toast_guest_id IS NOT NULL)
       ORDER BY lifetime_spend DESC NULLS LAST
