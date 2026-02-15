@@ -118,23 +118,11 @@ function calculateNetSalesFromOrder(order: any): number {
 
     for (const selection of (check.selections || [])) {
       if (selection.voided) continue;
-      if (selection.displayName === "Gift Card") continue;
+      const name = (selection.displayName || "").toLowerCase();
+      if (name === "gift card") continue;
+      if (name.includes("deposit")) continue;
 
-      let selectionAmount = selection.preDiscountPrice || selection.price || 0;
-      for (const discount of (selection.appliedDiscounts || [])) {
-        selectionAmount -= discount.nonTaxableDiscountAmount || 0;
-      }
-      checkSales += selectionAmount;
-    }
-
-    for (const charge of (check.appliedServiceCharges || [])) {
-      if (!charge.gratuity) {
-        checkSales += charge.chargeAmount || 0;
-      }
-    }
-
-    for (const discount of (check.appliedDiscounts || [])) {
-      checkSales -= discount.nonTaxableDiscountAmount || 0;
+      checkSales += selection.price || 0;
     }
 
     netSales += checkSales;
