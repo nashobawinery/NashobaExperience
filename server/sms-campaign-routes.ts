@@ -47,12 +47,14 @@ router.post("/campaigns", isAuthenticated, async (req, res) => {
       return res.status(400).json({ error: "Name and message are required" });
     }
 
-    const segArray = segments && segments.length > 0 ? segments : null;
+    const segArray = segments && segments.length > 0 
+      ? `{${segments.map((s: string) => `"${s}"`).join(',')}}` 
+      : null;
     const user = (req as any).user;
 
     const result = await db.execute(sql`
       INSERT INTO sms_campaigns (name, message, segments, status, created_by, scheduled_at)
-      VALUES (${name}, ${message}, ${segArray}, 'draft', ${user?.email || 'unknown'}, ${scheduledAt || null})
+      VALUES (${name}, ${message}, ${segArray}::text[], 'draft', ${user?.email || 'unknown'}, ${scheduledAt || null})
       RETURNING *
     `);
     res.json(result.rows[0]);
