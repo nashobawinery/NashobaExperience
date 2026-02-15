@@ -282,7 +282,7 @@ export default function RccDashboard() {
   );
 }
 
-function ExportImportButtons({ 
+export function ExportImportButtons({ 
   weekId, 
   weeks,
   onImportComplete 
@@ -518,7 +518,7 @@ function ExportImportButtons({
   );
 }
 
-function StatCard({ label, value, icon, active }: { 
+export function StatCard({ label, value, icon, active }: { 
   label: string; 
   value: string; 
   icon: React.ReactNode;
@@ -537,7 +537,7 @@ function StatCard({ label, value, icon, active }: {
   );
 }
 
-function WeekSelector({ 
+export function WeekSelector({ 
   weeks, 
   activeWeekId, 
   onSelectWeek
@@ -601,7 +601,7 @@ function WeekSelector({
   );
 }
 
-function InitializeWeeksCard({ onSuccess }: { onSuccess: () => void }) {
+export function InitializeWeeksCard({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   
   const initializeMutation = useMutation({
@@ -644,7 +644,7 @@ function InitializeWeeksCard({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function WeeklyFocusPanel({ week }: { week: RccWeek }) {
+export function WeeklyFocusPanel({ week }: { week: RccWeek }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [focus, setFocus] = useState(week.focusStatement || "");
@@ -777,7 +777,7 @@ function WeeklyFocusPanel({ week }: { week: RccWeek }) {
   );
 }
 
-function TasksPanel({ 
+export function TasksPanel({ 
   weekId, 
   tasks, 
   ideas,
@@ -958,7 +958,7 @@ function TaskRow({ task, onStatusChange }: { task: RccTask; onStatusChange: (tas
   );
 }
 
-function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccCampaign[] }) {
+export function CampaignsPanel({ weekId, campaigns }: { weekId: number; campaigns: RccCampaign[] }) {
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [channel, setChannel] = useState("");
@@ -1120,7 +1120,7 @@ function getWeatherIcon(condition: string | null) {
   return <Cloud className="h-4 w-4 text-muted-foreground" />;
 }
 
-function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek; revenue: RccRevenue | null }) {
+export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek; revenue: RccRevenue | null }) {
   const { toast } = useToast();
   const [whatWorked, setWhatWorked] = useState(revenue?.whatWorked || "");
   const [whatFlopped, setWhatFlopped] = useState(revenue?.whatFlopped || "");
@@ -1700,7 +1700,7 @@ function DailyRevenueRow({
   );
 }
 
-function AiAdvisorPanel({ weekId, recommendations }: { weekId: number; recommendations: RccAiRecommendation[] }) {
+export function AiAdvisorPanel({ weekId, recommendations }: { weekId: number; recommendations: RccAiRecommendation[] }) {
   const { toast } = useToast();
   const [customPrompt, setCustomPrompt] = useState("");
 
@@ -1786,7 +1786,7 @@ function AiAdvisorPanel({ weekId, recommendations }: { weekId: number; recommend
   );
 }
 
-function RccDocsPanel() {
+export function RccDocsPanel() {
   return (
     <div className="space-y-6">
       <Card>

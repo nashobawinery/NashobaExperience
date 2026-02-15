@@ -83,6 +83,9 @@ const RccDashboard = lazy(() => import("@/pages/rcc/RccDashboard"));
 // Lazy load Boomerang Reactivation module
 const BoomerangDashboard = lazy(() => import("@/pages/reactivation/BoomerangDashboard"));
 
+// Lazy load unified Command Center
+const CommandCenter = lazy(() => import("@/pages/command-center/CommandCenter"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -556,29 +559,19 @@ function SupportAgentTicketRoute() {
   );
 }
 
-function RccDashboardRoute() {
-  const { isLoading, isAdmin } = useAuth();
-
-  if (isLoading) {
-    return <PageLoader />;
-  }
-
-  if (!isAdmin) {
-    return <Redirect to="/" />;
-  }
-
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <RccDashboard />
-    </Suspense>
-  );
-}
-
-function BoomerangDashboardRoute() {
+function CommandCenterRoute() {
   const { isLoading, isAdmin } = useAuth();
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
-  return <Suspense fallback={<PageLoader />}><BoomerangDashboard /></Suspense>;
+  return <Suspense fallback={<PageLoader />}><CommandCenter /></Suspense>;
+}
+
+function RccDashboardRoute() {
+  return <Redirect to="/command-center" />;
+}
+
+function BoomerangDashboardRoute() {
+  return <Redirect to="/command-center" />;
 }
 
 function AppleGameComingSoonRoute() {
@@ -1125,6 +1118,7 @@ function Router() {
         <Route path="/rcc/admin" component={RccDashboardRoute} />
         <Route path="/boomerang" component={BoomerangDashboardRoute} />
         <Route path="/boomerang/admin" component={BoomerangDashboardRoute} />
+        <Route path="/command-center" component={CommandCenterRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />

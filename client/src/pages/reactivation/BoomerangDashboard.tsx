@@ -133,7 +133,7 @@ function SourceBadge({ source, isMerged }: { source: string; isMerged?: boolean 
 // ==========================================
 // OVERVIEW TAB
 // ==========================================
-function SegmentOverview() {
+export function SegmentOverview() {
   const { data, isLoading } = useQuery<{ segments: SegmentData[]; totalCustomers: number; sourceCounts?: Record<string, number>; mergedCount?: number }>({
     queryKey: ["/api/reactivation/segments"],
   });
@@ -240,7 +240,7 @@ function SegmentOverview() {
 // ==========================================
 // RFM SEGMENTATION TAB
 // ==========================================
-function RfmTab() {
+export function RfmTab() {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<{
     computed: boolean;
@@ -365,7 +365,7 @@ function RfmTab() {
 // ==========================================
 // LOYALTY PROGRAM TAB
 // ==========================================
-function LoyaltyTab() {
+export function LoyaltyTab() {
   const { toast } = useToast();
   const [enrollSegment, setEnrollSegment] = useState("active");
 
@@ -496,7 +496,7 @@ function LoyaltyTab() {
 // ==========================================
 // CAMPAIGNS TAB
 // ==========================================
-function CampaignsTab() {
+export function CampaignsTab() {
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -711,7 +711,7 @@ function CampaignsTab() {
 // ==========================================
 // AUTOMATIONS TAB
 // ==========================================
-function AutomationsTab() {
+export function AutomationsTab() {
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", triggerType: "inactivity", actionType: "send_offer", conditions: { daysInactive: 45, hasEmail: true } as Record<string, any> });
@@ -890,7 +890,7 @@ function AutomationsTab() {
 // ==========================================
 // REFERRALS TAB
 // ==========================================
-function ReferralsTab() {
+export function ReferralsTab() {
   const { toast } = useToast();
   const [genSegment, setGenSegment] = useState("active");
 
@@ -1015,7 +1015,7 @@ function ReferralsTab() {
 // ==========================================
 // ANALYTICS TAB (Enhanced)
 // ==========================================
-function AnalyticsTab() {
+export function AnalyticsTab() {
   const { data: reactivationData, isLoading: reactLoading } = useQuery<{
     spendDistribution: { range: string; count: number }[];
     visitDistribution: { range: string; count: number }[];
@@ -1231,7 +1231,7 @@ function AnalyticsTab() {
 // ==========================================
 // CUSTOMER BROWSER
 // ==========================================
-function CustomerBrowser() {
+export function CustomerBrowser() {
   const [segment, setSegment] = useState("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1500,7 +1500,7 @@ function CustomerBrowser() {
 // ==========================================
 // HIGH VALUE TARGETS
 // ==========================================
-function HighValueTargets() {
+export function HighValueTargets() {
   const [segment, setSegment] = useState("all");
   const { data, isLoading } = useQuery<{ customers: Customer[] }>({
     queryKey: ["/api/reactivation/high-value", segment],
@@ -1571,7 +1571,7 @@ function HighValueTargets() {
 // ==========================================
 // TOAST INTEGRATION TAB
 // ==========================================
-function ToastIntegrationTab() {
+export function ToastIntegrationTab() {
   const { toast } = useToast();
   const [syncStartDate, setSyncStartDate] = useState("");
   const [syncEndDate, setSyncEndDate] = useState("");
