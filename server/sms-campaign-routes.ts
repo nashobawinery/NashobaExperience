@@ -74,9 +74,9 @@ router.post("/campaigns/:id/preview", isAuthenticated, async (req, res) => {
     }
 
     const c = campaign.rows[0] as any;
-    const segments = c.segments || [];
+    const segments: string[] = c.segments || [];
     const segmentCondition = segments.length > 0
-      ? sql`AND reactivation_segment = ANY(${segments})`
+      ? sql`AND reactivation_segment = ANY(${`{${segments.map(s => `"${s}"`).join(',')}}`}::text[])`
       : sql``;
 
     const countResult = await db.execute(sql`
@@ -127,9 +127,9 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
       return res.status(400).json({ error: "Campaign is already sending" });
     }
 
-    const segments = c.segments || [];
+    const segments: string[] = c.segments || [];
     const segmentCondition = segments.length > 0
-      ? sql`AND reactivation_segment = ANY(${segments})`
+      ? sql`AND reactivation_segment = ANY(${`{${segments.map(s => `"${s}"`).join(',')}}`}::text[])`
       : sql``;
 
     const recipients = await db.execute(sql`
