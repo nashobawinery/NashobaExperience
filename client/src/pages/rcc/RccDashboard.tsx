@@ -1207,6 +1207,35 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
     },
   });
 
+  const syncShopifyWeekMutation = useMutation({
+    mutationFn: async (data: { weekId: number }) => {
+      const res = await apiRequest("POST", "/api/rcc/daily-revenue/sync-shopify", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Shopify revenue synced", description: data?.message || "Revenue updated from Shopify" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/toast-historical"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error syncing Shopify revenue", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const syncShopifyDayMutation = useMutation({
+    mutationFn: async (data: { date: string; weekId: number }) => {
+      const res = await apiRequest("POST", "/api/rcc/daily-revenue/sync-shopify-date", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Shopify revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString()} from ${data?.orderCount || 0} orders` });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error syncing Shopify", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Guard against missing week data (after all hooks)
   if (!week?.weekStart) {
     return (
@@ -1291,6 +1320,16 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
             {syncToastWeekMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sync Toast
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncShopifyWeekMutation.mutate({ weekId })}
+            disabled={syncShopifyWeekMutation.isPending}
+            data-testid="btn-sync-shopify-week"
+          >
+            {syncShopifyWeekMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Sync Shopify
+          </Button>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Weekly Total</p>
             <p className="text-2xl font-bold text-green-600">${grandTotal.toLocaleString()}</p>
@@ -1329,9 +1368,11 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
               onSave={(data) => saveDailyMutation.mutate(data)}
               onFetchWeather={() => fetchWeatherMutation.mutate(day.date)}
               onSyncToast={() => syncToastDayMutation.mutate({ date: day.date, weekId })}
+              onSyncShopify={() => syncShopifyDayMutation.mutate({ date: day.date, weekId })}
               isSaving={saveDailyMutation.isPending}
               isFetchingWeather={fetchWeatherMutation.isPending}
               isSyncingToast={syncToastDayMutation.isPending}
+              isSyncingShopify={syncShopifyDayMutation.isPending}
             />
           );
         })}
@@ -1397,9 +1438,11 @@ function DailyRevenueRow({
   onSave,
   onFetchWeather,
   onSyncToast,
+  onSyncShopify,
   isSaving,
   isFetchingWeather,
   isSyncingToast,
+  isSyncingShopify,
 }: {
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
@@ -1409,9 +1452,11 @@ function DailyRevenueRow({
   onSave: (data: any) => void;
   onFetchWeather: () => void;
   onSyncToast: () => void;
+  onSyncShopify: () => void;
   isSaving: boolean;
   isFetchingWeather: boolean;
   isSyncingToast: boolean;
+  isSyncingShopify: boolean;
 }) {
   const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
   const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
@@ -1535,13 +1580,26 @@ function DailyRevenueRow({
               </div>
               <div>
                 <Label>Shopify</Label>
-                <Input 
-                  type="number"
-                  placeholder="0.00"
-                  value={shopifyRev}
-                  onChange={(e) => setShopifyRev(e.target.value)}
-                  data-testid={`input-shopify-${day.date}`}
-                />
+                <div className="flex gap-1">
+                  <Input 
+                    type="number"
+                    placeholder="Auto-synced"
+                    value={shopifyRev}
+                    disabled
+                    className="bg-muted"
+                    data-testid={`input-shopify-${day.date}`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onSyncShopify}
+                    disabled={isSyncingShopify}
+                    title="Refresh from Shopify"
+                    data-testid={`btn-sync-shopify-${day.date}`}
+                  >
+                    {isSyncingShopify ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label>Wholesale (B2B)</Label>

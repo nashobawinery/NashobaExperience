@@ -26,7 +26,9 @@ import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
 import toastApiRouter from "./reactivation/toast-routes";
+import shopifyRouter from "./shopify/shopify-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
+import { syncShopifyRevenueToDb } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
@@ -116,6 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/reactivation", reactivationRouter);
   app.use("/api/boomerang", loyaltyRouter);
   app.use("/api/toast", toastApiRouter);
+  app.use("/api/shopify", shopifyRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();
@@ -18581,6 +18584,24 @@ Generate a professional response:`;
         })();
       }
 
+      const missingShopifyDays = dailyRevenue.filter(d => d.shopifyRevenue == null);
+      if (missingShopifyDays.length > 0) {
+        (async () => {
+          try {
+            for (const dayEntry of missingShopifyDays) {
+              try {
+                const { netSales } = await syncShopifyRevenueToDb(dayEntry.date);
+                console.log(`[RCC] Auto-synced Shopify revenue for ${dayEntry.date}: $${netSales.toFixed(2)}`);
+              } catch (apiErr) {
+                console.error(`[RCC] Shopify auto-sync failed for ${dayEntry.date}:`, apiErr);
+              }
+            }
+          } catch (err) {
+            console.error('[RCC] Failed to auto-sync Shopify revenue:', err);
+          }
+        })();
+      }
+
       // Auto-fetch weather for past dates missing weather data (non-blocking)
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -18873,6 +18894,86 @@ Generate a professional response:`;
     } catch (error: any) {
       console.error('Error syncing Toast revenue for date:', error);
       res.status(500).json({ message: 'Failed to sync Toast revenue' });
+    }
+  });
+
+  app.post('/api/rcc/daily-revenue/sync-shopify', isAuthenticated, async (req, res) => {
+    try {
+      const { weekId } = req.body;
+      if (!weekId) {
+        return res.status(400).json({ message: 'weekId is required' });
+      }
+
+      const week = await storage.getRccWeek(weekId);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+
+      const [sy, sm, sd] = week.weekStart.split('-').map(Number);
+      const startDate = new Date(sy, sm - 1, sd);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      const results: { date: string; netSales: number; orderCount: number; synced: boolean; error?: string }[] = [];
+
+      for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(dayDate.getDate() + i);
+
+        if (dayDate > today) {
+          results.push({ date: formatDateStr(dayDate), netSales: 0, orderCount: 0, synced: false, error: 'Future date' });
+          continue;
+        }
+
+        const dateStr = formatDateStr(dayDate);
+
+        try {
+          const { netSales, orderCount } = await syncShopifyRevenueToDb(dateStr);
+          results.push({ date: dateStr, netSales, orderCount, synced: true });
+          console.log(`[RCC Shopify Sync] ${dateStr}: $${netSales.toFixed(2)} (${orderCount} orders)`);
+        } catch (err: any) {
+          console.error(`[RCC Shopify Sync] Error for ${dateStr}:`, err.message);
+          results.push({ date: dateStr, netSales: 0, orderCount: 0, synced: false, error: err.message });
+        }
+      }
+
+      const totalSynced = results.filter(r => r.synced).length;
+      const totalRevenue = results.reduce((sum, r) => sum + r.netSales, 0);
+      res.json({
+        message: `Synced Shopify revenue for ${totalSynced}/7 days`,
+        totalRevenue: totalRevenue.toFixed(2),
+        results,
+      });
+    } catch (error: any) {
+      console.error('Error syncing Shopify revenue:', error);
+      res.status(500).json({ message: 'Failed to sync Shopify revenue' });
+    }
+  });
+
+  app.post('/api/rcc/daily-revenue/sync-shopify-date', isAuthenticated, async (req, res) => {
+    try {
+      const { date, weekId } = req.body;
+      if (!date) {
+        return res.status(400).json({ message: 'date is required' });
+      }
+
+      const today = new Date();
+      const [dy, dm, dd] = date.split('-').map(Number);
+      const dateObj = new Date(dy, dm - 1, dd);
+      if (dateObj > today) {
+        return res.status(400).json({ message: 'Cannot sync future dates' });
+      }
+
+      const { netSales, orderCount } = await syncShopifyRevenueToDb(date);
+
+      res.json({
+        date,
+        netSales,
+        orderCount,
+      });
+    } catch (error: any) {
+      console.error('Error syncing Shopify revenue for date:', error);
+      res.status(500).json({ message: 'Failed to sync Shopify revenue' });
     }
   });
 
