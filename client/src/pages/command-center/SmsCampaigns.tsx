@@ -66,8 +66,10 @@ export function SmsCampaignsTab() {
     segments: [] as string[],
   });
 
-  const { data: smsStatus } = useQuery<{ configured: boolean }>({
+  const { data: smsStatus, isLoading: statusLoading } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/sms/status"],
+    retry: 3,
+    retryDelay: 1000,
   });
 
   const { data: campaigns, isLoading } = useQuery<any[]>({
@@ -152,7 +154,20 @@ export function SmsCampaignsTab() {
   const messageLength = newCampaign.message.length;
   const segmentCount = Math.ceil(messageLength / CHARACTER_LIMIT) || 1;
 
-  if (!smsStatus?.configured) {
+  if (statusLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Checking SMS configuration...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (smsStatus && !smsStatus.configured) {
     return (
       <Card>
         <CardContent className="p-6">
