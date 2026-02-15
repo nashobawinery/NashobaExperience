@@ -18,7 +18,8 @@ import {
   ChevronLeft, ChevronRight, AlertTriangle, Clock, UserX, UserCheck,
   BarChart3, Filter, Eye, Target, Award, Gift, Zap, Share2,
   Plus, Play, Pause, Trash2, RefreshCw, TrendingUp, PieChart,
-  Percent, Hash, Star, Crown, Gem, ShieldCheck
+  Percent, Hash, Star, Crown, Gem, ShieldCheck, Plug, CheckCircle,
+  XCircle, Loader2, Store, Calendar
 } from "lucide-react";
 
 interface SegmentData {
@@ -1479,6 +1480,317 @@ function HighValueTargets() {
 }
 
 // ==========================================
+// TOAST INTEGRATION TAB
+// ==========================================
+function ToastIntegrationTab() {
+  const { toast } = useToast();
+  const [syncStartDate, setSyncStartDate] = useState("");
+  const [syncEndDate, setSyncEndDate] = useState("");
+  const [selectedRestaurant, setSelectedRestaurant] = useState("");
+
+  const statusQuery = useQuery<any>({
+    queryKey: ["/api/toast/status"],
+    refetchInterval: 30000,
+  });
+
+  const syncOrdersMutation = useMutation({
+    mutationFn: async (data: { restaurantGuid: string; startDate: string; endDate: string }) => {
+      const res = await apiRequest("POST", "/api/toast/sync/orders", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Sync Complete", description: `Processed ${data.synced} guests (${data.created} new, ${data.updated} updated)` });
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const refreshSegmentsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/toast/sync/segments");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Segments Refreshed", description: `${data.updated} guest segments updated` });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Refresh Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const status = statusQuery.data;
+  const restaurants = status?.restaurants || [];
+
+  const handleSync = () => {
+    if (!selectedRestaurant || !syncStartDate || !syncEndDate) {
+      toast({ title: "Missing Info", description: "Select a restaurant and date range", variant: "destructive" });
+      return;
+    }
+    syncOrdersMutation.mutate({
+      restaurantGuid: selectedRestaurant,
+      startDate: new Date(syncStartDate).toISOString(),
+      endDate: new Date(syncEndDate).toISOString(),
+    });
+  };
+
+  const setQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    setSyncStartDate(start.toISOString().split("T")[0]);
+    setSyncEndDate(end.toISOString().split("T")[0]);
+  };
+
+  if (statusQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">API Connection</CardTitle>
+            {status?.authenticated ? (
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            ) : status?.configured ? (
+              <XCircle className="h-5 w-5 text-red-500" />
+            ) : (
+              <XCircle className="h-5 w-5 text-muted-foreground" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold" data-testid="text-toast-status">
+              {status?.authenticated ? "Connected" : status?.configured ? "Auth Failed" : "Not Configured"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {status?.authenticated
+                ? `${restaurants.length} location(s) found`
+                : "Check API credentials"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Guests</CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold" data-testid="text-toast-total-guests">
+              {(status?.stats?.totalGuests || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(status?.stats?.withEmail || 0).toLocaleString()} with email
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">API Synced</CardTitle>
+            <RefreshCw className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold" data-testid="text-toast-api-synced">
+              {(status?.stats?.apiSynced || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {status?.lastSync ? `Last: ${new Date(status.lastSync).toLocaleDateString()}` : "No syncs yet"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {status?.authenticated && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5" /> Locations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {restaurants.map((r: any) => (
+                  <div
+                    key={r.guid}
+                    className={`flex items-center justify-between gap-2 p-3 rounded-md border cursor-pointer hover-elevate ${
+                      selectedRestaurant === r.guid ? "border-primary bg-primary/5" : ""
+                    }`}
+                    onClick={() => setSelectedRestaurant(r.guid)}
+                    data-testid={`card-restaurant-${r.guid}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Store className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{r.name || r.guid}</span>
+                    </div>
+                    {selectedRestaurant === r.guid && (
+                      <Badge>Selected</Badge>
+                    )}
+                  </div>
+                ))}
+                {restaurants.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No restaurants found. Check your API permissions.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" /> Sync Orders
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => setQuickRange(1)} data-testid="button-sync-1day">
+                  Last 24h
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setQuickRange(7)} data-testid="button-sync-7day">
+                  Last 7 days
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setQuickRange(30)} data-testid="button-sync-30day">
+                  Last 30 days
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setQuickRange(90)} data-testid="button-sync-90day">
+                  Last 90 days
+                </Button>
+              </div>
+
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={syncStartDate}
+                    onChange={(e) => setSyncStartDate(e.target.value)}
+                    data-testid="input-sync-start"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={syncEndDate}
+                    onChange={(e) => setSyncEndDate(e.target.value)}
+                    data-testid="input-sync-end"
+                  />
+                </div>
+                <Button
+                  onClick={handleSync}
+                  disabled={syncOrdersMutation.isPending || !selectedRestaurant || !syncStartDate || !syncEndDate}
+                  data-testid="button-sync-orders"
+                >
+                  {syncOrdersMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  Sync Orders
+                </Button>
+              </div>
+
+              {!selectedRestaurant && (
+                <p className="text-sm text-muted-foreground">Select a location above before syncing.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Maintenance</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refreshSegmentsMutation.mutate()}
+                disabled={refreshSegmentsMutation.isPending}
+                data-testid="button-refresh-segments"
+              >
+                {refreshSegmentsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Refresh Segments
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Recalculates days since last visit and reactivation segments for all guests based on current date.
+              </p>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {!status?.authenticated && status?.configured && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <XCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
+            <h3 className="font-semibold mb-1">Authentication Failed</h3>
+            <p className="text-sm text-muted-foreground">
+              Your Toast API credentials were found but authentication failed. Please verify your Client ID and Secret are correct.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!status?.configured && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Plug className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <h3 className="font-semibold mb-1">Toast API Not Configured</h3>
+            <p className="text-sm text-muted-foreground">
+              Add your Toast Client ID and Client Secret to connect to the Toast POS API for real-time guest data sync.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhook Endpoint</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Register this URL with Toast Support to receive real-time order events:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 p-2 bg-muted rounded text-sm break-all" data-testid="text-webhook-url">
+              {window.location.origin}/api/toast/webhook
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/api/toast/webhook`);
+                toast({ title: "Copied", description: "Webhook URL copied to clipboard" });
+              }}
+              data-testid="button-copy-webhook"
+            >
+              Copy
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            When registered, Toast will automatically send order events to this endpoint, keeping guest data in sync in real time.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ==========================================
 // MAIN DASHBOARD
 // ==========================================
 export default function BoomerangDashboard() {
@@ -1525,6 +1837,9 @@ export default function BoomerangDashboard() {
           <TabsTrigger value="analytics" data-testid="tab-analytics">
             <BarChart3 className="h-4 w-4 mr-1" /> Analytics
           </TabsTrigger>
+          <TabsTrigger value="toast" data-testid="tab-toast">
+            <Plug className="h-4 w-4 mr-1" /> Toast API
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview"><SegmentOverview /></TabsContent>
@@ -1536,6 +1851,7 @@ export default function BoomerangDashboard() {
         <TabsContent value="high-value"><HighValueTargets /></TabsContent>
         <TabsContent value="customers"><CustomerBrowser /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+        <TabsContent value="toast"><ToastIntegrationTab /></TabsContent>
       </Tabs>
     </div>
   );
