@@ -1218,7 +1218,12 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/toast-historical"] });
     },
     onError: (error: any) => {
-      toast({ title: "Error syncing Shopify revenue", description: error.message, variant: "destructive" });
+      const isUnavailable = error.message?.includes("503") || error.message?.includes("not available") || error.message?.includes("not installed");
+      toast({ 
+        title: isUnavailable ? "Shopify not connected" : "Error syncing Shopify revenue", 
+        description: isUnavailable ? "Shopify app needs to be installed on your store first. Shopify data can be entered manually." : error.message, 
+        variant: isUnavailable ? "default" : "destructive" 
+      });
     },
   });
 
@@ -1232,7 +1237,12 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
       queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
     },
     onError: (error: any) => {
-      toast({ title: "Error syncing Shopify", description: error.message, variant: "destructive" });
+      const isUnavailable = error.message?.includes("503") || error.message?.includes("not available") || error.message?.includes("not installed");
+      toast({ 
+        title: isUnavailable ? "Shopify not connected" : "Error syncing Shopify", 
+        description: isUnavailable ? "Shopify app needs to be installed on your store first. You can enter Shopify revenue manually." : error.message, 
+        variant: isUnavailable ? "default" : "destructive" 
+      });
     },
   });
 

@@ -29,7 +29,7 @@ import toastApiRouter from "./reactivation/toast-routes";
 import targetingRouter from "./reactivation/targeting-routes";
 import shopifyRouter from "./shopify/shopify-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
-import { syncShopifyRevenueToDb } from "./shopify/shopify-api";
+import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
@@ -18587,14 +18587,19 @@ Generate a professional response:`;
       }
 
       const missingShopifyDays = dailyRevenue.filter(d => d.shopifyRevenue == null);
-      if (missingShopifyDays.length > 0) {
+      if (missingShopifyDays.length > 0 && isShopifyAvailable()) {
         (async () => {
           try {
             for (const dayEntry of missingShopifyDays) {
+              if (!isShopifyAvailable()) break;
               try {
                 const { netSales } = await syncShopifyRevenueToDb(dayEntry.date);
                 console.log(`[RCC] Auto-synced Shopify revenue for ${dayEntry.date}: $${netSales.toFixed(2)}`);
               } catch (apiErr) {
+                if (apiErr instanceof ShopifyNotInstalledError) {
+                  console.warn(`[RCC] Shopify app not installed, skipping auto-sync`);
+                  break;
+                }
                 console.error(`[RCC] Shopify auto-sync failed for ${dayEntry.date}:`, apiErr);
               }
             }
@@ -18906,6 +18911,10 @@ Generate a professional response:`;
         return res.status(400).json({ message: 'weekId is required' });
       }
 
+      if (!isShopifyAvailable()) {
+        return res.status(503).json({ message: 'Shopify integration is not available. The app may not be installed on your Shopify store.', code: 'SHOPIFY_UNAVAILABLE' });
+      }
+
       const week = await storage.getRccWeek(weekId);
       if (!week) {
         return res.status(404).json({ message: 'Week not found' });
@@ -18959,6 +18968,10 @@ Generate a professional response:`;
         return res.status(400).json({ message: 'date is required' });
       }
 
+      if (!isShopifyAvailable()) {
+        return res.status(503).json({ message: 'Shopify integration is not available. The app may not be installed on your Shopify store.', code: 'SHOPIFY_UNAVAILABLE' });
+      }
+
       const today = new Date();
       const [dy, dm, dd] = date.split('-').map(Number);
       const dateObj = new Date(dy, dm - 1, dd);
@@ -18974,6 +18987,9 @@ Generate a professional response:`;
         orderCount,
       });
     } catch (error: any) {
+      if (error instanceof ShopifyNotInstalledError) {
+        return res.status(503).json({ message: error.message, code: 'SHOPIFY_UNAVAILABLE' });
+      }
       console.error('Error syncing Shopify revenue for date:', error);
       res.status(500).json({ message: 'Failed to sync Shopify revenue' });
     }

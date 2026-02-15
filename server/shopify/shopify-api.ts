@@ -5,13 +5,32 @@ const SHOPIFY_API_VERSION = "2026-01";
 
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
 
+export class ShopifyNotInstalledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ShopifyNotInstalledError";
+  }
+}
+
+let shopifyUnavailableUntil: number = 0;
+
+export function isShopifyAvailable(): boolean {
+  if (Date.now() < shopifyUnavailableUntil) {
+    return false;
+  }
+  const clientId = process.env.SHOPIFY_CLIENT_ID;
+  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
+  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+  return !!(clientId && clientSecret && storeDomain);
+}
+
 export async function getShopifyToken(): Promise<string> {
   const clientId = process.env.SHOPIFY_CLIENT_ID;
   const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
 
   if (!clientId || !clientSecret || !storeDomain) {
-    throw new Error("Shopify API credentials not configured (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET, SHOPIFY_STORE_DOMAIN)");
+    throw new ShopifyNotInstalledError("Shopify API credentials not configured (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET, SHOPIFY_STORE_DOMAIN)");
   }
 
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60000) {
@@ -33,6 +52,11 @@ export async function getShopifyToken(): Promise<string> {
 
   if (!response.ok) {
     const text = await response.text();
+    if (text.includes("app_not_installed")) {
+      shopifyUnavailableUntil = Date.now() + 60 * 60 * 1000;
+      cachedToken = null;
+      throw new ShopifyNotInstalledError("Shopify app is not installed on this shop. Please install the app in your Shopify admin first.");
+    }
     throw new Error(`Shopify auth failed (${response.status}): ${text}`);
   }
 
