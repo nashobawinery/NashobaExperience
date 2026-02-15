@@ -97,7 +97,8 @@ export async function getOrdersByBusinessDate(
   page?: number,
   pageSize: number = 100
 ): Promise<any> {
-  let path = `/orders/v2/ordersBulk?businessDate=${encodeURIComponent(businessDate)}&pageSize=${pageSize}`;
+  const formattedDate = businessDate.replace(/-/g, '');
+  let path = `/orders/v2/ordersBulk?businessDate=${formattedDate}&pageSize=${pageSize}`;
   if (page !== undefined) {
     path += `&page=${page}`;
   }
@@ -154,7 +155,7 @@ export async function fetchDailyRevenue(
     const guid = restaurant.restaurantGuid;
     const name = restaurant.restaurantName || restaurant.locationName || guid;
     let locationSales = 0;
-    let page = 0;
+    let page = 1;
     let hasMore = true;
 
     while (hasMore) {
@@ -308,7 +309,7 @@ export async function syncOrdersBatch(
   endDate: string
 ): Promise<{ synced: number; created: number; updated: number; errors: number }> {
   let synced = 0, created = 0, updated = 0, errors = 0;
-  let page = 0;
+  let page = 1;
   let hasMore = true;
 
   while (hasMore) {
