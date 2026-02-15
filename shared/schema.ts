@@ -5050,3 +5050,45 @@ export const offerPerformance = pgTable("offer_performance", {
 export const insertOfferPerformanceSchema = createInsertSchema(offerPerformance).omit({ id: true, updatedAt: true });
 export type InsertOfferPerformance = z.infer<typeof insertOfferPerformanceSchema>;
 export type OfferPerformance = typeof offerPerformance.$inferSelect;
+
+export const smsCampaigns = pgTable("sms_campaigns", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  segments: text("segments").array(),
+  status: varchar("status", { length: 30 }).notNull().default("draft"),
+  totalRecipients: integer("total_recipients").default(0),
+  totalSent: integer("total_sent").default(0),
+  totalDelivered: integer("total_delivered").default(0),
+  totalFailed: integer("total_failed").default(0),
+  scheduledAt: timestamp("scheduled_at"),
+  sentAt: timestamp("sent_at"),
+  completedAt: timestamp("completed_at"),
+  createdBy: varchar("created_by", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSmsCampaignSchema = createInsertSchema(smsCampaigns).omit({ id: true, totalSent: true, totalDelivered: true, totalFailed: true, sentAt: true, completedAt: true, createdAt: true });
+export type InsertSmsCampaign = z.infer<typeof insertSmsCampaignSchema>;
+export type SmsCampaign = typeof smsCampaigns.$inferSelect;
+
+export const smsMessages = pgTable("sms_messages", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").references(() => smsCampaigns.id),
+  toastGuestId: integer("toast_guest_id"),
+  recipientPhone: varchar("recipient_phone", { length: 30 }).notNull(),
+  recipientName: varchar("recipient_name", { length: 200 }),
+  messageBody: text("message_body").notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("pending"),
+  twilioSid: varchar("twilio_sid", { length: 64 }),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_sms_messages_campaign").on(table.campaignId),
+  index("idx_sms_messages_guest").on(table.toastGuestId),
+])
+
+export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({ id: true, twilioSid: true, errorMessage: true, sentAt: true, createdAt: true });
+export type InsertSmsMessage = z.infer<typeof insertSmsMessageSchema>;
+export type SmsMessage = typeof smsMessages.$inferSelect;

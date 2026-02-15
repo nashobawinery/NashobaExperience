@@ -12,10 +12,11 @@ import {
   ArrowLeft, Target, Lightbulb, Megaphone, DollarSign, Brain,
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
-  BookOpen, Store, Settings, Check, Crosshair
+  BookOpen, Store, Settings, Check, Crosshair, MessageSquare
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
+import { SmsCampaignsTab } from "./SmsCampaigns";
 
 import {
   WeekSelector,
@@ -117,6 +118,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: Megaphone,
     defaultOpen: false,
     items: [
+      { id: "sms-campaigns", label: "SMS Campaigns", icon: MessageSquare },
       { id: "campaigns", label: "Campaigns", icon: Gift },
       { id: "automations", label: "Automations", icon: Zap },
       { id: "loyalty", label: "Loyalty Program", icon: Award },
@@ -428,6 +430,9 @@ export default function CommandCenter() {
 
       case "rfm":
         return <RfmTab />;
+
+      case "sms-campaigns":
+        return <SmsCampaignsTab />;
 
       case "campaigns":
         return <BoomerangCampaignsTab />;
