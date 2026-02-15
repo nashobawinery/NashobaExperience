@@ -26,6 +26,7 @@ import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
 import toastApiRouter from "./reactivation/toast-routes";
+import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
@@ -18490,28 +18491,52 @@ Generate a professional response:`;
         }
       }
 
-      // Auto-sync Toast revenue from historical table for any daily entries missing it (non-blocking)
       const missingToastDays = dailyRevenue.filter(d => !d.toastRevenue);
       if (missingToastDays.length > 0) {
+        const todayForSync = new Date();
         (async () => {
           try {
             for (const dayEntry of missingToastDays) {
+              const [ey, em, ed] = dayEntry.date.split('-').map(Number);
+              const entryDate = new Date(ey, em - 1, ed);
+              if (entryDate > todayForSync) continue;
+
+              const preserveFields = {
+                weekId: dayEntry.weekId,
+                date: dayEntry.date,
+                dayOfWeek: dayEntry.dayOfWeek,
+                shopifyRevenue: dayEntry.shopifyRevenue,
+                otherRevenue: dayEntry.otherRevenue,
+                otherRevenueSource: dayEntry.otherRevenueSource,
+                wholesaleRevenue: dayEntry.wholesaleRevenue,
+                notes: dayEntry.notes,
+                weatherHigh: dayEntry.weatherHigh,
+                weatherLow: dayEntry.weatherLow,
+                weatherCondition: dayEntry.weatherCondition,
+                weatherPrecipitation: dayEntry.weatherPrecipitation,
+              };
+
               const hist = await storage.getRccToastHistoricalRevenueByDate(dayEntry.date);
               if (hist && parseFloat(hist.netRevenue || '0') > 0) {
                 await storage.upsertRccDailyRevenue({
-                  weekId: dayEntry.weekId,
-                  date: dayEntry.date,
-                  dayOfWeek: dayEntry.dayOfWeek,
+                  ...preserveFields,
                   toastRevenue: hist.netRevenue,
-                  shopifyRevenue: dayEntry.shopifyRevenue,
-                  otherRevenue: dayEntry.otherRevenue,
-                  notes: dayEntry.notes,
-                  weatherHigh: dayEntry.weatherHigh,
-                  weatherLow: dayEntry.weatherLow,
-                  weatherCondition: dayEntry.weatherCondition,
-                  weatherPrecipitation: dayEntry.weatherPrecipitation,
                 });
                 console.log(`[RCC] Auto-synced Toast revenue for ${dayEntry.date}: $${hist.netRevenue}`);
+              } else {
+                try {
+                  const liveRevenue = await fetchDailyRevenue(dayEntry.date);
+                  if (liveRevenue.netSales > 0) {
+                    await storage.upsertRccDailyRevenue({
+                      ...preserveFields,
+                      toastRevenue: liveRevenue.netSales.toFixed(2),
+                    });
+                    await storage.recordRccToastHistoricalRevenue(dayEntry.date, liveRevenue.netSales.toFixed(2));
+                    console.log(`[RCC] Auto-synced Toast API revenue for ${dayEntry.date}: $${liveRevenue.netSales.toFixed(2)}`);
+                  }
+                } catch (apiErr) {
+                  console.error(`[RCC] Toast API auto-sync failed for ${dayEntry.date}:`, apiErr);
+                }
               }
             }
           } catch (err) {
@@ -18713,6 +18738,141 @@ Generate a professional response:`;
     } catch (error) {
       console.error('Error fetching weather:', error);
       res.status(500).json({ message: 'Failed to fetch weather data' });
+    }
+  });
+
+  function formatDateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function getWeekOfYear(d: Date): number {
+    const start = new Date(d.getFullYear(), 0, 1);
+    const diff = d.getTime() - start.getTime();
+    return Math.ceil((diff / 86400000 + start.getDay() + 1) / 7);
+  }
+
+  app.post('/api/rcc/daily-revenue/sync-toast', isAuthenticated, async (req, res) => {
+    try {
+      const { weekId } = req.body;
+      if (!weekId) {
+        return res.status(400).json({ message: 'weekId is required' });
+      }
+
+      const week = await storage.getRccWeek(weekId);
+      if (!week) {
+        return res.status(404).json({ message: 'Week not found' });
+      }
+
+      const [sy, sm, sd] = week.weekStart.split('-').map(Number);
+      const startDate = new Date(sy, sm - 1, sd);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      const results: { date: string; netSales: number; orderCount: number; synced: boolean; error?: string }[] = [];
+
+      for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(dayDate.getDate() + i);
+
+        if (dayDate > today) {
+          results.push({ date: formatDateStr(dayDate), netSales: 0, orderCount: 0, synced: false, error: 'Future date' });
+          continue;
+        }
+
+        const dateStr = formatDateStr(dayDate);
+
+        try {
+          const revenue = await fetchDailyRevenue(dateStr);
+
+          const existing = await storage.getRccDailyRevenueByDate(dateStr);
+          await storage.upsertRccDailyRevenue({
+            weekId,
+            date: dateStr,
+            dayOfWeek: dayDate.getDay(),
+            toastRevenue: revenue.netSales.toFixed(2),
+            shopifyRevenue: existing?.shopifyRevenue,
+            otherRevenue: existing?.otherRevenue,
+            otherRevenueSource: existing?.otherRevenueSource,
+            wholesaleRevenue: existing?.wholesaleRevenue,
+            notes: existing?.notes,
+            weatherHigh: existing?.weatherHigh,
+            weatherLow: existing?.weatherLow,
+            weatherCondition: existing?.weatherCondition,
+            weatherPrecipitation: existing?.weatherPrecipitation,
+          });
+
+          await storage.recordRccToastHistoricalRevenue(dateStr, revenue.netSales.toFixed(2));
+
+          results.push({ date: dateStr, netSales: revenue.netSales, orderCount: revenue.orderCount, synced: true });
+          console.log(`[RCC Toast Sync] ${dateStr}: $${revenue.netSales.toFixed(2)} (${revenue.orderCount} orders)`);
+        } catch (err: any) {
+          console.error(`[RCC Toast Sync] Error for ${dateStr}:`, err.message);
+          results.push({ date: dateStr, netSales: 0, orderCount: 0, synced: false, error: err.message });
+        }
+      }
+
+      const totalSynced = results.filter(r => r.synced).length;
+      const totalRevenue = results.reduce((sum, r) => sum + r.netSales, 0);
+      res.json({
+        message: `Synced Toast revenue for ${totalSynced}/7 days`,
+        totalRevenue: totalRevenue.toFixed(2),
+        results,
+      });
+    } catch (error: any) {
+      console.error('Error syncing Toast revenue:', error);
+      res.status(500).json({ message: 'Failed to sync Toast revenue' });
+    }
+  });
+
+  app.post('/api/rcc/daily-revenue/sync-toast-date', isAuthenticated, async (req, res) => {
+    try {
+      const { date, weekId } = req.body;
+      if (!date) {
+        return res.status(400).json({ message: 'date is required' });
+      }
+
+      const today = new Date();
+      const [dy, dm, dd] = date.split('-').map(Number);
+      const dateObj = new Date(dy, dm - 1, dd);
+      if (dateObj > today) {
+        return res.status(400).json({ message: 'Cannot sync future dates' });
+      }
+
+      const revenue = await fetchDailyRevenue(date);
+
+      const existing = await storage.getRccDailyRevenueByDate(date);
+      const targetWeekId = weekId || existing?.weekId;
+      if (!targetWeekId) {
+        return res.status(400).json({ message: 'weekId is required for new entries' });
+      }
+
+      await storage.upsertRccDailyRevenue({
+        weekId: targetWeekId,
+        date,
+        dayOfWeek: dateObj.getDay(),
+        toastRevenue: revenue.netSales.toFixed(2),
+        shopifyRevenue: existing?.shopifyRevenue,
+        otherRevenue: existing?.otherRevenue,
+        otherRevenueSource: existing?.otherRevenueSource,
+        wholesaleRevenue: existing?.wholesaleRevenue,
+        notes: existing?.notes,
+        weatherHigh: existing?.weatherHigh,
+        weatherLow: existing?.weatherLow,
+        weatherCondition: existing?.weatherCondition,
+        weatherPrecipitation: existing?.weatherPrecipitation,
+      });
+
+      await storage.recordRccToastHistoricalRevenue(date, revenue.netSales.toFixed(2));
+
+      res.json({
+        date,
+        netSales: revenue.netSales,
+        orderCount: revenue.orderCount,
+        locationBreakdown: revenue.locationBreakdown,
+      });
+    } catch (error: any) {
+      console.error('Error syncing Toast revenue for date:', error);
+      res.status(500).json({ message: 'Failed to sync Toast revenue' });
     }
   });
 

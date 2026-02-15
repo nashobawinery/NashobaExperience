@@ -1178,6 +1178,35 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
     },
   });
 
+  const syncToastWeekMutation = useMutation({
+    mutationFn: async (data: { weekId: number }) => {
+      const res = await apiRequest("POST", "/api/rcc/daily-revenue/sync-toast", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Toast revenue synced", description: data?.message || "Revenue updated from Toast POS" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/toast-historical"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error syncing Toast revenue", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const syncToastDayMutation = useMutation({
+    mutationFn: async (data: { date: string; weekId: number }) => {
+      const res = await apiRequest("POST", "/api/rcc/daily-revenue/sync-toast-date", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Toast revenue synced", description: `$${parseFloat(data?.netSales || 0).toLocaleString()} from ${data?.orderCount || 0} orders` });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error syncing Toast", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Guard against missing week data (after all hooks)
   if (!week?.weekStart) {
     return (
@@ -1251,7 +1280,17 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
           </h3>
           <p className="text-sm text-muted-foreground">Track revenue and weather for each day of the week</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncToastWeekMutation.mutate({ weekId })}
+            disabled={syncToastWeekMutation.isPending}
+            data-testid="btn-sync-toast-week"
+          >
+            {syncToastWeekMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Sync Toast
+          </Button>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Weekly Total</p>
             <p className="text-2xl font-bold text-green-600">${grandTotal.toLocaleString()}</p>
@@ -1289,8 +1328,10 @@ function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: RccWeek
               priorYearDate={historicalData?.currentDates?.find(c => c.date === day.date)?.priorYearDate || null}
               onSave={(data) => saveDailyMutation.mutate(data)}
               onFetchWeather={() => fetchWeatherMutation.mutate(day.date)}
+              onSyncToast={() => syncToastDayMutation.mutate({ date: day.date, weekId })}
               isSaving={saveDailyMutation.isPending}
               isFetchingWeather={fetchWeatherMutation.isPending}
+              isSyncingToast={syncToastDayMutation.isPending}
             />
           );
         })}
@@ -1355,8 +1396,10 @@ function DailyRevenueRow({
   priorYearDate,
   onSave,
   onFetchWeather,
+  onSyncToast,
   isSaving,
   isFetchingWeather,
+  isSyncingToast,
 }: {
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
@@ -1365,8 +1408,10 @@ function DailyRevenueRow({
   priorYearDate: string | null;
   onSave: (data: any) => void;
   onFetchWeather: () => void;
+  onSyncToast: () => void;
   isSaving: boolean;
   isFetchingWeather: boolean;
+  isSyncingToast: boolean;
 }) {
   const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
   const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
@@ -1397,6 +1442,7 @@ function DailyRevenueRow({
       shopifyRevenue: shopifyRev || null,
       otherRevenue: otherRev || null,
       otherRevenueSource: otherSource || null,
+      wholesaleRevenue: entry?.wholesaleRevenue || null,
       notes,
     });
   };
@@ -1462,14 +1508,30 @@ function DailyRevenueRow({
           <div className="mt-4 pt-4 border-t space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div>
-                <Label>Toast POS</Label>
-                <Input 
-                  type="number"
-                  placeholder="0.00"
-                  value={toastRev}
-                  onChange={(e) => setToastRev(e.target.value)}
-                  data-testid={`input-toast-${day.date}`}
-                />
+                <Label className="flex items-center gap-1">
+                  Toast POS
+                  <Badge variant="secondary" className="text-[10px] px-1 py-0">Auto</Badge>
+                </Label>
+                <div className="flex gap-1">
+                  <Input 
+                    type="number"
+                    placeholder="Auto-synced"
+                    value={toastRev}
+                    disabled
+                    className="bg-muted"
+                    data-testid={`input-toast-${day.date}`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onSyncToast}
+                    disabled={isSyncingToast}
+                    title="Refresh from Toast POS"
+                    data-testid={`btn-sync-toast-${day.date}`}
+                  >
+                    {isSyncingToast ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label>Shopify</Label>

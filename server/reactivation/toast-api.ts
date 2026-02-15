@@ -91,6 +91,110 @@ export async function getOrder(restaurantGuid: string, orderGuid: string): Promi
   return toastApiRequest(`/orders/v2/orders/${orderGuid}`, restaurantGuid);
 }
 
+export async function getOrdersByBusinessDate(
+  restaurantGuid: string,
+  businessDate: string,
+  page?: number,
+  pageSize: number = 100
+): Promise<any> {
+  let path = `/orders/v2/ordersBulk?businessDate=${encodeURIComponent(businessDate)}&pageSize=${pageSize}`;
+  if (page !== undefined) {
+    path += `&page=${page}`;
+  }
+  return toastApiRequest(path, restaurantGuid);
+}
+
+function calculateNetSalesFromOrder(order: any): number {
+  if (order.voided || order.deleted) return 0;
+
+  let netSales = 0;
+  const checks = order.checks || [];
+
+  for (const check of checks) {
+    if (check.voided || check.deleted) continue;
+
+    let checkSales = 0;
+
+    for (const selection of (check.selections || [])) {
+      if (selection.voided) continue;
+      if (selection.displayName === "Gift Card") continue;
+
+      let selectionAmount = selection.preDiscountPrice || selection.price || 0;
+      for (const discount of (selection.appliedDiscounts || [])) {
+        selectionAmount -= discount.nonTaxableDiscountAmount || 0;
+      }
+      checkSales += selectionAmount;
+    }
+
+    for (const charge of (check.appliedServiceCharges || [])) {
+      if (!charge.gratuity) {
+        checkSales += charge.chargeAmount || 0;
+      }
+    }
+
+    for (const discount of (check.appliedDiscounts || [])) {
+      checkSales -= discount.nonTaxableDiscountAmount || 0;
+    }
+
+    netSales += checkSales;
+  }
+
+  return netSales;
+}
+
+export async function fetchDailyRevenue(
+  businessDate: string
+): Promise<{ netSales: number; orderCount: number; locationBreakdown: Record<string, number> }> {
+  const restaurants = await getRestaurants();
+  let totalNetSales = 0;
+  let totalOrderCount = 0;
+  const locationBreakdown: Record<string, number> = {};
+
+  for (const restaurant of restaurants) {
+    const guid = restaurant.restaurantGuid;
+    const name = restaurant.restaurantName || restaurant.locationName || guid;
+    let locationSales = 0;
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const orders = await getOrdersByBusinessDate(guid, businessDate, page, 100);
+
+        if (!Array.isArray(orders) || orders.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        for (const order of orders) {
+          const orderNetSales = calculateNetSalesFromOrder(order);
+          locationSales += orderNetSales;
+          if (!order.voided && !order.deleted) {
+            totalOrderCount++;
+          }
+        }
+
+        page++;
+        if (orders.length < 100) hasMore = false;
+      } catch (err: any) {
+        console.error(`[Toast Revenue] Error fetching orders for ${name} page ${page}:`, err.message);
+        hasMore = false;
+      }
+    }
+
+    locationBreakdown[name] = Math.round(locationSales * 100) / 100;
+    totalNetSales += locationSales;
+  }
+
+  console.log(`[Toast Revenue] ${businessDate}: $${totalNetSales.toFixed(2)} net sales, ${totalOrderCount} orders`);
+
+  return {
+    netSales: Math.round(totalNetSales * 100) / 100,
+    orderCount: totalOrderCount,
+    locationBreakdown,
+  };
+}
+
 function computeReactivationSegment(daysSinceLastVisit: number | null): string {
   if (daysSinceLastVisit === null) return "lost";
   if (daysSinceLastVisit <= 30) return "active";
