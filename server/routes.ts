@@ -11195,8 +11195,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/daily-reports/department/:department/today', isAuthenticated, async (req: any, res) => {
     try {
       const { department } = req.params;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      const today = new Date(todayStr + 'T12:00:00Z');
       
       let report = await storage.getDailyReportByDepartmentAndDate(department, today);
       
@@ -11236,10 +11236,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // submittedById is null, but submittedByName captures who filed the report
       
       // Map frontend field names to schema field names
-      // Parse date with noon UTC to avoid timezone edge cases (date showing as previous day)
+      // Parse date with noon UTC to avoid timezone edge cases; fallback uses Eastern Time
       const reportDateValue = req.body.reportDate 
         ? new Date(req.body.reportDate + 'T12:00:00Z') 
-        : new Date();
+        : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00Z');
       
       // Check if a report already exists for this date and department
       const existingReport = await storage.getDailyReportByDateAndDepartment(reportDateValue, req.body.department);
@@ -12521,7 +12521,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create the report - convert reportDate string to Date object
-      const reportDateValue = reportDate ? new Date(reportDate + 'T12:00:00Z') : new Date();
+      // Use noon UTC to avoid timezone edge cases; fallback uses Eastern Time
+      const reportDateValue = reportDate 
+        ? new Date(reportDate + 'T12:00:00Z') 
+        : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00Z');
       
       const report = await storage.createDailyReport({
         department: accessCode.department,
@@ -12689,8 +12692,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // NO validation of required procedures for drafts - allow saving incomplete work
 
-      // Create the report as draft
-      const reportDateValue = reportDate ? new Date(reportDate + 'T12:00:00Z') : new Date();
+      // Create the report as draft - use noon UTC; fallback uses Eastern Time
+      const reportDateValue = reportDate 
+        ? new Date(reportDate + 'T12:00:00Z') 
+        : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00Z');
       
       const report = await storage.createDailyReport({
         department: accessCode.department,

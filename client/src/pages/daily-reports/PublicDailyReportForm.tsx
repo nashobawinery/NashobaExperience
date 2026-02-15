@@ -291,9 +291,12 @@ export default function PublicDailyReportForm() {
 
   const getReportPayload = () => {
     const codeToSubmit = formData?.code || validatedCode;
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return {
       code: codeToSubmit,
       department: formData?.department || selectedDepartment,
+      reportDate: localDate,
       performanceSummary: performanceSummary || null,
       overallRating,
       hasCustomerConcerns,
