@@ -4972,3 +4972,81 @@ export const boomerangReferrals = pgTable("boomerang_referrals", {
 export const insertBoomerangReferralSchema = createInsertSchema(boomerangReferrals).omit({ id: true, createdAt: true });
 export type InsertBoomerangReferral = z.infer<typeof insertBoomerangReferralSchema>;
 export type BoomerangReferral = typeof boomerangReferrals.$inferSelect;
+
+// ==========================================
+// AI Targeting Engine
+// ==========================================
+
+export const targetingCampaigns = pgTable("targeting_campaigns", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  weekStart: timestamp("week_start").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  targetCount: integer("target_count").notNull().default(500),
+  segments: jsonb("segments").$type<string[]>().default([]),
+  offerTypes: jsonb("offer_types").$type<string[]>().default([]),
+  channel: varchar("channel", { length: 20 }).notNull().default("email"),
+  projectedConversionRate: numeric("projected_conversion_rate", { precision: 5, scale: 2 }),
+  projectedRevenue: numeric("projected_revenue", { precision: 14, scale: 2 }),
+  projectedRoi: numeric("projected_roi", { precision: 8, scale: 2 }),
+  actualConversions: integer("actual_conversions").notNull().default(0),
+  actualRevenue: numeric("actual_revenue", { precision: 14, scale: 2 }).default("0"),
+  totalSent: integer("total_sent").notNull().default(0),
+  totalOpened: integer("total_opened").notNull().default(0),
+  totalClicked: integer("total_clicked").notNull().default(0),
+  aiInsights: text("ai_insights"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTargetingCampaignSchema = createInsertSchema(targetingCampaigns).omit({ id: true, actualConversions: true, actualRevenue: true, totalSent: true, totalOpened: true, totalClicked: true, createdAt: true, updatedAt: true });
+export type InsertTargetingCampaign = z.infer<typeof insertTargetingCampaignSchema>;
+export type TargetingCampaign = typeof targetingCampaigns.$inferSelect;
+
+export const targetingListMembers = pgTable("targeting_list_members", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull(),
+  toastGuestId: integer("toast_guest_id").notNull(),
+  reactivationScore: numeric("reactivation_score", { precision: 5, scale: 2 }).notNull(),
+  expectedValue: numeric("expected_value", { precision: 12, scale: 2 }).notNull(),
+  recencyScore: integer("recency_score").notNull(),
+  frequencyScore: integer("frequency_score").notNull(),
+  monetaryScore: integer("monetary_score").notNull(),
+  segment: varchar("segment", { length: 50 }),
+  assignedOfferType: varchar("assigned_offer_type", { length: 50 }),
+  assignedOfferDetail: text("assigned_offer_detail"),
+  aiReason: text("ai_reason"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  sentAt: timestamp("sent_at"),
+  openedAt: timestamp("opened_at"),
+  clickedAt: timestamp("clicked_at"),
+  convertedAt: timestamp("converted_at"),
+  conversionRevenue: numeric("conversion_revenue", { precision: 12, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_targeting_members_campaign").on(table.campaignId),
+  index("idx_targeting_members_guest").on(table.toastGuestId),
+  index("idx_targeting_members_score").on(table.reactivationScore),
+]);
+
+export const insertTargetingListMemberSchema = createInsertSchema(targetingListMembers).omit({ id: true, sentAt: true, openedAt: true, clickedAt: true, convertedAt: true, conversionRevenue: true, createdAt: true });
+export type InsertTargetingListMember = z.infer<typeof insertTargetingListMemberSchema>;
+export type TargetingListMember = typeof targetingListMembers.$inferSelect;
+
+export const offerPerformance = pgTable("offer_performance", {
+  id: serial("id").primaryKey(),
+  offerType: varchar("offer_type", { length: 50 }).notNull(),
+  segment: varchar("segment", { length: 50 }).notNull(),
+  totalSent: integer("total_sent").notNull().default(0),
+  totalConverted: integer("total_converted").notNull().default(0),
+  totalRevenue: numeric("total_revenue", { precision: 14, scale: 2 }).default("0"),
+  avgConversionRate: numeric("avg_conversion_rate", { precision: 5, scale: 2 }),
+  avgOrderValue: numeric("avg_order_value", { precision: 12, scale: 2 }),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_offer_perf_type_segment").on(table.offerType, table.segment),
+]);
+
+export const insertOfferPerformanceSchema = createInsertSchema(offerPerformance).omit({ id: true, updatedAt: true });
+export type InsertOfferPerformance = z.infer<typeof insertOfferPerformanceSchema>;
+export type OfferPerformance = typeof offerPerformance.$inferSelect;

@@ -26,6 +26,7 @@ import spotInventoryRouter from "./spot-inventory-routes";
 import reactivationRouter from "./reactivation/routes";
 import loyaltyRouter from "./reactivation/loyalty-routes";
 import toastApiRouter from "./reactivation/toast-routes";
+import targetingRouter from "./reactivation/targeting-routes";
 import shopifyRouter from "./shopify/shopify-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb } from "./shopify/shopify-api";
@@ -118,6 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/reactivation", reactivationRouter);
   app.use("/api/boomerang", loyaltyRouter);
   app.use("/api/toast", toastApiRouter);
+  app.use("/api/targeting", targetingRouter);
   app.use("/api/shopify", shopifyRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)

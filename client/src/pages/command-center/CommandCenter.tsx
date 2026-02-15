@@ -12,8 +12,10 @@ import {
   ArrowLeft, Target, Lightbulb, Megaphone, DollarSign, Brain,
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
-  BookOpen, Store, Settings, Check
+  BookOpen, Store, Settings, Check, Crosshair
 } from "lucide-react";
+
+import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
 
 import {
   WeekSelector,
@@ -85,6 +87,16 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "daily-revenue", label: "Daily Revenue", icon: DollarSign },
       { id: "tasks", label: "Tasks & Ideas", icon: Lightbulb },
       { id: "rcc-campaigns", label: "Revenue Campaigns", icon: Megaphone },
+    ],
+  },
+  {
+    id: "targeting",
+    label: "Targeting",
+    icon: Crosshair,
+    defaultOpen: false,
+    items: [
+      { id: "targeting-overview", label: "Weekly Targets", icon: Crosshair },
+      { id: "roi-projections", label: "ROI Projections", icon: TrendingUp },
     ],
   },
   {
@@ -436,6 +448,12 @@ export default function CommandCenter() {
         return activeWeekId ? (
           <AiAdvisorPanel weekId={activeWeekId} recommendations={aiRecs || []} />
         ) : null;
+
+      case "targeting-overview":
+        return <TargetingOverview />;
+
+      case "roi-projections":
+        return <RoiProjections />;
 
       case "integrations":
         return <ToastIntegrationTab />;
