@@ -325,7 +325,7 @@ export function SmsCampaignsTab() {
 
       <Dialog open={!!showDetail} onOpenChange={(open) => !open && setShowDetail(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {campaignDetail ? (
+          {campaignDetail?.campaign ? (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 flex-wrap">
