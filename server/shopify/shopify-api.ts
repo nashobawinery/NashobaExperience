@@ -247,25 +247,17 @@ export async function syncShopifyRevenueToDb(dateStr: string): Promise<{ netSale
     WHERE date = ${dateStr}
   `);
 
-  const year = parseInt(dateStr.split("-")[0]);
-  const existing = await db.execute(sql`
-    SELECT id FROM rcc_toast_historical_revenue
-    WHERE revenue_date = ${dateStr}
-  `);
+  const dateObj = new Date(dateStr + 'T12:00:00Z');
+  const year = dateObj.getUTCFullYear();
+  const dayOfWeek = dateObj.getUTCDay();
+  const startOfYear = new Date(Date.UTC(year, 0, 1));
+  const weekOfYear = Math.ceil(((dateObj.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getUTCDay() + 1) / 7);
 
-  if (existing.rows.length > 0) {
-    await db.execute(sql`
-      UPDATE rcc_toast_historical_revenue
-      SET shopify_revenue = ${netSales.toFixed(2)}
-      WHERE revenue_date = ${dateStr}
-    `);
-  } else {
-    await db.execute(sql`
-      INSERT INTO rcc_toast_historical_revenue (year, revenue_date, net_revenue, shopify_revenue)
-      VALUES (${year}, ${dateStr}, '0', ${netSales.toFixed(2)})
-      ON CONFLICT (revenue_date) DO UPDATE SET shopify_revenue = ${netSales.toFixed(2)}
-    `);
-  }
+  await db.execute(sql`
+    INSERT INTO rcc_toast_historical_revenue (year, revenue_date, net_revenue, shopify_revenue, day_of_week, week_of_year)
+    VALUES (${year}, ${dateStr}, '0', ${netSales.toFixed(2)}, ${dayOfWeek}, ${weekOfYear})
+    ON CONFLICT (revenue_date) DO UPDATE SET shopify_revenue = ${netSales.toFixed(2)}
+  `);
 
   return { netSales, orderCount };
 }
