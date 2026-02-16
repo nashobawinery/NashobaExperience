@@ -755,7 +755,11 @@ export default function ContractsDashboard() {
                     uploadedById: null,
                     uploadedByName: null,
                   });
-                } catch {}
+                  queryClient.invalidateQueries({ queryKey: ["/api/contracts", newContract.id, "documents"] });
+                } catch (docErr: any) {
+                  console.error("Failed to attach document:", docErr);
+                  toast({ title: "Contract created but document attachment failed", description: docErr.message, variant: "destructive" });
+                }
               }
               queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
               toast({ title: "Contract created successfully" });
