@@ -1423,6 +1423,10 @@ export function CustomerBrowser() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [includeStaff, setIncludeStaff] = useState(false);
 
+  const { data: sourceCounts } = useQuery<Record<string, number>>({
+    queryKey: ["/api/reactivation/source-counts"],
+  });
+
   const handleSearch = (val: string) => {
     setSearch(val);
     const timeout = setTimeout(() => { setDebouncedSearch(val); setPage(1); }, 300);
@@ -1485,12 +1489,12 @@ export function CustomerBrowser() {
           </SelectContent>
         </Select>
         <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-[130px]" data-testid="select-source-filter"><SelectValue placeholder="All sources" /></SelectTrigger>
+          <SelectTrigger className="w-[170px]" data-testid="select-source-filter"><SelectValue placeholder="All sources" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="toast">Toast</SelectItem>
-            <SelectItem value="shopify">Shopify</SelectItem>
-            <SelectItem value="merged">Merged</SelectItem>
+            <SelectItem value="toast">Toast {sourceCounts?.toast ? `(${sourceCounts.toast.toLocaleString()})` : ""}</SelectItem>
+            <SelectItem value="shopify">Shopify {sourceCounts?.shopify ? `(${sourceCounts.shopify.toLocaleString()})` : "(0)"}</SelectItem>
+            <SelectItem value="merged">Merged {sourceCounts?.merged ? `(${sourceCounts.merged.toLocaleString()})` : "(0)"}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={setSortBy}>

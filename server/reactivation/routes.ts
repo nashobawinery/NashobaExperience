@@ -452,6 +452,28 @@ router.get("/analytics", async (_req, res) => {
   }
 });
 
+router.get("/source-counts", async (_req, res) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT source, COUNT(*) as cnt FROM toast_guests 
+      WHERE COALESCE(is_staff, false) = false
+      GROUP BY source
+    `);
+    const mergedResult = await db.execute(sql`
+      SELECT COUNT(DISTINCT guest_id) as cnt FROM customer_identity_links
+    `);
+    const counts: Record<string, number> = {};
+    for (const row of result.rows as any[]) {
+      counts[row.source || "unknown"] = Number(row.cnt);
+    }
+    counts["merged"] = Number((mergedResult.rows[0] as any)?.cnt || 0);
+    res.json(counts);
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching source counts:", error);
+    res.status(500).json({ error: "Failed to fetch source counts" });
+  }
+});
+
 router.get("/sync-status", async (_req, res) => {
   try {
     const lastSync = await db.execute(sql`
