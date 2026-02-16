@@ -147,6 +147,53 @@ router.get("/rfm/summary", async (_req, res) => {
   }
 });
 
+router.get("/rfm/segment/:segment", async (req, res) => {
+  try {
+    const { segment } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search as string) || "";
+
+    const searchCondition = search
+      ? sql`AND (LOWER(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) LIKE LOWER(${`%${search}%`}) OR LOWER(COALESCE(g.email1, '')) LIKE LOWER(${`%${search}%`}))`
+      : sql``;
+
+    const countResult = await db.execute(sql`
+      SELECT COUNT(*) as total
+      FROM boomerang_rfm_scores r
+      JOIN toast_guests g ON g.id = r.toast_guest_id
+      WHERE r.rfm_segment = ${segment}
+      ${searchCondition}
+    `);
+    const total = Number((countResult.rows[0] as any).total);
+
+    const customers = await db.execute(sql`
+      SELECT 
+        g.id, g.first_name, g.last_name, g.email1, g.phone1,
+        g.lifetime_spend, g.total_visits, g.last_visit_date,
+        g.days_since_last_visit, g.reactivation_segment,
+        r.recency_score, r.frequency_score, r.monetary_score, r.rfm_total
+      FROM boomerang_rfm_scores r
+      JOIN toast_guests g ON g.id = r.toast_guest_id
+      WHERE r.rfm_segment = ${segment}
+      ${searchCondition}
+      ORDER BY CAST(COALESCE(g.lifetime_spend, '0') AS FLOAT) DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    res.json({
+      customers: customers.rows,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error: any) {
+    console.error("[Boomerang] Error fetching RFM segment customers:", error);
+    res.status(500).json({ error: "Failed to fetch segment customers" });
+  }
+});
+
 // ==========================================
 // LOYALTY TIERS
 // ==========================================

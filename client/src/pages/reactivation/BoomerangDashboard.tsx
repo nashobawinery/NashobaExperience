@@ -240,8 +240,171 @@ export function SegmentOverview() {
 // ==========================================
 // RFM SEGMENTATION TAB
 // ==========================================
+interface RfmCustomer {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email1: string | null;
+  phone1: string | null;
+  lifetime_spend: string | null;
+  total_visits: number | null;
+  last_visit_date: string | null;
+  days_since_last_visit: number | null;
+  reactivation_segment: string | null;
+  recency_score: number;
+  frequency_score: number;
+  monetary_score: number;
+  rfm_total: number;
+}
+
+function RfmSegmentDialog({ segment, onClose }: { segment: string; onClose: () => void }) {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const config = RFM_SEGMENT_CONFIG[segment] || { label: segment, color: "bg-muted", icon: Users, description: "" };
+  const Icon = config.icon;
+
+  const { data, isLoading } = useQuery<{
+    customers: RfmCustomer[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }>({
+    queryKey: ["/api/boomerang/rfm/segment", segment, String(page), search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: "50" });
+      if (search) params.set("search", search);
+      const res = await fetch(`/api/boomerang/rfm/segment/${segment}?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const handleSearch = () => {
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className="w-5 h-5" />
+            {config.label} Customers
+            {data && <Badge className={config.color}>{data.total.toLocaleString()}</Badge>}
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">{config.description}</p>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or email..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="pl-8"
+              data-testid="input-rfm-segment-search"
+            />
+          </div>
+          <Button onClick={handleSearch} data-testid="button-rfm-segment-search">
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-auto min-h-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !data?.customers?.length ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-2" />
+              <p>No customers found</p>
+            </div>
+          ) : (
+            <div className="border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-muted/50">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="p-2">Name</th>
+                    <th className="p-2 hidden sm:table-cell">Email</th>
+                    <th className="p-2 hidden md:table-cell">Phone</th>
+                    <th className="p-2 text-right">LTV</th>
+                    <th className="p-2 text-right hidden sm:table-cell">Visits</th>
+                    <th className="p-2 text-center">R/F/M</th>
+                    <th className="p-2 text-right">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.customers.map((c) => (
+                    <tr key={c.id} className="border-t hover-elevate" data-testid={`row-rfm-customer-${c.id}`}>
+                      <td className="p-2 font-medium">
+                        {c.first_name || ""} {c.last_name || ""}
+                      </td>
+                      <td className="p-2 text-muted-foreground text-xs hidden sm:table-cell truncate max-w-[180px]">
+                        {c.email1 || "—"}
+                      </td>
+                      <td className="p-2 text-muted-foreground text-xs hidden md:table-cell">
+                        {c.phone1 || "—"}
+                      </td>
+                      <td className="p-2 text-right font-medium">
+                        {formatCurrency(c.lifetime_spend ? parseFloat(c.lifetime_spend) : 0)}
+                      </td>
+                      <td className="p-2 text-right hidden sm:table-cell">
+                        {c.total_visits ?? 0}
+                      </td>
+                      <td className="p-2 text-center text-xs text-muted-foreground">
+                        {c.recency_score}/{c.frequency_score}/{c.monetary_score}
+                      </td>
+                      <td className="p-2 text-right">
+                        <Badge variant="outline">{c.rfm_total}/15</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {data && data.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2 border-t">
+            <p className="text-xs text-muted-foreground">
+              Page {data.page} of {data.totalPages} ({data.total.toLocaleString()} customers)
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                data-testid="button-rfm-prev-page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={page >= data.totalPages}
+                onClick={() => setPage(p => p + 1)}
+                data-testid="button-rfm-next-page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function RfmTab() {
   const { toast } = useToast();
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
   const { data, isLoading } = useQuery<{
     computed: boolean;
     totalScored: number;
@@ -308,7 +471,12 @@ export function RfmTab() {
               const config = RFM_SEGMENT_CONFIG[seg.segment] || { label: seg.segment, color: "bg-muted", icon: Users, description: "" };
               const Icon = config.icon;
               return (
-                <Card key={seg.segment} data-testid={`card-rfm-${seg.segment}`}>
+                <Card
+                  key={seg.segment}
+                  className="cursor-pointer hover-elevate active-elevate-2 transition-all"
+                  onClick={() => setSelectedSegment(seg.segment)}
+                  data-testid={`card-rfm-${seg.segment}`}
+                >
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-2 justify-between">
                       <div className="flex items-center gap-2">
@@ -329,6 +497,7 @@ export function RfmTab() {
                       <span className="text-muted-foreground">Reachable</span>
                       <span className="text-right font-medium">{seg.customerCount > 0 ? Math.round(seg.withEmail / seg.customerCount * 100) : 0}%</span>
                     </div>
+                    <p className="text-xs text-center text-muted-foreground pt-1">Click to view customers</p>
                   </CardContent>
                 </Card>
               );
@@ -357,6 +526,13 @@ export function RfmTab() {
             </Card>
           )}
         </>
+      )}
+
+      {selectedSegment && (
+        <RfmSegmentDialog
+          segment={selectedSegment}
+          onClose={() => setSelectedSegment(null)}
+        />
       )}
     </div>
   );
