@@ -319,6 +319,7 @@ router.get("/high-value", async (req, res) => {
       WHERE lifetime_spend IS NOT NULL 
         AND CAST(lifetime_spend AS FLOAT) > 0
         AND reactivation_segment IN ('at_risk', 'lapsed', 'dormant')
+        AND COALESCE(is_staff, false) = false
         ${segmentCondition}
       ORDER BY CAST(lifetime_spend AS FLOAT) DESC
       LIMIT ${limitNum}
