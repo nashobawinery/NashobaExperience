@@ -1674,14 +1674,10 @@ export function CustomerBrowser() {
                   <p className="text-muted-foreground">Avg per Visit</p>
                   <p className="font-medium">{formatCurrency(customerDetail.averageSpend)}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Order Type</p>
-                  <p className="font-medium">{customerDetail.lastDiningBehavior || "N/A"}</p>
-                </div>
               </div>
-              {(customerDetail as any).activityCategories && (
-                <div>
-                  <p className="text-sm font-semibold mb-1">Activity History</p>
+              <div>
+                <p className="text-sm font-semibold mb-1">Activity History</p>
+                {(customerDetail as any).activityCategories ? (
                   <div className="flex flex-wrap gap-1" data-testid="activity-categories">
                     {(customerDetail as any).activityCategories.split(";").filter((c: string) => c.trim()).map((cat: string, i: number) => {
                       const iconMap: Record<string, string> = {
@@ -1701,18 +1697,10 @@ export function CustomerBrowser() {
                       );
                     })}
                   </div>
-                </div>
-              )}
-              {!((customerDetail as any).activityCategories) && customerDetail.diningBehaviors && (
-                <div>
-                  <p className="text-sm font-semibold mb-1">Order Types</p>
-                  <div className="flex flex-wrap gap-1">
-                    {customerDetail.diningBehaviors.split(/[;,]/).filter((b: string) => b.trim()).map((b: string, i: number) => (
-                      <Badge key={i} variant="outline" className="text-xs">{b.trim()}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-muted-foreground">Not yet categorized — will update on next sync</p>
+                )}
+              </div>
               {customerDetail.emails.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold mb-1">Email Addresses</p>
