@@ -13,9 +13,8 @@ async function pdfParse(buffer: Buffer): Promise<{ text: string }> {
   if (ParseClass) {
     const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
     const parser = new ParseClass(uint8);
-    await parser.load();
-    const text = await parser.getText();
-    return { text };
+    const result = await parser.getText();
+    return { text: result.text || "" };
   }
   const fallback = (mod as any).default || mod;
   const result = await fallback(buffer);
