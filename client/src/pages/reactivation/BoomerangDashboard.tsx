@@ -1515,6 +1515,16 @@ export function CustomerBrowser() {
         </Button>
       </div>
 
+      <div className="flex items-center gap-4 flex-wrap">
+        <label className="flex items-center gap-2 text-sm cursor-pointer" data-testid="label-include-staff">
+          <input type="checkbox" checked={includeStaff} onChange={e => setIncludeStaff(e.target.checked)} className="rounded" data-testid="checkbox-include-staff" />
+          Include Staff
+        </label>
+        {!includeStaff && (
+          <span className="text-xs text-muted-foreground">Staff members are hidden by default</span>
+        )}
+      </div>
+
       {filtersOpen && (
         <Card>
           <CardContent className="p-3 flex items-center gap-4 flex-wrap">
@@ -1525,10 +1535,6 @@ export function CustomerBrowser() {
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)} data-testid="checkbox-opt-in" />
               Marketing Opt-In
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeStaff} onChange={e => setIncludeStaff(e.target.checked)} data-testid="checkbox-include-staff" />
-              Include Staff
             </label>
           </CardContent>
         </Card>
