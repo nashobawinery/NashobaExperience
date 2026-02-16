@@ -89,42 +89,42 @@ router.get("/customers", async (req, res) => {
     const conditions: ReturnType<typeof sql>[] = [];
 
     if (includeStaff !== "true") {
-      conditions.push(sql`COALESCE(is_staff, false) = false`);
+      conditions.push(sql`COALESCE(tg.is_staff, false) = false`);
     }
 
     if (segment && segment !== "all") {
       if (segment === "unknown") {
-        conditions.push(sql`reactivation_segment IS NULL`);
+        conditions.push(sql`tg.reactivation_segment IS NULL`);
       } else {
-        conditions.push(sql`reactivation_segment = ${segment}`);
+        conditions.push(sql`tg.reactivation_segment = ${segment}`);
       }
     }
 
     if (search) {
       const searchStr = `%${search}%`;
       conditions.push(sql`(
-        first_name ILIKE ${searchStr} OR 
-        last_name ILIKE ${searchStr} OR 
-        email1 ILIKE ${searchStr} OR 
-        phone1 ILIKE ${searchStr} OR 
-        CONCAT(first_name, ' ', last_name) ILIKE ${searchStr}
+        tg.first_name ILIKE ${searchStr} OR 
+        tg.last_name ILIKE ${searchStr} OR 
+        tg.email1 ILIKE ${searchStr} OR 
+        tg.phone1 ILIKE ${searchStr} OR 
+        CONCAT(tg.first_name, ' ', tg.last_name) ILIKE ${searchStr}
       )`);
     }
 
     if (hasEmail === "true") {
-      conditions.push(sql`email1 IS NOT NULL AND email1 != ''`);
+      conditions.push(sql`tg.email1 IS NOT NULL AND tg.email1 != ''`);
     }
     if (hasPhone === "true") {
-      conditions.push(sql`phone1 IS NOT NULL AND phone1 != ''`);
+      conditions.push(sql`tg.phone1 IS NOT NULL AND tg.phone1 != ''`);
     }
     if (marketingOptIn === "true") {
-      conditions.push(sql`email1_marketing_preference = 'OPT_IN'`);
+      conditions.push(sql`tg.email1_marketing_preference = 'OPT_IN'`);
     }
     if (source && source !== "all") {
       if (source === "merged") {
-        conditions.push(sql`id IN (SELECT cil.guest_id FROM customer_identity_links cil GROUP BY cil.guest_id)`);
+        conditions.push(sql`tg.id IN (SELECT cil2.guest_id FROM customer_identity_links cil2 GROUP BY cil2.guest_id)`);
       } else {
-        conditions.push(sql`source = ${source}`);
+        conditions.push(sql`tg.source = ${source}`);
       }
     }
 
@@ -145,7 +145,7 @@ router.get("/customers", async (req, res) => {
     const sortDirection = sortDir === "asc" ? "ASC" : "DESC";
     const orderClause = sql.raw(`ORDER BY ${sortColumn} ${sortDirection} NULLS LAST`);
 
-    const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests ${whereClause}`);
+    const countResult = await db.execute(sql`SELECT COUNT(DISTINCT tg.id) as total FROM toast_guests tg LEFT JOIN customer_identity_links cil ON cil.guest_id = tg.id ${whereClause}`);
     const totalRecords = Number((countResult.rows[0] as any).total);
 
     const dataResult = await db.execute(sql`
