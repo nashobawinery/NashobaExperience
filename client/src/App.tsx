@@ -57,6 +57,9 @@ const StaffWorkOrderForm = lazy(() => import("@/pages/staff/StaffWorkOrderForm")
 const MaintenanceDashboard = lazy(() => import("@/pages/maintenance/MaintenanceDashboard"));
 const TechnicianWorkOrders = lazy(() => import("@/pages/maintenance/TechnicianWorkOrders"));
 
+// Lazy load Contracts module
+const ContractsDashboard = lazy(() => import("@/pages/contracts/ContractsDashboard"));
+
 // Lazy load Spot Inventory module
 const SpotInventoryAdminDashboard = lazy(() => import("@/pages/spot-inventory/SpotInventoryAdminDashboard"));
 const SpotInventoryStaffApp = lazy(() => import("@/pages/spot-inventory/SpotInventoryStaffApp"));
@@ -627,6 +630,24 @@ function DepartmentCalendarRoute() {
   );
 }
 
+function ContractsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ContractsDashboard />
+    </Suspense>
+  );
+}
+
 function MaintenanceAdminRoute() {
   const { isLoading, isAdmin } = useAuth();
 
@@ -1141,6 +1162,8 @@ function Router() {
         <Route path="/compliance/complete" component={ComplianceCompleteRoute} />
         <Route path="/department-calendar" component={DepartmentCalendarRoute} />
         <Route path="/department-calendar/admin" component={DepartmentCalendarRoute} />
+        <Route path="/contracts" component={ContractsRoute} />
+        <Route path="/contracts/admin" component={ContractsRoute} />
         <Route path="/maintenance" component={MaintenanceAdminRoute} />
         <Route path="/maintenance/admin" component={MaintenanceAdminRoute} />
         <Route path="/maintenance/work-orders" component={TechnicianWorkOrdersRoute} />

@@ -5107,3 +5107,69 @@ export const smsMessages = pgTable("sms_messages", {
 export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({ id: true, twilioSid: true, errorMessage: true, sentAt: true, createdAt: true });
 export type InsertSmsMessage = z.infer<typeof insertSmsMessageSchema>;
 export type SmsMessage = typeof smsMessages.$inferSelect;
+
+// ===================== Contracts & Tracking Module =====================
+
+export const contractStatusEnum = pgEnum("contract_status", ["active", "expiring_soon", "expired", "renewed", "cancelled"]);
+export const contractCategoryEnum = pgEnum("contract_category", ["insurance", "waste_disposal", "software", "equipment", "utilities", "maintenance", "professional_services", "lease", "licensing", "other"]);
+
+export const contracts = pgTable("contract_contracts", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 300 }).notNull(),
+  category: contractCategoryEnum("category").notNull().default("other"),
+  vendor: varchar("vendor", { length: 300 }).notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date"),
+  expirationDate: timestamp("expiration_date"),
+  renewalTerms: text("renewal_terms"),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  paymentFrequency: varchar("payment_frequency", { length: 50 }),
+  status: contractStatusEnum("status").notNull().default("active"),
+  renewedFromId: integer("renewed_from_id"),
+  notes: text("notes"),
+  notificationsSent: text("notifications_sent").default("{}"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_contracts_status").on(table.status),
+  index("idx_contracts_expiration").on(table.expirationDate),
+]);
+
+export const insertContractSchema = createInsertSchema(contracts).omit({ id: true, notificationsSent: true, createdAt: true, updatedAt: true });
+export type InsertContract = z.infer<typeof insertContractSchema>;
+export type Contract = typeof contracts.$inferSelect;
+
+export const contractDocuments = pgTable("contract_documents", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").notNull().references(() => contracts.id, { onDelete: "cascade" }),
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  objectPath: text("object_path").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  extractedData: text("extracted_data"),
+  aiSummary: text("ai_summary"),
+  isCurrent: boolean("is_current").notNull().default(true),
+  uploadedById: varchar("uploaded_by_id").references(() => platformUsers.id),
+  uploadedByName: varchar("uploaded_by_name", { length: 200 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_contract_docs_contract").on(table.contractId),
+]);
+
+export const insertContractDocumentSchema = createInsertSchema(contractDocuments).omit({ id: true, createdAt: true });
+export type InsertContractDocument = z.infer<typeof insertContractDocumentSchema>;
+export type ContractDocument = typeof contractDocuments.$inferSelect;
+
+export const contractResponsibles = pgTable("contract_responsibles", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").notNull().references(() => contracts.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_contract_resp_contract").on(table.contractId),
+  index("idx_contract_resp_user").on(table.userId),
+]);
+
+export const insertContractResponsibleSchema = createInsertSchema(contractResponsibles).omit({ id: true, createdAt: true });
+export type InsertContractResponsible = z.infer<typeof insertContractResponsibleSchema>;
+export type ContractResponsible = typeof contractResponsibles.$inferSelect;

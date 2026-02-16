@@ -30,11 +30,13 @@ import targetingRouter from "./reactivation/targeting-routes";
 import shopifyRouter from "./shopify/shopify-routes";
 import smsCampaignRouter from "./sms-campaign-routes";
 import unsubscribeRouter from "./unsubscribe-routes";
+import contractRouter from "./contract-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
+import { initContractReminders } from "./contractReminders";
 import { scheduleNightlySync } from "./nightlySync";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
@@ -126,6 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/shopify", shopifyRouter);
   app.use("/api/sms", smsCampaignRouter);
   app.use("/api/unsubscribe", unsubscribeRouter);
+  app.use("/api/contracts", contractRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();
@@ -19267,6 +19270,8 @@ Generate a professional response:`;
   initMaintenanceReminders();
 
   scheduleNightlySync();
+
+  initContractReminders();
 
   const httpServer = createServer(app);
   return httpServer;
