@@ -9,15 +9,16 @@ import { randomUUID } from "crypto";
 
 async function pdfParse(buffer: Buffer): Promise<{ text: string }> {
   const mod = await import("pdf-parse");
-  const parse = (mod as any).default || (mod as any).PDFParse || mod;
-  if (typeof parse === "function") {
-    const result = await parse(buffer);
-    return { text: typeof result === "string" ? result : result.text || "" };
+  const ParseClass = (mod as any).PDFParse;
+  if (ParseClass) {
+    const parser = new ParseClass(buffer);
+    await parser.load();
+    const text = await parser.getText();
+    return { text };
   }
-  const parser = new (parse as any)(buffer);
-  await parser.load();
-  const text = await parser.getText();
-  return { text };
+  const fallback = (mod as any).default || mod;
+  const result = await fallback(buffer);
+  return { text: typeof result === "string" ? result : result.text || "" };
 }
 const router = Router();
 const objectStorageService = new ObjectStorageService();
