@@ -19,7 +19,7 @@ import {
   BarChart3, Filter, Eye, Target, Award, Gift, Zap, Share2,
   Plus, Play, Pause, Trash2, RefreshCw, TrendingUp, PieChart,
   Percent, Hash, Star, Crown, Gem, ShieldCheck, Plug, CheckCircle,
-  XCircle, Loader2, Store, Calendar
+  XCircle, Loader2, Store, Calendar, UserPlus
 } from "lucide-react";
 
 interface SegmentData {
@@ -2157,6 +2157,276 @@ export function ToastIntegrationTab() {
           </p>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ==========================================
+// NEW CUSTOMERS
+// ==========================================
+interface NewCustomer {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  emailOptIn: boolean;
+  phone: string | null;
+  phoneOptIn: boolean;
+  source: string;
+  lifetimeSpend: number;
+  totalVisits: number;
+  firstVisitDate: string | null;
+  lastVisitDate: string | null;
+  segment: string | null;
+  importedAt: string;
+  activityCategories: string | null;
+}
+
+interface SourceSummary {
+  source: string;
+  count: number;
+  withEmail: number;
+  withPhone: number;
+  emailOptIn: number;
+}
+
+export function NewCustomers() {
+  const [days, setDays] = useState("7");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery<{
+    customers: NewCustomer[];
+    totalRecords: number;
+    totalPages: number;
+    page: number;
+    sourceSummary: SourceSummary[];
+  }>({
+    queryKey: ["/api/reactivation/new-customers", { days, source: sourceFilter, page: String(page) }],
+  });
+
+  const sourceLabel = (s: string) => {
+    switch (s) {
+      case "toast": return "Toast POS";
+      case "shopify": return "Shopify";
+      default: return s;
+    }
+  };
+
+  const sourceColor = (s: string) => {
+    switch (s) {
+      case "toast": return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      case "shopify": return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+      default: return "";
+    }
+  };
+
+  const formatDate = (d: string | null) => {
+    if (!d) return "-";
+    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const totalNew = data?.sourceSummary?.reduce((sum, s) => sum + s.count, 0) || 0;
+  const totalWithEmail = data?.sourceSummary?.reduce((sum, s) => sum + s.withEmail, 0) || 0;
+  const totalWithPhone = data?.sourceSummary?.reduce((sum, s) => sum + s.withPhone, 0) || 0;
+  const totalOptIn = data?.sourceSummary?.reduce((sum, s) => sum + s.emailOptIn, 0) || 0;
+
+  return (
+    <div className="space-y-4" data-testid="new-customers-section">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold flex items-center gap-2" data-testid="text-new-customers-title">
+            <UserPlus className="h-5 w-5" />
+            New Customers
+          </h2>
+          <p className="text-sm text-muted-foreground">Recently synced customers from connected platforms</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={days} onValueChange={(v) => { setDays(v); setPage(1); }}>
+            <SelectTrigger className="w-[140px]" data-testid="select-days-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1" data-testid="option-days-1">Last 24 Hours</SelectItem>
+              <SelectItem value="3" data-testid="option-days-3">Last 3 Days</SelectItem>
+              <SelectItem value="7" data-testid="option-days-7">Last 7 Days</SelectItem>
+              <SelectItem value="14" data-testid="option-days-14">Last 14 Days</SelectItem>
+              <SelectItem value="30" data-testid="option-days-30">Last 30 Days</SelectItem>
+              <SelectItem value="90" data-testid="option-days-90">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-[140px]" data-testid="select-source-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" data-testid="option-source-all">All Sources</SelectItem>
+              <SelectItem value="toast" data-testid="option-source-toast">Toast POS</SelectItem>
+              <SelectItem value="shopify" data-testid="option-source-shopify">Shopify</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">New Customers</div>
+            <div className="text-2xl font-bold" data-testid="text-new-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalNew.toLocaleString()}</div>
+            {data?.sourceSummary && data.sourceSummary.length > 0 && (
+              <div className="flex gap-1.5 mt-1 flex-wrap">
+                {data.sourceSummary.map(s => (
+                  <Badge key={s.source} variant="secondary" className={`text-xs ${sourceColor(s.source)}`} data-testid={`badge-source-${s.source}`}>
+                    {sourceLabel(s.source)}: {s.count.toLocaleString()}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">With Email</div>
+            <div className="text-2xl font-bold" data-testid="text-email-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithEmail.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{totalNew > 0 ? Math.round(totalWithEmail / totalNew * 100) : 0}% of new</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">With Phone</div>
+            <div className="text-2xl font-bold" data-testid="text-phone-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalWithPhone.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{totalNew > 0 ? Math.round(totalWithPhone / totalNew * 100) : 0}% of new</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">Email Opt-In</div>
+            <div className="text-2xl font-bold" data-testid="text-optin-count">{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : totalOptIn.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Ready for welcome message</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isLoading ? (
+        <Card><CardContent className="p-6"><div className="h-40 animate-pulse bg-muted rounded" /></CardContent></Card>
+      ) : data?.customers && data.customers.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="table-new-customers">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium">Customer</th>
+                    <th className="text-left p-3 font-medium">Source</th>
+                    <th className="text-left p-3 font-medium">Contact</th>
+                    <th className="text-left p-3 font-medium">Activity</th>
+                    <th className="text-right p-3 font-medium">Spend</th>
+                    <th className="text-left p-3 font-medium">Synced</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.customers.map((c) => (
+                    <tr key={c.id} className="border-b last:border-b-0" data-testid={`row-customer-${c.id}`}>
+                      <td className="p-3">
+                        <div className="font-medium" data-testid={`text-name-${c.id}`}>
+                          {c.firstName} {c.lastName}
+                        </div>
+                        {c.segment && (
+                          <Badge variant="outline" className="text-xs mt-0.5" data-testid={`badge-segment-${c.id}`}>
+                            {c.segment}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="secondary" className={`text-xs ${sourceColor(c.source)}`} data-testid={`badge-platform-${c.id}`}>
+                          {sourceLabel(c.source)}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <div className="space-y-0.5">
+                          {c.email && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <span className="truncate max-w-[180px]" data-testid={`text-email-${c.id}`}>{c.email}</span>
+                              {c.emailOptIn && <CheckCircle className="h-3 w-3 text-green-500" />}
+                            </div>
+                          )}
+                          {c.phone && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <span data-testid={`text-phone-${c.id}`}>{c.phone}</span>
+                            </div>
+                          )}
+                          {!c.email && !c.phone && (
+                            <span className="text-xs text-muted-foreground">No contact info</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-xs">
+                          <span>{c.totalVisits} visit{c.totalVisits !== 1 ? "s" : ""}</span>
+                          {c.activityCategories && (
+                            <div className="flex gap-1 mt-0.5 flex-wrap">
+                              {c.activityCategories.split(";").filter(Boolean).slice(0, 3).map((cat) => (
+                                <Badge key={cat} variant="outline" className="text-xs py-0">{cat.trim()}</Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className="font-medium" data-testid={`text-spend-${c.id}`}>
+                          ${c.lifetimeSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-xs text-muted-foreground" data-testid={`text-synced-${c.id}`}>
+                          {formatDate(c.importedAt)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {data.totalPages > 1 && (
+              <div className="flex items-center justify-between p-3 border-t">
+                <span className="text-sm text-muted-foreground">
+                  Page {data.page} of {data.totalPages} ({data.totalRecords.toLocaleString()} customers)
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    data-testid="button-prev-page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={page >= data.totalPages}
+                    onClick={() => setPage(p => p + 1)}
+                    data-testid="button-next-page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <UserPlus className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+            <p className="font-medium">No new customers in this period</p>
+            <p className="text-sm text-muted-foreground mt-1">Try selecting a longer time range to see recently synced customers.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

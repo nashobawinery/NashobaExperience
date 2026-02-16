@@ -12,7 +12,7 @@ import {
   ArrowLeft, Target, Lightbulb, Megaphone, DollarSign, Brain,
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
-  BookOpen, Store, Settings, Check, Crosshair, MessageSquare
+  BookOpen, Store, Settings, Check, Crosshair, MessageSquare, UserPlus
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
@@ -42,6 +42,7 @@ import {
   CustomerBrowser,
   HighValueTargets,
   ToastIntegrationTab,
+  NewCustomers,
 } from "@/pages/reactivation/BoomerangDashboard";
 
 import type {
@@ -107,6 +108,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultOpen: false,
     items: [
       { id: "segments", label: "Segments Overview", icon: Users },
+      { id: "new-customers", label: "New Customers", icon: UserPlus },
       { id: "customer-browser", label: "Customer Browser", icon: Search },
       { id: "high-value", label: "High Value Targets", icon: DollarSign },
       { id: "rfm", label: "RFM Analysis", icon: Target },
@@ -421,6 +423,9 @@ export default function CommandCenter() {
 
       case "segments":
         return <SegmentOverview />;
+
+      case "new-customers":
+        return <NewCustomers />;
 
       case "customer-browser":
         return <CustomerBrowser />;

@@ -459,6 +459,88 @@ router.get("/analytics", async (_req, res) => {
   }
 });
 
+router.get("/new-customers", async (req, res) => {
+  try {
+    const { days = "7", page = "1", limit = "50", source: sourceFilter } = req.query;
+    const daysNum = Math.max(1, Math.min(90, parseInt(days as string, 10) || 7));
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: ReturnType<typeof sql>[] = [
+      sql`merged_into_id IS NULL`,
+      sql`COALESCE(is_staff, false) = false`,
+      sql`imported_at >= NOW() - INTERVAL '1 day' * ${daysNum}`,
+    ];
+
+    if (sourceFilter && sourceFilter !== "all") {
+      conditions.push(sql`source = ${sourceFilter}`);
+    }
+
+    const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+
+    const countResult = await db.execute(sql`
+      SELECT COUNT(*) as total FROM toast_guests ${whereClause}
+    `);
+    const totalRecords = Number((countResult.rows[0] as any).total);
+
+    const summaryResult = await db.execute(sql`
+      SELECT 
+        source,
+        COUNT(*) as count,
+        COUNT(CASE WHEN email1 IS NOT NULL AND email1 != '' THEN 1 END) as with_email,
+        COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as with_phone,
+        COUNT(CASE WHEN email1_marketing_preference = 'OPT_IN' THEN 1 END) as email_opt_in
+      FROM toast_guests
+      ${whereClause}
+      GROUP BY source
+    `);
+
+    const dataResult = await db.execute(sql`
+      SELECT id, first_name, last_name, email1, email1_marketing_preference, phone1, phone1_marketing_preference,
+        source, lifetime_spend, total_visits, first_visit_date, last_visit_date,
+        reactivation_segment, imported_at, activity_categories
+      FROM toast_guests
+      ${whereClause}
+      ORDER BY imported_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `);
+
+    res.json({
+      customers: dataResult.rows.map((r: any) => ({
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email1,
+        emailOptIn: r.email1_marketing_preference === "OPT_IN",
+        phone: r.phone1,
+        phoneOptIn: r.phone1_marketing_preference !== "OPT_OUT",
+        source: r.source || "toast",
+        lifetimeSpend: r.lifetime_spend ? parseFloat(r.lifetime_spend) : 0,
+        totalVisits: r.total_visits || 0,
+        firstVisitDate: r.first_visit_date,
+        lastVisitDate: r.last_visit_date,
+        segment: r.reactivation_segment,
+        importedAt: r.imported_at,
+        activityCategories: r.activity_categories,
+      })),
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / limitNum),
+      page: pageNum,
+      sourceSummary: summaryResult.rows.map((r: any) => ({
+        source: r.source || "unknown",
+        count: Number(r.count),
+        withEmail: Number(r.with_email),
+        withPhone: Number(r.with_phone),
+        emailOptIn: Number(r.email_opt_in),
+      })),
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching new customers:", error);
+    res.status(500).json({ error: "Failed to fetch new customers" });
+  }
+});
+
 router.get("/source-counts", async (_req, res) => {
   try {
     const result = await db.execute(sql`
