@@ -66,6 +66,7 @@ router.post("/rfm/compute", async (_req, res) => {
           ELSE 'potential'
         END as rfm_segment
       FROM toast_guests
+      WHERE merged_into_id IS NULL
     `);
 
     const summary = await db.execute(sql`
@@ -349,6 +350,7 @@ router.post("/loyalty/enroll-batch", async (req, res) => {
     const conditions: ReturnType<typeof sql>[] = [
       sql`g.id NOT IN (SELECT toast_guest_id FROM boomerang_loyalty_accounts)`,
       sql`g.email1 IS NOT NULL AND g.email1 != ''`,
+      sql`g.merged_into_id IS NULL`,
     ];
     if (segment) conditions.push(sql`g.reactivation_segment = ${segment}`);
     if (rfmSegment) conditions.push(sql`r.rfm_segment = ${rfmSegment}`);
@@ -613,7 +615,7 @@ router.post("/automations/:id/simulate", async (req, res) => {
     if (rule.rows.length === 0) return res.status(404).json({ error: "Automation not found" });
     const r: any = rule.rows[0];
 
-    const conditions: ReturnType<typeof sql>[] = [];
+    const conditions: ReturnType<typeof sql>[] = [sql`g.merged_into_id IS NULL`];
     const cond = r.conditions as Record<string, any>;
 
     if (r.trigger_type === "inactivity" && cond.daysInactive) {
@@ -715,6 +717,7 @@ router.post("/referrals/generate-batch", async (req, res) => {
       sql`g.id NOT IN (SELECT toast_guest_id FROM boomerang_referral_codes)`,
       sql`g.email1 IS NOT NULL AND g.email1 != ''`,
       sql`COALESCE(g.total_visits, 0) >= 3`,
+      sql`g.merged_into_id IS NULL`,
     ];
     if (segment) conditions.push(sql`g.reactivation_segment = ${segment}`);
     if (rfmSegment) conditions.push(sql`r.rfm_segment = ${rfmSegment}`);
@@ -778,7 +781,7 @@ router.get("/retention/metrics", async (_req, res) => {
       SELECT ROUND(AVG(CAST(COALESCE(lifetime_spend, '0') AS NUMERIC)), 2) as avg_ltv,
         ROUND(AVG(CAST(COALESCE(total_visits, 0) AS NUMERIC)), 1) as avg_visits
       FROM toast_guests
-      WHERE CAST(COALESCE(lifetime_spend, '0') AS NUMERIC) > 0
+      WHERE CAST(COALESCE(lifetime_spend, '0') AS NUMERIC) > 0 AND merged_into_id IS NULL
     `);
     const ltvData: any = ltv.rows[0];
 
@@ -787,7 +790,7 @@ router.get("/retention/metrics", async (_req, res) => {
         COUNT(CASE WHEN total_visits >= 2 THEN 1 END) as repeat_customers,
         COUNT(*) as total_with_visits
       FROM toast_guests
-      WHERE COALESCE(total_visits, 0) >= 1
+      WHERE COALESCE(total_visits, 0) >= 1 AND merged_into_id IS NULL
     `);
     const rr: any = retentionRate.rows[0];
 

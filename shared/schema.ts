@@ -4712,6 +4712,7 @@ export const toastGuests = pgTable("toast_guests", {
   reactivationSegment: varchar("reactivation_segment", { length: 50 }),
   activityCategories: text("activity_categories"),
   isStaff: boolean("is_staff").notNull().default(false),
+  mergedIntoId: integer("merged_into_id"),
   source: varchar("source", { length: 20 }).notNull().default("toast"),
   importedAt: timestamp("imported_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -4722,6 +4723,7 @@ export const toastGuests = pgTable("toast_guests", {
   index("idx_toast_guests_segment").on(table.reactivationSegment),
   index("idx_toast_guests_lifetime_spend").on(table.lifetimeSpend),
   index("idx_toast_guests_source").on(table.source),
+  index("idx_toast_guests_merged_into").on(table.mergedIntoId),
 ]);
 
 export const rccSyncLog = pgTable("rcc_sync_log", {

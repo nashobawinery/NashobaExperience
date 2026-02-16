@@ -23,7 +23,7 @@ router.get("/segments", async (_req, res) => {
         COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as with_phone,
         SUM(CAST(COALESCE(lifetime_spend, '0') AS FLOAT)) as total_lifetime_revenue
       FROM toast_guests
-      WHERE reactivation_segment IS NOT NULL AND COALESCE(is_staff, false) = false
+      WHERE reactivation_segment IS NOT NULL AND COALESCE(is_staff, false) = false AND merged_into_id IS NULL
       GROUP BY reactivation_segment
       ORDER BY 
         CASE reactivation_segment
@@ -35,10 +35,10 @@ router.get("/segments", async (_req, res) => {
         END
     `);
 
-    const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests WHERE COALESCE(is_staff, false) = false`);
+    const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests WHERE COALESCE(is_staff, false) = false AND merged_into_id IS NULL`);
 
     const sourceStats = await db.execute(sql`
-      SELECT source, COUNT(*) as count FROM toast_guests GROUP BY source
+      SELECT source, COUNT(*) as count FROM toast_guests WHERE merged_into_id IS NULL GROUP BY source
     `);
     const mergedCount = await db.execute(sql`
       SELECT COUNT(DISTINCT canonical_id) as count FROM customer_identity_links
@@ -87,6 +87,8 @@ router.get("/customers", async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     const conditions: ReturnType<typeof sql>[] = [];
+
+    conditions.push(sql`tg.merged_into_id IS NULL`);
 
     if (includeStaff !== "true") {
       conditions.push(sql`COALESCE(tg.is_staff, false) = false`);
@@ -320,6 +322,7 @@ router.get("/high-value", async (req, res) => {
         AND CAST(lifetime_spend AS FLOAT) > 0
         AND reactivation_segment IN ('at_risk', 'lapsed', 'dormant')
         AND COALESCE(is_staff, false) = false
+        AND merged_into_id IS NULL
         ${segmentCondition}
       ORDER BY CAST(lifetime_spend AS FLOAT) DESC
       LIMIT ${limitNum}
@@ -372,6 +375,7 @@ router.get("/analytics", async (_req, res) => {
           END as sort_order,
           COUNT(*) as count
         FROM toast_guests
+        WHERE merged_into_id IS NULL
         GROUP BY spend_range, sort_order
       ) sub ORDER BY sort_order
     `);
@@ -399,6 +403,7 @@ router.get("/analytics", async (_req, res) => {
           END as sort_order,
           COUNT(*) as count
         FROM toast_guests
+        WHERE merged_into_id IS NULL
         GROUP BY visit_range, sort_order
       ) sub ORDER BY sort_order
     `);
@@ -412,6 +417,7 @@ router.get("/analytics", async (_req, res) => {
         COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as has_phone,
         COUNT(*) as total
       FROM toast_guests
+      WHERE merged_into_id IS NULL
     `);
 
     const atRiskRevenue = await db.execute(sql`
@@ -420,7 +426,7 @@ router.get("/analytics", async (_req, res) => {
         SUM(CAST(COALESCE(lifetime_spend, '0') AS FLOAT)) as total_at_risk_revenue,
         COUNT(*) as count
       FROM toast_guests
-      WHERE reactivation_segment IN ('at_risk', 'lapsed', 'dormant')
+      WHERE reactivation_segment IN ('at_risk', 'lapsed', 'dormant') AND merged_into_id IS NULL
       GROUP BY reactivation_segment
     `);
 
@@ -457,7 +463,7 @@ router.get("/source-counts", async (_req, res) => {
   try {
     const result = await db.execute(sql`
       SELECT source, COUNT(*) as cnt FROM toast_guests 
-      WHERE COALESCE(is_staff, false) = false
+      WHERE COALESCE(is_staff, false) = false AND merged_into_id IS NULL
       GROUP BY source
     `);
     const mergedResult = await db.execute(sql`

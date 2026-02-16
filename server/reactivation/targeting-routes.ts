@@ -243,6 +243,7 @@ router.post("/generate", isAuthenticated, async (req, res) => {
         ${contactFilter}
         ${excludeFilter}
         AND COALESCE(g.total_visits, 0) > 0
+        AND g.merged_into_id IS NULL
       ORDER BY 
         CAST(COALESCE(g.lifetime_spend, '0') AS FLOAT) * 
         CASE g.reactivation_segment

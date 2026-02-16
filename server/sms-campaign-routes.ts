@@ -83,6 +83,7 @@ router.post("/campaigns/:id/preview", isAuthenticated, async (req, res) => {
       SELECT COUNT(*) as total FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
       AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
+      AND merged_into_id IS NULL
       ${segmentCondition}
     `);
 
@@ -91,6 +92,7 @@ router.post("/campaigns/:id/preview", isAuthenticated, async (req, res) => {
       FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
       AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
+      AND merged_into_id IS NULL
       ${segmentCondition}
       ORDER BY lifetime_spend DESC NULLS LAST
       LIMIT 10
@@ -136,6 +138,7 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
       SELECT id, first_name, last_name, phone1 FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
       AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
+      AND merged_into_id IS NULL
       ${segmentCondition}
       AND id NOT IN (SELECT toast_guest_id FROM sms_messages WHERE campaign_id = ${parseInt(id)} AND toast_guest_id IS NOT NULL)
       ORDER BY lifetime_spend DESC NULLS LAST
@@ -191,6 +194,7 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
       SELECT COUNT(*) as remaining FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
       AND phone1_marketing_preference != 'OPT_OUT'
+      AND merged_into_id IS NULL
       ${segmentCondition}
       AND id NOT IN (SELECT toast_guest_id FROM sms_messages WHERE campaign_id = ${parseInt(id)} AND toast_guest_id IS NOT NULL)
     `);
