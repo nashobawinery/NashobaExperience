@@ -444,7 +444,7 @@ export function ExportImportButtons({
             <div className="flex items-center justify-between">
               <Label>Need a template?</Label>
               <Button 
-                variant="link" 
+                variant="ghost" 
                 size="sm" 
                 onClick={handleDownloadTemplate}
                 data-testid="btn-download-template"
@@ -1246,6 +1246,18 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
     },
   });
 
+  const syncWholesaleDayMutation = useMutation({
+    mutationFn: async (data: { date: string; weekId: number }) => {
+      const res = await apiRequest("POST", "/api/rcc/daily-revenue/sync-wholesale-date", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Wholesale revenue synced", description: `$${parseFloat(data?.wholesaleRevenue || 0).toLocaleString()} from B2B orders` });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue", weekId] });
+    },
+    onError: () => toast({ title: "Error syncing wholesale", description: "Failed to sync B2B wholesale revenue", variant: "destructive" }),
+  });
+
   // Guard against missing week data (after all hooks)
   if (!week?.weekStart) {
     return (
@@ -1296,7 +1308,7 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
   historicalData?.priorYearData?.forEach(d => {
     const toast = parseFloat(d.netRevenue || '0');
     const shopify = parseFloat(d.shopifyRevenue || '0');
-    const other = parseFloat(d.otherRevenue || '0');
+    const other = parseFloat((d as any).otherRevenue || '0');
     const wholesale = parseFloat(historicalData?.priorYearWholesale?.[d.revenueDate] || '0');
     priorYearMap.set(d.revenueDate, { toast, shopify, wholesale, other, total: toast + shopify + wholesale + other });
   });
@@ -1379,10 +1391,12 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
               onFetchWeather={() => fetchWeatherMutation.mutate(day.date)}
               onSyncToast={() => syncToastDayMutation.mutate({ date: day.date, weekId })}
               onSyncShopify={() => syncShopifyDayMutation.mutate({ date: day.date, weekId })}
+              onSyncWholesale={() => syncWholesaleDayMutation.mutate({ date: day.date, weekId })}
               isSaving={saveDailyMutation.isPending}
               isFetchingWeather={fetchWeatherMutation.isPending}
               isSyncingToast={syncToastDayMutation.isPending}
               isSyncingShopify={syncShopifyDayMutation.isPending}
+              isSyncingWholesale={syncWholesaleDayMutation.isPending}
             />
           );
         })}
@@ -1449,10 +1463,12 @@ function DailyRevenueRow({
   onFetchWeather,
   onSyncToast,
   onSyncShopify,
+  onSyncWholesale,
   isSaving,
   isFetchingWeather,
   isSyncingToast,
   isSyncingShopify,
+  isSyncingWholesale,
 }: {
   day: { date: string; dayOfWeek: number; displayDate: string };
   entry: RccDailyRevenue | undefined;
@@ -1463,10 +1479,12 @@ function DailyRevenueRow({
   onFetchWeather: () => void;
   onSyncToast: () => void;
   onSyncShopify: () => void;
+  onSyncWholesale: () => void;
   isSaving: boolean;
   isFetchingWeather: boolean;
   isSyncingToast: boolean;
   isSyncingShopify: boolean;
+  isSyncingWholesale: boolean;
 }) {
   const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
   const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
@@ -1624,15 +1642,30 @@ function DailyRevenueRow({
                 )}
               </div>
               <div className="space-y-1">
-                <Label>Wholesale (B2B)</Label>
-                <Input 
-                  type="number"
-                  placeholder="Auto-synced"
-                  value={wholesaleRev}
-                  disabled
-                  className="bg-muted"
-                  data-testid={`input-wholesale-${day.date}`}
-                />
+                <Label className="flex items-center gap-1">
+                  Wholesale (B2B)
+                  <Badge variant="secondary" className="text-[10px] px-1 py-0">Auto</Badge>
+                </Label>
+                <div className="flex gap-1">
+                  <Input 
+                    type="number"
+                    placeholder="Auto-synced from B2B orders"
+                    value={wholesaleRev}
+                    disabled
+                    className="bg-muted"
+                    data-testid={`input-wholesale-${day.date}`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onSyncWholesale}
+                    disabled={isSyncingWholesale}
+                    title="Refresh from B2B orders"
+                    data-testid={`btn-sync-wholesale-${day.date}`}
+                  >
+                    {isSyncingWholesale ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  </Button>
+                </div>
                 {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Wholesale</p>

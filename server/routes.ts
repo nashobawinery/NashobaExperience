@@ -18557,41 +18557,38 @@ Generate a professional response:`;
         })();
       }
 
-      // Auto-sync wholesale (B2B) revenue from b2b_orders (non-blocking)
-      const missingWholesaleDays = dailyRevenue.filter(d => d.wholesaleRevenue == null);
-      if (missingWholesaleDays.length > 0) {
-        (async () => {
-          try {
-            const week = await storage.getRccWeek(weekId);
-            if (week) {
-              const wholesaleByDate = await storage.getB2bWholesaleRevenueByDateRange(week.weekStart, week.weekEnd);
-              for (const dayEntry of missingWholesaleDays) {
-                const wholesaleAmount = wholesaleByDate[dayEntry.date];
-                if (wholesaleAmount && parseFloat(wholesaleAmount) > 0) {
-                  await storage.upsertRccDailyRevenue({
-                    weekId: dayEntry.weekId,
-                    date: dayEntry.date,
-                    dayOfWeek: dayEntry.dayOfWeek,
-                    toastRevenue: dayEntry.toastRevenue,
-                    shopifyRevenue: dayEntry.shopifyRevenue,
-                    otherRevenue: dayEntry.otherRevenue,
-                    otherRevenueSource: dayEntry.otherRevenueSource,
-                    wholesaleRevenue: wholesaleAmount,
-                    notes: dayEntry.notes,
-                    weatherHigh: dayEntry.weatherHigh,
-                    weatherLow: dayEntry.weatherLow,
-                    weatherCondition: dayEntry.weatherCondition,
-                    weatherPrecipitation: dayEntry.weatherPrecipitation,
-                  });
-                  console.log(`[RCC] Auto-synced wholesale revenue for ${dayEntry.date}: $${wholesaleAmount}`);
-                }
+      // Auto-sync wholesale (B2B) revenue from b2b_orders (non-blocking, always refresh)
+      (async () => {
+        try {
+          const week = await storage.getRccWeek(weekId);
+          if (week) {
+            const wholesaleByDate = await storage.getB2bWholesaleRevenueByDateRange(week.weekStart, week.weekEnd);
+            for (const dayEntry of dailyRevenue) {
+              const wholesaleAmount = wholesaleByDate[dayEntry.date] || '0.00';
+              if (parseFloat(wholesaleAmount) !== parseFloat(dayEntry.wholesaleRevenue || '0')) {
+                await storage.upsertRccDailyRevenue({
+                  weekId: dayEntry.weekId,
+                  date: dayEntry.date,
+                  dayOfWeek: dayEntry.dayOfWeek,
+                  toastRevenue: dayEntry.toastRevenue,
+                  shopifyRevenue: dayEntry.shopifyRevenue,
+                  otherRevenue: dayEntry.otherRevenue,
+                  otherRevenueSource: dayEntry.otherRevenueSource,
+                  wholesaleRevenue: wholesaleAmount,
+                  notes: dayEntry.notes,
+                  weatherHigh: dayEntry.weatherHigh,
+                  weatherLow: dayEntry.weatherLow,
+                  weatherCondition: dayEntry.weatherCondition,
+                  weatherPrecipitation: dayEntry.weatherPrecipitation,
+                });
+                console.log(`[RCC] Auto-synced wholesale revenue for ${dayEntry.date}: $${wholesaleAmount}`);
               }
             }
-          } catch (err) {
-            console.error('[RCC] Failed to auto-sync wholesale revenue:', err);
           }
-        })();
-      }
+        } catch (err) {
+          console.error('[RCC] Failed to auto-sync wholesale revenue:', err);
+        }
+      })();
 
       const missingShopifyDays = dailyRevenue.filter(d => d.shopifyRevenue == null);
       if (missingShopifyDays.length > 0 && isShopifyAvailable()) {
@@ -18999,6 +18996,54 @@ Generate a professional response:`;
       }
       console.error('Error syncing Shopify revenue for date:', error);
       res.status(500).json({ message: 'Failed to sync Shopify revenue' });
+    }
+  });
+
+  // Sync wholesale (B2B) revenue for a specific date from b2b_orders
+  app.post('/api/rcc/daily-revenue/sync-wholesale-date', isAuthenticated, async (req, res) => {
+    try {
+      const { date, weekId } = req.body;
+      if (!date) {
+        return res.status(400).json({ message: 'date is required' });
+      }
+
+      const wholesaleByDate = await storage.getB2bWholesaleRevenueByDateRange(date, date);
+      const wholesaleAmount = wholesaleByDate[date] || '0.00';
+
+      const existing = await storage.getRccDailyRevenueByDate(date);
+      const targetWeekId = weekId || existing?.weekId;
+      if (!targetWeekId) {
+        return res.status(400).json({ message: 'weekId is required for new entries' });
+      }
+
+      const [dy, dm, dd] = date.split('-').map(Number);
+      const dateObj = new Date(dy, dm - 1, dd);
+
+      await storage.upsertRccDailyRevenue({
+        weekId: targetWeekId,
+        date,
+        dayOfWeek: dateObj.getDay(),
+        toastRevenue: existing?.toastRevenue,
+        shopifyRevenue: existing?.shopifyRevenue,
+        otherRevenue: existing?.otherRevenue,
+        otherRevenueSource: existing?.otherRevenueSource,
+        wholesaleRevenue: wholesaleAmount,
+        notes: existing?.notes,
+        weatherHigh: existing?.weatherHigh,
+        weatherLow: existing?.weatherLow,
+        weatherCondition: existing?.weatherCondition,
+        weatherPrecipitation: existing?.weatherPrecipitation,
+      });
+
+      console.log(`[RCC] Synced wholesale revenue for ${date}: $${wholesaleAmount}`);
+
+      res.json({
+        date,
+        wholesaleRevenue: wholesaleAmount,
+      });
+    } catch (error: any) {
+      console.error('Error syncing wholesale revenue for date:', error);
+      res.status(500).json({ message: 'Failed to sync wholesale revenue' });
     }
   });
 
