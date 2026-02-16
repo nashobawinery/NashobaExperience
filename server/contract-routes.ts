@@ -5,10 +5,20 @@ import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "./replitAuth";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import OpenAI from "openai";
-import * as pdfParseModule from "pdf-parse";
 import { randomUUID } from "crypto";
 
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+async function pdfParse(buffer: Buffer): Promise<{ text: string }> {
+  const mod = await import("pdf-parse");
+  const parse = (mod as any).default || (mod as any).PDFParse || mod;
+  if (typeof parse === "function") {
+    const result = await parse(buffer);
+    return { text: typeof result === "string" ? result : result.text || "" };
+  }
+  const parser = new (parse as any)(buffer);
+  await parser.load();
+  const text = await parser.getText();
+  return { text };
+}
 const router = Router();
 const objectStorageService = new ObjectStorageService();
 
