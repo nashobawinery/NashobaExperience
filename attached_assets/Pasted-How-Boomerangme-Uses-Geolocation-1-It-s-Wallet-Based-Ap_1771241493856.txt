@@ -1,0 +1,164 @@
+How Boomerangme Uses Geolocation
+1️⃣ It’s Wallet-Based (Apple Wallet / Google Wallet)
+
+When a customer signs up for loyalty:
+
+They receive a digital loyalty card
+
+They add it to Apple Wallet or Google Wallet
+
+The wallet pass contains a location radius
+
+Example:
+
+Nashoba Valley Winery
+
+Latitude/Longitude of property
+
+1–3 mile geofence radius
+
+When the phone enters that radius:
+👉 The wallet pass “wakes up”
+👉 A lock screen notification appears
+
+Example:
+“Welcome back to Nashoba! Show this pass to earn double points today.”
+
+That’s it.
+
+No app download required.
+No background tracking app.
+No creepy monitoring.
+
+It’s built into Apple/Google Wallet infrastructure.
+
+📱 What Actually Happens Technically
+
+Each wallet pass includes:
+
+"locations": [
+  {
+    "latitude": 42.583,
+    "longitude": -71.613,
+    "relevantText": "You're near Nashoba Valley Winery!"
+  }
+]
+
+
+Apple handles the rest.
+
+🧠 How Boomerangme Uses It Strategically
+
+They typically:
+
+Trigger #1 — “Welcome Back”
+
+When user enters property radius
+
+Trigger #2 — “You Have Points”
+
+Pass shows current points balance
+
+Trigger #3 — “Special Today”
+
+Flash offer displayed on wallet pass
+
+🚨 What It Does NOT Do
+
+It does NOT:
+
+Track customers continuously
+
+Send push notifications outside wallet
+
+Trigger based on complex AI conditions
+
+Cross-reference weather + revenue + segment
+
+It’s basic.
+
+💡 Where You Can Beat Them
+
+Because you have:
+
+Revenue intelligence
+
+Visit recency segmentation
+
+Lifetime spend
+
+Weather data
+
+SMS engine
+
+Toast integration
+
+Shopify integration
+
+You can make geolocation smart.
+
+🧠 Example: Your Smarter Version
+
+Instead of:
+“Welcome back!”
+
+You trigger:
+
+IF:
+
+Customer = At Risk (31–60 days)
+
+Lifetime Spend > $500
+
+Enters 3-mile radius
+
+Weather is clear
+
+Saturday afternoon
+
+THEN:
+Send:
+“Richard, your Gold Status tasting flight is waiting inside today. Show this for complimentary upgrade.”
+
+That is not Boomerangme.
+That is AI-driven revenue control.
+
+🧭 Important Decision
+
+There are 3 types of geolocation you can build:
+
+A) Basic Wallet Geofence (fast, simple)
+B) SMS Radius Trigger (complex, expensive)
+C) Hybrid Intelligent Geofence (wallet + AI decision engine)
+
+Boomerangme = A
+You should build C.
+
+🏗 What You Would Need To Implement Wallet Geolocation
+
+Apple Developer Account ($99/year)
+
+Passkit certificate
+
+Backend route to generate passes
+
+Update endpoint for pass changes
+
+Customer ID linking to pass
+
+It is not hard — but must be done properly.
+
+🎯 My Recommendation For Nashoba
+
+Build in this order:
+
+Central Loyalty Ledger (so pass has live data)
+
+Wallet Pass Generator
+
+Simple Geofence trigger
+
+THEN add intelligence layer
+
+Do not start with AI logic.
+Start with infrastructure.
