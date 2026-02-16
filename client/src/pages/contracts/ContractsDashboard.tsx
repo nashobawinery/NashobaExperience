@@ -285,7 +285,7 @@ export default function ContractsDashboard() {
   });
 
   const { data: documents = [], refetch: refetchDocs } = useQuery<ContractDocument[]>({
-    queryKey: ["/api/contracts", selectedContract?.id, "documents"],
+    queryKey: ["/api/contracts", String(selectedContract?.id), "documents"],
     enabled: !!selectedContract?.id,
   });
 
@@ -755,7 +755,7 @@ export default function ContractsDashboard() {
                     uploadedById: null,
                     uploadedByName: null,
                   });
-                  queryClient.invalidateQueries({ queryKey: ["/api/contracts", newContract.id, "documents"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/contracts", String(newContract.id), "documents"] });
                 } catch (docErr: any) {
                   console.error("Failed to attach document:", docErr);
                   toast({ title: "Contract created but document attachment failed", description: docErr.message, variant: "destructive" });
