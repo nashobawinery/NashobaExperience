@@ -2,7 +2,7 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { sendEmail, generateBrandedEmailFooter } from "./email";
 
-const NOTIFICATION_DAYS = [60, 45, 30, 15];
+const ALL_NOTIFICATION_DAYS = [90, 60, 45, 30, 15, 7];
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 
 export function initContractReminders() {
@@ -11,16 +11,21 @@ export function initContractReminders() {
   setInterval(checkAndSendReminders, CHECK_INTERVAL);
 }
 
+function parseNotificationSchedule(schedule: string | null): number[] {
+  if (!schedule) return [60, 45, 30, 15];
+  return schedule.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+}
+
 async function checkAndSendReminders() {
   try {
-    for (const daysOut of NOTIFICATION_DAYS) {
+    for (const daysOut of ALL_NOTIFICATION_DAYS) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + daysOut);
       const dateStr = targetDate.toISOString().split("T")[0];
 
       const expiringContracts = await db.execute(sql`
         SELECT c.id, c.name, c.vendor, c.expiration_date, c.amount, c.category,
-               c.notifications_sent, c.status
+               c.notifications_sent, c.status, c.notification_schedule
         FROM contract_contracts c
         WHERE c.status IN ('active', 'expiring_soon')
           AND c.expiration_date IS NOT NULL
@@ -28,6 +33,9 @@ async function checkAndSendReminders() {
       `);
 
       for (const contract of expiringContracts.rows as any[]) {
+        const contractSchedule = parseNotificationSchedule(contract.notification_schedule);
+        if (!contractSchedule.includes(daysOut)) continue;
+
         const sent: Record<string, boolean> = parseNotificationsSent(contract.notifications_sent);
         const key = `day_${daysOut}`;
 

@@ -88,6 +88,8 @@ type Contract = {
     lastName: string;
     email: string;
   }>;
+  notificationSchedule: string | null;
+  notification_schedule?: string | null;
   document_count: number | string;
 };
 
@@ -140,6 +142,7 @@ const contractFormSchema = z.object({
   amount: z.string().optional(),
   paymentFrequency: z.string().optional(),
   renewalTerms: z.string().optional(),
+  notificationSchedule: z.string().optional(),
   notes: z.string().optional(),
   status: z.string().optional(),
 });
@@ -183,6 +186,15 @@ const FREQUENCY_OPTIONS = [
   { value: "semi-annually", label: "Semi-Annually" },
   { value: "annually", label: "Annually" },
   { value: "one-time", label: "One-Time" },
+];
+
+const NOTIFICATION_SCHEDULE_OPTIONS = [
+  { value: "90,60,45,30,15,7", label: "All Reminders (90, 60, 45, 30, 15, 7 days)" },
+  { value: "60,45,30,15", label: "Standard (60, 45, 30, 15 days)" },
+  { value: "30,15,7", label: "Short Notice (30, 15, 7 days)" },
+  { value: "60,30", label: "Minimal (60, 30 days)" },
+  { value: "30", label: "30 Days Only" },
+  { value: "none", label: "No Notifications" },
 ];
 
 function formatCurrency(amount: string | null): string {
@@ -252,6 +264,12 @@ export default function ContractsDashboard() {
   const [renewUserIds, setRenewUserIds] = useState<string[]>([]);
   const [extractedData, setExtractedData] = useState<any>(null);
   const [extractingDocId, setExtractingDocId] = useState<number | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{
+    objectPath: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: contracts = [], isLoading: contractsLoading } = useQuery<Contract[]>({
@@ -438,6 +456,7 @@ export default function ContractsDashboard() {
   const openCreate = () => {
     setEditingContract(null);
     setSelectedUserIds([]);
+    setPendingUpload(null);
     setFormOpen(true);
   };
 
@@ -715,14 +734,37 @@ export default function ContractsDashboard() {
         users={users}
         selectedUserIds={selectedUserIds}
         onToggleUser={(id) => toggleUserId(selectedUserIds, setSelectedUserIds, id)}
-        onSubmit={(values) => {
+        onSubmit={async (values, uploadInfo) => {
           if (editingContract) {
             updateMutation.mutate({
               id: editingContract.id,
               data: { ...values, responsibleUserIds: selectedUserIds },
             });
           } else {
-            createMutation.mutate({ ...values, responsibleUserIds: selectedUserIds });
+            try {
+              const res = await apiRequest("POST", "/api/contracts", { ...values, responsibleUserIds: selectedUserIds });
+              const newContract = await res.json();
+              const uploadData = uploadInfo || pendingUpload;
+              if (uploadData && newContract?.id) {
+                try {
+                  await apiRequest("POST", `/api/contracts/${newContract.id}/documents`, {
+                    fileName: uploadData.fileName,
+                    objectPath: uploadData.objectPath,
+                    fileSize: uploadData.fileSize,
+                    mimeType: uploadData.mimeType,
+                    uploadedById: null,
+                    uploadedByName: null,
+                  });
+                } catch {}
+              }
+              queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+              toast({ title: "Contract created successfully" });
+              setFormOpen(false);
+              setSelectedUserIds([]);
+              setPendingUpload(null);
+            } catch (err: any) {
+              toast({ title: "Failed to create contract", description: err.message, variant: "destructive" });
+            }
           }
         }}
         isPending={createMutation.isPending || updateMutation.isPending}
@@ -1088,10 +1130,24 @@ function ContractFormDialog({
   users: PlatformUser[];
   selectedUserIds: string[];
   onToggleUser: (id: string) => void;
-  onSubmit: (values: ContractFormValues) => void;
+  onSubmit: (values: ContractFormValues, uploadInfo?: { objectPath: string; fileName: string; fileSize: number; mimeType: string } | null) => void;
   isPending: boolean;
 }) {
+  const { toast } = useToast();
   const isEdit = !!contract;
+  const [step, setStep] = useState<1 | 2>(isEdit ? 2 : 1);
+  const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [uploadedFileInfo, setUploadedFileInfo] = useState<{
+    objectPath: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  } | null>(null);
+  const [extractionResult, setExtractionResult] = useState<any>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<ContractFormValues>({
     resolver: zodResolver(contractFormSchema),
@@ -1105,6 +1161,7 @@ function ContractFormDialog({
       amount: "",
       paymentFrequency: "",
       renewalTerms: "",
+      notificationSchedule: "60,45,30,15",
       notes: "",
       status: "active",
     },
@@ -1124,9 +1181,11 @@ function ContractFormDialog({
         amount: contract.amount || "",
         paymentFrequency: getField<string | null>(contract, "paymentFrequency", "payment_frequency") || "",
         renewalTerms: getField<string | null>(contract, "renewalTerms", "renewal_terms") || "",
+        notificationSchedule: getField<string | null>(contract, "notificationSchedule", "notification_schedule") || "60,45,30,15",
         notes: contract.notes || "",
         status: contract.status,
       });
+      setStep(2);
     } else {
       reset({
         name: "",
@@ -1138,11 +1197,88 @@ function ContractFormDialog({
         amount: "",
         paymentFrequency: "",
         renewalTerms: "",
+        notificationSchedule: "60,45,30,15",
         notes: "",
         status: "active",
       });
+      setStep(1);
+      setUploadedFileInfo(null);
+      setExtractionResult(null);
     }
   });
+
+  const handleUploadAndExtract = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      const urlRes = await apiRequest("POST", "/api/contracts/upload-url");
+      const { uploadUrl, objectPath } = await urlRes.json();
+
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+
+      const fileInfo = {
+        objectPath,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+      };
+      setUploadedFileInfo(fileInfo);
+      setUploading(false);
+
+      setExtracting(true);
+      try {
+        const extractRes = await apiRequest("POST", "/api/contracts/extract-from-path", {
+          objectPath,
+          fileName: file.name,
+        });
+        const { extractedData } = await extractRes.json();
+        setExtractionResult(extractedData);
+        setExtracting(false);
+
+        setTimeout(() => {
+          const formValues: any = {
+            name: extractedData.contractName || "",
+            vendor: extractedData.vendor || "",
+            category: extractedData.category || "other",
+            description: extractedData.description || "",
+            startDate: extractedData.startDate || "",
+            expirationDate: extractedData.expirationDate || "",
+            amount: extractedData.amount ? String(extractedData.amount) : "",
+            paymentFrequency: extractedData.paymentFrequency || "",
+            renewalTerms: extractedData.renewalTerms || "",
+            notificationSchedule: "60,45,30,15",
+            notes: "",
+            status: "active",
+          };
+          reset(formValues);
+          setStep(2);
+        }, 1500);
+      } catch (err: any) {
+        setExtracting(false);
+        toast({ title: "AI extraction failed", description: err.message, variant: "destructive" });
+        setStep(2);
+      }
+    } catch (err: any) {
+      setUploading(false);
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
+  }, [reset, toast]);
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleUploadAndExtract(file);
+  }, [handleUploadAndExtract]);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleUploadAndExtract(file);
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+  }, [handleUploadAndExtract]);
 
   const getUserName = (user: PlatformUser) => {
     const first = user.firstName || user.first_name || "";
@@ -1150,169 +1286,301 @@ function ContractFormDialog({
     return `${first} ${last}`.trim() || user.email;
   };
 
+  const getUserEmail = (user: PlatformUser) => user.email;
+
+  const handleFormSubmit = async (values: ContractFormValues) => {
+    setSubmitting(true);
+    try {
+      await onSubmit(values, uploadedFileInfo);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const selectedCount = selectedUserIds.length;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Contract" : "Add Contract"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit Contract" : step === 1 ? "Add Contract" : "Add Contract"}
+          </DialogTitle>
           <DialogDescription>
-            {isEdit ? "Update contract details" : "Create a new contract record"}
+            {isEdit
+              ? "Update contract details"
+              : step === 1
+              ? "Upload a contract document for AI-assisted data entry, or enter details manually"
+              : extractionResult
+              ? "Review the AI-extracted data and make any corrections before saving"
+              : "Fill in the contract details"}
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-3"
-            data-testid="form-contract"
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contract Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-name" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+        {!isEdit && step === 1 && (
+          <div className="space-y-4">
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc"
+              className="hidden"
+              onChange={handleFileInputChange}
+              data-testid="input-upload-contract-file"
             />
-            <FormField
-              control={form.control}
-              name="vendor"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vendor</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-vendor" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-3">
+
+            {!uploading && !extracting && !extractionResult && (
+              <>
+                <div
+                  className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors ${
+                    dragOver
+                      ? "border-primary bg-primary/5"
+                      : "border-muted-foreground/25 hover:border-primary/50"
+                  }`}
+                  onClick={() => uploadInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleFileDrop}
+                  data-testid="dropzone-upload"
+                >
+                  <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+                  <p className="text-sm font-medium">
+                    Drag and drop a contract PDF here, or click to select
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PDF, DOC, or DOCX files supported
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t" />
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <div className="flex-1 border-t" />
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep(2)}
+                  data-testid="button-skip-upload"
+                >
+                  Skip - Enter Manually
+                </Button>
+              </>
+            )}
+
+            {uploading && (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Uploading document...</p>
+              </div>
+            )}
+
+            {extracting && (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <Sparkles className="w-8 h-8 animate-pulse text-primary" />
+                <p className="text-sm text-muted-foreground">Extracting contract data with AI...</p>
+              </div>
+            )}
+
+            {extractionResult && !extracting && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  AI extraction complete - loading form...
+                </div>
+                <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+                  {extractionResult.contractName && (
+                    <p><span className="text-muted-foreground">Name:</span> {extractionResult.contractName}</p>
+                  )}
+                  {extractionResult.vendor && (
+                    <p><span className="text-muted-foreground">Vendor:</span> {extractionResult.vendor}</p>
+                  )}
+                  {extractionResult.amount && (
+                    <p><span className="text-muted-foreground">Amount:</span> {formatCurrency(String(extractionResult.amount))}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleFormSubmit)}
+              className="space-y-3"
+              data-testid="form-contract"
+            >
               <FormField
                 control={form.control}
-                name="category"
+                name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-category">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Contract Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-name" />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {isEdit && (
+              <FormField
+                control={form.control}
+                name="vendor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vendor</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-vendor" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
-                  name="status"
+                  name="category"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
+                      <FormLabel>Category</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger data-testid="select-status">
+                          <SelectTrigger data-testid="select-category">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="expiring_soon">Expiring Soon</SelectItem>
-                          <SelectItem value="expired">Expired</SelectItem>
-                          <SelectItem value="renewed">Renewed</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-            </div>
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} data-testid="input-description" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-3">
+                {isEdit && (
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-status">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="expiring_soon">Expiring Soon</SelectItem>
+                            <SelectItem value="expired">Expired</SelectItem>
+                            <SelectItem value="renewed">Renewed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
               <FormField
                 control={form.control}
-                name="startDate"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} data-testid="input-start-date" />
+                      <Textarea {...field} rows={2} data-testid="input-description" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="expirationDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Expiration Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} data-testid="input-expiration-date" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                control={form.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount ($)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" {...field} data-testid="input-amount" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="paymentFrequency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Payment Frequency</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date</FormLabel>
                       <FormControl>
-                        <SelectTrigger data-testid="select-payment-frequency">
+                        <Input type="date" {...field} data-testid="input-start-date" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="expirationDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expiration Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-expiration-date" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" {...field} data-testid="input-amount" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="paymentFrequency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Payment Frequency</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-payment-frequency">
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {FREQUENCY_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="notificationSchedule"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notification Schedule</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "60,45,30,15"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-notification-schedule">
                           <SelectValue placeholder="Select..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {FREQUENCY_OPTIONS.map((opt) => (
+                        {NOTIFICATION_SCHEDULE_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -1323,75 +1591,123 @@ function ContractFormDialog({
                   </FormItem>
                 )}
               />
-            </div>
-            <FormField
-              control={form.control}
-              name="renewalTerms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Renewal Terms</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} data-testid="input-renewal-terms" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} data-testid="input-notes" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div>
-              <label className="text-sm font-medium">Responsible Users</label>
-              <div className="mt-1 border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
-                {users.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No users available</p>
-                ) : (
-                  users.map((user) => (
-                    <label
-                      key={user.id}
-                      className="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover-elevate"
-                      data-testid={`checkbox-user-${user.id}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedUserIds.includes(user.id)}
-                        onChange={() => onToggleUser(user.id)}
-                        className="rounded"
-                      />
-                      {getUserName(user)}
-                    </label>
-                  ))
+              <FormField
+                control={form.control}
+                name="renewalTerms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Renewal Terms</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} rows={2} data-testid="input-renewal-terms" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-            </div>
+              />
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} rows={2} data-testid="input-notes" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <DialogFooter className="gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                data-testid="button-cancel"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isPending} data-testid="button-save-contract">
-                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isEdit ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              {uploadedFileInfo && !isEdit && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md text-sm">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="truncate">{uploadedFileInfo.fileName}</span>
+                  <Badge variant="secondary" className="no-default-hover-elevate ml-auto shrink-0">
+                    Attached
+                  </Badge>
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="text-sm font-medium">Responsible Users</label>
+                  {selectedCount > 0 && (
+                    <Badge variant="secondary" className="no-default-hover-elevate">
+                      {selectedCount} selected
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-1 border rounded-md p-2 max-h-40 overflow-y-auto space-y-1">
+                  {users.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No users available</p>
+                  ) : (
+                    users.map((user) => (
+                      <label
+                        key={user.id}
+                        className="flex items-center gap-2 text-sm cursor-pointer p-1.5 rounded hover-elevate"
+                        data-testid={`checkbox-user-${user.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(user.id)}
+                          onChange={() => onToggleUser(user.id)}
+                          className="rounded"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate">{getUserName(user)}</div>
+                          <div className="text-xs text-muted-foreground truncate">{getUserEmail(user)}</div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 pt-2">
+                {!isEdit && uploadedFileInfo && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep(1);
+                      setUploadedFileInfo(null);
+                      setExtractionResult(null);
+                      reset({
+                        name: "",
+                        vendor: "",
+                        category: "other",
+                        description: "",
+                        startDate: "",
+                        expirationDate: "",
+                        amount: "",
+                        paymentFrequency: "",
+                        renewalTerms: "",
+                        notificationSchedule: "60,45,30,15",
+                        notes: "",
+                        status: "active",
+                      });
+                    }}
+                    data-testid="button-back-to-upload"
+                  >
+                    Back
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  data-testid="button-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending || submitting} data-testid="button-save-contract">
+                  {(isPending || submitting) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isEdit ? "Update" : "Create"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1430,6 +1746,7 @@ function RenewDialog({
       amount: "",
       paymentFrequency: "",
       renewalTerms: "",
+      notificationSchedule: "60,45,30,15",
       notes: "",
     },
   });
@@ -1448,6 +1765,7 @@ function RenewDialog({
         amount: contract.amount || "",
         paymentFrequency: getField<string | null>(contract, "paymentFrequency", "payment_frequency") || "",
         renewalTerms: getField<string | null>(contract, "renewalTerms", "renewal_terms") || "",
+        notificationSchedule: getField<string | null>(contract, "notificationSchedule", "notification_schedule") || "60,45,30,15",
         notes: "",
       });
     }
@@ -1458,6 +1776,9 @@ function RenewDialog({
     const last = user.lastName || user.last_name || "";
     return `${first} ${last}`.trim() || user.email;
   };
+
+  const getUserEmail = (user: PlatformUser) => user.email;
+  const selectedCount = selectedUserIds.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1607,6 +1928,30 @@ function RenewDialog({
             </div>
             <FormField
               control={form.control}
+              name="notificationSchedule"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notification Schedule</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "60,45,30,15"}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-renew-notification-schedule">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {NOTIFICATION_SCHEDULE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="renewalTerms"
               render={({ field }) => (
                 <FormItem>
@@ -1633,15 +1978,22 @@ function RenewDialog({
             />
 
             <div>
-              <label className="text-sm font-medium">Responsible Users</label>
-              <div className="mt-1 border rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
+              <div className="flex items-center gap-2 mb-1">
+                <label className="text-sm font-medium">Responsible Users</label>
+                {selectedCount > 0 && (
+                  <Badge variant="secondary" className="no-default-hover-elevate">
+                    {selectedCount} selected
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-1 border rounded-md p-2 max-h-40 overflow-y-auto space-y-1">
                 {users.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No users available</p>
                 ) : (
                   users.map((user) => (
                     <label
                       key={user.id}
-                      className="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover-elevate"
+                      className="flex items-center gap-2 text-sm cursor-pointer p-1.5 rounded hover-elevate"
                       data-testid={`checkbox-renew-user-${user.id}`}
                     >
                       <input
@@ -1650,7 +2002,10 @@ function RenewDialog({
                         onChange={() => onToggleUser(user.id)}
                         className="rounded"
                       />
-                      {getUserName(user)}
+                      <div className="min-w-0">
+                        <div className="truncate">{getUserName(user)}</div>
+                        <div className="text-xs text-muted-foreground truncate">{getUserEmail(user)}</div>
+                      </div>
                     </label>
                   ))
                 )}

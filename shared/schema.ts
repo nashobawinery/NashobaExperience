@@ -5127,6 +5127,7 @@ export const contracts = pgTable("contract_contracts", {
   status: contractStatusEnum("status").notNull().default("active"),
   renewedFromId: integer("renewed_from_id"),
   notes: text("notes"),
+  notificationSchedule: varchar("notification_schedule", { length: 100 }).default("60,45,30,15"),
   notificationsSent: text("notifications_sent").default("{}"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

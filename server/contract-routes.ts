@@ -104,6 +104,7 @@ router.post("/", isAuthenticated, async (req, res) => {
       renewalTerms: contractData.renewalTerms || null,
       amount: contractData.amount || null,
       paymentFrequency: contractData.paymentFrequency || null,
+      notificationSchedule: contractData.notificationSchedule || "60,45,30,15",
       status: contractData.status || "active",
       renewedFromId: contractData.renewedFromId || null,
       notes: contractData.notes || null,
@@ -142,6 +143,7 @@ router.patch("/:id", isAuthenticated, async (req, res) => {
     if (contractData.renewalTerms !== undefined) updateFields.renewalTerms = contractData.renewalTerms;
     if (contractData.amount !== undefined) updateFields.amount = contractData.amount;
     if (contractData.paymentFrequency !== undefined) updateFields.paymentFrequency = contractData.paymentFrequency;
+    if (contractData.notificationSchedule !== undefined) updateFields.notificationSchedule = contractData.notificationSchedule;
     if (contractData.status !== undefined) updateFields.status = contractData.status;
     if (contractData.notes !== undefined) updateFields.notes = contractData.notes;
 
@@ -243,6 +245,84 @@ router.post("/:id/documents", isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error("Error saving document:", error);
     res.status(500).json({ error: "Failed to save document" });
+  }
+});
+
+router.post("/extract-from-path", isAuthenticated, async (req, res) => {
+  try {
+    const { objectPath, fileName } = req.body;
+    if (!objectPath) {
+      return res.status(400).json({ error: "objectPath is required" });
+    }
+
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return res.status(404).json({ error: "File not found in storage" });
+    }
+
+    const [buffer] = await file.download();
+    let textContent = "";
+    const isPdf = (fileName || "").toLowerCase().endsWith(".pdf") || objectPath.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      const pdfData = await pdfParse(buffer);
+      textContent = pdfData.text;
+    } else {
+      textContent = buffer.toString("utf-8");
+    }
+
+    if (!textContent || textContent.trim().length < 10) {
+      return res.status(400).json({ error: "Could not extract meaningful text from document. The document may be image-based or empty." });
+    }
+
+    const truncatedText = textContent.substring(0, 8000);
+
+    const openai = new OpenAI();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a contract analysis assistant. Extract key information from the contract text and return a JSON object with the following fields (use null for any field you cannot determine):
+{
+  "vendor": "Company or organization name of the other party",
+  "contractName": "A descriptive name for this contract",
+  "description": "Brief 1-2 sentence description of what this contract covers",
+  "startDate": "YYYY-MM-DD format or null",
+  "expirationDate": "YYYY-MM-DD format or null",
+  "amount": "Total dollar amount as a number (no $ sign or commas) or null",
+  "paymentFrequency": "monthly/quarterly/semi-annually/annually/one-time or null",
+  "renewalTerms": "Brief description of renewal terms or auto-renewal clauses",
+  "category": "One of: insurance, waste_disposal, software, equipment, utilities, maintenance, professional_services, lease, licensing, other",
+  "keyTerms": ["Array of 3-5 key terms or obligations"],
+  "summary": "A comprehensive 3-5 sentence summary of the contract covering the parties, purpose, key obligations, financial terms, and important dates"
+}
+Return ONLY valid JSON, no markdown.`
+        },
+        {
+          role: "user",
+          content: `Extract the key information from this contract document:\n\n${truncatedText}`
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500,
+    });
+
+    const responseText = completion.choices[0]?.message?.content || "{}";
+    let extractedData: any;
+    try {
+      extractedData = JSON.parse(responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+    } catch {
+      extractedData = { raw: responseText, parseError: true };
+    }
+
+    res.json({ extractedData, summary: extractedData.summary || null });
+  } catch (error: any) {
+    console.error("Error extracting from uploaded file:", error);
+    res.status(500).json({ error: error.message || "Failed to extract document data" });
   }
 });
 
@@ -352,6 +432,7 @@ router.post("/:id/renew", isAuthenticated, async (req, res) => {
       renewalTerms: newContractData.renewalTerms || null,
       amount: newContractData.amount || null,
       paymentFrequency: newContractData.paymentFrequency || null,
+      notificationSchedule: newContractData.notificationSchedule || "60,45,30,15",
       status: "active",
       renewedFromId: oldId,
       notes: newContractData.notes || null,
