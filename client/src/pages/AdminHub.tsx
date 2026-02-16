@@ -196,8 +196,8 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
     return rbac?.moduleAccess[moduleKey] === true;
   };
 
-  // Filter modules to show only those the user has access to
-  const accessibleModules = modules?.filter(module => hasModuleAccess(module.moduleKey)) || [];
+  // Filter modules to show only those the user has access to (hide inactive modules)
+  const accessibleModules = modules?.filter(module => module.status !== 'inactive' && hasModuleAccess(module.moduleKey)) || [];
   
   // Count of accessible active modules
   const activeModuleCount = accessibleModules.filter(m => m.status === 'active').length;
