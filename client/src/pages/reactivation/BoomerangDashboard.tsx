@@ -1708,8 +1708,8 @@ export function CustomerBrowser() {
                     <div key={i} className="flex items-center gap-2 text-sm">
                       <Mail className="h-3 w-3 text-muted-foreground" />
                       <span>{e.email}</span>
-                      <Badge variant="outline" className="text-xs py-0">
-                        {e.preference === "OPT_IN" ? "Opted In" : e.preference === "OPT_OUT" ? "Opted Out" : e.preference || "Unknown"}
+                      <Badge variant="outline" className={`text-xs py-0 ${e.preference === "OPT_OUT" ? "border-red-300 text-red-600 dark:border-red-700 dark:text-red-400" : "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400"}`} data-testid={`badge-email-pref-${i}`}>
+                        {e.preference === "OPT_OUT" ? "Email Opted Out" : "Email Subscribed"}
                       </Badge>
                     </div>
                   ))}
@@ -1722,6 +1722,9 @@ export function CustomerBrowser() {
                     <div key={i} className="flex items-center gap-2 text-sm">
                       <Phone className="h-3 w-3 text-muted-foreground" />
                       <span>{p.phone}</span>
+                      <Badge variant="outline" className={`text-xs py-0 ${p.preference === "OPT_OUT" ? "border-red-300 text-red-600 dark:border-red-700 dark:text-red-400" : "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400"}`} data-testid={`badge-phone-pref-${i}`}>
+                        {p.preference === "OPT_OUT" ? "SMS Opted Out" : "SMS Subscribed"}
+                      </Badge>
                     </div>
                   ))}
                 </div>

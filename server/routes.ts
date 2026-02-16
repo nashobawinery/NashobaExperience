@@ -29,6 +29,7 @@ import toastApiRouter from "./reactivation/toast-routes";
 import targetingRouter from "./reactivation/targeting-routes";
 import shopifyRouter from "./shopify/shopify-routes";
 import smsCampaignRouter from "./sms-campaign-routes";
+import unsubscribeRouter from "./unsubscribe-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
@@ -124,6 +125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/targeting", targetingRouter);
   app.use("/api/shopify", shopifyRouter);
   app.use("/api/sms", smsCampaignRouter);
+  app.use("/api/unsubscribe", unsubscribeRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();

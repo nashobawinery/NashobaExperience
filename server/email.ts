@@ -2,6 +2,7 @@ import type { Product, CartItem, Favorite, B2bSystemTemplateCustomization } from
 import sgMail from "@sendgrid/mail";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { generateUnsubscribeUrl } from "./unsubscribe-routes";
 
 interface EmailCustomization {
   subject?: string | null;
@@ -84,7 +85,13 @@ export function generateBrandedEmailHeader(title: string, subtitle?: string): st
 /**
  * Generates branded email footer with contact info and warm closing
  */
-export function generateBrandedEmailFooter(includeContact: boolean = true): string {
+export function generateBrandedEmailFooter(includeContact: boolean = true, customerId?: number): string {
+  const unsubscribeHtml = customerId
+    ? `<p style="margin: 10px 0 0; font-size: 11px; color: #999;">
+        <a href="${generateUnsubscribeUrl(customerId, "email")}" style="color: #999; text-decoration: underline;">Unsubscribe</a> from marketing emails
+      </p>`
+    : '';
+
   return `
     <div style="background-color: ${BRAND_COLORS.cream}; padding: 30px 20px; text-align: center; border-top: 3px solid ${BRAND_COLORS.gold};">
       <p style="margin: 0 0 15px; font-family: Georgia, 'Times New Roman', serif; font-size: 18px; color: ${BRAND_COLORS.burgundy};">
@@ -107,6 +114,7 @@ export function generateBrandedEmailFooter(includeContact: boolean = true): stri
       <p style="margin: 5px 0 0; font-size: 11px; color: #999;">
         &copy; ${new Date().getFullYear()} Nashoba Valley Winery. All rights reserved.
       </p>
+      ${unsubscribeHtml}
     </div>
   `;
 }

@@ -24,6 +24,7 @@ const AppleGameComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
 const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
+const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 
 // Lazy load LMS module
 const LmsAdminDashboard = lazy(() => import("@/pages/lms/LmsAdminDashboard"));
@@ -748,6 +749,14 @@ function ResetPasswordRoute() {
   );
 }
 
+function UnsubscribeRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <UnsubscribePage />
+    </Suspense>
+  );
+}
+
 function FutureConceptsRoute() {
   const { isLoading, isAdmin } = useAuth();
 
@@ -1121,6 +1130,7 @@ function Router() {
         <Route path="/command-center" component={CommandCenterRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
+        <Route path="/unsubscribe" component={UnsubscribeRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />
         <Route path="/lms" component={LmsLearnerRoute} />

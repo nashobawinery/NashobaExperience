@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { smsCampaigns, smsMessages } from "@shared/schema";
 import { sendSMS, isSmsConfigured } from "./sms";
 import { isAuthenticated } from "./replitAuth";
+import { generateUnsubscribeUrl } from "./unsubscribe-routes";
 
 const router = Router();
 
@@ -161,13 +162,15 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
     for (const recipient of recipients.rows as any[]) {
       const firstName = recipient.first_name || "Friend";
       const personalizedMessage = c.message.replace(/\{first_name\}/gi, firstName);
+      const unsubUrl = generateUnsubscribeUrl(recipient.id, "sms");
+      const fullMessage = `${personalizedMessage}\n\nTo opt out: ${unsubUrl}`;
 
       try {
-        const result = await sendSMS(recipient.phone1, personalizedMessage);
+        const result = await sendSMS(recipient.phone1, fullMessage);
 
         await db.execute(sql`
           INSERT INTO sms_messages (campaign_id, toast_guest_id, recipient_phone, recipient_name, message_body, status, twilio_sid, sent_at)
-          VALUES (${parseInt(id)}, ${recipient.id}, ${recipient.phone1}, ${firstName + ' ' + (recipient.last_name || '')}, ${personalizedMessage}, ${result.success ? 'sent' : 'failed'}, ${result.messageId || null}, NOW())
+          VALUES (${parseInt(id)}, ${recipient.id}, ${recipient.phone1}, ${firstName + ' ' + (recipient.last_name || '')}, ${fullMessage}, ${result.success ? 'sent' : 'failed'}, ${result.messageId || null}, NOW())
         `);
 
         if (result.success) {
@@ -185,7 +188,7 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
         failed++;
         await db.execute(sql`
           INSERT INTO sms_messages (campaign_id, toast_guest_id, recipient_phone, recipient_name, message_body, status, error_message, sent_at)
-          VALUES (${parseInt(id)}, ${recipient.id}, ${recipient.phone1}, ${firstName}, ${personalizedMessage}, 'failed', ${error.message}, NOW())
+          VALUES (${parseInt(id)}, ${recipient.id}, ${recipient.phone1}, ${firstName}, ${fullMessage}, 'failed', ${error.message}, NOW())
         `);
       }
     }
@@ -193,7 +196,7 @@ router.post("/campaigns/:id/send", isAuthenticated, async (req, res) => {
     const remainingResult = await db.execute(sql`
       SELECT COUNT(*) as remaining FROM toast_guests
       WHERE phone1 IS NOT NULL AND phone1 != ''
-      AND phone1_marketing_preference != 'OPT_OUT'
+      AND (phone1_marketing_preference IS NULL OR phone1_marketing_preference != 'OPT_OUT')
       AND merged_into_id IS NULL
       ${segmentCondition}
       AND id NOT IN (SELECT toast_guest_id FROM sms_messages WHERE campaign_id = ${parseInt(id)} AND toast_guest_id IS NOT NULL)
