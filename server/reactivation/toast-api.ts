@@ -105,6 +105,69 @@ export async function getOrdersByBusinessDate(
   return toastApiRequest(path, restaurantGuid);
 }
 
+const ACTIVITY_CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
+  {
+    category: "Tasting Room",
+    keywords: ["tasting", "flight", "wine tasting", "wine flight", "spirit tasting", "spirits tasting", "spirit flight", "beer tasting", "beer flight", "sample", "winery"],
+  },
+  {
+    category: "Restaurant",
+    keywords: ["burger", "steak", "salad", "sandwich", "soup", "appetizer", "entree", "dessert", "pizza", "pasta", "chicken", "fish", "lobster", "fries", "chowder", "wings", "nachos", "tacos", "flatbread", "risotto", "pork", "lamb", "shrimp", "scallop", "breakfast", "brunch", "lunch", "dinner"],
+  },
+  {
+    category: "Brewery",
+    keywords: ["ipa", "ale", "lager", "stout", "porter", "pilsner", "wheat beer", "hefeweizen", "draft beer", "pint", "growler", "crowler", "beer"],
+  },
+  {
+    category: "Winery",
+    keywords: ["wine", "chardonnay", "cabernet", "merlot", "pinot", "riesling", "sauvignon", "zinfandel", "rosé", "rose", "red blend", "white blend", "sparkling", "prosecco", "champagne", "bottle wine", "glass wine"],
+  },
+  {
+    category: "Distillery",
+    keywords: ["whiskey", "bourbon", "vodka", "gin", "rum", "brandy", "cognac", "tequila", "mezcal", "spirit", "cocktail", "martini", "margarita", "old fashioned", "manhattan", "negroni", "mojito", "daiquiri", "distillery"],
+  },
+  {
+    category: "Events",
+    keywords: ["event", "private", "party", "wedding", "banquet", "catering", "group", "reservation", "ticket", "admission", "concert", "festival", "music"],
+  },
+  {
+    category: "Retail",
+    keywords: ["merchandise", "gift", "t-shirt", "shirt", "hat", "mug", "glass", "bottle", "case", "pack", "6-pack", "12-pack", "to go", "take home", "retail"],
+  },
+];
+
+export function categorizeOrderItems(order: any): string[] {
+  const categories = new Set<string>();
+  const checks = order.checks || [];
+
+  for (const check of checks) {
+    if (check.voided || check.deleted) continue;
+
+    for (const selection of (check.selections || [])) {
+      if (selection.voided) continue;
+      const itemName = (selection.displayName || "").toLowerCase();
+      if (!itemName) continue;
+
+      for (const rule of ACTIVITY_CATEGORY_RULES) {
+        if (rule.keywords.some(kw => itemName.includes(kw))) {
+          categories.add(rule.category);
+          break;
+        }
+      }
+    }
+  }
+
+  const diningBehavior = (order.diningOption || "").toUpperCase();
+  if (diningBehavior === "DINE_IN" && categories.size === 0) {
+    categories.add("Restaurant");
+  }
+  if (diningBehavior === "TAKE_OUT" && categories.size === 0) {
+    categories.add("Retail");
+  }
+
+  return Array.from(categories);
+}
+
 function calculateNetSalesFromOrder(order: any): number {
   if (order.voided || order.deleted) return 0;
 
@@ -226,6 +289,8 @@ export async function syncGuestFromOrder(order: any): Promise<{ created: boolean
   const orderDate = order.closedDate || order.modifiedDate || order.createdDate;
   const parsedDate = orderDate ? new Date(orderDate) : new Date();
 
+  const orderCategories = categorizeOrderItems(order);
+
   const existing = await db.execute(sql`
     SELECT * FROM toast_guests
     WHERE guest_guid = ${guestGuid}
@@ -246,6 +311,14 @@ export async function syncGuestFromOrder(order: any): Promise<{ created: boolean
     const newLastVisit = !lastVisit || parsedDate > lastVisit ? parsedDate : lastVisit;
     const daysSince = Math.floor((Date.now() - newLastVisit.getTime()) / (1000 * 60 * 60 * 24));
 
+    const existingCategories = new Set<string>(
+      (guest.activity_categories || "").split(";").filter((c: string) => c.trim())
+    );
+    for (const cat of orderCategories) {
+      existingCategories.add(cat);
+    }
+    const mergedCategories = Array.from(existingCategories).join(";");
+
     await db.execute(sql`
       UPDATE toast_guests SET
         total_visits = ${newVisits},
@@ -254,6 +327,7 @@ export async function syncGuestFromOrder(order: any): Promise<{ created: boolean
         last_visit_date = ${newLastVisit},
         days_since_last_visit = ${daysSince},
         reactivation_segment = ${computeReactivationSegment(daysSince)},
+        activity_categories = ${mergedCategories || null},
         first_name = COALESCE(NULLIF(${firstName || ""}, ''), first_name),
         last_name = COALESCE(NULLIF(${lastName || ""}, ''), last_name),
         email1 = COALESCE(NULLIF(${email || ""}, ''), email1),
@@ -266,25 +340,32 @@ export async function syncGuestFromOrder(order: any): Promise<{ created: boolean
   }
 
   const daysSince = Math.floor((Date.now() - parsedDate.getTime()) / (1000 * 60 * 60 * 24));
+  const categoriesStr = orderCategories.length > 0 ? orderCategories.join(";") : null;
 
   await db.execute(sql`
     INSERT INTO toast_guests (
       guest_guid, email1, phone1, first_name, last_name,
       first_visit_date, last_visit_date, total_visits,
       average_spend, lifetime_spend, days_since_last_visit,
-      reactivation_segment, imported_at, updated_at
+      reactivation_segment, activity_categories, imported_at, updated_at
     ) VALUES (
       ${guestGuid}, ${email || null}, ${phone || null},
       ${firstName || null}, ${lastName || null},
       ${parsedDate}, ${parsedDate}, ${1},
       ${orderTotal.toFixed(2)}, ${orderTotal.toFixed(2)},
       ${daysSince}, ${computeReactivationSegment(daysSince)},
+      ${categoriesStr},
       NOW(), NOW()
     )
     ON CONFLICT (guest_guid) DO UPDATE SET
       total_visits = toast_guests.total_visits + 1,
       lifetime_spend = (CAST(toast_guests.lifetime_spend AS NUMERIC) + ${orderTotal})::TEXT,
       last_visit_date = GREATEST(toast_guests.last_visit_date, ${parsedDate}),
+      activity_categories = CASE
+        WHEN toast_guests.activity_categories IS NULL THEN ${categoriesStr}
+        WHEN ${categoriesStr} IS NULL THEN toast_guests.activity_categories
+        ELSE toast_guests.activity_categories || ';' || ${categoriesStr}
+      END,
       updated_at = NOW()
   `);
 

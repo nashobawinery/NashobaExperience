@@ -4710,6 +4710,7 @@ export const toastGuests = pgTable("toast_guests", {
   phone5MarketingPreference: varchar("phone5_marketing_preference", { length: 50 }),
   daysSinceLastVisit: integer("days_since_last_visit"),
   reactivationSegment: varchar("reactivation_segment", { length: 50 }),
+  activityCategories: text("activity_categories"),
   isStaff: boolean("is_staff").notNull().default(false),
   source: varchar("source", { length: 20 }).notNull().default("toast"),
   importedAt: timestamp("imported_at").notNull().defaultNow(),
@@ -4722,6 +4723,17 @@ export const toastGuests = pgTable("toast_guests", {
   index("idx_toast_guests_lifetime_spend").on(table.lifetimeSpend),
   index("idx_toast_guests_source").on(table.source),
 ]);
+
+export const rccSyncLog = pgTable("rcc_sync_log", {
+  id: serial("id").primaryKey(),
+  syncType: varchar("sync_type", { length: 50 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("running"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  toastSynced: integer("toast_synced").default(0),
+  shopifySynced: integer("shopify_synced").default(0),
+  segmentsRefreshed: integer("segments_refreshed").default(0),
+});
 
 export const insertToastGuestSchema = createInsertSchema(toastGuests).omit({ id: true, importedAt: true, updatedAt: true });
 export type InsertToastGuest = z.infer<typeof insertToastGuestSchema>;

@@ -262,6 +262,68 @@ export async function syncShopifyRevenueToDb(dateStr: string): Promise<{ netSale
   return { netSales, orderCount };
 }
 
+const SHOPIFY_CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
+  {
+    category: "Winery",
+    keywords: ["wine", "chardonnay", "cabernet", "merlot", "pinot", "riesling", "sauvignon", "zinfandel", "rosé", "rose", "red blend", "white blend", "sparkling", "prosecco", "champagne", "vidal", "noiret", "frontenac", "marquette", "seyval"],
+  },
+  {
+    category: "Brewery",
+    keywords: ["beer", "ipa", "ale", "lager", "stout", "porter", "pilsner", "hefeweizen", "growler", "crowler", "pint"],
+  },
+  {
+    category: "Distillery",
+    keywords: ["whiskey", "bourbon", "vodka", "gin", "rum", "brandy", "spirit", "liquor", "cordial", "apple brandy", "grappa"],
+  },
+  {
+    category: "Retail",
+    keywords: ["merchandise", "gift", "shirt", "hat", "mug", "glass", "candle", "soap", "jam", "jelly", "syrup", "sauce", "honey", "cheese", "snack", "accessory", "apparel"],
+  },
+  {
+    category: "Tasting Room",
+    keywords: ["tasting", "flight", "sample", "tour"],
+  },
+  {
+    category: "Events",
+    keywords: ["event", "ticket", "admission", "festival", "concert", "party", "wedding"],
+  },
+];
+
+export function categorizeShopifyLineItems(lineItems: any[]): string[] {
+  const categories = new Set<string>();
+
+  for (const item of lineItems) {
+    const title = (item.title || "").toLowerCase();
+    const productType = (item.product_type || "").toLowerCase();
+    const vendor = (item.vendor || "").toLowerCase();
+
+    const searchText = `${title} ${productType} ${vendor}`;
+
+    for (const rule of SHOPIFY_CATEGORY_RULES) {
+      if (rule.keywords.some(kw => searchText.includes(kw))) {
+        categories.add(rule.category);
+        break;
+      }
+    }
+  }
+
+  return Array.from(categories);
+}
+
+export async function fetchCustomerOrders(customerId: number | string, limit: number = 50): Promise<any[]> {
+  try {
+    const result = await shopifyApiRequest(`/customers/${customerId}/orders.json`, {
+      limit: limit.toString(),
+      status: "any",
+      fields: "id,line_items,created_at,financial_status,cancelled_at",
+    });
+    return result.orders || [];
+  } catch (err: any) {
+    console.error(`[Shopify] Error fetching orders for customer ${customerId}:`, err.message);
+    return [];
+  }
+}
+
 export async function getShopifyCustomerCount(): Promise<number> {
   const result = await shopifyApiRequest("/customers/count.json");
   return result.count || 0;

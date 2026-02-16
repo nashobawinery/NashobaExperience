@@ -6,6 +6,8 @@ import {
   getShopifyOrderCount,
   fetchAllShopifyCustomers,
   getShopifyToken,
+  shopifyApiRequest,
+  categorizeShopifyLineItems,
 } from "./shopify-api";
 
 const router = Router();
@@ -111,6 +113,67 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
     const { db: database } = await import("../db");
     const { sql: sqlTag } = await import("drizzle-orm");
 
+    const customerCategoryMap = new Map<number, Set<string>>();
+    try {
+      let pageInfo: string | null = null;
+      let orderPageCount = 0;
+      const maxOrderPages = 20;
+
+      while (orderPageCount < maxOrderPages) {
+        let result: any;
+        if (pageInfo) {
+          const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+          const SHOPIFY_API_VERSION = "2026-01";
+          const { getShopifyToken: getToken } = await import("./shopify-api");
+          const token = await getToken();
+          const url = `https://${storeDomain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?limit=250&page_info=${pageInfo}&fields=id,customer,line_items,financial_status,cancelled_at`;
+          const resp = await fetch(url, {
+            headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+          });
+          const linkHeader = resp.headers.get("link");
+          result = await resp.json();
+          result._nextPageUrl = null;
+          if (linkHeader) {
+            const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+            if (nextMatch) result._nextPageUrl = nextMatch[1];
+          }
+        } else {
+          result = await shopifyApiRequest("/orders.json", {
+            limit: "250",
+            status: "any",
+            fields: "id,customer,line_items,financial_status,cancelled_at",
+          });
+        }
+
+        const orders = result.orders || [];
+        if (orders.length === 0) break;
+
+        for (const order of orders) {
+          if (order.cancelled_at || order.financial_status === "voided" || order.financial_status === "refunded") continue;
+          const custId = order.customer?.id;
+          if (!custId) continue;
+
+          const cats = categorizeShopifyLineItems(order.line_items || []);
+          if (!customerCategoryMap.has(custId)) {
+            customerCategoryMap.set(custId, new Set());
+          }
+          const catSet = customerCategoryMap.get(custId)!;
+          for (const c of cats) catSet.add(c);
+        }
+
+        if (result._nextPageUrl) {
+          const url = new URL(result._nextPageUrl);
+          pageInfo = url.searchParams.get("page_info");
+        } else {
+          break;
+        }
+        orderPageCount++;
+      }
+      console.log(`[Shopify Sync] Categorized orders for ${customerCategoryMap.size} customers across ${orderPageCount + 1} pages`);
+    } catch (catErr: any) {
+      console.error("[Shopify Sync] Error building category map:", catErr.message);
+    }
+
     let imported = 0;
     let updated = 0;
     let merged = 0;
@@ -141,14 +204,26 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
         else if (daysSince <= 365) segment = "dormant";
       }
 
+      const shopifyCustCategories = customerCategoryMap.get(customer.id);
+      const categoriesStr = shopifyCustCategories && shopifyCustCategories.size > 0
+        ? Array.from(shopifyCustCategories).join(";")
+        : null;
+
       const existing = await database.execute(sqlTag`
-        SELECT id FROM toast_guests WHERE guest_guid = ${guestGuid}
+        SELECT id, activity_categories FROM toast_guests WHERE guest_guid = ${guestGuid}
       `);
 
       let shopifyGuestId: number;
 
       if (existing.rows.length > 0) {
         shopifyGuestId = (existing.rows[0] as any).id;
+        const existingCats = (existing.rows[0] as any).activity_categories || "";
+        const mergedCats = new Set<string>(existingCats.split(";").filter((c: string) => c.trim()));
+        if (shopifyCustCategories) {
+          for (const c of shopifyCustCategories) mergedCats.add(c);
+        }
+        const finalCats = mergedCats.size > 0 ? Array.from(mergedCats).join(";") : null;
+
         await database.execute(sqlTag`
           UPDATE toast_guests SET
             email1 = COALESCE(NULLIF(${email || ""}, ''), email1),
@@ -160,6 +235,7 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
             average_spend = ${avgSpend.toFixed(2)},
             days_since_last_visit = ${daysSince},
             reactivation_segment = ${segment},
+            activity_categories = ${finalCats},
             source = 'shopify',
             updated_at = NOW()
           WHERE guest_guid = ${guestGuid}
@@ -171,7 +247,7 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
             guest_guid, email1, phone1, first_name, last_name,
             first_visit_date, last_visit_date, total_visits,
             average_spend, lifetime_spend, days_since_last_visit,
-            reactivation_segment, source, imported_at, updated_at
+            reactivation_segment, activity_categories, source, imported_at, updated_at
           ) VALUES (
             ${guestGuid}, ${email || null}, ${phone || null},
             ${firstName || null}, ${lastName || null},
@@ -179,13 +255,14 @@ router.post("/customers/sync", isAuthenticated, async (_req: Request, res: Respo
             ${lastOrderDate || new Date()},
             ${ordersCount},
             ${avgSpend.toFixed(2)}, ${totalSpent.toFixed(2)},
-            ${daysSince}, ${segment}, 'shopify',
+            ${daysSince}, ${segment}, ${categoriesStr}, 'shopify',
             NOW(), NOW()
           )
           ON CONFLICT (guest_guid) DO UPDATE SET
             total_visits = ${ordersCount},
             lifetime_spend = ${totalSpent.toFixed(2)},
             average_spend = ${avgSpend.toFixed(2)},
+            activity_categories = COALESCE(${categoriesStr}, toast_guests.activity_categories),
             source = 'shopify',
             updated_at = NOW()
           RETURNING id

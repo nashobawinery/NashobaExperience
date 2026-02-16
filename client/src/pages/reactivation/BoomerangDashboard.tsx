@@ -53,6 +53,7 @@ interface Customer {
   daysSinceLastVisit: number | null;
   segment: string | null;
   source: string;
+  activityCategories: string | null;
   isStaff: boolean;
   isMerged: boolean;
   canonicalId: number | null;
@@ -1542,6 +1543,7 @@ export function CustomerBrowser() {
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="p-2">Name</th>
                   <th className="p-2">Contact</th>
+                  <th className="p-2">Activities</th>
                   <th className="p-2 text-right">Visits</th>
                   <th className="p-2 text-right">Lifetime $</th>
                   <th className="p-2 text-right">Avg/Visit</th>
@@ -1562,6 +1564,27 @@ export function CustomerBrowser() {
                       <div className="flex items-center gap-1">
                         {c.email && <Mail className="w-3 h-3 text-muted-foreground" />}
                         {c.phone && <Phone className="w-3 h-3 text-muted-foreground" />}
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <div className="flex flex-wrap gap-0.5">
+                        {c.activityCategories ? c.activityCategories.split(";").filter((a: string) => a.trim()).slice(0, 3).map((cat: string, i: number) => {
+                          const shortMap: Record<string, string> = { "Tasting Room": "Tasting", "Restaurant": "Dining", "Brewery": "Brew", "Winery": "Wine", "Distillery": "Spirits" };
+                          const colorMap: Record<string, string> = {
+                            "Tasting Room": "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                            "Restaurant": "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                            "Brewery": "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+                            "Winery": "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                            "Distillery": "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                            "Events": "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+                            "Retail": "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
+                          };
+                          return (
+                            <span key={i} className={`inline-block px-1.5 py-0 rounded text-[10px] font-medium ${colorMap[cat.trim()] || "bg-muted text-muted-foreground"}`}>
+                              {shortMap[cat.trim()] || cat.trim()}
+                            </span>
+                          );
+                        }) : <span className="text-xs text-muted-foreground">--</span>}
                       </div>
                     </td>
                     <td className="p-2 text-right">{c.totalVisits ?? 0}</td>
@@ -1642,10 +1665,44 @@ export function CustomerBrowser() {
                   <p className="font-medium">{formatCurrency(customerDetail.averageSpend)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Last Behavior</p>
+                  <p className="text-muted-foreground">Order Type</p>
                   <p className="font-medium">{customerDetail.lastDiningBehavior || "N/A"}</p>
                 </div>
               </div>
+              {(customerDetail as any).activityCategories && (
+                <div>
+                  <p className="text-sm font-semibold mb-1">Activity History</p>
+                  <div className="flex flex-wrap gap-1" data-testid="activity-categories">
+                    {(customerDetail as any).activityCategories.split(";").filter((c: string) => c.trim()).map((cat: string, i: number) => {
+                      const iconMap: Record<string, string> = {
+                        "Tasting Room": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+                        "Restaurant": "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+                        "Brewery": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+                        "Winery": "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+                        "Distillery": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+                        "Events": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                        "Retail": "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+                      };
+                      const colorClass = iconMap[cat.trim()] || "bg-muted text-muted-foreground";
+                      return (
+                        <Badge key={i} variant="outline" className={`text-xs ${colorClass}`}>
+                          {cat.trim()}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {!((customerDetail as any).activityCategories) && customerDetail.diningBehaviors && (
+                <div>
+                  <p className="text-sm font-semibold mb-1">Order Types</p>
+                  <div className="flex flex-wrap gap-1">
+                    {customerDetail.diningBehaviors.split(/[;,]/).filter((b: string) => b.trim()).map((b: string, i: number) => (
+                      <Badge key={i} variant="outline" className="text-xs">{b.trim()}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
               {customerDetail.emails.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold mb-1">Email Addresses</p>
@@ -1669,16 +1726,6 @@ export function CustomerBrowser() {
                       <span>{p.phone}</span>
                     </div>
                   ))}
-                </div>
-              )}
-              {customerDetail.diningBehaviors && (
-                <div>
-                  <p className="text-sm font-semibold mb-1">Dining Behaviors</p>
-                  <div className="flex flex-wrap gap-1">
-                    {customerDetail.diningBehaviors.split(",").map((b, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{b.trim()}</Badge>
-                    ))}
-                  </div>
                 </div>
               )}
               {(customerDetail as any).linkedRecords?.length > 0 && (
@@ -1742,6 +1789,7 @@ export function HighValueTargets() {
               <tr className="border-b text-left text-muted-foreground">
                 <th className="p-2">Customer</th>
                 <th className="p-2">Contact</th>
+                <th className="p-2">Activities</th>
                 <th className="p-2 text-right">Visits</th>
                 <th className="p-2 text-right">Lifetime</th>
                 <th className="p-2 text-right">Avg/Visit</th>
@@ -1758,6 +1806,35 @@ export function HighValueTargets() {
                       {c.email && <Mail className="w-3 h-3 text-muted-foreground" />}
                       {c.phone && <Phone className="w-3 h-3 text-muted-foreground" />}
                       {c.emailOptIn && <Badge variant="outline" className="text-xs py-0">Opt-in</Badge>}
+                    </div>
+                  </td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap gap-0.5">
+                      {c.activityCategories ? c.activityCategories.split(";").filter((a: string) => a.trim()).slice(0, 3).map((cat: string, i: number) => {
+                        const shortNames: Record<string, string> = {
+                          "Tasting Room": "Tasting",
+                          "Restaurant": "Dining",
+                          "Brewery": "Brew",
+                          "Winery": "Wine",
+                          "Distillery": "Spirits",
+                          "Events": "Events",
+                          "Retail": "Retail",
+                        };
+                        const colors: Record<string, string> = {
+                          "Tasting Room": "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                          "Restaurant": "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                          "Brewery": "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+                          "Winery": "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                          "Distillery": "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                          "Events": "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+                          "Retail": "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
+                        };
+                        return (
+                          <span key={i} className={`inline-block px-1.5 py-0 rounded text-[10px] font-medium ${colors[cat.trim()] || "bg-muted text-muted-foreground"}`}>
+                            {shortNames[cat.trim()] || cat.trim()}
+                          </span>
+                        );
+                      }) : <span className="text-xs text-muted-foreground">--</span>}
                     </div>
                   </td>
                   <td className="p-2 text-right">{c.totalVisits}</td>

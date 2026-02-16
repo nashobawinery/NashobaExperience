@@ -152,7 +152,8 @@ router.get("/customers", async (req, res) => {
       SELECT tg.id, tg.guest_guid, tg.email1, tg.email1_marketing_preference, tg.phone1, tg.phone1_marketing_preference,
         tg.first_name, tg.last_name, tg.first_visit_date, tg.last_visit_date, tg.last_dining_behavior,
         tg.total_visits, tg.dining_behaviors, tg.average_spend, tg.average_tip, tg.lifetime_spend,
-        tg.days_since_last_visit, tg.reactivation_segment, tg.source, COALESCE(tg.is_staff, false) as is_staff,
+        tg.days_since_last_visit, tg.reactivation_segment, tg.source, tg.activity_categories,
+        COALESCE(tg.is_staff, false) as is_staff,
         CASE WHEN cil.canonical_id IS NOT NULL THEN true ELSE false END as is_merged,
         cil.canonical_id
       FROM toast_guests tg
@@ -182,6 +183,7 @@ router.get("/customers", async (req, res) => {
         daysSinceLastVisit: r.days_since_last_visit,
         segment: r.reactivation_segment,
         source: r.source || "toast",
+        activityCategories: r.activity_categories || null,
         isStaff: r.is_staff === true,
         isMerged: r.is_merged,
         canonicalId: r.canonical_id,
@@ -270,6 +272,7 @@ router.get("/customers/:id", async (req, res) => {
       daysSinceLastVisit: r.days_since_last_visit,
       segment: r.reactivation_segment,
       source: r.source || "toast",
+      activityCategories: r.activity_categories || null,
       isStaff: r.is_staff === true,
       isMerged: linkedRecords.length > 0,
       linkedRecords,
@@ -446,6 +449,53 @@ router.get("/analytics", async (_req, res) => {
   } catch (error: any) {
     console.error("[Reactivation] Error fetching analytics:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+
+router.get("/sync-status", async (_req, res) => {
+  try {
+    const lastSync = await db.execute(sql`
+      SELECT * FROM rcc_sync_log
+      WHERE status = 'completed'
+      ORDER BY completed_at DESC
+      LIMIT 1
+    `);
+
+    const recentSyncs = await db.execute(sql`
+      SELECT * FROM rcc_sync_log
+      ORDER BY started_at DESC
+      LIMIT 10
+    `);
+
+    const lastToastUpdate = await db.execute(sql`
+      SELECT MAX(updated_at) as last_update FROM toast_guests WHERE source = 'toast'
+    `);
+
+    const lastShopifyUpdate = await db.execute(sql`
+      SELECT MAX(updated_at) as last_update FROM toast_guests WHERE source = 'shopify'
+    `);
+
+    res.json({
+      lastSync: lastSync.rows[0] || null,
+      recentSyncs: recentSyncs.rows,
+      lastToastUpdate: (lastToastUpdate.rows[0] as any)?.last_update || null,
+      lastShopifyUpdate: (lastShopifyUpdate.rows[0] as any)?.last_update || null,
+      schedule: "Daily at 2:00 AM Eastern",
+    });
+  } catch (error: any) {
+    console.error("[Reactivation] Error fetching sync status:", error);
+    res.status(500).json({ error: "Failed to fetch sync status" });
+  }
+});
+
+router.post("/sync/run-now", async (_req, res) => {
+  try {
+    const { runNightlySync } = await import("../nightlySync");
+    res.json({ message: "Sync started in background" });
+    runNightlySync().catch(err => console.error("[Manual Sync] Error:", err));
+  } catch (error: any) {
+    console.error("[Reactivation] Error triggering sync:", error);
+    res.status(500).json({ error: "Failed to trigger sync" });
   }
 });
 

@@ -34,6 +34,7 @@ import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } 
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
+import { scheduleNightlySync } from "./nightlySync";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import OpenAI from "openai";
@@ -19262,6 +19263,8 @@ Generate a professional response:`;
   
   // Initialize maintenance work order reminders scheduler (daily at 8 AM Eastern)
   initMaintenanceReminders();
+
+  scheduleNightlySync();
 
   const httpServer = createServer(app);
   return httpServer;
