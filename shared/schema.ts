@@ -4710,6 +4710,7 @@ export const toastGuests = pgTable("toast_guests", {
   phone5MarketingPreference: varchar("phone5_marketing_preference", { length: 50 }),
   daysSinceLastVisit: integer("days_since_last_visit"),
   reactivationSegment: varchar("reactivation_segment", { length: 50 }),
+  isStaff: boolean("is_staff").notNull().default(false),
   source: varchar("source", { length: 20 }).notNull().default("toast"),
   importedAt: timestamp("imported_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

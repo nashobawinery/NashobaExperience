@@ -53,6 +53,7 @@ interface Customer {
   daysSinceLastVisit: number | null;
   segment: string | null;
   source: string;
+  isStaff: boolean;
   isMerged: boolean;
   canonicalId: number | null;
 }
@@ -1419,6 +1420,7 @@ export function CustomerBrowser() {
   const [hasEmail, setHasEmail] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [includeStaff, setIncludeStaff] = useState(false);
 
   const handleSearch = (val: string) => {
     setSearch(val);
@@ -1427,7 +1429,7 @@ export function CustomerBrowser() {
   };
 
   const { data, isLoading } = useQuery<{ customers: Customer[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>({
-    queryKey: ["/api/reactivation/customers", segment, debouncedSearch, sortBy, sortDir, page, hasEmail, marketingOptIn, sourceFilter],
+    queryKey: ["/api/reactivation/customers", segment, debouncedSearch, sortBy, sortDir, page, hasEmail, marketingOptIn, sourceFilter, includeStaff],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: "25", sortBy, sortDir });
       if (segment !== "all") params.set("segment", segment);
@@ -1435,6 +1437,7 @@ export function CustomerBrowser() {
       if (hasEmail) params.set("hasEmail", "true");
       if (marketingOptIn) params.set("marketingOptIn", "true");
       if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (includeStaff) params.set("includeStaff", "true");
       const res = await fetch(`/api/reactivation/customers?${params}`);
       return res.json();
     },
@@ -1447,6 +1450,17 @@ export function CustomerBrowser() {
       return res.json();
     },
     enabled: !!selectedCustomer,
+  });
+
+  const toggleStaffMutation = useMutation({
+    mutationFn: async ({ id, isStaff }: { id: number; isStaff: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/reactivation/customers/${id}/staff`, { isStaff });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation/segments"] });
+    },
   });
 
   const pagination = data?.pagination;
@@ -1507,6 +1521,10 @@ export function CustomerBrowser() {
               <input type="checkbox" checked={marketingOptIn} onChange={e => setMarketingOptIn(e.target.checked)} data-testid="checkbox-opt-in" />
               Marketing Opt-In
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={includeStaff} onChange={e => setIncludeStaff(e.target.checked)} data-testid="checkbox-include-staff" />
+              Include Staff
+            </label>
           </CardContent>
         </Card>
       )}
@@ -1536,7 +1554,10 @@ export function CustomerBrowser() {
               <tbody>
                 {data?.customers?.map((c) => (
                   <tr key={c.id} className="border-b hover-elevate cursor-pointer" onClick={() => setSelectedCustomer(c.id)} data-testid={`row-customer-${c.id}`}>
-                    <td className="p-2 font-medium">{c.firstName || ""} {c.lastName || ""}</td>
+                    <td className="p-2 font-medium">
+                      {c.firstName || ""} {c.lastName || ""}
+                      {c.isStaff && <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Staff</Badge>}
+                    </td>
                     <td className="p-2">
                       <div className="flex items-center gap-1">
                         {c.email && <Mail className="w-3 h-3 text-muted-foreground" />}
@@ -1588,6 +1609,16 @@ export function CustomerBrowser() {
                 {customerDetail.daysSinceLastVisit != null && (
                   <span className="text-sm text-muted-foreground">{customerDetail.daysSinceLastVisit} days since last visit</span>
                 )}
+                <Button
+                  variant={(customerDetail as any).isStaff ? "default" : "outline"}
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => toggleStaffMutation.mutate({ id: customerDetail.id, isStaff: !(customerDetail as any).isStaff })}
+                  disabled={toggleStaffMutation.isPending}
+                  data-testid="button-toggle-staff"
+                >
+                  {(customerDetail as any).isStaff ? "Remove Staff Flag" : "Mark as Staff"}
+                </Button>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>

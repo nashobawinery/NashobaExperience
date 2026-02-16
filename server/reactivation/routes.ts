@@ -23,7 +23,7 @@ router.get("/segments", async (_req, res) => {
         COUNT(CASE WHEN phone1 IS NOT NULL AND phone1 != '' THEN 1 END) as with_phone,
         SUM(CAST(COALESCE(lifetime_spend, '0') AS FLOAT)) as total_lifetime_revenue
       FROM toast_guests
-      WHERE reactivation_segment IS NOT NULL
+      WHERE reactivation_segment IS NOT NULL AND COALESCE(is_staff, false) = false
       GROUP BY reactivation_segment
       ORDER BY 
         CASE reactivation_segment
@@ -35,7 +35,7 @@ router.get("/segments", async (_req, res) => {
         END
     `);
 
-    const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests`);
+    const totalCustomers = await db.execute(sql`SELECT COUNT(*) as total FROM toast_guests WHERE COALESCE(is_staff, false) = false`);
 
     const sourceStats = await db.execute(sql`
       SELECT source, COUNT(*) as count FROM toast_guests GROUP BY source
@@ -79,6 +79,7 @@ router.get("/customers", async (req, res) => {
       hasPhone,
       marketingOptIn,
       source,
+      includeStaff,
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
@@ -86,6 +87,10 @@ router.get("/customers", async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     const conditions: ReturnType<typeof sql>[] = [];
+
+    if (includeStaff !== "true") {
+      conditions.push(sql`COALESCE(is_staff, false) = false`);
+    }
 
     if (segment && segment !== "all") {
       if (segment === "unknown") {
@@ -147,7 +152,7 @@ router.get("/customers", async (req, res) => {
       SELECT tg.id, tg.guest_guid, tg.email1, tg.email1_marketing_preference, tg.phone1, tg.phone1_marketing_preference,
         tg.first_name, tg.last_name, tg.first_visit_date, tg.last_visit_date, tg.last_dining_behavior,
         tg.total_visits, tg.dining_behaviors, tg.average_spend, tg.average_tip, tg.lifetime_spend,
-        tg.days_since_last_visit, tg.reactivation_segment, tg.source,
+        tg.days_since_last_visit, tg.reactivation_segment, tg.source, COALESCE(tg.is_staff, false) as is_staff,
         CASE WHEN cil.canonical_id IS NOT NULL THEN true ELSE false END as is_merged,
         cil.canonical_id
       FROM toast_guests tg
@@ -177,6 +182,7 @@ router.get("/customers", async (req, res) => {
         daysSinceLastVisit: r.days_since_last_visit,
         segment: r.reactivation_segment,
         source: r.source || "toast",
+        isStaff: r.is_staff === true,
         isMerged: r.is_merged,
         canonicalId: r.canonical_id,
       })),
@@ -264,12 +270,31 @@ router.get("/customers/:id", async (req, res) => {
       daysSinceLastVisit: r.days_since_last_visit,
       segment: r.reactivation_segment,
       source: r.source || "toast",
+      isStaff: r.is_staff === true,
       isMerged: linkedRecords.length > 0,
       linkedRecords,
     });
   } catch (error: any) {
     console.error("[Reactivation] Error fetching customer:", error);
     res.status(500).json({ error: "Failed to fetch customer" });
+  }
+});
+
+router.patch("/customers/:id/staff", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid customer ID" });
+    }
+    const { isStaff } = req.body;
+    if (typeof isStaff !== "boolean") {
+      return res.status(400).json({ error: "isStaff must be a boolean" });
+    }
+    await db.execute(sql`UPDATE toast_guests SET is_staff = ${isStaff}, updated_at = NOW() WHERE id = ${id}`);
+    res.json({ success: true, id, isStaff });
+  } catch (error: any) {
+    console.error("[Reactivation] Error updating staff flag:", error);
+    res.status(500).json({ error: "Failed to update staff flag" });
   }
 });
 
