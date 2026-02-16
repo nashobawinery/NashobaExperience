@@ -1561,8 +1561,8 @@ function DailyRevenueRow({
 
         {expanded && (
           <div className="mt-4 pt-4 border-t space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" data-testid={`py-comparison-${day.date}`}>
+              <div className="space-y-1">
                 <Label className="flex items-center gap-1">
                   Toast POS
                   <Badge variant="secondary" className="text-[10px] px-1 py-0">Auto</Badge>
@@ -1587,8 +1587,14 @@ function DailyRevenueRow({
                     {isSyncingToast ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </Button>
                 </div>
+                {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground">PY Toast{priorYearDate ? ` (${priorYearDate})` : ''}</p>
+                    <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString()}</p>
+                  </div>
+                )}
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label>Shopify</Label>
                 <div className="flex gap-1">
                   <Input 
@@ -1610,8 +1616,14 @@ function DailyRevenueRow({
                     {isSyncingShopify ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </Button>
                 </div>
+                {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground">PY Shopify</p>
+                    <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString()}</p>
+                  </div>
+                )}
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label>Wholesale (B2B)</Label>
                 <Input 
                   type="number"
@@ -1621,8 +1633,14 @@ function DailyRevenueRow({
                   className="bg-muted"
                   data-testid={`input-wholesale-${day.date}`}
                 />
+                {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground">PY Wholesale</p>
+                    <p className="text-xs font-medium">${(priorYearRevenue.wholesale || 0).toLocaleString()}</p>
+                  </div>
+                )}
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label>Other</Label>
                 <div className="flex gap-2">
                   <Input 
@@ -1641,28 +1659,14 @@ function DailyRevenueRow({
                     data-testid={`input-other-source-${day.date}`}
                   />
                 </div>
+                {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs text-muted-foreground">PY Other</p>
+                    <p className="text-xs font-medium">${(priorYearRevenue.other || 0).toLocaleString()}</p>
+                  </div>
+                )}
               </div>
             </div>
-            {priorYearRevenue !== null && priorYearRevenue.total > 0 && (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" data-testid={`py-comparison-${day.date}`}>
-                <div>
-                  <p className="text-xs text-muted-foreground">PY Toast{priorYearDate ? ` (${priorYearDate})` : ''}</p>
-                  <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">PY Shopify</p>
-                  <p className="text-xs font-medium">${priorYearRevenue.shopify.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">PY Wholesale</p>
-                  <p className="text-xs font-medium">${(priorYearRevenue.wholesale || 0).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">PY Other</p>
-                  <p className="text-xs font-medium">${(priorYearRevenue.other || 0).toLocaleString()}</p>
-                </div>
-              </div>
-            )}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="text-sm font-medium">
                 Day Total for {day.displayDate}: <span className="text-green-600">${dayTotal.toLocaleString()}</span>
