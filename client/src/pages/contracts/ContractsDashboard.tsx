@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -1173,7 +1173,8 @@ function ContractFormDialog({
 
   const { reset } = form;
 
-  useState(() => {
+  useEffect(() => {
+    if (!open) return;
     if (contract) {
       reset({
         name: contract.name,
@@ -1209,7 +1210,7 @@ function ContractFormDialog({
       setUploadedFileInfo(null);
       setExtractionResult(null);
     }
-  });
+  }, [open, contract, reset]);
 
   const handleUploadAndExtract = useCallback(async (file: File) => {
     setUploading(true);
