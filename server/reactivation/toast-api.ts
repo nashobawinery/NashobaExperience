@@ -157,7 +157,8 @@ export function categorizeOrderItems(order: any): string[] {
     }
   }
 
-  const diningBehavior = (order.diningOption || "").toUpperCase();
+  const rawDiningOption = order.diningOption;
+  const diningBehavior = (typeof rawDiningOption === "string" ? rawDiningOption : rawDiningOption?.behavior || rawDiningOption?.name || "").toUpperCase();
   if (diningBehavior === "DINE_IN" && categories.size === 0) {
     categories.add("Restaurant");
   }
