@@ -6,6 +6,7 @@ import { isAuthenticated, isAdmin } from "./replitAuth";
 import { ObjectStorageService, objectStorageClient } from "./objectStorage";
 import OpenAI from "openai";
 import * as pdfParseModule from "pdf-parse";
+import { randomUUID } from "crypto";
 
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 const router = Router();
@@ -191,7 +192,7 @@ router.get("/:id/documents", isAuthenticated, async (req, res) => {
 router.post("/upload-url", isAuthenticated, async (_req, res) => {
   try {
     const privateDir = objectStorageService.getPrivateObjectDir();
-    const uuid = require("crypto").randomUUID();
+    const uuid = randomUUID();
     const fullPath = `${privateDir}/contracts/${uuid}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
