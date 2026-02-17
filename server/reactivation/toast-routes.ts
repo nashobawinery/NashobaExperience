@@ -623,6 +623,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const { menuGuid } = req.params;
     const template = (req.query.template as string) || "fine-dining";
     const groupGuid = req.query.groupGuid as string | undefined;
+    const rawScale = parseFloat(req.query.scale as string) || 100;
+    const scale = Math.min(120, Math.max(60, rawScale));
 
     const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
     if (menu.length === 0) {
@@ -755,7 +757,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); }
         .footer { text-align: center; margin-top: 48px; font-size: 0.8rem; color: #6b5f4f; letter-spacing: 0.1em; }
-        @media print { body { background: white; color: #1a1a18; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } }
+        @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
+        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
     } else {
       css = `
@@ -778,6 +781,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.75rem; color: #a8a29e; }
+        @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
     }
 

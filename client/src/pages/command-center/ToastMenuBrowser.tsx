@@ -128,6 +128,7 @@ export function ToastMenuBrowser() {
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
+  const [printScale, setPrintScale] = useState(100);
   const [selectedEmbedGroup, setSelectedEmbedGroup] = useState<string>("");
   const [selectedPrintGroup, setSelectedPrintGroup] = useState<string>("");
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -224,10 +225,11 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuid?: string) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
     if (groupGuid) url += `&groupGuid=${groupGuid}`;
+    if (scale && scale !== 100) url += `&scale=${scale}`;
     return url;
   };
 
@@ -243,8 +245,8 @@ export function ToastMenuBrowser() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuid?: string) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuid);
+  const openPrintView = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuid, scale);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -671,9 +673,24 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Font Size: {printScale}%</label>
+          <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page. In your browser's print dialog, uncheck "Headers and footers" to remove the date and page title.</p>
+          <input
+            type="range"
+            min={60}
+            max={120}
+            step={5}
+            value={printScale}
+            onChange={(e) => setPrintScale(Number(e.target.value))}
+            className="w-full max-w-xs accent-primary"
+            data-testid="slider-print-scale"
+          />
+        </div>
+
         <div className="flex gap-2 flex-wrap">
           <Button
-            onClick={() => openPrintView(selectedMenu, printTemplate, groupGuidVal)}
+            onClick={() => openPrintView(selectedMenu, printTemplate, groupGuidVal, printScale)}
             data-testid="button-print-now"
           >
             <Printer className="w-4 h-4 mr-2" />
@@ -681,7 +698,7 @@ export function ToastMenuBrowser() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, groupGuidVal), "_blank")}
+            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, groupGuidVal, printScale), "_blank")}
             data-testid="button-preview-print"
           >
             <Eye className="w-4 h-4 mr-2" />
