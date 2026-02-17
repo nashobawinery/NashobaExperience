@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/select";
 import {
   RefreshCw, Search, UtensilsCrossed, Loader2,
-  Tag, ListFilter
+  Tag, ListFilter, ExternalLink
 } from "lucide-react";
+import { Link } from "wouter";
 
 interface ToastRestaurant {
   guid: string;
@@ -213,7 +214,15 @@ export function ToastMenuBrowser() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-lg font-semibold" data-testid="text-toast-menus-title">Toast Menu Items</h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-lg font-semibold" data-testid="text-toast-menus-title">Toast Menu Items</h2>
+          <Link href="/toast-connect">
+            <Badge variant="outline" className="cursor-pointer gap-1">
+              <ExternalLink className="w-3 h-3" />
+              Open Toast Connect
+            </Badge>
+          </Link>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {restaurants.length > 1 && (
             <Select

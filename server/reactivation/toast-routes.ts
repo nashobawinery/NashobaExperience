@@ -192,7 +192,8 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     if (Array.isArray(rawResponse)) {
       menuList = rawResponse;
     } else if (rawResponse && typeof rawResponse === "object") {
-      menuList = rawResponse.menus || rawResponse.data || [rawResponse];
+      const obj = rawResponse as Record<string, any>;
+      menuList = obj.menus || obj.data || [rawResponse];
     }
 
     if (menuList.length === 0) {
@@ -421,6 +422,177 @@ router.get("/menus/sync-status", isAuthenticated, async (req, res) => {
     res.json(statusMap);
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch sync status" });
+  }
+});
+
+// ===================== Public Routes (no auth - for embed/print) =====================
+
+router.get("/public/menu/:menuGuid", async (req, res) => {
+  try {
+    const { menuGuid } = req.params;
+    const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
+    if (menu.length === 0) {
+      return res.status(404).json({ error: "Menu not found" });
+    }
+    const groups = await db.select().from(toastMenuGroups)
+      .where(eq(toastMenuGroups.menuGuid, menuGuid))
+      .orderBy(toastMenuGroups.displayOrder);
+    const items = await db.select().from(toastMenuItems)
+      .where(eq(toastMenuItems.menuGuid, menuGuid))
+      .orderBy(toastMenuItems.name);
+
+    const groupsWithItems = groups.map((g) => ({
+      ...g,
+      items: items.filter((i) => i.groupGuid === g.groupGuid),
+    }));
+
+    res.json({
+      menu: menu[0],
+      groups: groupsWithItems,
+      totalItems: items.length,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch menu data" });
+  }
+});
+
+router.get("/public/menu/:menuGuid/embed", async (req, res) => {
+  try {
+    const { menuGuid } = req.params;
+    const template = (req.query.template as string) || "fine-dining";
+    const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
+    if (menu.length === 0) {
+      return res.status(404).send("<html><body><p>Menu not found</p></body></html>");
+    }
+    const groups = await db.select().from(toastMenuGroups)
+      .where(eq(toastMenuGroups.menuGuid, menuGuid))
+      .orderBy(toastMenuGroups.displayOrder);
+    const items = await db.select().from(toastMenuItems)
+      .where(eq(toastMenuItems.menuGuid, menuGuid))
+      .orderBy(toastMenuItems.name);
+
+    const menuData = menu[0];
+    const groupsWithItems = groups.map((g) => ({
+      ...g,
+      items: items.filter((i) => i.groupGuid === g.groupGuid),
+    }));
+
+    const formatPrice = (price: string | null) => {
+      if (!price) return "";
+      const num = parseFloat(price);
+      return isNaN(num) ? "" : `$${num.toFixed(2)}`;
+    };
+
+    const escapeHtml = (str: string) =>
+      str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+    let groupsHtml = "";
+    for (const group of groupsWithItems) {
+      if (group.items.length === 0) continue;
+      let itemsHtml = "";
+      for (const item of group.items) {
+        const price = formatPrice(item.price);
+        if (template === "fine-dining") {
+          itemsHtml += `
+            <div class="menu-item">
+              <h3 class="item-name">${escapeHtml(item.name)}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+            </div>`;
+        } else {
+          itemsHtml += `
+            <div class="menu-item">
+              <div class="item-header">
+                <span class="item-name">${escapeHtml(item.name)}</span>
+                ${price ? `<span class="item-price">${price}</span>` : ""}
+              </div>
+              ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+            </div>`;
+        }
+      }
+      groupsHtml += `
+        <div class="menu-group">
+          <h2 class="group-name">${escapeHtml(group.name)}</h2>
+          <div class="group-divider"></div>
+          ${itemsHtml}
+        </div>`;
+    }
+
+    let css = "";
+    if (template === "fine-dining") {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; }
+        .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
+        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { text-align: center; font-size: 1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .ornament { text-align: center; font-size: 1.6rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
+        .menu-group { margin-bottom: 40px; }
+        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
+        .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
+        .menu-item { text-align: center; margin-bottom: 20px; }
+        .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
+        .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
+        .item-description { font-family: 'EB Garamond', serif; font-size: 0.95rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .footer { text-align: center; margin-top: 48px; font-size: 0.8rem; color: #6b5f4f; letter-spacing: 0.1em; }
+        @media print { body { background: white; color: #1a1a18; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
+    } else {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; }
+        .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
+        .menu-title { font-size: 1.8rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
+        .menu-subtitle { text-align: center; font-size: 0.85rem; color: #78716c; margin-bottom: 32px; }
+        .menu-group { margin-bottom: 32px; }
+        .group-name { font-size: 1.15rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
+        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
+        .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
+        .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .item-name { font-weight: 500; font-size: 1rem; }
+        .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
+        .item-description { font-size: 0.85rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
+        .footer { text-align: center; margin-top: 40px; font-size: 0.75rem; color: #a8a29e; }
+        @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(menuData.name)}</title>
+  <style>${css}</style>
+</head>
+<body>
+  <div class="menu-container">
+    <h1 class="menu-title">${escapeHtml(menuData.name)}</h1>
+    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : `<p class="menu-subtitle">Menu</p>`}
+    ${groupsHtml}
+    <div class="footer">
+      <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
+      <p>Alert your server if you have special dietary requirements.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("<html><body><p>Error loading menu</p></body></html>");
+  }
+});
+
+router.get("/public/menus", async (_req, res) => {
+  try {
+    const menus = await db.select().from(toastMenus).orderBy(toastMenus.name);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json(menus);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch menus" });
   }
 });
 
