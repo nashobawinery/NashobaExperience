@@ -12,11 +12,13 @@ import {
   ArrowLeft, Target, Lightbulb, Megaphone, DollarSign, Brain,
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
-  BookOpen, Store, Settings, Check, Crosshair, MessageSquare, UserPlus
+  BookOpen, Store, Settings, Check, Crosshair, MessageSquare, UserPlus,
+  UtensilsCrossed
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
 import { SmsCampaignsTab } from "./SmsCampaigns";
+import { ToastMenuBrowser } from "./ToastMenuBrowser";
 
 import {
   WeekSelector,
@@ -143,6 +145,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: Settings,
     defaultOpen: false,
     items: [
+      { id: "toast-menus", label: "Toast Menus", icon: UtensilsCrossed },
       { id: "integrations", label: "Integrations", icon: Plug },
       { id: "docs", label: "Documentation", icon: BookOpen },
     ],
@@ -464,6 +467,9 @@ export default function CommandCenter() {
 
       case "roi-projections":
         return <RoiProjections />;
+
+      case "toast-menus":
+        return <ToastMenuBrowser />;
 
       case "integrations":
         return <ToastIntegrationTab />;

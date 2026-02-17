@@ -73,6 +73,10 @@ export async function getRestaurantInfo(restaurantGuid: string): Promise<any> {
   return toastApiRequest(`/config/v2/restaurants`, restaurantGuid);
 }
 
+export async function getMenus(restaurantGuid: string): Promise<any[]> {
+  return toastApiRequest("/menus/v2/menus", restaurantGuid);
+}
+
 export async function getOrdersBulk(
   restaurantGuid: string,
   startDate: string,

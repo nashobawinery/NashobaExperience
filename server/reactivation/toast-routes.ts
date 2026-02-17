@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
+import { toastMenus, toastMenuGroups, toastMenuItems } from "@shared/schema";
 import {
   getToastToken,
   getRestaurants,
   getRestaurantInfo,
+  getMenus,
   syncOrdersBatch,
   syncGuestFromOrder,
   refreshSegments,
@@ -171,6 +173,254 @@ router.get("/sync/history", isAuthenticated, async (_req, res) => {
   } catch (error: any) {
     console.error("[Toast API] Sync history error:", error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ===================== Toast Menu Routes =====================
+
+router.post("/menus/sync", isAuthenticated, async (req, res) => {
+  try {
+    const { restaurantGuid } = req.body;
+    if (!restaurantGuid) {
+      return res.status(400).json({ error: "restaurantGuid is required" });
+    }
+
+    console.log(`[Toast Menus] Starting menu sync for restaurant ${restaurantGuid}`);
+    const rawResponse = await getMenus(restaurantGuid);
+
+    let menuList: any[] = [];
+    if (Array.isArray(rawResponse)) {
+      menuList = rawResponse;
+    } else if (rawResponse && typeof rawResponse === "object") {
+      menuList = rawResponse.menus || rawResponse.data || [rawResponse];
+    }
+
+    if (menuList.length === 0) {
+      console.warn("[Toast Menus] No menus found in response. Keys:", Object.keys(rawResponse || {}));
+      return res.json({ success: true, menuCount: 0, groupCount: 0, itemCount: 0, syncedAt: new Date().toISOString() });
+    }
+
+    console.log(`[Toast Menus] Found ${menuList.length} menus in response`);
+    console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
+
+    await db.delete(toastMenuItems).where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
+    await db.delete(toastMenuGroups).where(eq(toastMenuGroups.restaurantGuid, restaurantGuid));
+    await db.delete(toastMenus).where(eq(toastMenus.restaurantGuid, restaurantGuid));
+
+    let menuCount = 0;
+    let groupCount = 0;
+    let itemCount = 0;
+
+    for (const menu of menuList) {
+      const menuGuid = menu.guid || menu.id || menu.menuId || "";
+      const menuName = menu.name || "Unnamed Menu";
+      const visibilityArr = menu.visibility || [];
+
+      if (!menuGuid) {
+        console.warn(`[Toast Menus] Skipping menu with no GUID: ${menuName}`);
+        continue;
+      }
+
+      await db.insert(toastMenus).values({
+        menuGuid,
+        restaurantGuid,
+        name: menuName,
+        description: menu.description || null,
+        orderable: menu.orderable !== false,
+        visibility: JSON.stringify(visibilityArr),
+      });
+      menuCount++;
+
+      const groups = menu.menuGroups || menu.groups || menu.subgroups || [];
+      if (groups.length > 0) {
+        console.log(`[Toast Menus] Menu "${menuName}" has ${groups.length} groups. First group keys: ${Object.keys(groups[0]).join(", ")}`);
+      }
+
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
+        const groupGuid = group.guid || group.id || group.groupId || "";
+        const groupName = group.name || "Unnamed Group";
+
+        if (!groupGuid) continue;
+
+        await db.insert(toastMenuGroups).values({
+          groupGuid,
+          menuGuid,
+          restaurantGuid,
+          name: groupName,
+          description: group.description || null,
+          displayOrder: gi,
+          visibility: JSON.stringify(group.visibility || []),
+        });
+        groupCount++;
+
+        const items = group.menuItems || group.items || [];
+        for (const item of items) {
+          const itemGuid = item.guid || item.id || item.itemId || "";
+          const itemName = item.name || "Unnamed Item";
+          if (!itemGuid) continue;
+
+          let price: string | null = null;
+          if (item.price != null && item.price !== "") {
+            price = String(item.price);
+          } else if (item.prices && item.prices.length > 0) {
+            price = String(item.prices[0].price ?? item.prices[0].amount ?? 0);
+          }
+
+          await db.insert(toastMenuItems).values({
+            itemGuid,
+            groupGuid,
+            menuGuid,
+            restaurantGuid,
+            name: itemName,
+            description: item.description || null,
+            price,
+            posName: item.posName || null,
+            sku: item.sku || null,
+            plu: item.plu || null,
+            type: item.type || null,
+            visibility: JSON.stringify(item.visibility || []),
+            imageUrl: item.imageUrl || item.image || null,
+          });
+          itemCount++;
+        }
+      }
+    }
+
+    console.log(`[Toast Menus] Sync complete: ${menuCount} menus, ${groupCount} groups, ${itemCount} items`);
+    res.json({
+      success: true,
+      menuCount,
+      groupCount,
+      itemCount,
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("[Toast Menus] Sync error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to sync menus" });
+  }
+});
+
+router.get("/menus", isAuthenticated, async (req, res) => {
+  try {
+    const restaurantGuid = req.query.restaurantGuid as string | undefined;
+    let query;
+    if (restaurantGuid) {
+      query = await db.select().from(toastMenus).where(eq(toastMenus.restaurantGuid, restaurantGuid));
+    } else {
+      query = await db.select().from(toastMenus);
+    }
+    res.json(query);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch menus" });
+  }
+});
+
+router.get("/menu-groups", isAuthenticated, async (req, res) => {
+  try {
+    const menuGuid = req.query.menuGuid as string | undefined;
+    const restaurantGuid = req.query.restaurantGuid as string | undefined;
+    let results;
+    if (menuGuid) {
+      results = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.menuGuid, menuGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+    } else if (restaurantGuid) {
+      results = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.restaurantGuid, restaurantGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+    } else {
+      results = await db.select().from(toastMenuGroups).orderBy(toastMenuGroups.displayOrder);
+    }
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch menu groups" });
+  }
+});
+
+router.get("/menu-items", isAuthenticated, async (req, res) => {
+  try {
+    const groupGuid = req.query.groupGuid as string | undefined;
+    const menuGuid = req.query.menuGuid as string | undefined;
+    const restaurantGuid = req.query.restaurantGuid as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    let results;
+    if (groupGuid) {
+      results = await db.select().from(toastMenuItems)
+        .where(eq(toastMenuItems.groupGuid, groupGuid))
+        .orderBy(toastMenuItems.name);
+    } else if (menuGuid) {
+      results = await db.select().from(toastMenuItems)
+        .where(eq(toastMenuItems.menuGuid, menuGuid))
+        .orderBy(toastMenuItems.name);
+    } else if (restaurantGuid) {
+      results = await db.select().from(toastMenuItems)
+        .where(eq(toastMenuItems.restaurantGuid, restaurantGuid))
+        .orderBy(toastMenuItems.name);
+    } else {
+      results = await db.select().from(toastMenuItems).orderBy(toastMenuItems.name);
+    }
+
+    if (search) {
+      const q = search.toLowerCase();
+      results = results.filter((item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.posName && item.posName.toLowerCase().includes(q)) ||
+        (item.description && item.description.toLowerCase().includes(q))
+      );
+    }
+
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch menu items" });
+  }
+});
+
+router.get("/menus/sync-status", isAuthenticated, async (req, res) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT 
+        restaurant_guid,
+        COUNT(DISTINCT menu_guid) as menu_count,
+        MAX(synced_at) as last_synced
+      FROM toast_menus
+      GROUP BY restaurant_guid
+    `);
+    const itemCounts = await db.execute(sql`
+      SELECT restaurant_guid, COUNT(*) as item_count
+      FROM toast_menu_items
+      GROUP BY restaurant_guid
+    `);
+    const groupCounts = await db.execute(sql`
+      SELECT restaurant_guid, COUNT(*) as group_count
+      FROM toast_menu_groups
+      GROUP BY restaurant_guid
+    `);
+
+    const statusMap: Record<string, any> = {};
+    for (const row of result.rows as any[]) {
+      statusMap[row.restaurant_guid] = {
+        menuCount: Number(row.menu_count),
+        lastSynced: row.last_synced,
+        itemCount: 0,
+        groupCount: 0,
+      };
+    }
+    for (const row of itemCounts.rows as any[]) {
+      if (statusMap[row.restaurant_guid]) {
+        statusMap[row.restaurant_guid].itemCount = Number(row.item_count);
+      }
+    }
+    for (const row of groupCounts.rows as any[]) {
+      if (statusMap[row.restaurant_guid]) {
+        statusMap[row.restaurant_guid].groupCount = Number(row.group_count);
+      }
+    }
+
+    res.json(statusMap);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch sync status" });
   }
 });
 

@@ -5174,3 +5174,70 @@ export const contractResponsibles = pgTable("contract_responsibles", {
 export const insertContractResponsibleSchema = createInsertSchema(contractResponsibles).omit({ id: true, createdAt: true });
 export type InsertContractResponsible = z.infer<typeof insertContractResponsibleSchema>;
 export type ContractResponsible = typeof contractResponsibles.$inferSelect;
+
+// ===================== Toast Menu Items =====================
+
+export const toastMenus = pgTable("toast_menus", {
+  id: serial("id").primaryKey(),
+  menuGuid: varchar("menu_guid", { length: 100 }).notNull(),
+  restaurantGuid: varchar("restaurant_guid", { length: 100 }).notNull(),
+  name: varchar("name", { length: 300 }).notNull(),
+  description: text("description"),
+  orderable: boolean("orderable").default(true),
+  visibility: text("visibility"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_menus_guid").on(table.menuGuid),
+  index("idx_toast_menus_restaurant").on(table.restaurantGuid),
+]);
+
+export const insertToastMenuSchema = createInsertSchema(toastMenus).omit({ id: true, syncedAt: true });
+export type InsertToastMenu = z.infer<typeof insertToastMenuSchema>;
+export type ToastMenu = typeof toastMenus.$inferSelect;
+
+export const toastMenuGroups = pgTable("toast_menu_groups", {
+  id: serial("id").primaryKey(),
+  groupGuid: varchar("group_guid", { length: 100 }).notNull(),
+  menuGuid: varchar("menu_guid", { length: 100 }).notNull(),
+  restaurantGuid: varchar("restaurant_guid", { length: 100 }).notNull(),
+  name: varchar("name", { length: 300 }).notNull(),
+  description: text("description"),
+  displayOrder: integer("display_order"),
+  visibility: text("visibility"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_menu_groups_guid").on(table.groupGuid),
+  index("idx_toast_menu_groups_menu").on(table.menuGuid),
+  index("idx_toast_menu_groups_restaurant").on(table.restaurantGuid),
+]);
+
+export const insertToastMenuGroupSchema = createInsertSchema(toastMenuGroups).omit({ id: true, syncedAt: true });
+export type InsertToastMenuGroup = z.infer<typeof insertToastMenuGroupSchema>;
+export type ToastMenuGroup = typeof toastMenuGroups.$inferSelect;
+
+export const toastMenuItems = pgTable("toast_menu_items", {
+  id: serial("id").primaryKey(),
+  itemGuid: varchar("item_guid", { length: 100 }).notNull(),
+  groupGuid: varchar("group_guid", { length: 100 }),
+  menuGuid: varchar("menu_guid", { length: 100 }),
+  restaurantGuid: varchar("restaurant_guid", { length: 100 }).notNull(),
+  name: varchar("name", { length: 500 }).notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  posName: varchar("pos_name", { length: 500 }),
+  sku: varchar("sku", { length: 100 }),
+  plu: varchar("plu", { length: 100 }),
+  type: varchar("type", { length: 50 }),
+  visibility: text("visibility"),
+  imageUrl: text("image_url"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_menu_items_guid").on(table.itemGuid),
+  index("idx_toast_menu_items_group").on(table.groupGuid),
+  index("idx_toast_menu_items_restaurant").on(table.restaurantGuid),
+  index("idx_toast_menu_items_menu").on(table.menuGuid),
+])
+
+export const insertToastMenuItemSchema = createInsertSchema(toastMenuItems).omit({ id: true, syncedAt: true });
+export type InsertToastMenuItem = z.infer<typeof insertToastMenuItemSchema>;
+export type ToastMenuItem = typeof toastMenuItems.$inferSelect;
