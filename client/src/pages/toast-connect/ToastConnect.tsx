@@ -124,7 +124,7 @@ interface AvailableMenu {
   itemCount: number;
 }
 
-type ActiveSection = "menus" | "embed" | "print" | "reservations";
+type ActiveSection = "menus" | "embed" | "print" | "reservations" | "docs";
 
 function ToastConnectContent() {
   const { toast } = useToast();
@@ -330,12 +330,12 @@ function ToastConnectContent() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={activeSection === "reservations"}
-                  onClick={() => setActiveSection("reservations")}
-                  data-testid="nav-reservations"
+                  isActive={activeSection === "docs"}
+                  onClick={() => setActiveSection("docs")}
+                  data-testid="nav-docs"
                 >
-                  <CalendarDays className="w-4 h-4" />
-                  <span>Reservations</span>
+                  <FileText className="w-4 h-4" />
+                  <span>Documentation</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -915,6 +915,86 @@ function ToastConnectContent() {
         </>
         );
       })()}
+    </div>
+  );
+
+  const renderDocsSection = () => (
+    <div className="space-y-6 max-w-4xl">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Toast Connect Documentation</h2>
+        <p className="text-muted-foreground">Learn how to manage your menus, generate embed codes, and use permanent links.</p>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <RefreshCw className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">Menu Syncing</h3>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Updates in your Toast POS are not automatic. To see changes:
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
+              <li>Go to the <strong>Menus</strong> tab.</li>
+              <li>Click <strong>Sync from Toast</strong>.</li>
+              <li>Select the menus you want to refresh.</li>
+              <li>Item names, prices, and descriptions will update instantly.</li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Code className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">Permanent Links</h3>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Our embed codes and direct links are "frozen" by name.
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
+              <li>Links use names like <code>/Evening Appetizer/</code> instead of IDs.</li>
+              <li>This means if you swap out items or groups in Toast, your website doesn't need a new code.</li>
+              <li>As long as the <strong>Menu Name</strong> stays the same, the link stays the same.</li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Printer className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">Print & Font Scaling</h3>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Generate beautiful, print-ready PDF menus.
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
+              <li>Use the <strong>Font Size</strong> slider (60%–120%) to fit more on a page.</li>
+              <li>Pro Tip: 85%–95% is usually best for dense dinner menus.</li>
+              <li>In your browser's print dialog, uncheck <strong>"Headers and footers"</strong> for a professional look.</li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Wine className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">Wine Pairings</h3>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Add suggested wine pairings to any item.
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
+              <li>The system automatically extracts "Suggested Pairing" from Toast descriptions.</li>
+              <li>You can manually override or add pairings in the <strong>Menus</strong> detail view.</li>
+              <li>Pairings appear beautifully styled on both print and online menus.</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 
