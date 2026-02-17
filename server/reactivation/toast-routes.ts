@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { sql, eq, and, inArray } from "drizzle-orm";
+import { sql, eq, and, inArray, or } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
 import { toastMenus, toastMenuGroups, toastMenuItems } from "@shared/schema";
 import {
@@ -627,28 +627,47 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const rawScale = parseFloat(req.query.scale as string) || 100;
     const scale = Math.min(120, Math.max(60, rawScale));
 
-    const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
+    const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
       return res.status(404).send("<html><body><p>Menu not found</p></body></html>");
     }
 
+    // Use the actual GUID if name was provided
+    const actualMenuGuid = menu[0].menuGuid;
+
     let groups;
-    if (groupGuids.length === 1) {
-      groups = await db.select().from(toastMenuGroups)
-        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), eq(toastMenuGroups.groupGuid, groupGuids[0])))
-        .orderBy(toastMenuGroups.displayOrder);
-    } else if (groupGuids.length > 1) {
-      groups = await db.select().from(toastMenuGroups)
-        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), inArray(toastMenuGroups.groupGuid, groupGuids)))
-        .orderBy(toastMenuGroups.displayOrder);
+    if (groupGuids.length > 0) {
+      // Find group GUIDs if names were provided
+      const resolvedGroupGuids = [];
+      for (const g of groupGuids) {
+        const found = await db.select({ groupGuid: toastMenuGroups.groupGuid })
+          .from(toastMenuGroups)
+          .where(and(
+            eq(toastMenuGroups.menuGuid, actualMenuGuid),
+            or(eq(toastMenuGroups.groupGuid, g), eq(toastMenuGroups.name, g))
+          ))
+          .limit(1);
+        if (found.length > 0) resolvedGroupGuids.push(found[0].groupGuid);
+      }
+
+      if (resolvedGroupGuids.length > 0) {
+        groups = await db.select().from(toastMenuGroups)
+          .where(and(eq(toastMenuGroups.menuGuid, actualMenuGuid), inArray(toastMenuGroups.groupGuid, resolvedGroupGuids)))
+          .orderBy(toastMenuGroups.displayOrder);
+      } else {
+        // Fallback to all if none resolved
+        groups = await db.select().from(toastMenuGroups)
+          .where(eq(toastMenuGroups.menuGuid, actualMenuGuid))
+          .orderBy(toastMenuGroups.displayOrder);
+      }
     } else {
       groups = await db.select().from(toastMenuGroups)
-        .where(eq(toastMenuGroups.menuGuid, menuGuid))
+        .where(eq(toastMenuGroups.menuGuid, actualMenuGuid))
         .orderBy(toastMenuGroups.displayOrder);
     }
 
     const allItems = await db.select().from(toastMenuItems)
-      .where(eq(toastMenuItems.menuGuid, menuGuid))
+      .where(eq(toastMenuItems.menuGuid, actualMenuGuid))
       .orderBy(toastMenuItems.name);
 
     const visibleItems = allItems.filter((i) => !i.hidden);
@@ -683,7 +702,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       for (const p of patterns) {
         if (p.regex.test(name)) tags.push(p.label);
       }
-      return [...new Set(tags)];
+      const uniqueTags = [];
+      const seen = new Set();
+      for (const t of tags) {
+        if (!seen.has(t)) {
+          seen.add(t);
+          uniqueTags.push(t);
+        }
+      }
+      return uniqueTags;
     };
 
     const cleanItemName = (name: string): string => {

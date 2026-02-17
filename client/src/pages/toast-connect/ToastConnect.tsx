@@ -243,16 +243,29 @@ function ToastConnectContent() {
     );
   };
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false) => {
     const base = window.location.origin;
-    let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
-    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${groupGuids.join(",")}`;
+    let menuId = menuGuid;
+    let groupIds = groupGuids;
+
+    if (useNames && menuDetail) {
+      menuId = menuDetail.menu.name;
+      if (groupGuids && groupGuids.length > 0) {
+        groupIds = groupGuids.map(guid => {
+          const group = menuDetail.groups.find(g => g.groupGuid === guid);
+          return group ? group.name : guid;
+        });
+      }
+    }
+
+    let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuId)}/embed?template=${template}`;
+    if (groupIds && groupIds.length > 0) url += `&groupGuid=${encodeURIComponent(groupIds.join(","))}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
     return url;
   };
 
   const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[]) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids);
+    const url = getEmbedUrl(menuGuid, template, groupGuids, 100, true);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -673,7 +686,10 @@ function ToastConnectContent() {
           <Card>
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h3 className="font-medium text-sm">Embed Code (iframe)</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-sm">Embed Code (iframe)</h3>
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">Permanent (by Name)</span>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
@@ -697,11 +713,14 @@ function ToastConnectContent() {
           <Card>
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <h3 className="font-medium text-sm">Direct Link</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-sm">Direct Link</h3>
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">Permanent (by Name)</span>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, embedGroups))}
+                  onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, embedGroups, 100, true))}
                   data-testid="button-copy-link"
                 >
                   <Copy className="w-4 h-4 mr-1" />
@@ -710,7 +729,7 @@ function ToastConnectContent() {
               </div>
               <Input
                 readOnly
-                value={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
+                value={getEmbedUrl(selectedMenu, embedTemplate, embedGroups, 100, true)}
                 className="font-mono text-xs"
                 data-testid="input-embed-url"
               />
