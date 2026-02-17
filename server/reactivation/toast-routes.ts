@@ -178,14 +178,14 @@ router.get("/sync/history", isAuthenticated, async (_req, res) => {
 
 // ===================== Toast Menu Routes =====================
 
-router.post("/menus/sync", isAuthenticated, async (req, res) => {
+router.get("/menus/available", isAuthenticated, async (req, res) => {
   try {
-    const { restaurantGuid } = req.body;
+    const restaurantGuid = req.query.restaurantGuid as string;
     if (!restaurantGuid) {
       return res.status(400).json({ error: "restaurantGuid is required" });
     }
 
-    console.log(`[Toast Menus] Starting menu sync for restaurant ${restaurantGuid}`);
+    console.log(`[Toast Menus] Fetching available menus for restaurant ${restaurantGuid}`);
     const rawResponse = await getMenus(restaurantGuid);
 
     let menuList: any[] = [];
@@ -196,17 +196,69 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
       menuList = obj.menus || obj.data || [rawResponse];
     }
 
+    const available = menuList.map((menu: any) => ({
+      guid: menu.guid || menu.id || menu.menuId || "",
+      name: menu.name || "Unnamed Menu",
+      groupCount: (menu.menuGroups || menu.groups || menu.subgroups || []).length,
+      itemCount: (menu.menuGroups || menu.groups || menu.subgroups || []).reduce(
+        (acc: number, g: any) => acc + (g.menuItems || g.items || []).length, 0
+      ),
+    })).filter((m: any) => m.guid);
+
+    console.log(`[Toast Menus] Found ${available.length} available menus`);
+    res.json(available);
+  } catch (error: any) {
+    console.error("[Toast Menus] Available menus error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to fetch available menus" });
+  }
+});
+
+router.post("/menus/sync", isAuthenticated, async (req, res) => {
+  try {
+    const { restaurantGuid, menuGuids } = req.body;
+    if (!restaurantGuid) {
+      return res.status(400).json({ error: "restaurantGuid is required" });
+    }
+
+    const selectedGuids: string[] | null = Array.isArray(menuGuids) && menuGuids.length > 0 ? menuGuids : null;
+
+    console.log(`[Toast Menus] Starting menu sync for restaurant ${restaurantGuid}${selectedGuids ? ` (${selectedGuids.length} selected)` : " (all)"}`);
+    const rawResponse = await getMenus(restaurantGuid);
+
+    let menuList: any[] = [];
+    if (Array.isArray(rawResponse)) {
+      menuList = rawResponse;
+    } else if (rawResponse && typeof rawResponse === "object") {
+      const obj = rawResponse as Record<string, any>;
+      menuList = obj.menus || obj.data || [rawResponse];
+    }
+
+    if (selectedGuids) {
+      menuList = menuList.filter((menu: any) => {
+        const guid = menu.guid || menu.id || menu.menuId || "";
+        return selectedGuids.includes(guid);
+      });
+    }
+
     if (menuList.length === 0) {
       console.warn("[Toast Menus] No menus found in response. Keys:", Object.keys(rawResponse || {}));
       return res.json({ success: true, menuCount: 0, groupCount: 0, itemCount: 0, syncedAt: new Date().toISOString() });
     }
 
-    console.log(`[Toast Menus] Found ${menuList.length} menus in response`);
+    console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    await db.delete(toastMenuItems).where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
-    await db.delete(toastMenuGroups).where(eq(toastMenuGroups.restaurantGuid, restaurantGuid));
-    await db.delete(toastMenus).where(eq(toastMenus.restaurantGuid, restaurantGuid));
+    if (selectedGuids) {
+      for (const guid of selectedGuids) {
+        await db.delete(toastMenuItems).where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid), eq(toastMenuItems.menuGuid, guid)));
+        await db.delete(toastMenuGroups).where(and(eq(toastMenuGroups.restaurantGuid, restaurantGuid), eq(toastMenuGroups.menuGuid, guid)));
+        await db.delete(toastMenus).where(and(eq(toastMenus.restaurantGuid, restaurantGuid), eq(toastMenus.menuGuid, guid)));
+      }
+    } else {
+      await db.delete(toastMenuItems).where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
+      await db.delete(toastMenuGroups).where(eq(toastMenuGroups.restaurantGuid, restaurantGuid));
+      await db.delete(toastMenus).where(eq(toastMenus.restaurantGuid, restaurantGuid));
+    }
 
     let menuCount = 0;
     let groupCount = 0;
