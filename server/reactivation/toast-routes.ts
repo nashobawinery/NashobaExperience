@@ -248,6 +248,26 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
+    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; displayOrder: number | null }>();
+    {
+      let existingItems;
+      if (selectedGuids) {
+        existingItems = await db.select({ itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder })
+          .from(toastMenuItems)
+          .where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid)));
+      } else {
+        existingItems = await db.select({ itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder })
+          .from(toastMenuItems)
+          .where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
+      }
+      for (const item of existingItems) {
+        if (item.hidden || item.suggestedPairing || item.displayOrder != null) {
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, displayOrder: item.displayOrder });
+        }
+      }
+      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/order)`);
+    }
+
     if (selectedGuids) {
       for (const guid of selectedGuids) {
         await db.delete(toastMenuItems).where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid), eq(toastMenuItems.menuGuid, guid)));
@@ -320,6 +340,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             price = String(item.prices[0].price ?? item.prices[0].amount ?? 0);
           }
 
+          const overrides = existingOverrides.get(itemGuid);
           await db.insert(toastMenuItems).values({
             itemGuid,
             groupGuid,
@@ -334,6 +355,9 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             type: item.type || null,
             visibility: JSON.stringify(item.visibility || []),
             imageUrl: item.imageUrl || item.image || null,
+            hidden: overrides?.hidden ?? false,
+            suggestedPairing: overrides?.suggestedPairing ?? null,
+            displayOrder: overrides?.displayOrder ?? null,
           });
           itemCount++;
         }
@@ -477,31 +501,105 @@ router.get("/menus/sync-status", isAuthenticated, async (req, res) => {
   }
 });
 
+// ===================== Admin Item Overrides =====================
+
+router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    if (isNaN(itemId)) return res.status(400).json({ error: "Invalid item ID" });
+
+    const { hidden, suggestedPairing, displayOrder } = req.body;
+    const updates: Record<string, any> = {};
+    if (typeof hidden === "boolean") updates.hidden = hidden;
+    if (suggestedPairing !== undefined) updates.suggestedPairing = suggestedPairing || null;
+    if (displayOrder !== undefined) updates.displayOrder = displayOrder != null ? Number(displayOrder) : null;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    const result = await db.update(toastMenuItems)
+      .set(updates)
+      .where(eq(toastMenuItems.id, itemId))
+      .returning();
+
+    if (result.length === 0) return res.status(404).json({ error: "Item not found" });
+    res.json(result[0]);
+  } catch (error: any) {
+    console.error("[Toast Items] Override update error:", error.message);
+    res.status(500).json({ error: "Failed to update item overrides" });
+  }
+});
+
+router.patch("/menu-items/batch-overrides", isAuthenticated, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Items array required" });
+    }
+
+    const results = [];
+    for (const item of items) {
+      const updates: Record<string, any> = {};
+      if (typeof item.hidden === "boolean") updates.hidden = item.hidden;
+      if (item.suggestedPairing !== undefined) updates.suggestedPairing = item.suggestedPairing || null;
+      if (item.displayOrder !== undefined) updates.displayOrder = item.displayOrder != null ? Number(item.displayOrder) : null;
+
+      if (Object.keys(updates).length > 0 && item.id) {
+        const result = await db.update(toastMenuItems)
+          .set(updates)
+          .where(eq(toastMenuItems.id, item.id))
+          .returning();
+        if (result.length > 0) results.push(result[0]);
+      }
+    }
+
+    res.json({ updated: results.length, items: results });
+  } catch (error: any) {
+    console.error("[Toast Items] Batch override error:", error.message);
+    res.status(500).json({ error: "Failed to batch update overrides" });
+  }
+});
+
 // ===================== Public Routes (no auth - for embed/print) =====================
 
 router.get("/public/menu/:menuGuid", async (req, res) => {
   try {
     const { menuGuid } = req.params;
+    const groupGuid = req.query.groupGuid as string | undefined;
+    const includeHidden = req.query.includeHidden === "true";
+
     const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
     if (menu.length === 0) {
       return res.status(404).json({ error: "Menu not found" });
     }
-    const groups = await db.select().from(toastMenuGroups)
-      .where(eq(toastMenuGroups.menuGuid, menuGuid))
-      .orderBy(toastMenuGroups.displayOrder);
-    const items = await db.select().from(toastMenuItems)
+
+    let groups;
+    if (groupGuid) {
+      groups = await db.select().from(toastMenuGroups)
+        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), eq(toastMenuGroups.groupGuid, groupGuid)))
+        .orderBy(toastMenuGroups.displayOrder);
+    } else {
+      groups = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.menuGuid, menuGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+    }
+
+    const allItems = await db.select().from(toastMenuItems)
       .where(eq(toastMenuItems.menuGuid, menuGuid))
       .orderBy(toastMenuItems.name);
 
+    const visibleItems = includeHidden ? allItems : allItems.filter((i) => !i.hidden);
+
     const groupsWithItems = groups.map((g) => ({
       ...g,
-      items: items.filter((i) => i.groupGuid === g.groupGuid),
+      items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
 
     res.json({
       menu: menu[0],
       groups: groupsWithItems,
-      totalItems: items.length,
+      totalItems: visibleItems.length,
     });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch menu data" });
@@ -512,21 +610,34 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
   try {
     const { menuGuid } = req.params;
     const template = (req.query.template as string) || "fine-dining";
+    const groupGuid = req.query.groupGuid as string | undefined;
+
     const menu = await db.select().from(toastMenus).where(eq(toastMenus.menuGuid, menuGuid)).limit(1);
     if (menu.length === 0) {
       return res.status(404).send("<html><body><p>Menu not found</p></body></html>");
     }
-    const groups = await db.select().from(toastMenuGroups)
-      .where(eq(toastMenuGroups.menuGuid, menuGuid))
-      .orderBy(toastMenuGroups.displayOrder);
-    const items = await db.select().from(toastMenuItems)
+
+    let groups;
+    if (groupGuid) {
+      groups = await db.select().from(toastMenuGroups)
+        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), eq(toastMenuGroups.groupGuid, groupGuid)))
+        .orderBy(toastMenuGroups.displayOrder);
+    } else {
+      groups = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.menuGuid, menuGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+    }
+
+    const allItems = await db.select().from(toastMenuItems)
       .where(eq(toastMenuItems.menuGuid, menuGuid))
       .orderBy(toastMenuItems.name);
+
+    const visibleItems = allItems.filter((i) => !i.hidden);
 
     const menuData = menu[0];
     const groupsWithItems = groups.map((g) => ({
       ...g,
-      items: items.filter((i) => i.groupGuid === g.groupGuid),
+      items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
 
     const formatPrice = (price: string | null) => {
@@ -538,26 +649,59 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const escapeHtml = (str: string) =>
       str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+    const extractDietaryTags = (name: string): string[] => {
+      const tags: string[] = [];
+      const patterns = [
+        { regex: /\(GF\)/i, label: "GF" },
+        { regex: /\(V\)/i, label: "V" },
+        { regex: /\(VG\)/i, label: "VG" },
+        { regex: /\(DF\)/i, label: "DF" },
+        { regex: /\(NF\)/i, label: "NF" },
+        { regex: /gluten[- ]?free/i, label: "GF" },
+        { regex: /vegan/i, label: "VG" },
+        { regex: /vegetarian/i, label: "V" },
+      ];
+      for (const p of patterns) {
+        if (p.regex.test(name)) tags.push(p.label);
+      }
+      return [...new Set(tags)];
+    };
+
+    const cleanItemName = (name: string): string => {
+      return name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim();
+    };
+
     let groupsHtml = "";
     for (const group of groupsWithItems) {
       if (group.items.length === 0) continue;
       let itemsHtml = "";
       for (const item of group.items) {
         const price = formatPrice(item.price);
+        const dietaryTags = extractDietaryTags(item.name);
+        const cleanName = cleanItemName(item.name);
+        const tagsHtml = dietaryTags.length > 0
+          ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
+          : "";
+        const pairingHtml = item.suggestedPairing
+          ? `<p class="item-pairing">${escapeHtml(item.suggestedPairing)}</p>`
+          : "";
+
         if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
-              <h3 class="item-name">${escapeHtml(item.name)}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+              ${pairingHtml}
             </div>`;
         } else {
           itemsHtml += `
             <div class="menu-item">
               <div class="item-header">
-                <span class="item-name">${escapeHtml(item.name)}</span>
+                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
                 ${price ? `<span class="item-price">${price}</span>` : ""}
               </div>
               ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+              ${pairingHtml}
             </div>`;
         }
       }
@@ -569,7 +713,15 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         </div>`;
     }
 
+    const embedTitle = groupGuid && groups.length === 1
+      ? groups[0].name
+      : menuData.name;
+
     let css = "";
+    const dietaryTagsCss = `
+        .dietary-tags { margin-left: 6px; }
+        .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
+    `;
     if (template === "fine-dining") {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
@@ -586,8 +738,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
         .item-description { font-family: 'EB Garamond', serif; font-size: 0.95rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'EB Garamond', serif; font-size: 0.85rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
+        .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); }
         .footer { text-align: center; margin-top: 48px; font-size: 0.8rem; color: #6b5f4f; letter-spacing: 0.1em; }
-        @media print { body { background: white; color: #1a1a18; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } }
+        @media print { body { background: white; color: #1a1a18; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
     } else {
       css = `
@@ -605,6 +761,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-name { font-weight: 500; font-size: 1rem; }
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
         .item-description { font-size: 0.85rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
+        .item-pairing { font-size: 0.8rem; color: #78716c; margin-top: 2px; }
+        .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.75rem; color: #a8a29e; }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
     }
@@ -614,12 +774,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(menuData.name)}</title>
+  <title>${escapeHtml(embedTitle)}</title>
   <style>${css}</style>
 </head>
 <body>
   <div class="menu-container">
-    <h1 class="menu-title">${escapeHtml(menuData.name)}</h1>
+    <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : `<p class="menu-subtitle">Menu</p>`}
     ${groupsHtml}
     <div class="footer">
