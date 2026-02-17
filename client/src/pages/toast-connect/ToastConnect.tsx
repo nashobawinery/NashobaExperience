@@ -1019,6 +1019,7 @@ function ToastConnectContent() {
       case "embed": return renderEmbedSection();
       case "print": return renderPrintSection();
       case "reservations": return renderReservationsSection();
+      case "docs": return renderDocsSection();
       default: return renderMenusSection();
     }
   };
