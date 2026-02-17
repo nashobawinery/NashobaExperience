@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -14,8 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  RefreshCw, Search, UtensilsCrossed, Loader2,
-  Tag, ListFilter, ExternalLink
+  RefreshCw, UtensilsCrossed, Loader2,
+  ExternalLink, Eye, EyeOff,
+  ArrowLeft, Code, Printer, Copy, Check, Wine
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -46,6 +48,7 @@ interface ToastMenuGroupData {
   displayOrder: number | null;
   visibility: string | null;
   syncedAt: string;
+  items: ToastMenuItemData[];
 }
 
 interface ToastMenuItemData {
@@ -63,7 +66,16 @@ interface ToastMenuItemData {
   type: string | null;
   visibility: string | null;
   imageUrl: string | null;
+  hidden: boolean | null;
+  suggestedPairing: string | null;
+  displayOrder: number | null;
   syncedAt: string;
+}
+
+interface MenuDetailData {
+  menu: ToastMenuData;
+  groups: ToastMenuGroupData[];
+  totalItems: number;
 }
 
 interface SyncStatus {
@@ -92,12 +104,18 @@ function formatDate(dateStr: string): string {
   });
 }
 
+type ViewMode = "list" | "detail" | "embed" | "print";
+
 export function ToastMenuBrowser() {
   const { toast } = useToast();
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
-  const [selectedMenu, setSelectedMenu] = useState<string>("all");
-  const [selectedGroup, setSelectedGroup] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
+  const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
+  const [printTemplate, setPrintTemplate] = useState("fine-dining");
+  const [selectedEmbedGroup, setSelectedEmbedGroup] = useState<string>("");
+  const [selectedPrintGroup, setSelectedPrintGroup] = useState<string>("");
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -113,23 +131,22 @@ export function ToastMenuBrowser() {
 
   const restaurants = statusData?.restaurants || [];
   const isConfigured = statusData?.configured && statusData?.authenticated;
-
   const defaultRestaurant = restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
   const restaurantGuid = selectedRestaurant || (defaultRestaurant?.guid || "");
 
-  const { data: menus = [] } = useQuery<ToastMenuData[]>({
+  const { data: menus = [], isLoading: menusLoading } = useQuery<ToastMenuData[]>({
     queryKey: ["/api/toast/menus", { restaurantGuid }],
     enabled: !!restaurantGuid,
   });
 
-  const { data: groups = [] } = useQuery<ToastMenuGroupData[]>({
-    queryKey: ["/api/toast/menu-groups", { restaurantGuid }],
-    enabled: !!restaurantGuid,
-  });
-
-  const { data: items = [] } = useQuery<ToastMenuItemData[]>({
-    queryKey: ["/api/toast/menu-items", { restaurantGuid }],
-    enabled: !!restaurantGuid,
+  const { data: menuDetail, isLoading: detailLoading } = useQuery<MenuDetailData>({
+    queryKey: ["/api/toast/public/menu", selectedMenu],
+    queryFn: async () => {
+      const res = await fetch(`/api/toast/public/menu/${selectedMenu}?includeHidden=true`);
+      if (!res.ok) throw new Error("Failed to load menu detail");
+      return res.json();
+    },
+    enabled: !!selectedMenu,
   });
 
   const syncMutation = useMutation({
@@ -140,7 +157,7 @@ export function ToastMenuBrowser() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ predicate: (query) => {
         const key = query.queryKey[0] as string;
-        return key === "/api/toast/menus" || key === "/api/toast/menu-groups" || key === "/api/toast/menu-items" || key === "/api/toast/menus/sync-status";
+        return key?.startsWith?.("/api/toast/");
       }});
       toast({
         title: "Menu sync complete",
@@ -152,49 +169,62 @@ export function ToastMenuBrowser() {
     },
   });
 
-  const filteredItems = useMemo(() => {
-    let result = items;
-    if (selectedMenu !== "all") {
-      result = result.filter((item) => item.menuGuid === selectedMenu);
-    }
-    if (selectedGroup !== "all") {
-      result = result.filter((item) => item.groupGuid === selectedGroup);
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (item) =>
-          item.name.toLowerCase().includes(q) ||
-          (item.posName && item.posName.toLowerCase().includes(q)) ||
-          (item.description && item.description.toLowerCase().includes(q)) ||
-          (item.sku && item.sku.toLowerCase().includes(q))
-      );
-    }
-    return result;
-  }, [items, selectedMenu, selectedGroup, searchQuery]);
-
-  const filteredGroups = useMemo(() => {
-    if (selectedMenu === "all") return groups;
-    return groups.filter((g) => g.menuGuid === selectedMenu);
-  }, [groups, selectedMenu]);
-
-  const groupNameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const g of groups) {
-      map[g.groupGuid] = g.name;
-    }
-    return map;
-  }, [groups]);
-
-  const menuNameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const m of menus) {
-      map[m.menuGuid] = m.name;
-    }
-    return map;
-  }, [menus]);
+  const updateItemOverride = useMutation({
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string }) => {
+      const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key?.startsWith?.("/api/toast/");
+      }});
+    },
+    onError: (err: Error) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
+
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuid?: string) => {
+    const base = window.location.origin;
+    let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
+    if (groupGuid) url += `&groupGuid=${groupGuid}`;
+    return url;
+  };
+
+  const getEmbedCode = (menuGuid: string, template: string, groupGuid?: string) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuid);
+    return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedEmbed(true);
+    setTimeout(() => setCopiedEmbed(false), 2000);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  const openPrintView = (menuGuid: string, template: string, groupGuid?: string) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuid);
+    const printWindow = window.open(url, "_blank");
+    if (printWindow) {
+      printWindow.addEventListener("load", () => {
+        setTimeout(() => printWindow.print(), 500);
+      });
+    }
+  };
+
+  const openMenuDetail = (menuGuid: string) => {
+    setSelectedMenu(menuGuid);
+    setViewMode("detail");
+  };
+
+  const goBack = () => {
+    setSelectedMenu(null);
+    setViewMode("list");
+  };
 
   if (!isConfigured) {
     return (
@@ -212,8 +242,8 @@ export function ToastMenuBrowser() {
     );
   }
 
-  return (
-    <div className="p-6 space-y-4">
+  const renderMenuList = () => (
+    <>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-lg font-semibold" data-testid="text-toast-menus-title">Toast Menu Items</h2>
@@ -230,8 +260,7 @@ export function ToastMenuBrowser() {
               value={restaurantGuid}
               onValueChange={(v) => {
                 setSelectedRestaurant(v);
-                setSelectedMenu("all");
-                setSelectedGroup("all");
+                setSelectedMenu(null);
               }}
             >
               <SelectTrigger className="w-48" data-testid="select-restaurant">
@@ -270,131 +299,367 @@ export function ToastMenuBrowser() {
         </div>
       )}
 
-      {items.length === 0 && !syncMutation.isPending ? (
+      {menusLoading || syncMutation.isPending ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin text-primary" />
+            <p className="font-medium mb-1">{syncMutation.isPending ? "Syncing menus from Toast..." : "Loading menus..."}</p>
+          </CardContent>
+        </Card>
+      ) : menus.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium mb-1">No menu items synced yet</p>
             <p className="text-sm text-muted-foreground mb-4">
-              Click "Sync Menus from Toast" to pull in your menu items and their classifications.
+              Click "Sync Menus from Toast" to pull in your menu items.
             </p>
           </CardContent>
         </Card>
-      ) : syncMutation.isPending ? (
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {menus.map((menu) => (
+            <Card
+              key={menu.id}
+              className="cursor-pointer hover-elevate transition-all"
+              onClick={() => openMenuDetail(menu.menuGuid)}
+              data-testid={`card-menu-${menu.id}`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-medium truncate" data-testid={`text-menu-name-${menu.id}`}>{menu.name}</h3>
+                    {menu.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{menu.description}</p>
+                    )}
+                  </div>
+                  <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180 shrink-0 mt-1" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Synced {formatDate(menu.syncedAt)}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const renderMenuDetail = () => {
+    if (!selectedMenu) return null;
+    if (detailLoading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    if (!menuDetail) return null;
+
+    const { menu, groups, totalItems } = menuDetail;
+
+    return (
+      <>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="icon" onClick={goBack} data-testid="button-back-menus">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold truncate" data-testid="text-menu-detail-name">{menu.name}</h2>
+            <p className="text-sm text-muted-foreground">
+              {groups.length} courses, {totalItems} items
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => { setViewMode("embed"); }}
+              data-testid="button-get-embed"
+            >
+              <Code className="w-4 h-4 mr-2" />
+              Get Website Link
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setViewMode("print"); }}
+              data-testid="button-go-print"
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Print
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.open(getEmbedUrl(menu.menuGuid, "fine-dining"), "_blank")}
+              data-testid="button-preview-menu"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Preview
+            </Button>
+          </div>
+        </div>
+
+        {groups.map((group) => (
+          <div key={group.id} className="space-y-1">
+            <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
+              <h3 className="font-semibold text-base" data-testid={`text-group-name-${group.id}`}>
+                {group.name}
+              </h3>
+              <Badge variant="secondary" className="no-default-active-elevate">
+                {group.items.filter(i => !i.hidden).length}/{group.items.length} visible
+              </Badge>
+            </div>
+            {group.items.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No items in this group</p>
+            ) : (
+              <div className="space-y-0">
+                {group.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-start gap-3 py-2 border-b border-muted/50 last:border-0 ${item.hidden ? "opacity-40" : ""}`}
+                    data-testid={`row-item-${item.id}`}
+                  >
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => updateItemOverride.mutate({ itemId: item.id, hidden: !item.hidden })}
+                      data-testid={`button-toggle-visibility-${item.id}`}
+                    >
+                      {item.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                        <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>{item.name}</span>
+                        {item.price && (
+                          <span className="text-sm font-medium whitespace-nowrap">{formatPrice(item.price)}</span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        <Wine className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <Input
+                          placeholder="Suggested wine pairing..."
+                          defaultValue={item.suggestedPairing || ""}
+                          className="h-7 text-xs"
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val !== (item.suggestedPairing || "")) {
+                              updateItemOverride.mutate({ itemId: item.id, suggestedPairing: val });
+                            }
+                          }}
+                          data-testid={`input-pairing-${item.id}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </>
+    );
+  };
+
+  const renderEmbedView = () => {
+    if (!selectedMenu) return null;
+    const groupGuidVal = selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined;
+
+    return (
+      <>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="icon" onClick={() => setViewMode("detail")} data-testid="button-back-detail">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-lg font-semibold" data-testid="text-embed-title">Get Website Link / Embed Code</h2>
+            <p className="text-sm text-muted-foreground">
+              Generate an embed code or link to display this menu on your website.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Template Style</label>
+            <Select value={embedTemplate} onValueChange={setEmbedTemplate}>
+              <SelectTrigger data-testid="select-embed-template">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fine-dining">Fine Dining (Dark & Elegant)</SelectItem>
+                <SelectItem value="modern">Modern (Clean & Minimal)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Course / Group</label>
+            <Select value={selectedEmbedGroup || "all"} onValueChange={setSelectedEmbedGroup}>
+              <SelectTrigger data-testid="select-embed-group">
+                <SelectValue placeholder="All courses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All courses (full menu)</SelectItem>
+                {menuDetail?.groups.map((g) => (
+                  <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <Card>
-          <CardContent className="py-12 text-center">
-            <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin text-primary" />
-            <p className="font-medium mb-1">Syncing menus from Toast...</p>
-            <p className="text-sm text-muted-foreground">This may take a moment.</p>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-medium text-sm">Embed Code (iframe)</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, groupGuidVal))}
+                data-testid="button-copy-embed"
+              >
+                {copiedEmbed ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
+                {copiedEmbed ? "Copied" : "Copy Code"}
+              </Button>
+            </div>
+            <Textarea
+              readOnly
+              value={getEmbedCode(selectedMenu, embedTemplate, groupGuidVal)}
+              className="font-mono text-xs resize-none"
+              rows={3}
+              data-testid="textarea-embed-code"
+            />
           </CardContent>
         </Card>
-      ) : (
-        <>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search menu items..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-menu-items"
-              />
+
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-medium text-sm">Direct Link</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal))}
+                data-testid="button-copy-link"
+              >
+                <Copy className="w-4 h-4 mr-1" />
+                Copy URL
+              </Button>
             </div>
-            <Select value={selectedMenu} onValueChange={(v) => { setSelectedMenu(v); setSelectedGroup("all"); }}>
-              <SelectTrigger className="w-48" data-testid="select-menu-filter">
-                <ListFilter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="All Menus" />
+            <Input
+              readOnly
+              value={getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal)}
+              className="font-mono text-xs"
+              data-testid="input-embed-url"
+            />
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal), "_blank")}
+            data-testid="button-preview-embed"
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Preview in New Tab
+          </Button>
+        </div>
+
+        <Card>
+          <CardContent className="p-0 overflow-hidden rounded-md">
+            <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b">
+              Live Preview
+            </div>
+            <iframe
+              src={getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal)}
+              className="w-full border-0"
+              style={{ height: "500px" }}
+              title="Menu Preview"
+              data-testid="iframe-embed-preview"
+            />
+          </CardContent>
+        </Card>
+      </>
+    );
+  };
+
+  const renderPrintView = () => {
+    if (!selectedMenu) return null;
+    const groupGuidVal = selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined;
+
+    return (
+      <>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="icon" onClick={() => setViewMode("detail")} data-testid="button-back-detail-print">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-lg font-semibold" data-testid="text-print-title">Print Menu</h2>
+            <p className="text-sm text-muted-foreground">
+              Select a template and course, then print. Opens in a new tab.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Print Template</label>
+            <Select value={printTemplate} onValueChange={setPrintTemplate}>
+              <SelectTrigger data-testid="select-print-template">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Menus</SelectItem>
-                {menus.map((m) => (
-                  <SelectItem key={m.menuGuid} value={m.menuGuid}>
-                    {m.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="fine-dining">Fine Dining</SelectItem>
+                <SelectItem value="modern">Modern Clean</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="w-48" data-testid="select-group-filter">
-                <Tag className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="All Groups" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Course / Group</label>
+            <Select value={selectedPrintGroup || "all"} onValueChange={setSelectedPrintGroup}>
+              <SelectTrigger data-testid="select-print-group">
+                <SelectValue placeholder="All courses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Groups</SelectItem>
-                {filteredGroups.map((g) => (
-                  <SelectItem key={g.groupGuid} value={g.groupGuid}>
-                    {g.name}
-                  </SelectItem>
+                <SelectItem value="all">All courses (full menu)</SelectItem>
+                {menuDetail?.groups.map((g) => (
+                  <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+        </div>
 
-          <p className="text-sm text-muted-foreground" data-testid="text-item-count">
-            Showing {filteredItems.length} of {items.length} items
-          </p>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={() => openPrintView(selectedMenu, printTemplate, groupGuidVal)}
+            data-testid="button-print-now"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Print Menu
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, groupGuidVal), "_blank")}
+            data-testid="button-preview-print"
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            Preview
+          </Button>
+        </div>
+      </>
+    );
+  };
 
-          <div className="border rounded-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b">
-                    <th className="text-left px-4 py-3 font-medium">Item Name</th>
-                    <th className="text-left px-4 py-3 font-medium">Group</th>
-                    <th className="text-left px-4 py-3 font-medium">Menu</th>
-                    <th className="text-right px-4 py-3 font-medium">Price</th>
-                    <th className="text-left px-4 py-3 font-medium">POS Name</th>
-                    <th className="text-left px-4 py-3 font-medium">Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0 hover-elevate" data-testid={`row-menu-item-${item.id}`}>
-                      <td className="px-4 py-3">
-                        <div className="font-medium" data-testid={`text-item-name-${item.id}`}>{item.name}</div>
-                        {item.description && (
-                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.groupGuid && groupNameMap[item.groupGuid] ? (
-                          <Badge variant="outline" className="text-xs">{groupNameMap[item.groupGuid]}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {item.menuGuid && menuNameMap[item.menuGuid] ? menuNameMap[item.menuGuid] : "-"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium" data-testid={`text-item-price-${item.id}`}>
-                        {formatPrice(item.price) || <span className="text-muted-foreground">-</span>}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {item.posName || "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.type ? (
-                          <Badge variant="secondary" className="text-xs">{item.type}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredItems.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                        No items match your filters
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
+  return (
+    <div className="p-6 space-y-4">
+      {viewMode === "list" && renderMenuList()}
+      {viewMode === "detail" && renderMenuDetail()}
+      {viewMode === "embed" && renderEmbedView()}
+      {viewMode === "print" && renderPrintView()}
     </div>
   );
 }
