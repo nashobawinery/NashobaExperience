@@ -534,11 +534,12 @@ function ToastConnectContent() {
                         )}
                       </div>
                       {item.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 italic">{item.description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <Wine className="w-3 h-3 text-muted-foreground shrink-0" />
                         <Input
+                          key={`pairing-${item.id}-${item.suggestedPairing || ""}`}
                           placeholder="Suggested wine pairing..."
                           defaultValue={item.suggestedPairing || ""}
                           className="h-7 text-xs"
