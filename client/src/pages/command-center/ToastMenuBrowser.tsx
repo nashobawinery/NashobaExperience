@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -15,8 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   RefreshCw, UtensilsCrossed, Loader2,
-  ExternalLink, Eye, EyeOff,
+  ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine
 } from "lucide-react";
 import { Link } from "wouter";
@@ -104,6 +111,13 @@ function formatDate(dateStr: string): string {
   });
 }
 
+interface AvailableMenu {
+  guid: string;
+  name: string;
+  groupCount: number;
+  itemCount: number;
+}
+
 type ViewMode = "list" | "detail" | "embed" | "print";
 
 export function ToastMenuBrowser() {
@@ -116,6 +130,8 @@ export function ToastMenuBrowser() {
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [selectedEmbedGroup, setSelectedEmbedGroup] = useState<string>("");
   const [selectedPrintGroup, setSelectedPrintGroup] = useState<string>("");
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -149,9 +165,16 @@ export function ToastMenuBrowser() {
     enabled: !!selectedMenu,
   });
 
+  const { data: availableMenus = [], isLoading: availableLoading, refetch: fetchAvailableMenus } = useQuery<AvailableMenu[]>({
+    queryKey: ["/api/toast/menus/available", { restaurantGuid }],
+    enabled: false,
+  });
+
   const syncMutation = useMutation({
-    mutationFn: async (guid: string) => {
-      const res = await apiRequest("POST", "/api/toast/menus/sync", { restaurantGuid: guid });
+    mutationFn: async ({ guid, menuGuids }: { guid: string; menuGuids?: string[] }) => {
+      const body: any = { restaurantGuid: guid };
+      if (menuGuids && menuGuids.length > 0) body.menuGuids = menuGuids;
+      const res = await apiRequest("POST", "/api/toast/menus/sync", body);
       return res.json();
     },
     onSuccess: (data) => {
@@ -159,6 +182,8 @@ export function ToastMenuBrowser() {
         const key = query.queryKey[0] as string;
         return key?.startsWith?.("/api/toast/");
       }});
+      setShowSyncDialog(false);
+      setSelectedMenuGuids([]);
       toast({
         title: "Menu sync complete",
         description: `Synced ${data.menuCount} menus, ${data.groupCount} groups, ${data.itemCount} items`,
@@ -168,6 +193,18 @@ export function ToastMenuBrowser() {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const handleOpenSyncDialog = () => {
+    setShowSyncDialog(true);
+    setSelectedMenuGuids([]);
+    fetchAvailableMenus();
+  };
+
+  const toggleMenuGuid = (guid: string) => {
+    setSelectedMenuGuids(prev =>
+      prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+    );
+  };
 
   const updateItemOverride = useMutation({
     mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string }) => {
@@ -276,7 +313,7 @@ export function ToastMenuBrowser() {
             </Select>
           )}
           <Button
-            onClick={() => restaurantGuid && syncMutation.mutate(restaurantGuid)}
+            onClick={handleOpenSyncDialog}
             disabled={syncMutation.isPending || !restaurantGuid}
             data-testid="button-sync-menus"
           >
@@ -655,11 +692,100 @@ export function ToastMenuBrowser() {
   };
 
   return (
-    <div className="p-6 space-y-4">
-      {viewMode === "list" && renderMenuList()}
-      {viewMode === "detail" && renderMenuDetail()}
-      {viewMode === "embed" && renderEmbedView()}
-      {viewMode === "print" && renderPrintView()}
-    </div>
+    <>
+      <div className="p-6 space-y-4">
+        {viewMode === "list" && renderMenuList()}
+        {viewMode === "detail" && renderMenuDetail()}
+        {viewMode === "embed" && renderEmbedView()}
+        {viewMode === "print" && renderPrintView()}
+      </div>
+
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Sync Menus from Toast</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select the menus you want to sync, or sync all at once.
+          </p>
+
+          {availableLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+              <span className="text-sm text-muted-foreground">Loading menus from Toast...</span>
+            </div>
+          ) : availableMenus.length === 0 ? (
+            <div className="py-8 text-center">
+              <UtensilsCrossed className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No menus found in your Toast account.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-sm font-medium">{availableMenus.length} menus found</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedMenuGuids.length === availableMenus.length) {
+                      setSelectedMenuGuids([]);
+                    } else {
+                      setSelectedMenuGuids(availableMenus.map(m => m.guid));
+                    }
+                  }}
+                  data-testid="button-toggle-all-menus"
+                >
+                  {selectedMenuGuids.length === availableMenus.length ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-1 border rounded-md p-2">
+                {availableMenus.map((m) => (
+                  <label
+                    key={m.guid}
+                    className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                    data-testid={`menu-option-${m.guid}`}
+                  >
+                    <Checkbox
+                      checked={selectedMenuGuids.includes(m.guid)}
+                      onCheckedChange={() => toggleMenuGuid(m.guid)}
+                      data-testid={`checkbox-menu-${m.guid}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.groupCount} groups, {m.itemCount} items
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 flex-wrap">
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)} data-testid="button-cancel-sync">
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => restaurantGuid && syncMutation.mutate({ guid: restaurantGuid })}
+              disabled={syncMutation.isPending || availableLoading || availableMenus.length === 0}
+              data-testid="button-sync-all"
+            >
+              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Sync All
+            </Button>
+            <Button
+              onClick={() => restaurantGuid && syncMutation.mutate({ guid: restaurantGuid, menuGuids: selectedMenuGuids })}
+              disabled={syncMutation.isPending || selectedMenuGuids.length === 0}
+              data-testid="button-sync-selected"
+            >
+              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ListFilter className="w-4 h-4 mr-2" />}
+              Sync Selected ({selectedMenuGuids.length})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
