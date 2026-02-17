@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -35,7 +36,7 @@ import {
 import {
   RefreshCw, UtensilsCrossed, Loader2, Search,
   Code, Printer, Eye, Copy, Check, ChevronLeft,
-  ExternalLink, CalendarDays, ArrowLeft, FileText
+  ExternalLink, CalendarDays, ArrowLeft, FileText, ListFilter
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation, Link } from "wouter";
@@ -108,6 +109,13 @@ function formatDate(dateStr: string): string {
   });
 }
 
+interface AvailableMenu {
+  guid: string;
+  name: string;
+  groupCount: number;
+  itemCount: number;
+}
+
 type ActiveSection = "menus" | "embed" | "print" | "reservations";
 
 function ToastConnectContent() {
@@ -119,6 +127,8 @@ function ToastConnectContent() {
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -147,9 +157,16 @@ function ToastConnectContent() {
     enabled: !!selectedMenu,
   });
 
+  const { data: availableMenus = [], isLoading: availableLoading, refetch: fetchAvailableMenus } = useQuery<AvailableMenu[]>({
+    queryKey: ["/api/toast/menus/available", { restaurantGuid }],
+    enabled: false,
+  });
+
   const syncMutation = useMutation({
-    mutationFn: async (guid: string) => {
-      const res = await apiRequest("POST", "/api/toast/menus/sync", { restaurantGuid: guid });
+    mutationFn: async ({ guid, menuGuids }: { guid: string; menuGuids?: string[] }) => {
+      const body: any = { restaurantGuid: guid };
+      if (menuGuids && menuGuids.length > 0) body.menuGuids = menuGuids;
+      const res = await apiRequest("POST", "/api/toast/menus/sync", body);
       return res.json();
     },
     onSuccess: (data) => {
@@ -157,6 +174,8 @@ function ToastConnectContent() {
         const key = query.queryKey[0] as string;
         return key?.startsWith?.("/api/toast/");
       }});
+      setShowSyncDialog(false);
+      setSelectedMenuGuids([]);
       toast({
         title: "Menu sync complete",
         description: `Synced ${data.menuCount} menus, ${data.groupCount} groups, ${data.itemCount} items`,
@@ -168,8 +187,8 @@ function ToastConnectContent() {
   });
 
   const syncSingleMenu = useMutation({
-    mutationFn: async (guid: string) => {
-      const res = await apiRequest("POST", "/api/toast/menus/sync", { restaurantGuid: guid });
+    mutationFn: async (menuGuid: string) => {
+      const res = await apiRequest("POST", "/api/toast/menus/sync", { restaurantGuid: restaurantGuid, menuGuids: [menuGuid] });
       return res.json();
     },
     onSuccess: () => {
@@ -183,6 +202,18 @@ function ToastConnectContent() {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const handleOpenSyncDialog = async () => {
+    setShowSyncDialog(true);
+    setSelectedMenuGuids([]);
+    fetchAvailableMenus();
+  };
+
+  const toggleMenuGuid = (guid: string) => {
+    setSelectedMenuGuids(prev =>
+      prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+    );
+  };
 
   const getEmbedUrl = (menuGuid: string, template: string) => {
     const base = window.location.origin;
@@ -329,12 +360,12 @@ function ToastConnectContent() {
             </Select>
           )}
           <Button
-            onClick={() => restaurantGuid && syncMutation.mutate(restaurantGuid)}
-            disabled={syncMutation.isPending}
-            data-testid="button-sync-all"
+            onClick={handleOpenSyncDialog}
+            disabled={!restaurantGuid || syncMutation.isPending}
+            data-testid="button-sync-menus"
           >
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Sync All from Toast
+            Sync from Toast
           </Button>
         </div>
       </div>
@@ -348,7 +379,7 @@ function ToastConnectContent() {
           <CardContent className="py-12 text-center">
             <UtensilsCrossed className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium mb-1">No menus synced yet</p>
-            <p className="text-sm text-muted-foreground">Click "Sync All from Toast" to import your menus.</p>
+            <p className="text-sm text-muted-foreground">Click "Sync from Toast" to choose which menus to import.</p>
           </CardContent>
         </Card>
       ) : (
@@ -409,7 +440,7 @@ function ToastConnectContent() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={() => syncSingleMenu.mutate(menu.restaurantGuid)}
+              onClick={() => syncSingleMenu.mutate(menu.menuGuid)}
               disabled={syncSingleMenu.isPending}
               data-testid="button-sync-menu"
             >
@@ -765,6 +796,93 @@ function ToastConnectContent() {
           </main>
         </div>
       </div>
+
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Sync Menus from Toast</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select the menus you want to sync, or sync all at once.
+          </p>
+
+          {availableLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+              <span className="text-sm text-muted-foreground">Loading menus from Toast...</span>
+            </div>
+          ) : availableMenus.length === 0 ? (
+            <div className="py-8 text-center">
+              <UtensilsCrossed className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No menus found in your Toast account.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-sm font-medium">{availableMenus.length} menus found</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedMenuGuids.length === availableMenus.length) {
+                      setSelectedMenuGuids([]);
+                    } else {
+                      setSelectedMenuGuids(availableMenus.map(m => m.guid));
+                    }
+                  }}
+                  data-testid="button-toggle-all-menus"
+                >
+                  {selectedMenuGuids.length === availableMenus.length ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-1 border rounded-md p-2">
+                {availableMenus.map((m) => (
+                  <label
+                    key={m.guid}
+                    className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                    data-testid={`menu-option-${m.guid}`}
+                  >
+                    <Checkbox
+                      checked={selectedMenuGuids.includes(m.guid)}
+                      onCheckedChange={() => toggleMenuGuid(m.guid)}
+                      data-testid={`checkbox-menu-${m.guid}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.groupCount} groups, {m.itemCount} items
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 flex-wrap">
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)} data-testid="button-cancel-sync">
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => restaurantGuid && syncMutation.mutate({ guid: restaurantGuid })}
+              disabled={syncMutation.isPending || availableLoading || availableMenus.length === 0}
+              data-testid="button-sync-all"
+            >
+              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Sync All
+            </Button>
+            <Button
+              onClick={() => restaurantGuid && syncMutation.mutate({ guid: restaurantGuid, menuGuids: selectedMenuGuids })}
+              disabled={syncMutation.isPending || selectedMenuGuids.length === 0}
+              data-testid="button-sync-selected"
+            >
+              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ListFilter className="w-4 h-4 mr-2" />}
+              Sync Selected ({selectedMenuGuids.length})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }
