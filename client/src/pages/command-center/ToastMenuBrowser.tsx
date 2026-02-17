@@ -114,7 +114,8 @@ export function ToastMenuBrowser() {
   const restaurants = statusData?.restaurants || [];
   const isConfigured = statusData?.configured && statusData?.authenticated;
 
-  const restaurantGuid = selectedRestaurant || (restaurants.length > 0 ? restaurants[0].guid : "");
+  const defaultRestaurant = restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
+  const restaurantGuid = selectedRestaurant || (defaultRestaurant?.guid || "");
 
   const { data: menus = [] } = useQuery<ToastMenuData[]>({
     queryKey: ["/api/toast/menus", { restaurantGuid }],
