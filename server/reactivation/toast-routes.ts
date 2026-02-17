@@ -341,13 +341,25 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           }
 
           const overrides = existingOverrides.get(itemGuid);
+
+          let rawDesc = item.description || "";
+          let extractedPairing: string | null = null;
+          const pairingMatch = rawDesc.match(/(?:^|\n)\s*Suggested\s+Pairing[:\s]+(.+?)(?:\s*\$\d+)?\s*$/im);
+          if (pairingMatch) {
+            extractedPairing = pairingMatch[1].trim();
+            rawDesc = rawDesc.replace(/(?:^|\n)\s*Suggested\s+Pairing[:\s]+.+?(?:\s*\$\d+)?\s*$/im, "").trim();
+          }
+
+          const cleanDesc = rawDesc || null;
+          const finalPairing = overrides?.suggestedPairing || extractedPairing || null;
+
           await db.insert(toastMenuItems).values({
             itemGuid,
             groupGuid,
             menuGuid,
             restaurantGuid,
             name: itemName,
-            description: item.description || null,
+            description: cleanDesc,
             price,
             posName: item.posName || null,
             sku: item.sku || null,
@@ -356,7 +368,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             visibility: JSON.stringify(item.visibility || []),
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
-            suggestedPairing: overrides?.suggestedPairing ?? null,
+            suggestedPairing: finalPairing,
             displayOrder: overrides?.displayOrder ?? null,
           });
           itemCount++;
