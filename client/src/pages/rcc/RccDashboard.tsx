@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addWeeks, addDays, parseISO } from "date-fns";
+import Holidays from 'date-holidays';
 import { 
   Target, 
   Lightbulb, 
@@ -44,7 +45,8 @@ import {
   RefreshCw,
   Download,
   Upload,
-  BookOpen
+  BookOpen,
+  Gift
 } from "lucide-react";
 import type { 
   RccWeek, 
@@ -1492,6 +1494,9 @@ function DailyRevenueRow({
   const [otherSource, setOtherSource] = useState(entry?.otherRevenueSource || "");
   const [notes, setNotes] = useState(entry?.notes || "");
   const [expanded, setExpanded] = useState(false);
+  const hd = new Holidays('US');
+  const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
+  const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
 
   // Sync local state when entry changes (after save or weather fetch)
   useEffect(() => {
@@ -1544,6 +1549,12 @@ function DailyRevenueRow({
                   {entry?.weatherPrecipitation && parseFloat(entry.weatherPrecipitation) > 0 && (
                     <span>• {entry.weatherPrecipitation}mm</span>
                   )}
+                </div>
+              )}
+              {holidayName && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Gift className="h-3 w-3 text-orange-500" />
+                  <span className="text-[10px] font-medium text-orange-600 uppercase tracking-wider">{holidayName}</span>
                 </div>
               )}
             </div>
