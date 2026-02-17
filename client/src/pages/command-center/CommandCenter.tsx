@@ -12,7 +12,7 @@ import {
   ArrowLeft, Target, Lightbulb, Megaphone, DollarSign, Brain,
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
-  BookOpen, Store, Settings, Check, Crosshair, MessageSquare, UserPlus,
+  BookOpen, Store, Check, Crosshair, MessageSquare, UserPlus,
   UtensilsCrossed
 } from "lucide-react";
 
@@ -140,14 +140,13 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
+    id: "toast-connect",
+    label: "Toast Connect",
+    icon: UtensilsCrossed,
     defaultOpen: false,
     items: [
       { id: "toast-menus", label: "Toast Menus", icon: UtensilsCrossed },
       { id: "integrations", label: "Integrations", icon: Plug },
-      { id: "docs", label: "Documentation", icon: BookOpen },
     ],
   },
 ];
@@ -493,11 +492,21 @@ export default function CommandCenter() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/")} data-testid="button-return-hub">
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-sm font-bold leading-tight" data-testid="text-command-center-title">Command Center</h1>
               <p className="text-xs text-muted-foreground">Data & Marketing</p>
             </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
+            onClick={() => setActiveSection("docs")}
+            data-testid="button-nav-docs-top"
+          >
+            <BookOpen className="h-3.5 w-3.5 mr-2" />
+            Documentation
+          </Button>
         </div>
 
         <ScrollArea className="flex-1">
