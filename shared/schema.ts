@@ -5230,6 +5230,9 @@ export const toastMenuItems = pgTable("toast_menu_items", {
   type: varchar("type", { length: 50 }),
   visibility: text("visibility"),
   imageUrl: text("image_url"),
+  hidden: boolean("hidden").default(false),
+  suggestedPairing: text("suggested_pairing"),
+  displayOrder: integer("display_order"),
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_toast_menu_items_guid").on(table.itemGuid),
