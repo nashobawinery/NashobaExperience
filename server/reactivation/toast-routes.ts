@@ -745,23 +745,23 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; }
+        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 18px; }
         .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
-        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
-        .menu-subtitle { text-align: center; font-size: 1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
-        .ornament { text-align: center; font-size: 1.6rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
+        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { text-align: center; font-size: 1.1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
         .menu-group { margin-bottom: 40px; }
-        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
+        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
         .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
         .menu-item { text-align: center; margin-bottom: 20px; }
-        .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
+        .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
-        .item-description { font-family: 'EB Garamond', serif; font-size: 0.95rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'EB Garamond', serif; font-size: 0.85rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
+        .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
         .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
         ${dietaryTagsCss}
-        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); }
-        .footer { text-align: center; margin-top: 48px; font-size: 0.8rem; color: #6b5f4f; letter-spacing: 0.1em; }
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
+        .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
         @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
@@ -769,23 +769,23 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; font-size: 16px; }
         .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
-        .menu-title { font-size: 1.8rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
-        .menu-subtitle { text-align: center; font-size: 0.85rem; color: #78716c; margin-bottom: 32px; }
+        .menu-title { font-size: 2.2rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
+        .menu-subtitle { text-align: center; font-size: 1rem; color: #78716c; margin-bottom: 32px; }
         .menu-group { margin-bottom: 32px; }
-        .group-name { font-size: 1.15rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
+        .group-name { font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
         .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
         .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-        .item-name { font-weight: 500; font-size: 1rem; }
+        .item-name { font-weight: 500; font-size: 1.1rem; }
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
-        .item-description { font-size: 0.85rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
-        .item-pairing { font-size: 0.8rem; color: #78716c; margin-top: 2px; }
+        .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
+        .item-pairing { font-size: 0.9rem; color: #78716c; margin-top: 2px; }
         .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
         ${dietaryTagsCss}
-        .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; }
-        .footer { text-align: center; margin-top: 40px; font-size: 0.75rem; color: #a8a29e; }
+        .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
+        .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
         @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
         @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
