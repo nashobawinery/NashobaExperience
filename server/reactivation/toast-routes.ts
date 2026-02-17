@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { sql, eq, and } from "drizzle-orm";
+import { sql, eq, and, inArray } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
 import { toastMenus, toastMenuGroups, toastMenuItems } from "@shared/schema";
 import {
@@ -622,7 +622,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
   try {
     const { menuGuid } = req.params;
     const template = (req.query.template as string) || "fine-dining";
-    const groupGuid = req.query.groupGuid as string | undefined;
+    const groupGuidParam = req.query.groupGuid as string | undefined;
+    const groupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const rawScale = parseFloat(req.query.scale as string) || 100;
     const scale = Math.min(120, Math.max(60, rawScale));
 
@@ -632,9 +633,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     }
 
     let groups;
-    if (groupGuid) {
+    if (groupGuids.length === 1) {
       groups = await db.select().from(toastMenuGroups)
-        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), eq(toastMenuGroups.groupGuid, groupGuid)))
+        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), eq(toastMenuGroups.groupGuid, groupGuids[0])))
+        .orderBy(toastMenuGroups.displayOrder);
+    } else if (groupGuids.length > 1) {
+      groups = await db.select().from(toastMenuGroups)
+        .where(and(eq(toastMenuGroups.menuGuid, menuGuid), inArray(toastMenuGroups.groupGuid, groupGuids)))
         .orderBy(toastMenuGroups.displayOrder);
     } else {
       groups = await db.select().from(toastMenuGroups)
@@ -727,7 +732,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         </div>`;
     }
 
-    const embedTitle = groupGuid && groups.length === 1
+    const embedTitle = groupGuids.length === 1 && groups.length === 1
       ? groups[0].name
       : menuData.name;
 

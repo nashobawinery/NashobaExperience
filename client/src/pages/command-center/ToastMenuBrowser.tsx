@@ -22,6 +22,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   RefreshCw, UtensilsCrossed, Loader2,
   ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine
@@ -129,8 +134,8 @@ export function ToastMenuBrowser() {
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
-  const [selectedEmbedGroup, setSelectedEmbedGroup] = useState<string>("");
-  const [selectedPrintGroup, setSelectedPrintGroup] = useState<string>("");
+  const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
+  const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
 
@@ -225,16 +230,16 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
-    if (groupGuid) url += `&groupGuid=${groupGuid}`;
+    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${groupGuids.join(",")}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
     return url;
   };
 
-  const getEmbedCode = (menuGuid: string, template: string, groupGuid?: string) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuid);
+  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[]) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -245,8 +250,8 @@ export function ToastMenuBrowser() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuid, scale);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -503,9 +508,58 @@ export function ToastMenuBrowser() {
     );
   };
 
+  const toggleGroupSelection = (guid: string, selected: string[], setSelected: (v: string[]) => void) => {
+    setSelected(selected.includes(guid) ? selected.filter(g => g !== guid) : [...selected, guid]);
+  };
+
+  const getGroupLabel = (selected: string[], groups?: { groupGuid: string; name: string }[]) => {
+    if (selected.length === 0) return "All courses (full menu)";
+    if (!groups) return `${selected.length} selected`;
+    const names = selected.map(g => groups.find(gr => gr.groupGuid === g)?.name).filter(Boolean);
+    if (names.length <= 2) return names.join(", ");
+    return `${names.length} courses selected`;
+  };
+
+  const renderGroupMultiSelect = (selected: string[], setSelected: (v: string[]) => void, testIdPrefix: string) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-full justify-between text-left font-normal" data-testid={`${testIdPrefix}-trigger`}>
+          <span className="truncate">{getGroupLabel(selected, menuDetail?.groups)}</span>
+          <ListFilter className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="start">
+        <div className="space-y-1">
+          <Button
+            variant={selected.length === 0 ? "secondary" : "ghost"}
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => setSelected([])}
+            data-testid={`${testIdPrefix}-all`}
+          >
+            All courses (full menu)
+          </Button>
+          {menuDetail?.groups.map((g) => (
+            <label
+              key={g.groupGuid}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
+              data-testid={`${testIdPrefix}-${g.groupGuid}`}
+            >
+              <Checkbox
+                checked={selected.includes(g.groupGuid)}
+                onCheckedChange={() => toggleGroupSelection(g.groupGuid, selected, setSelected)}
+              />
+              <span className="text-sm">{g.name}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   const renderEmbedView = () => {
     if (!selectedMenu) return null;
-    const groupGuidVal = selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined;
+    const embedGroups = selectedEmbedGroups.length > 0 ? selectedEmbedGroups : undefined;
 
     return (
       <>
@@ -535,18 +589,8 @@ export function ToastMenuBrowser() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Course / Group</label>
-            <Select value={selectedEmbedGroup || "all"} onValueChange={setSelectedEmbedGroup}>
-              <SelectTrigger data-testid="select-embed-group">
-                <SelectValue placeholder="All courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All courses (full menu)</SelectItem>
-                {menuDetail?.groups.map((g) => (
-                  <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium">Courses / Groups</label>
+            {renderGroupMultiSelect(selectedEmbedGroups, setSelectedEmbedGroups, "select-embed-group")}
           </div>
         </div>
 
@@ -557,7 +601,7 @@ export function ToastMenuBrowser() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, groupGuidVal))}
+                onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, embedGroups))}
                 data-testid="button-copy-embed"
               >
                 {copiedEmbed ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
@@ -566,7 +610,7 @@ export function ToastMenuBrowser() {
             </div>
             <Textarea
               readOnly
-              value={getEmbedCode(selectedMenu, embedTemplate, groupGuidVal)}
+              value={getEmbedCode(selectedMenu, embedTemplate, embedGroups)}
               className="font-mono text-xs resize-none"
               rows={3}
               data-testid="textarea-embed-code"
@@ -581,7 +625,7 @@ export function ToastMenuBrowser() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal))}
+                onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, embedGroups))}
                 data-testid="button-copy-link"
               >
                 <Copy className="w-4 h-4 mr-1" />
@@ -590,7 +634,7 @@ export function ToastMenuBrowser() {
             </div>
             <Input
               readOnly
-              value={getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal)}
+              value={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
               className="font-mono text-xs"
               data-testid="input-embed-url"
             />
@@ -600,7 +644,7 @@ export function ToastMenuBrowser() {
         <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
-            onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal), "_blank")}
+            onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, embedGroups), "_blank")}
             data-testid="button-preview-embed"
           >
             <ExternalLink className="w-4 h-4 mr-2" />
@@ -614,7 +658,7 @@ export function ToastMenuBrowser() {
               Live Preview
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, embedTemplate, groupGuidVal)}
+              src={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
               className="w-full border-0"
               style={{ height: "500px" }}
               title="Menu Preview"
@@ -628,7 +672,7 @@ export function ToastMenuBrowser() {
 
   const renderPrintView = () => {
     if (!selectedMenu) return null;
-    const groupGuidVal = selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined;
+    const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
 
     return (
       <>
@@ -639,7 +683,7 @@ export function ToastMenuBrowser() {
           <div>
             <h2 className="text-lg font-semibold" data-testid="text-print-title">Print Menu</h2>
             <p className="text-sm text-muted-foreground">
-              Select a template and course, then print. Opens in a new tab.
+              Select a template and courses, then print. Opens in a new tab.
             </p>
           </div>
         </div>
@@ -658,18 +702,8 @@ export function ToastMenuBrowser() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Course / Group</label>
-            <Select value={selectedPrintGroup || "all"} onValueChange={setSelectedPrintGroup}>
-              <SelectTrigger data-testid="select-print-group">
-                <SelectValue placeholder="All courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All courses (full menu)</SelectItem>
-                {menuDetail?.groups.map((g) => (
-                  <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium">Courses / Groups</label>
+            {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-print-group")}
           </div>
         </div>
 
@@ -690,7 +724,7 @@ export function ToastMenuBrowser() {
 
         <div className="flex gap-2 flex-wrap">
           <Button
-            onClick={() => openPrintView(selectedMenu, printTemplate, groupGuidVal, printScale)}
+            onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale)}
             data-testid="button-print-now"
           >
             <Printer className="w-4 h-4 mr-2" />
@@ -698,7 +732,7 @@ export function ToastMenuBrowser() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, groupGuidVal, printScale), "_blank")}
+            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale), "_blank")}
             data-testid="button-preview-print"
           >
             <Eye className="w-4 h-4 mr-2" />

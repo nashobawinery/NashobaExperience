@@ -22,6 +22,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   SidebarProvider,
   Sidebar,
   SidebarContent,
@@ -133,8 +138,8 @@ function ToastConnectContent() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
-  const [selectedEmbedGroup, setSelectedEmbedGroup] = useState<string>("");
-  const [selectedPrintGroup, setSelectedPrintGroup] = useState<string>("");
+  const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
+  const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -238,16 +243,16 @@ function ToastConnectContent() {
     );
   };
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
-    if (groupGuid) url += `&groupGuid=${groupGuid}`;
+    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${groupGuids.join(",")}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
     return url;
   };
 
-  const getEmbedCode = (menuGuid: string, template: string, groupGuid?: string) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuid);
+  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[]) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -258,8 +263,8 @@ function ToastConnectContent() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuid?: string, scale?: number) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuid, scale);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -571,6 +576,55 @@ function ToastConnectContent() {
     </div>
   );
 
+  const toggleGroupSelection = (guid: string, selected: string[], setSelected: (v: string[]) => void) => {
+    setSelected(selected.includes(guid) ? selected.filter(g => g !== guid) : [...selected, guid]);
+  };
+
+  const getGroupLabel = (selected: string[], groups?: { groupGuid: string; name: string }[]) => {
+    if (selected.length === 0) return "All courses (full menu)";
+    if (!groups) return `${selected.length} selected`;
+    const names = selected.map(g => groups.find(gr => gr.groupGuid === g)?.name).filter(Boolean);
+    if (names.length <= 2) return names.join(", ");
+    return `${names.length} courses selected`;
+  };
+
+  const renderGroupMultiSelect = (selected: string[], setSelected: (v: string[]) => void, testIdPrefix: string) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-full justify-between text-left font-normal" data-testid={`${testIdPrefix}-trigger`}>
+          <span className="truncate">{getGroupLabel(selected, menuDetail?.groups)}</span>
+          <ListFilter className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="start">
+        <div className="space-y-1">
+          <Button
+            variant={selected.length === 0 ? "secondary" : "ghost"}
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => setSelected([])}
+            data-testid={`${testIdPrefix}-all`}
+          >
+            All courses (full menu)
+          </Button>
+          {menuDetail?.groups.map((g) => (
+            <label
+              key={g.groupGuid}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
+              data-testid={`${testIdPrefix}-${g.groupGuid}`}
+            >
+              <Checkbox
+                checked={selected.includes(g.groupGuid)}
+                onCheckedChange={() => toggleGroupSelection(g.groupGuid, selected, setSelected)}
+              />
+              <span className="text-sm">{g.name}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   const renderEmbedSection = () => (
     <div className="space-y-4">
       <div>
@@ -583,7 +637,7 @@ function ToastConnectContent() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Menu</label>
-          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedEmbedGroup(""); }}>
+          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedEmbedGroups([]); }}>
             <SelectTrigger data-testid="select-embed-menu">
               <SelectValue placeholder="Choose a menu..." />
             </SelectTrigger>
@@ -607,22 +661,14 @@ function ToastConnectContent() {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Course / Group</label>
-          <Select value={selectedEmbedGroup} onValueChange={setSelectedEmbedGroup}>
-            <SelectTrigger data-testid="select-embed-group">
-              <SelectValue placeholder="All courses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All courses (full menu)</SelectItem>
-              {menuDetail?.groups.map((g) => (
-                <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="text-sm font-medium">Courses / Groups</label>
+          {renderGroupMultiSelect(selectedEmbedGroups, setSelectedEmbedGroups, "select-embed-group")}
         </div>
       </div>
 
-      {selectedMenu && (
+      {selectedMenu && (() => {
+        const embedGroups = selectedEmbedGroups.length > 0 ? selectedEmbedGroups : undefined;
+        return (
         <>
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -631,7 +677,7 @@ function ToastConnectContent() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined))}
+                  onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, embedGroups))}
                   data-testid="button-copy-embed"
                 >
                   {copiedEmbed ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
@@ -640,7 +686,7 @@ function ToastConnectContent() {
               </div>
               <Textarea
                 readOnly
-                value={getEmbedCode(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined)}
+                value={getEmbedCode(selectedMenu, embedTemplate, embedGroups)}
                 className="font-mono text-xs resize-none"
                 rows={3}
                 data-testid="textarea-embed-code"
@@ -655,7 +701,7 @@ function ToastConnectContent() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined))}
+                  onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, embedGroups))}
                   data-testid="button-copy-link"
                 >
                   <Copy className="w-4 h-4 mr-1" />
@@ -664,7 +710,7 @@ function ToastConnectContent() {
               </div>
               <Input
                 readOnly
-                value={getEmbedUrl(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined)}
+                value={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
                 className="font-mono text-xs"
                 data-testid="input-embed-url"
               />
@@ -674,7 +720,7 @@ function ToastConnectContent() {
           <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined), "_blank")}
+              onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, embedGroups), "_blank")}
               data-testid="button-preview-embed"
             >
               <ExternalLink className="w-4 h-4 mr-2" />
@@ -688,7 +734,7 @@ function ToastConnectContent() {
                 Live Preview
               </div>
               <iframe
-                src={getEmbedUrl(selectedMenu, embedTemplate, selectedEmbedGroup && selectedEmbedGroup !== "all" ? selectedEmbedGroup : undefined)}
+                src={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
                 className="w-full border-0"
                 style={{ height: "500px" }}
                 title="Menu Preview"
@@ -697,7 +743,8 @@ function ToastConnectContent() {
             </CardContent>
           </Card>
         </>
-      )}
+        );
+      })()}
     </div>
   );
 
@@ -713,7 +760,7 @@ function ToastConnectContent() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Menu</label>
-          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedPrintGroup(""); }}>
+          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedPrintGroups([]); }}>
             <SelectTrigger data-testid="select-print-menu">
               <SelectValue placeholder="Choose a menu..." />
             </SelectTrigger>
@@ -737,18 +784,8 @@ function ToastConnectContent() {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Course / Group</label>
-          <Select value={selectedPrintGroup} onValueChange={setSelectedPrintGroup}>
-            <SelectTrigger data-testid="select-print-group">
-              <SelectValue placeholder="All courses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All courses (full menu)</SelectItem>
-              {menuDetail?.groups.map((g) => (
-                <SelectItem key={g.groupGuid} value={g.groupGuid}>{g.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="text-sm font-medium">Courses / Groups</label>
+          {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-print-group")}
         </div>
       </div>
 
@@ -767,6 +804,10 @@ function ToastConnectContent() {
         />
       </div>
 
+      {(() => {
+        const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+        return (
+        <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="overflow-hidden">
           <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
@@ -786,7 +827,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "fine-dining", selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined, printScale)}
+                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale)}
                   data-testid="button-print-fine-dining"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -815,7 +856,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "modern", selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined, printScale)}
+                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale)}
                   data-testid="button-print-modern"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -835,7 +876,7 @@ function ToastConnectContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openPrintView(selectedMenu, printTemplate, selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined, printScale)}
+                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale)}
                 data-testid="button-open-print"
               >
                 <Printer className="w-4 h-4 mr-1" />
@@ -843,7 +884,7 @@ function ToastConnectContent() {
               </Button>
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, printTemplate, selectedPrintGroup && selectedPrintGroup !== "all" ? selectedPrintGroup : undefined, printScale)}
+              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale)}
               className="w-full border-0"
               style={{ height: "600px" }}
               title="Print Preview"
@@ -852,6 +893,9 @@ function ToastConnectContent() {
           </CardContent>
         </Card>
       )}
+        </>
+        );
+      })()}
     </div>
   );
 
