@@ -114,6 +114,9 @@ const ResyAdminClubs = lazy(() => import("@/pages/reservations/admin-clubs"));
 const ResyAdminSpecialDates = lazy(() => import("@/pages/reservations/admin-special-dates"));
 const ResyAdminHolidays = lazy(() => import("@/pages/reservations/admin-holidays"));
 const ResyAdminPrivateEvents = lazy(() => import("@/pages/reservations/admin-private-events"));
+const ResyAdminEventRegistration = lazy(() => import("@/pages/reservations/admin-event-registration"));
+const EventRegistrationPortal = lazy(() => import("@/pages/event-registration/EventRegistrationPortal"));
+const EventCalendar = lazy(() => import("@/pages/event-registration/EventCalendar"));
 const ResyAdminFlowSettings = lazy(() => import("@/pages/reservations/admin-flow-settings"));
 const ResyAdminSettings = lazy(() => import("@/pages/reservations/admin-settings"));
 const ResyAdminDocumentation = lazy(() => import("@/pages/reservations/admin-documentation"));
@@ -970,6 +973,26 @@ function ResyAdminPrivateEventsRoute() {
   );
 }
 
+function ResyAdminEventRegistrationRoute() {
+  return (
+    <ResyAuthGuard>
+      <Suspense fallback={<PageLoader />}><ResyAdminEventRegistration /></Suspense>
+    </ResyAuthGuard>
+  );
+}
+
+function EventRegistrationPortalRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}><EventRegistrationPortal /></Suspense>
+  );
+}
+
+function EventCalendarRoute() {
+  return (
+    <Suspense fallback={<PageLoader />}><EventCalendar /></Suspense>
+  );
+}
+
 function ResyAdminFlowSettingsRoute() {
   return (
     <ResyAuthGuard>
@@ -1142,6 +1165,8 @@ function Router() {
         <Route path="/procedures/staff" component={StaffProceduresRoute} />
         <Route path="/staff" component={StaffPortalRoute} />
         <Route path="/staff/work-order" component={StaffWorkOrderRoute} />
+        <Route path="/event-registration" component={EventRegistrationPortalRoute} />
+        <Route path="/event-calendar" component={EventCalendarRoute} />
         <Route path="/support" component={SupportAdminRoute} />
         <Route path="/support/admin" component={SupportAdminRoute} />
         <Route path="/support/knowledge-base" component={SupportKnowledgeBaseRoute} />
@@ -1209,6 +1234,7 @@ function Router() {
         <Route path="/reservations/admin/special-dates" component={ResyAdminSpecialDatesRoute} />
         <Route path="/reservations/admin/holidays" component={ResyAdminHolidaysRoute} />
         <Route path="/reservations/admin/private-events" component={ResyAdminPrivateEventsRoute} />
+        <Route path="/reservations/admin/event-registration" component={ResyAdminEventRegistrationRoute} />
         <Route path="/reservations/admin/flow-settings" component={ResyAdminFlowSettingsRoute} />
         <Route path="/reservations/admin/settings" component={ResyAdminSettingsRoute} />
         <Route path="/reservations/admin/documentation" component={ResyAdminDocumentationRoute} />

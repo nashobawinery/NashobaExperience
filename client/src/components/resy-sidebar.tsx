@@ -1,4 +1,4 @@
-import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, CalendarHeart, MapPin, Settings, LogOut, BookOpen, Users, Crown } from "lucide-react";
+import { Home, Wine, Calendar, CalendarDays, CalendarOff, CalendarX, CalendarHeart, MapPin, Settings, LogOut, BookOpen, Users, Crown, CalendarPlus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -33,6 +33,11 @@ const menuItems = [
     title: "Private Events",
     url: "/reservations/admin/private-events",
     icon: CalendarOff,
+  },
+  {
+    title: "Event Registration",
+    url: "/reservations/admin/event-registration",
+    icon: CalendarPlus,
   },
   {
     title: "Special Dates",

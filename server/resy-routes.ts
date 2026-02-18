@@ -39,11 +39,13 @@ import {
   resyExperienceDiscounts,
   resyClubExperienceDiscounts,
   resyPrivateEvents,
+  resyEventStaffCodes,
   resySiteSettings,
   resyFooterLinks,
   resyTicketedEventDefinitions,
   resyTicketedEventTimeslots,
   insertResyLocationSchema,
+  insertResyEventStaffCodeSchema,
   insertResyExperienceSchema,
   insertResyReservationSchema,
   insertResyCustomerSchema,
@@ -458,6 +460,42 @@ class ResyStorage {
 
   async deletePrivateEvent(id: string): Promise<void> {
     await db.delete(resyPrivateEvents).where(eq(resyPrivateEvents.id, id));
+  }
+
+  async getAllEventStaffCodes() {
+    return await db.select().from(resyEventStaffCodes).orderBy(resyEventStaffCodes.staffName);
+  }
+
+  async getEventStaffCodeByCode(code: string) {
+    const [staff] = await db.select().from(resyEventStaffCodes)
+      .where(and(eq(resyEventStaffCodes.code, code), eq(resyEventStaffCodes.isActive, true)));
+    return staff;
+  }
+
+  async createEventStaffCode(data: any) {
+    const [staff] = await db.insert(resyEventStaffCodes).values(data).returning();
+    return staff;
+  }
+
+  async updateEventStaffCode(id: string, updates: any) {
+    const [staff] = await db
+      .update(resyEventStaffCodes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(resyEventStaffCodes.id, id))
+      .returning();
+    return staff;
+  }
+
+  async deleteEventStaffCode(id: string): Promise<void> {
+    await db.delete(resyEventStaffCodes).where(eq(resyEventStaffCodes.id, id));
+  }
+
+  async getConfirmedPrivateEvents() {
+    return await db.select().from(resyPrivateEvents)
+      .where(and(
+        not(eq(resyPrivateEvents.status, 'cancelled')),
+      ))
+      .orderBy(resyPrivateEvents.eventDate);
   }
 
   // Ticketed Event Definitions
@@ -3789,6 +3827,282 @@ router.post("/api/resy/cancel/:token", async (req, res) => {
   } catch (error: any) {
     console.error("Cancel reservation error:", error);
     res.status(500).json({ message: "Failed to cancel reservation" });
+  }
+});
+
+// ========== Event Staff Codes Routes ==========
+
+router.get("/api/resy/event-staff-codes", requireResyAdmin, async (req, res) => {
+  try {
+    const codes = await resyStorage.getAllEventStaffCodes();
+    res.json(codes);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch event staff codes: " + error.message });
+  }
+});
+
+router.post("/api/resy/event-staff-codes", requireResyAdmin, async (req, res) => {
+  try {
+    const validated = insertResyEventStaffCodeSchema.parse(req.body);
+    const existing = await resyStorage.getEventStaffCodeByCode(validated.code);
+    if (existing) {
+      return res.status(400).json({ message: "A staff member with this code already exists" });
+    }
+    const code = await resyStorage.createEventStaffCode(validated);
+    res.json(code);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to create event staff code: " + error.message });
+  }
+});
+
+router.patch("/api/resy/event-staff-codes/:id", requireResyAdmin, async (req, res) => {
+  try {
+    const updates = insertResyEventStaffCodeSchema.partial().parse(req.body);
+    const code = await resyStorage.updateEventStaffCode(req.params.id, updates);
+    if (!code) return res.status(404).json({ message: "Event staff code not found" });
+    res.json(code);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update event staff code: " + error.message });
+  }
+});
+
+router.delete("/api/resy/event-staff-codes/:id", requireResyAdmin, async (req, res) => {
+  try {
+    await resyStorage.deleteEventStaffCode(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to delete event staff code: " + error.message });
+  }
+});
+
+// ========== Event Registration Portal Routes (Staff Access) ==========
+
+router.post("/api/resy/event-registration/login", async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || code.length !== 4) {
+      return res.status(400).json({ message: "Please enter a valid 4-digit code" });
+    }
+    const staff = await resyStorage.getEventStaffCodeByCode(code);
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid access code" });
+    }
+    await resyStorage.updateEventStaffCode(staff.id, { lastUsedAt: new Date() });
+    res.json({ success: true, staffName: staff.staffName, staffId: staff.id });
+  } catch (error: any) {
+    res.status(500).json({ message: "Login failed: " + error.message });
+  }
+});
+
+router.get("/api/resy/event-registration/my-events", async (req, res) => {
+  try {
+    const code = req.query.code as string;
+    if (!code) {
+      return res.status(400).json({ message: "Staff code required" });
+    }
+    const staff = await resyStorage.getEventStaffCodeByCode(code);
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid staff code" });
+    }
+    const allEvents = await resyStorage.getAllPrivateEvents();
+    const myEvents = allEvents.filter(e => e.bookedByStaffName === staff.staffName);
+    res.json(myEvents);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch events: " + error.message });
+  }
+});
+
+router.post("/api/resy/event-registration/book", async (req, res) => {
+  try {
+    const { staffCode, ...eventData } = req.body;
+    if (!staffCode) {
+      return res.status(401).json({ message: "Staff code required" });
+    }
+    const staff = await resyStorage.getEventStaffCodeByCode(staffCode);
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid staff code" });
+    }
+
+    const validated = insertResyPrivateEventSchema.parse({
+      ...eventData,
+      bookedByStaffName: staff.staffName,
+      status: "confirmed",
+    });
+
+    if (validated.locationId && validated.eventDate) {
+      const existingEvents = await db.select().from(resyPrivateEvents)
+        .where(and(
+          eq(resyPrivateEvents.locationId, validated.locationId),
+          eq(resyPrivateEvents.eventDate, validated.eventDate),
+          not(eq(resyPrivateEvents.status, 'cancelled'))
+        ));
+      if (existingEvents.length > 0) {
+        return res.status(400).json({ message: "This location is already blocked for this date. Choose a different date or location." });
+      }
+    }
+
+    const event = await resyStorage.createPrivateEvent(validated);
+
+    if (validated.locationId && validated.eventDate) {
+      try {
+        const [specialDate] = await db.insert(resySpecialDates).values({
+          locationId: validated.locationId,
+          date: validated.eventDate,
+          startTime: validated.startTime || "00:00",
+          endTime: validated.endTime || "23:59",
+          name: `Private Event: ${validated.customerName}`,
+          description: `Private event booked by ${staff.staffName}. ${validated.notes || ''}`.trim(),
+          isClosed: true,
+        }).returning();
+
+        await db.update(resyPrivateEvents)
+          .set({ specialDateId: specialDate.id })
+          .where(eq(resyPrivateEvents.id, event.id));
+      } catch (sdError: any) {
+        console.error("Failed to create special date for private event:", sdError.message);
+      }
+    }
+
+    res.json(event);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to book event: " + error.message });
+  }
+});
+
+// ========== Public Embed Endpoint ==========
+
+router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => {
+  try {
+    const locations = await db.select().from(resyLocations)
+      .where(eq(resyLocations.isActive, true))
+      .orderBy(resyLocations.displayOrder);
+
+    const events = await db.select().from(resyPrivateEvents)
+      .where(not(eq(resyPrivateEvents.status, 'cancelled')));
+
+    const specialDates = await db.select().from(resySpecialDates)
+      .where(eq(resySpecialDates.isClosed, true));
+
+    const blockedByLocation: Record<string, { locationName: string; dates: string[] }> = {};
+
+    locations.forEach(loc => {
+      blockedByLocation[loc.id] = { locationName: loc.name, dates: [] };
+    });
+
+    events.forEach(event => {
+      if (event.locationId && blockedByLocation[event.locationId]) {
+        if (!blockedByLocation[event.locationId].dates.includes(event.eventDate)) {
+          blockedByLocation[event.locationId].dates.push(event.eventDate);
+        }
+      }
+    });
+
+    specialDates.forEach(sd => {
+      if (blockedByLocation[sd.locationId]) {
+        if (!blockedByLocation[sd.locationId].dates.includes(sd.date)) {
+          blockedByLocation[sd.locationId].dates.push(sd.date);
+        }
+      }
+    });
+
+    Object.values(blockedByLocation).forEach(loc => {
+      loc.dates.sort();
+    });
+
+    res.json(blockedByLocation);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch blocked dates: " + error.message });
+  }
+});
+
+router.get("/api/resy/public/private-events/embed", async (req, res) => {
+  try {
+    const locations = await db.select().from(resyLocations)
+      .where(eq(resyLocations.isActive, true))
+      .orderBy(resyLocations.displayOrder);
+
+    const events = await db.select().from(resyPrivateEvents)
+      .where(not(eq(resyPrivateEvents.status, 'cancelled')));
+
+    const specialDates = await db.select().from(resySpecialDates)
+      .where(eq(resySpecialDates.isClosed, true));
+
+    const blockedByLocation: Record<string, { locationName: string; dates: string[] }> = {};
+
+    locations.forEach(loc => {
+      blockedByLocation[loc.id] = { locationName: loc.name, dates: [] };
+    });
+
+    events.forEach(event => {
+      if (event.locationId && blockedByLocation[event.locationId]) {
+        if (!blockedByLocation[event.locationId].dates.includes(event.eventDate)) {
+          blockedByLocation[event.locationId].dates.push(event.eventDate);
+        }
+      }
+    });
+
+    specialDates.forEach(sd => {
+      if (blockedByLocation[sd.locationId]) {
+        if (!blockedByLocation[sd.locationId].dates.includes(sd.date)) {
+          blockedByLocation[sd.locationId].dates.push(sd.date);
+        }
+      }
+    });
+
+    Object.values(blockedByLocation).forEach(loc => {
+      loc.dates.sort();
+    });
+
+    const locationEntries = Object.values(blockedByLocation).filter(loc => loc.dates.length > 0 || true);
+
+    const formatDate = (dateStr: string) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${months[month - 1]} ${day}, ${year}`;
+    };
+
+    const maxDates = Math.max(...locationEntries.map(l => l.dates.length), 0);
+
+    let tableRows = '';
+    for (let i = 0; i < maxDates; i++) {
+      tableRows += '<tr>';
+      locationEntries.forEach(loc => {
+        const date = loc.dates[i];
+        tableRows += `<td style="padding:10px 16px;border:1px solid #555;color:#ddd;font-size:14px;">${date ? formatDate(date) : ''}</td>`;
+      });
+      tableRows += '</tr>';
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; padding:16px; background:#2a2a2a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    table { border-collapse:collapse; width:100%; }
+    th { background:#333; color:#fff; padding:12px 16px; text-align:left; border:1px solid #555; font-weight:600; font-size:14px; }
+    td { padding:10px 16px; border:1px solid #555; color:#ddd; font-size:14px; vertical-align:top; }
+    tr:hover td { background:#333; }
+  </style>
+</head>
+<body>
+  <table>
+    <thead>
+      <tr>${locationEntries.map(loc => `<th>${loc.locationName}</th>`).join('')}</tr>
+    </thead>
+    <tbody>
+      ${tableRows || '<tr><td colspan="' + locationEntries.length + '" style="padding:20px;text-align:center;color:#999;border:1px solid #555;">No blocked dates</td></tr>'}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    res.set('Content-Type', 'text/html');
+    res.set('X-Frame-Options', 'ALLOWALL');
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to generate embed: " + error.message });
   }
 });
 

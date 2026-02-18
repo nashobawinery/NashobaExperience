@@ -3019,6 +3019,8 @@ export const resyPrivateEvents = pgTable("resy_private_events", {
   partySize: integer("party_size").notNull(),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  bookedByStaffName: text("booked_by_staff_name"),
+  specialDateId: varchar("special_date_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3026,6 +3028,30 @@ export const resyPrivateEvents = pgTable("resy_private_events", {
 export const insertResyPrivateEventSchema = createInsertSchema(resyPrivateEvents).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertResyPrivateEvent = z.infer<typeof insertResyPrivateEventSchema>;
 export type ResyPrivateEvent = typeof resyPrivateEvents.$inferSelect;
+
+// Resy Event Staff Codes - 4-digit access codes for private event registration portal
+export const resyEventStaffCodes = pgTable("resy_event_staff_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 4 }).notNull(),
+  staffName: varchar("staff_name").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_event_staff_code").on(table.code),
+  index("idx_event_staff_active").on(table.isActive),
+  unique("uq_event_staff_code").on(table.code),
+]);
+
+export const insertResyEventStaffCodeSchema = createInsertSchema(resyEventStaffCodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastUsedAt: true,
+});
+export type InsertResyEventStaffCode = z.infer<typeof insertResyEventStaffCodeSchema>;
+export type ResyEventStaffCode = typeof resyEventStaffCodes.$inferSelect;
 
 // Resy Ticketed Event Definitions - Defines single or recurring ticketed events for locations
 export const resyTicketedEventDefinitions = pgTable("resy_ticketed_event_definitions", {
