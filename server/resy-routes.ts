@@ -2206,10 +2206,10 @@ async function sendNewPrivateEventNotification(event: any) {
     }
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    const users = await db.select().from(resyUsers).where(eq(resyUsers.isActive, true));
-    const recipients = users.filter(u => u.email).map(u => u.email!);
+    const staffCodes = await db.select().from(resyEventStaffCodes).where(eq(resyEventStaffCodes.isActive, true));
+    const recipients = staffCodes.filter(s => s.email).map(s => s.email!);
     if (recipients.length === 0) {
-      console.log("No resy users with emails found, skipping notification");
+      console.log("No event staff with emails found, skipping notification");
       return;
     }
 

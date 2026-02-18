@@ -91,10 +91,11 @@ function StaffCodesPanel({ codes }: { codes: ResyEventStaffCode[] }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [staffName, setStaffName] = useState("");
+  const [staffEmail, setStaffEmail] = useState("");
   const [code, setCode] = useState("");
 
   const createMutation = useMutation({
-    mutationFn: async (data: { staffName: string; code: string }) => {
+    mutationFn: async (data: { staffName: string; code: string; email?: string }) => {
       const res = await apiRequest("POST", "/api/resy/event-staff-codes", data);
       if (!res.ok) {
         const err = await res.json();
@@ -107,6 +108,7 @@ function StaffCodesPanel({ codes }: { codes: ResyEventStaffCode[] }) {
       queryClient.invalidateQueries({ queryKey: ["/api/resy/event-staff-codes"] });
       setDialogOpen(false);
       setStaffName("");
+      setStaffEmail("");
       setCode("");
     },
     onError: (error: any) => {
@@ -172,6 +174,9 @@ function StaffCodesPanel({ codes }: { codes: ResyEventStaffCode[] }) {
                   </Badge>
                   <div>
                     <p className="font-medium" data-testid={`text-staff-name-${staff.id}`}>{staff.staffName}</p>
+                    {staff.email && (
+                      <p className="text-xs text-muted-foreground" data-testid={`text-staff-email-${staff.id}`}>{staff.email}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {staff.lastUsedAt
                         ? `Last used ${format(new Date(staff.lastUsedAt), "MMM d, yyyy h:mm a")}`
@@ -246,6 +251,17 @@ function StaffCodesPanel({ codes }: { codes: ResyEventStaffCode[] }) {
               />
             </div>
             <div>
+              <Label>Email Address</Label>
+              <Input
+                type="email"
+                placeholder="Enter email for event notifications"
+                value={staffEmail}
+                onChange={(e) => setStaffEmail(e.target.value)}
+                data-testid="input-staff-email"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Staff will receive email notifications when new events are booked</p>
+            </div>
+            <div>
               <Label>4-Digit Access Code</Label>
               <Input
                 placeholder="e.g. 1234"
@@ -263,7 +279,7 @@ function StaffCodesPanel({ codes }: { codes: ResyEventStaffCode[] }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => createMutation.mutate({ staffName, code })}
+              onClick={() => createMutation.mutate({ staffName, code, email: staffEmail || undefined })}
               disabled={!staffName || code.length !== 4 || createMutation.isPending}
               data-testid="button-save-staff-code"
             >

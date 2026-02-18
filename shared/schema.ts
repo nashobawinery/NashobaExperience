@@ -3036,6 +3036,7 @@ export const resyEventStaffCodes = pgTable("resy_event_staff_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   code: varchar("code", { length: 4 }).notNull(),
   staffName: varchar("staff_name").notNull(),
+  email: varchar("email"),
   isActive: boolean("is_active").notNull().default(true),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
