@@ -85,6 +85,91 @@ if (process.env.STRIPE_SECRET_KEY) {
   stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 }
 
+async function seedEventBookableLocations() {
+  try {
+    const eventLocations = [
+      { name: 'Restaurant Lunch', displayOrder: 100 },
+      { name: 'Restaurant Evening', displayOrder: 101 },
+      { name: 'Restaurant Brunch', displayOrder: 102 },
+      { name: 'Private Dining', displayOrder: 103 },
+      { name: 'Patio', displayOrder: 105 },
+      { name: 'Distillery', displayOrder: 106 },
+    ];
+
+    const existing = await db.select({ name: resyLocations.name }).from(resyLocations);
+    const existingNames = new Set(existing.map(l => l.name));
+
+    for (const loc of eventLocations) {
+      if (!existingNames.has(loc.name)) {
+        await db.insert(resyLocations).values({
+          id: crypto.randomUUID(),
+          name: loc.name,
+          isActive: true,
+          displayOrder: loc.displayOrder,
+        });
+        console.log(`[Event Seed] Created location: ${loc.name}`);
+      }
+    }
+
+    const pavLocation = await db.select().from(resyLocations).where(eq(resyLocations.name, 'The Pavilion'));
+    if (pavLocation.length > 0) {
+      await db.update(resyLocations).set({ displayOrder: 104 }).where(eq(resyLocations.name, 'The Pavilion'));
+    }
+
+    const allLocations = await db.select().from(resyLocations).where(eq(resyLocations.isActive, true));
+    const locMap: Record<string, string> = {};
+    allLocations.forEach(l => { locMap[l.name] = l.id; });
+
+    const experiences = await db.select().from(resyExperiences).where(eq(resyExperiences.isActive, true));
+    const expId = experiences.length > 0 ? experiences[0].id : null;
+    if (!expId) return;
+
+    const existingEvents = await db.select().from(resyPrivateEvents);
+    const eventKey = (locId: string, date: string) => `${locId}_${date}`;
+    const existingEventKeys = new Set(existingEvents.map(e => eventKey(e.locationId || '', e.eventDate)));
+
+    const eventsToSeed = [
+      { location: 'Restaurant Lunch', date: '2026-05-02', start: '10:00', end: '14:00' },
+      { location: 'Restaurant Lunch', date: '2026-08-01', start: '10:00', end: '14:00' },
+      { location: 'Restaurant Lunch', date: '2026-09-12', start: '10:00', end: '14:00' },
+      { location: 'Restaurant Evening', date: '2026-05-30', start: '17:00', end: '22:00' },
+      { location: 'Restaurant Brunch', date: '2026-06-14', start: '10:00', end: '14:00' },
+      { location: 'The Pavilion', date: '2026-05-14', start: '10:00', end: '22:00' },
+      { location: 'Patio', date: '2026-05-15', start: '10:00', end: '22:00' },
+      { location: 'Patio', date: '2026-06-13', start: '10:00', end: '22:00' },
+      { location: 'Patio', date: '2026-06-14', start: '10:00', end: '22:00' },
+      { location: 'Patio', date: '2026-08-22', start: '10:00', end: '22:00' },
+    ];
+
+    let seeded = 0;
+    for (const evt of eventsToSeed) {
+      const locationId = locMap[evt.location];
+      if (!locationId) continue;
+      if (existingEventKeys.has(eventKey(locationId, evt.date))) continue;
+
+      await db.insert(resyPrivateEvents).values({
+        id: crypto.randomUUID(),
+        experienceId: expId,
+        locationId,
+        eventDate: evt.date,
+        startTime: evt.start,
+        endTime: evt.end,
+        customerName: 'Private Event',
+        customerEmail: 'events@nashoba.com',
+        partySize: 50,
+        status: 'confirmed',
+        bookedByStaffName: 'Richard Pelletier',
+      });
+      seeded++;
+    }
+    if (seeded > 0) console.log(`[Event Seed] Created ${seeded} private events`);
+  } catch (err: any) {
+    console.error('[Event Seed] Error:', err.message);
+  }
+}
+
+seedEventBookableLocations();
+
 class ResyStorage {
   async getUser(id: string): Promise<ResyUser | undefined> {
     const [user] = await db.select().from(resyUsers).where(eq(resyUsers.id, id));
