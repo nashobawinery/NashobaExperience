@@ -248,24 +248,25 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; displayOrder: number | null }>();
+    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; displayOrder: number | null; description: string | null; descriptionEdited: boolean }>();
     {
       let existingItems;
+      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder, description: toastMenuItems.description };
       if (selectedGuids) {
-        existingItems = await db.select({ itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder })
+        existingItems = await db.select(selectFields)
           .from(toastMenuItems)
           .where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid)));
       } else {
-        existingItems = await db.select({ itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder })
+        existingItems = await db.select(selectFields)
           .from(toastMenuItems)
           .where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
       }
       for (const item of existingItems) {
-        if (item.hidden || item.suggestedPairing || item.displayOrder != null) {
-          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, displayOrder: item.displayOrder });
+        if (item.hidden || item.suggestedPairing || item.displayOrder != null || item.description) {
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, displayOrder: item.displayOrder, description: item.description, descriptionEdited: false });
         }
       }
-      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/order)`);
+      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/order/description)`);
     }
 
     if (selectedGuids) {
@@ -353,6 +354,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
 
           const cleanDesc = rawDesc || null;
           const finalPairing = overrides?.suggestedPairing || extractedPairing || null;
+          const finalDescription = (overrides?.description && overrides.description !== cleanDesc) ? overrides.description : cleanDesc;
 
           await db.insert(toastMenuItems).values({
             itemGuid,
@@ -360,7 +362,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             menuGuid,
             restaurantGuid,
             name: itemName,
-            description: cleanDesc,
+            description: finalDescription,
             price,
             posName: item.posName || null,
             sku: item.sku || null,
@@ -521,11 +523,12 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
     const itemId = parseInt(req.params.itemId);
     if (isNaN(itemId)) return res.status(400).json({ error: "Invalid item ID" });
 
-    const { hidden, suggestedPairing, displayOrder } = req.body;
+    const { hidden, suggestedPairing, displayOrder, description } = req.body;
     const updates: Record<string, any> = {};
     if (typeof hidden === "boolean") updates.hidden = hidden;
     if (suggestedPairing !== undefined) updates.suggestedPairing = suggestedPairing || null;
     if (displayOrder !== undefined) updates.displayOrder = displayOrder != null ? Number(displayOrder) : null;
+    if (description !== undefined) updates.description = description;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
@@ -600,7 +603,7 @@ router.get("/public/menu/:menuGuid", async (req, res) => {
 
     const allItems = await db.select().from(toastMenuItems)
       .where(eq(toastMenuItems.menuGuid, menuGuid))
-      .orderBy(toastMenuItems.name);
+      .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
 
     const visibleItems = includeHidden ? allItems : allItems.filter((i) => !i.hidden);
 

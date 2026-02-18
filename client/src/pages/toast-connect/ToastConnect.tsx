@@ -218,7 +218,7 @@ function ToastConnectContent() {
   });
 
   const updateItemOverride = useMutation({
-    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string }) => {
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string; description?: string }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
       return res.json();
     },
@@ -557,9 +557,22 @@ function ToastConnectContent() {
                           <span className="text-sm font-medium whitespace-nowrap">{formatPrice(item.price)}</span>
                         )}
                       </div>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground mt-0.5 italic">{item.description}</p>
-                      )}
+                      <div className="mt-1">
+                        <Textarea
+                          key={`desc-${item.id}-${item.description || ""}`}
+                          placeholder="Item description (use <br> for line breaks)..."
+                          defaultValue={item.description || ""}
+                          className="text-xs resize-none"
+                          rows={2}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val !== (item.description || "")) {
+                              updateItemOverride.mutate({ itemId: item.id, description: val });
+                            }
+                          }}
+                          data-testid={`input-description-${item.id}`}
+                        />
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Wine className="w-3 h-3 text-muted-foreground shrink-0" />
                         <Input
