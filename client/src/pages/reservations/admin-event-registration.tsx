@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff, DollarSign, Pencil, Printer, ArrowUpDown, ArrowUp, ArrowDown, FileText } from "lucide-react";
+import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff, DollarSign, Pencil, Printer, ArrowUpDown, ArrowUp, ArrowDown, FileText, BookOpen } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { ResyEventStaffCode, ResyPrivateEvent, ResyLocation } from "@shared/schema";
 
@@ -62,7 +62,7 @@ export default function AdminEventRegistration() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="staff" className="flex items-center gap-2" data-testid="tab-staff">
             <Users className="h-4 w-4" /> Staff
           </TabsTrigger>
@@ -74,6 +74,9 @@ export default function AdminEventRegistration() {
           </TabsTrigger>
           <TabsTrigger value="embed" className="flex items-center gap-2" data-testid="tab-embed">
             <Code className="h-4 w-4" /> Embed
+          </TabsTrigger>
+          <TabsTrigger value="docs" className="flex items-center gap-2" data-testid="tab-docs">
+            <BookOpen className="h-4 w-4" /> Docs
           </TabsTrigger>
         </TabsList>
 
@@ -91,6 +94,10 @@ export default function AdminEventRegistration() {
 
         <TabsContent value="embed" className="mt-6">
           <EmbedPanel />
+        </TabsContent>
+
+        <TabsContent value="docs" className="mt-6">
+          <DocumentationPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -1038,6 +1045,244 @@ function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loc
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function DocumentationPanel() {
+  const baseUrl = window.location.origin;
+  const embedUrl = `${baseUrl}/api/resy/public/private-events/embed`;
+  const iframeCode = `<iframe src="${embedUrl}" width="100%" height="400" frameborder="0" style="border:none;border-radius:8px;overflow:hidden;"></iframe>`;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            Event Registration System Documentation
+          </CardTitle>
+          <CardDescription>Complete guide to how the private event registration system works</CardDescription>
+        </CardHeader>
+        <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+          <div className="space-y-8">
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">System Overview</h3>
+              <p className="text-muted-foreground">
+                The Event Registration system allows staff members to book private events at Nashoba Valley, blocking specific locations for specific dates. It consists of several integrated components that work together: a staff-facing online booking portal, an admin backend for management, an embeddable calendar widget for the public website, and automated email notifications.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">1. Staff Portal (Online Event Registration)</h3>
+              <p className="text-muted-foreground mb-3">
+                The staff portal is a web-based booking tool accessible at:
+              </p>
+              <div className="p-3 bg-muted rounded-md font-mono text-sm mb-3" data-testid="text-doc-portal-url">
+                {baseUrl}/event-registration
+              </div>
+
+              <h4 className="font-semibold mt-4 mb-2">How Staff Access Works</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Each staff member is assigned a unique 4-digit access code (managed in the Staff tab)</li>
+                <li>Staff enter their code on the login screen to access the booking portal</li>
+                <li>No username/password needed - just the 4-digit code</li>
+                <li>Staff can be activated or deactivated without deleting their record</li>
+                <li>Each staff member can optionally have an email address for receiving notifications</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Booking a Private Event</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Staff select a location (Restaurant, Pavilion, Patio, Distillery, Terrace Bar, etc.)</li>
+                <li>Staff select an experience type from the available experiences</li>
+                <li>Staff pick a date and set start/end times</li>
+                <li>Staff enter customer details: name, email, phone, party size</li>
+                <li>Optional fields: estimated revenue, actual revenue, and notes</li>
+                <li>When submitted, the system blocks that location for the selected date</li>
+                <li>The system checks for conflicts - if a location is already booked for that date, the booking is rejected</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Viewing & Editing Events</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>The portal shows an "All Booked Events" section listing every active event sorted by date</li>
+                <li>Staff can click any event to open an edit dialog and update its details</li>
+                <li>The "Your Recent Bookings" section shows only events booked by the logged-in staff member</li>
+                <li>Staff can update customer info, times, party size, revenue, status, and notes</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">2. Admin Backend (This Page)</h3>
+              <p className="text-muted-foreground mb-3">
+                The admin backend provides full management capabilities across five tabs:
+              </p>
+
+              <h4 className="font-semibold mt-4 mb-2">Staff Tab</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Add new staff members with a name, email, and 4-digit code</li>
+                <li>Edit existing staff details (click the pencil icon)</li>
+                <li>Activate/deactivate staff access without deleting</li>
+                <li>Remove staff members entirely</li>
+                <li>View when each staff member last used their code</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Events Tab</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>View all booked private events with full details</li>
+                <li>Add new events directly from the admin (click "Add Event")</li>
+                <li>Edit any event's details (click the pencil icon on any event)</li>
+                <li>Delete events with confirmation</li>
+                <li>Events show: date, time, location, customer info, party size, status, revenue, and who booked it</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Reports Tab</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Sortable table view of all events - click any column header to sort</li>
+                <li>Filter by status (Pending, Confirmed, Completed, Cancelled)</li>
+                <li>Summary totals: total events, total guests, estimated revenue, actual revenue</li>
+                <li>Print Report button generates a clean, print-ready version</li>
+                <li>The printed report includes the current sort order and filter applied</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Embed Tab</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Provides the iframe embed code for the blocked dates calendar</li>
+                <li>Shows a direct link to the standalone calendar page</li>
+                <li>Provides the JSON API endpoint for custom integrations</li>
+                <li>Includes a live preview of the embed</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">3. Email Notifications</h3>
+              <p className="text-muted-foreground mb-3">
+                Every time a new private event is booked - whether from the staff portal or the admin backend - an email notification is automatically sent to all active staff members who have an email address on file.
+              </p>
+              <h4 className="font-semibold mt-4 mb-2">What the Email Includes</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Subject line: "New Private Event - [Location] on [Date]"</li>
+                <li>Header message: "Good Job - We have a new private event!"</li>
+                <li>Full event details: location, date, time, customer name, party size, who booked it, notes, estimated revenue</li>
+                <li>A complete calendar table showing all currently reserved dates organized by location - matching the format on the website</li>
+                <li>Notes about linked locations (e.g., when Restaurant Evening is booked, Private Dining is also blocked; when Patio is booked, Distillery is also blocked)</li>
+              </ul>
+              <h4 className="font-semibold mt-4 mb-2">Email Configuration</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Emails are sent via SendGrid using the configured API key</li>
+                <li>The "from" address uses the SENDGRID_FROM_EMAIL environment variable</li>
+                <li>Each recipient receives an individual email (not CC'd together)</li>
+                <li>If SendGrid is not configured, notifications are silently skipped</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">4. Blocked Dates Calendar (Public Widget)</h3>
+              <p className="text-muted-foreground mb-3">
+                The system generates a public-facing calendar that shows which locations are blocked on which dates. This calendar is designed to be embedded on the Nashoba Valley website.
+              </p>
+              <h4 className="font-semibold mt-4 mb-2">Calendar Design</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Light cream background (#f5f0eb) with serif fonts to match the winery branding</li>
+                <li>Shows a table with locations as columns and blocked dates listed under each</li>
+                <li>Dates are formatted as "Month Day, Year" (e.g., "June 15, 2026")</li>
+                <li>Only shows active (non-cancelled) events</li>
+                <li>Updates automatically when events are added, edited, or cancelled</li>
+              </ul>
+              <h4 className="font-semibold mt-4 mb-2">Available Endpoints</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li><span className="font-mono text-xs">/api/resy/public/private-events/embed</span> - Returns the full HTML embed (iframe-ready)</li>
+                <li><span className="font-mono text-xs">/api/resy/public/private-events/blocked-dates</span> - Returns JSON data for custom integrations</li>
+                <li><span className="font-mono text-xs">/event-calendar</span> - Standalone full-page calendar view</li>
+                <li>All public endpoints require no authentication</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">5. WordPress Integration</h3>
+              <p className="text-muted-foreground mb-3">
+                The blocked dates calendar is embedded on the Nashoba Valley WordPress website using an HTML block. Here is how it was set up:
+              </p>
+
+              <h4 className="font-semibold mt-4 mb-2">Step-by-Step WordPress Setup</h4>
+              <ol className="list-decimal pl-5 space-y-2 text-muted-foreground">
+                <li>
+                  <strong>Open the WordPress page editor</strong> - Navigate to the page where you want the calendar to appear (e.g., the Private Events page) and click "Edit" to open the block editor (Gutenberg).
+                </li>
+                <li>
+                  <strong>Add a Custom HTML block</strong> - Click the "+" button to add a new block, search for "Custom HTML" and select it. This block allows you to paste raw HTML code directly into your page.
+                </li>
+                <li>
+                  <strong>Paste the iframe embed code</strong> - Copy the following code and paste it into the Custom HTML block:
+                </li>
+              </ol>
+              <div className="p-3 bg-muted rounded-md font-mono text-xs break-all my-3" data-testid="text-doc-embed-code">
+                {iframeCode}
+              </div>
+              <ol className="list-decimal pl-5 space-y-2 text-muted-foreground" start={4}>
+                <li>
+                  <strong>Adjust sizing if needed</strong> - The default height is 400px. You can increase or decrease the <span className="font-mono text-xs">height</span> value to fit more or fewer dates. For example, use <span className="font-mono text-xs">height="600"</span> if you have many bookings.
+                </li>
+                <li>
+                  <strong>Preview and publish</strong> - Click "Preview" in WordPress to see how the calendar looks on your page. The calendar loads in real-time from the platform, so it always shows the latest blocked dates. Click "Publish" or "Update" to save.
+                </li>
+              </ol>
+
+              <h4 className="font-semibold mt-4 mb-2">How the Embed Works</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>The iframe loads the embed endpoint from the Nashoba platform server</li>
+                <li>The endpoint generates a self-contained HTML page with inline CSS (no external dependencies)</li>
+                <li>The calendar has a light cream theme (#f5f0eb background) with Georgia serif fonts to blend with the winery website aesthetic</li>
+                <li>The title and notes were intentionally removed from the iframe to avoid duplication with the WordPress page's own heading and content</li>
+                <li>The iframe uses <span className="font-mono text-xs">frameborder="0"</span> and <span className="font-mono text-xs">border:none</span> so it appears seamlessly within the page</li>
+                <li>The <span className="font-mono text-xs">border-radius:8px</span> gives it slightly rounded corners for a polished look</li>
+                <li>The calendar data is fetched fresh each time someone visits the page - no caching issues</li>
+              </ul>
+
+              <h4 className="font-semibold mt-4 mb-2">Troubleshooting</h4>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li><strong>Calendar not showing:</strong> Make sure the platform is published and running. The iframe loads from the live published URL.</li>
+                <li><strong>Calendar too short/tall:</strong> Adjust the <span className="font-mono text-xs">height</span> value in the iframe code.</li>
+                <li><strong>Dates not updating:</strong> The calendar pulls live data - hard refresh the WordPress page (Ctrl+Shift+R) to clear any browser cache.</li>
+                <li><strong>Styling conflicts:</strong> The embed uses inline styles and is isolated inside an iframe, so WordPress theme styles should not affect it.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">6. Location Blocking Rules</h3>
+              <p className="text-muted-foreground mb-3">
+                When a private event is booked for a location, that location is blocked for the entire date. Important rules:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Each location can only have one private event per date</li>
+                <li>When a booking is made, a "special date" record is also created that marks the location as closed</li>
+                <li>Cancelling an event frees up the location for that date</li>
+                <li>The calendar widget only shows non-cancelled events</li>
+                <li><strong>Linked locations:</strong> When Restaurant Evening is booked, Private Dining is also considered booked. When Patio is booked, Distillery is also booked (reserved for inclement weather backup).</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">7. Data Flow Summary</h3>
+              <div className="space-y-3 text-muted-foreground">
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="font-semibold text-foreground mb-1">Staff books event via portal</p>
+                  <p className="text-sm">Staff enters code &rarr; Fills in event details &rarr; System checks for conflicts &rarr; Creates event record &rarr; Creates special date (blocks location) &rarr; Sends email to all staff with emails &rarr; Calendar widget updates automatically</p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="font-semibold text-foreground mb-1">Admin creates event via backend</p>
+                  <p className="text-sm">Admin fills in event form &rarr; Selects experience &rarr; Creates event record &rarr; Sends email to all staff with emails &rarr; Calendar widget updates automatically</p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-md">
+                  <p className="font-semibold text-foreground mb-1">Visitor views WordPress page</p>
+                  <p className="text-sm">WordPress page loads &rarr; iframe requests embed endpoint &rarr; Server queries all active events &rarr; Generates HTML table organized by location &rarr; Returns styled calendar to iframe</p>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
