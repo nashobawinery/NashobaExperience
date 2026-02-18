@@ -3021,6 +3021,8 @@ export const resyPrivateEvents = pgTable("resy_private_events", {
   notes: text("notes"),
   bookedByStaffName: text("booked_by_staff_name"),
   specialDateId: varchar("special_date_id"),
+  estimatedRevenue: integer("estimated_revenue"),
+  actualRevenue: integer("actual_revenue"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
