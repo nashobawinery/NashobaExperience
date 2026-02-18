@@ -4,7 +4,7 @@ import { eq, and, desc, sql, inArray, notInArray, not } from "drizzle-orm";
 import { isAuthenticated } from "./replitAuth";
 import { requireModuleAccess } from "./rbac";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { generateReservationConfirmationEmail, sendEmail } from "./email";
+import { generateReservationConfirmationEmail, sendEmail, generateBrandedEmailHeader, generateBrandedEmailFooter, getBrandedEmailStyles } from "./email";
 import { scheduleReminders, sendDailyReminders } from "./reservationReminders";
 import { sendSMS, generateReservationConfirmationSMS, isSmsConfigured } from "./sms";
 import * as XLSX from "xlsx";
@@ -2198,10 +2198,158 @@ router.get("/api/resy/private-events", async (req, res) => {
   }
 });
 
+async function sendNewPrivateEventNotification(event: any) {
+  try {
+    if (!process.env.SENDGRID_API_KEY) {
+      console.log("SendGrid not configured, skipping private event notification");
+      return;
+    }
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+    const users = await db.select().from(resyUsers).where(eq(resyUsers.isActive, true));
+    const recipients = users.filter(u => u.email).map(u => u.email!);
+    if (recipients.length === 0) {
+      console.log("No resy users with emails found, skipping notification");
+      return;
+    }
+
+    const location = event.locationId
+      ? await db.select().from(resyLocations).where(eq(resyLocations.id, event.locationId)).then(r => r[0])
+      : null;
+    const locationName = location?.name || "Unknown Location";
+
+    const eventDateFormatted = new Date(event.eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery', 'Terrace Bar'];
+    const displayNameMap: Record<string, string> = {
+      'The Pavilion': 'Pavilion',
+      'Winery Patio Area': 'Patio',
+    };
+
+    const allLocations = await db.select().from(resyLocations)
+      .where(eq(resyLocations.isActive, true))
+      .orderBy(resyLocations.displayOrder);
+
+    const allEvents = await db.select().from(resyPrivateEvents)
+      .where(not(eq(resyPrivateEvents.status, 'cancelled')));
+
+    const blockedByLocation: { locationName: string; displayName: string; dates: string[] }[] = [];
+    const locationMap: Record<string, number> = {};
+
+    allLocations.forEach(loc => {
+      const displayName = displayNameMap[loc.name] || loc.name;
+      if (eventBookableNames.includes(displayName)) {
+        locationMap[loc.id] = blockedByLocation.length;
+        blockedByLocation.push({ locationName: loc.name, displayName, dates: [] });
+      }
+    });
+
+    allEvents.forEach(ev => {
+      if (ev.locationId && locationMap[ev.locationId] !== undefined) {
+        const idx = locationMap[ev.locationId];
+        if (!blockedByLocation[idx].dates.includes(ev.eventDate)) {
+          blockedByLocation[idx].dates.push(ev.eventDate);
+        }
+      }
+    });
+
+    blockedByLocation.forEach(loc => {
+      loc.dates.sort((a, b) => a.localeCompare(b));
+    });
+
+    const formatDate = (d: string) => {
+      const date = new Date(d + 'T12:00:00');
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    };
+
+    const maxDates = Math.max(...blockedByLocation.map(l => l.dates.length), 0);
+    let tableRows = '';
+    for (let i = 0; i < maxDates; i++) {
+      tableRows += '<tr>';
+      blockedByLocation.forEach(loc => {
+        const date = loc.dates[i];
+        tableRows += `<td style="padding:10px 14px;border:1px solid #d5cfc8;color:#6b6560;font-size:13px;vertical-align:top;">${date ? formatDate(date) : ''}</td>`;
+      });
+      tableRows += '</tr>';
+    }
+
+    const calendarTableHtml = `
+      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border:1px solid #d5cfc8;margin-top:10px;">
+        <thead>
+          <tr>${blockedByLocation.map(loc => `<th style="background:#ede8e2;color:#4a4540;padding:10px 14px;text-align:left;border:1px solid #d5cfc8;font-weight:600;font-size:13px;font-family:Georgia,serif;">${loc.displayName}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${tableRows || `<tr><td colspan="${blockedByLocation.length}" style="padding:20px;text-align:center;color:#999;">No blocked dates at this time.</td></tr>`}
+        </tbody>
+      </table>
+    `;
+
+    const header = generateBrandedEmailHeader("New Private Event Booked!");
+    const footer = generateBrandedEmailFooter(false);
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><style>${getBrandedEmailStyles()}</style></head>
+      <body style="margin:0;padding:0;background-color:#f5f5f5;">
+        ${header}
+        <div style="max-width:800px;margin:0 auto;padding:30px 20px;background:#ffffff;">
+          <p style="font-size:18px;color:#5C2535;font-weight:bold;margin:0 0 10px;">Good Job - We have a new private event!</p>
+          
+          <div style="background:#f5f0eb;border-radius:8px;padding:20px;margin:20px 0;">
+            <h3 style="margin:0 0 15px;color:#4a4540;font-family:Georgia,serif;">Event Details</h3>
+            <table cellpadding="0" cellspacing="0" border="0" style="font-size:14px;color:#333;">
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600;">Location:</td><td style="padding:4px 0;">${locationName}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600;">Date:</td><td style="padding:4px 0;">${eventDateFormatted}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600;">Time:</td><td style="padding:4px 0;">${event.startTime} - ${event.endTime}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600;">Customer:</td><td style="padding:4px 0;">${event.customerName}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;font-weight:600;">Party Size:</td><td style="padding:4px 0;">${event.partySize}</td></tr>
+              ${event.bookedByStaffName ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600;">Booked By:</td><td style="padding:4px 0;">${event.bookedByStaffName}</td></tr>` : ''}
+              ${event.notes ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600;">Notes:</td><td style="padding:4px 0;">${event.notes}</td></tr>` : ''}
+              ${event.estimatedRevenue ? `<tr><td style="padding:4px 12px 4px 0;font-weight:600;">Est. Revenue:</td><td style="padding:4px 0;">$${(event.estimatedRevenue / 100).toFixed(2)}</td></tr>` : ''}
+            </table>
+          </div>
+
+          <div style="margin-top:30px;">
+            <h3 style="text-align:center;font-family:'Georgia',serif;font-weight:400;font-size:20px;color:#4a4540;margin:0 0 10px;">Dates and Locations Already Reserved by Location</h3>
+            <div style="font-size:12px;color:#6b6560;margin-bottom:15px;">
+              <p style="margin:0 0 4px;font-style:italic;">Note:</p>
+              <ul style="margin:4px 0 0 0;padding-left:20px;">
+                <li style="margin-bottom:3px;">When the Restaurant Evening is booked, Private Dining is also booked.</li>
+                <li style="margin-bottom:3px;">When the Patio is booked, the Distillery is also booked as this is reserved in case of inclement weather.</li>
+              </ul>
+            </div>
+            ${calendarTableHtml}
+          </div>
+        </div>
+        ${footer}
+      </body>
+      </html>
+    `;
+
+    for (const email of recipients) {
+      try {
+        await sgMail.send({
+          to: email,
+          from: process.env.SENDGRID_FROM_EMAIL || 'noreply@nashobawinery.com',
+          subject: `New Private Event - ${locationName} on ${eventDateFormatted}`,
+          html: emailHtml,
+        });
+      } catch (emailErr: any) {
+        console.error(`Failed to send private event notification to ${email}:`, emailErr.message);
+      }
+    }
+    console.log(`Private event notification sent to ${recipients.length} user(s)`);
+  } catch (error: any) {
+    console.error("Failed to send private event notifications:", error.message);
+  }
+}
+
 router.post("/api/resy/private-events", requireResyAdmin, async (req, res) => {
   try {
     const validated = insertResyPrivateEventSchema.parse(req.body);
     const event = await resyStorage.createPrivateEvent(validated);
+    sendNewPrivateEventNotification(event).catch(err => console.error("Notification error:", err));
     res.json(event);
   } catch (error: any) {
     res.status(400).json({ message: "Failed to create private event: " + error.message });
@@ -4253,35 +4401,6 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
       font-family: 'Georgia', 'Times New Roman', serif;
       color: #4a4540;
     }
-    h1 {
-      text-align: center;
-      font-family: 'Playfair Display', Georgia, serif;
-      font-weight: 400;
-      font-size: 28px;
-      color: #4a4540;
-      margin: 0 0 24px 0;
-      letter-spacing: 0.5px;
-    }
-    .notes {
-      max-width: 900px;
-      margin: 0 auto 20px auto;
-      font-size: 14px;
-      color: #6b6560;
-      line-height: 1.6;
-    }
-    .notes p {
-      margin: 0 0 6px 0;
-      font-style: italic;
-      font-size: 13px;
-    }
-    .notes ul {
-      margin: 4px 0 0 0;
-      padding-left: 20px;
-    }
-    .notes li {
-      margin-bottom: 4px;
-      font-size: 13px;
-    }
     .table-wrapper {
       max-width: 100%;
       overflow-x: auto;
@@ -4312,14 +4431,6 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
   </style>
 </head>
 <body>
-  <h1>Dates and Locations Already Reserved by Location</h1>
-  <div class="notes">
-    <p>Note:</p>
-    <ul>
-      <li>When the Restaurant Evening is booked, Private Dining is also booked.</li>
-      <li>When the Patio is booked, the Distillery is also booked as this is reserved in case of inclement weather.</li>
-    </ul>
-  </div>
   <div class="table-wrapper">
     <table>
       <thead>
