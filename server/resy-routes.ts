@@ -94,6 +94,7 @@ async function seedEventBookableLocations() {
       { name: 'Private Dining', displayOrder: 103 },
       { name: 'Patio', displayOrder: 105 },
       { name: 'Distillery', displayOrder: 106 },
+      { name: 'Terrace Bar', displayOrder: 107 },
     ];
 
     const existing = await db.select({ name: resyLocations.name }).from(resyLocations);
@@ -4109,7 +4110,7 @@ router.patch("/api/resy/event-registration/edit/:id", async (req, res) => {
 
 router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => {
   try {
-    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery'];
+    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery', 'Terrace Bar'];
     const displayNameMap: Record<string, string> = {
       'The Pavilion': 'Pavilion',
       'Winery Patio Area': 'Patio',
@@ -4170,7 +4171,7 @@ router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => 
 
 router.get("/api/resy/public/private-events/embed", async (req, res) => {
   try {
-    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery'];
+    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery', 'Terrace Bar'];
     const displayNameMap: Record<string, string> = {
       'The Pavilion': 'Pavilion',
       'Winery Patio Area': 'Patio',
