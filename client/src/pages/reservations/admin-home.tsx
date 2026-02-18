@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Wine, Users, DollarSign, ExternalLink } from "lucide-react";
+import { Calendar, Wine, Users, DollarSign, ExternalLink, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { format } from "date-fns";
 import type { Reservation, Experience } from "@shared/schema";
 
 export default function AdminHome() {
+  const [, setLocation] = useLocation();
   const { data: experiences, isLoading: experiencesLoading } = useQuery<Experience[]>({
     queryKey: ["/api/resy/experiences"],
   });
@@ -23,9 +25,15 @@ export default function AdminHome() {
 
   return (
     <div className="space-y-8">
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" onClick={() => setLocation("/")} data-testid="button-return-hub">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Return to Hub
+        </Button>
+      </div>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Dashboard</h1>
+          <h1 className="font-serif text-3xl md:text-4xl font-semibold mb-2">Reservation Dashboard</h1>
           <p className="text-muted-foreground">Welcome to your reservation management system</p>
         </div>
         <Button
