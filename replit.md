@@ -23,9 +23,12 @@ The platform uses React with TypeScript, `shadcn/ui` (Radix UI), and Tailwind CS
   3. Let Drizzle handle migrations via `npm run db:push`
   4. Only use SQL for data operations (INSERT, UPDATE, SELECT, DELETE)
   
-  **🔍 PRE-PUBLISH VALIDATION:**
-  Before publishing, run: `npx tsx scripts/validate-schema.ts`
-  This shows mismatches between database and schema that would cause deletions.
+  **🔍 PRE-PUBLISH CHECKLIST:**
+  1. Run `npm run build` to compile the latest code into production bundle
+  2. Run `npx tsx scripts/validate-schema.ts` to check for schema mismatches
+  3. Then publish — this ensures the deployed version includes all recent changes
+  
+  **⚠️ IMPORTANT:** The published app runs from the compiled `dist/` folder, NOT from source code. If you skip `npm run build`, the published version will use the OLD compiled code and won't include recent changes.
   
   **⚡ AFTER EVERY SCHEMA CHANGE:**
   1. Edit `shared/schema.ts` with new columns/tables
