@@ -4024,6 +4024,12 @@ router.patch("/api/resy/event-registration/edit/:id", async (req, res) => {
 
 router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => {
   try {
+    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery'];
+    const displayNameMap: Record<string, string> = {
+      'The Pavilion': 'Pavilion',
+      'Winery Patio Area': 'Patio',
+    };
+
     const locations = await db.select().from(resyLocations)
       .where(eq(resyLocations.isActive, true))
       .orderBy(resyLocations.displayOrder);
@@ -4037,7 +4043,10 @@ router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => 
     const blockedByLocation: Record<string, { locationName: string; dates: string[] }> = {};
 
     locations.forEach(loc => {
-      blockedByLocation[loc.id] = { locationName: loc.name, dates: [] };
+      const displayName = displayNameMap[loc.name] || loc.name;
+      if (eventBookableNames.includes(displayName)) {
+        blockedByLocation[loc.id] = { locationName: displayName, dates: [] };
+      }
     });
 
     events.forEach(event => {
@@ -4060,7 +4069,15 @@ router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => 
       loc.dates.sort();
     });
 
-    res.json(blockedByLocation);
+    const ordered: Record<string, { locationName: string; dates: string[] }> = {};
+    eventBookableNames.forEach(name => {
+      const entry = Object.entries(blockedByLocation).find(([_, v]) => v.locationName === name);
+      if (entry) {
+        ordered[entry[0]] = entry[1];
+      }
+    });
+
+    res.json(ordered);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to fetch blocked dates: " + error.message });
   }
@@ -4068,6 +4085,12 @@ router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => 
 
 router.get("/api/resy/public/private-events/embed", async (req, res) => {
   try {
+    const eventBookableNames = ['Restaurant Lunch', 'Restaurant Evening', 'Restaurant Brunch', 'Private Dining', 'Pavilion', 'Patio', 'Distillery'];
+    const displayNameMap: Record<string, string> = {
+      'The Pavilion': 'Pavilion',
+      'Winery Patio Area': 'Patio',
+    };
+
     const locations = await db.select().from(resyLocations)
       .where(eq(resyLocations.isActive, true))
       .orderBy(resyLocations.displayOrder);
@@ -4078,10 +4101,13 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
     const specialDates = await db.select().from(resySpecialDates)
       .where(eq(resySpecialDates.isClosed, true));
 
-    const blockedByLocation: Record<string, { locationName: string; dates: string[] }> = {};
+    const blockedByLocation: Record<string, { locationName: string; displayName: string; dates: string[] }> = {};
 
     locations.forEach(loc => {
-      blockedByLocation[loc.id] = { locationName: loc.name, dates: [] };
+      const displayName = displayNameMap[loc.name] || loc.name;
+      if (eventBookableNames.includes(displayName)) {
+        blockedByLocation[loc.id] = { locationName: loc.name, displayName, dates: [] };
+      }
     });
 
     events.forEach(event => {
@@ -4104,7 +4130,10 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
       loc.dates.sort();
     });
 
-    const locationEntries = Object.values(blockedByLocation).filter(loc => loc.dates.length > 0 || true);
+    const orderedNames = eventBookableNames;
+    const locationEntries = orderedNames
+      .map(name => Object.values(blockedByLocation).find(l => l.displayName === name))
+      .filter((l): l is { locationName: string; displayName: string; dates: string[] } => !!l);
 
     const formatDate = (dateStr: string) => {
       const [year, month, day] = dateStr.split('-').map(Number);
@@ -4119,7 +4148,7 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
       tableRows += '<tr>';
       locationEntries.forEach(loc => {
         const date = loc.dates[i];
-        tableRows += `<td style="padding:10px 16px;border:1px solid #555;color:#ddd;font-size:14px;">${date ? formatDate(date) : ''}</td>`;
+        tableRows += `<td>${date ? formatDate(date) : ''}</td>`;
       });
       tableRows += '</tr>';
     }
@@ -4129,23 +4158,92 @@ router.get("/api/resy/public/private-events/embed", async (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body { margin:0; padding:16px; background:#2a2a2a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    table { border-collapse:collapse; width:100%; }
-    th { background:#333; color:#fff; padding:12px 16px; text-align:left; border:1px solid #555; font-weight:600; font-size:14px; }
-    td { padding:10px 16px; border:1px solid #555; color:#ddd; font-size:14px; vertical-align:top; }
-    tr:hover td { background:#333; }
+    body {
+      margin: 0;
+      padding: 32px 24px;
+      background: #f5f0eb;
+      font-family: 'Georgia', 'Times New Roman', serif;
+      color: #4a4540;
+    }
+    h1 {
+      text-align: center;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 400;
+      font-size: 28px;
+      color: #4a4540;
+      margin: 0 0 24px 0;
+      letter-spacing: 0.5px;
+    }
+    .notes {
+      max-width: 900px;
+      margin: 0 auto 20px auto;
+      font-size: 14px;
+      color: #6b6560;
+      line-height: 1.6;
+    }
+    .notes p {
+      margin: 0 0 6px 0;
+      font-style: italic;
+      font-size: 13px;
+    }
+    .notes ul {
+      margin: 4px 0 0 0;
+      padding-left: 20px;
+    }
+    .notes li {
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+    .table-wrapper {
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 0 auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      border: 1px solid #d5cfc8;
+    }
+    th {
+      background: #ede8e2;
+      color: #4a4540;
+      padding: 12px 16px;
+      text-align: left;
+      border: 1px solid #d5cfc8;
+      font-weight: 600;
+      font-size: 14px;
+      font-family: 'Georgia', serif;
+    }
+    td {
+      padding: 10px 16px;
+      border: 1px solid #d5cfc8;
+      color: #6b6560;
+      font-size: 14px;
+      vertical-align: top;
+    }
   </style>
 </head>
 <body>
-  <table>
-    <thead>
-      <tr>${locationEntries.map(loc => `<th>${loc.locationName}</th>`).join('')}</tr>
-    </thead>
-    <tbody>
-      ${tableRows || '<tr><td colspan="' + locationEntries.length + '" style="padding:20px;text-align:center;color:#999;border:1px solid #555;">No blocked dates</td></tr>'}
-    </tbody>
-  </table>
+  <h1>Dates and Locations Already Reserved by Location</h1>
+  <div class="notes">
+    <p>Note:</p>
+    <ul>
+      <li>When the Restaurant Evening is booked, Private Dining is also booked.</li>
+      <li>When the Patio is booked, the Distillery is also booked as this is reserved in case of inclement weather.</li>
+    </ul>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>${locationEntries.map(loc => `<th>${loc.displayName}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${tableRows || '<tr><td colspan="' + locationEntries.length + '" style="padding:20px;text-align:center;color:#999;">No blocked dates at this time.</td></tr>'}
+      </tbody>
+    </table>
+  </div>
 </body>
 </html>`;
 
