@@ -164,6 +164,11 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     queryFn: () => fetch(`/api/resy/event-registration/my-events?code=${encodeURIComponent(staffCode)}`).then(r => r.json()),
   });
 
+  const { data: allEvents } = useQuery<ResyPrivateEvent[]>({
+    queryKey: ["/api/resy/event-registration/all-events", staffCode],
+    queryFn: () => fetch(`/api/resy/event-registration/all-events?code=${encodeURIComponent(staffCode)}`).then(r => r.json()),
+  });
+
   const bookMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/resy/event-registration/book", data);
@@ -176,6 +181,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     onSuccess: () => {
       toast({ title: "Event booked successfully", description: "The location has been blocked for this date." });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/my-events", staffCode] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/all-events", staffCode] });
       resetForm();
     },
     onError: (error: any) => {
@@ -195,6 +201,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     onSuccess: () => {
       toast({ title: "Event updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/my-events", staffCode] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/all-events", staffCode] });
       setEditingEvent(null);
     },
     onError: (error: any) => {
@@ -441,6 +448,57 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
             </form>
           </CardContent>
         </Card>
+
+        {(allEvents?.length || 0) > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                All Booked Events
+              </CardTitle>
+              <CardDescription>Click any event to view or edit its details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {[...(allEvents || [])].sort((a, b) => (a.eventDate || '').localeCompare(b.eventDate || '')).map(event => (
+                  <div
+                    key={event.id}
+                    className="flex items-center justify-between p-3 rounded-md bg-muted/30 cursor-pointer hover-elevate"
+                    onClick={() => setEditingEvent(event)}
+                    data-testid={`all-event-row-${event.id}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="text-center shrink-0 w-14">
+                        <p className="text-xs text-muted-foreground">{(() => { try { return format(parseISO(event.eventDate), "MMM"); } catch { return ""; } })()}</p>
+                        <p className="text-lg font-bold leading-tight">{(() => { try { return format(parseISO(event.eventDate), "d"); } catch { return ""; } })()}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{event.customerName}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                          {event.locationId && <span>{locationMap.get(event.locationId) || ''}</span>}
+                          <span>{formatTime12(event.startTime)} - {formatTime12(event.endTime)}</span>
+                          <span>{event.partySize} guests</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {event.estimatedRevenue != null && (
+                        <span className="text-xs text-muted-foreground">${event.estimatedRevenue.toLocaleString()}</span>
+                      )}
+                      <Badge variant={
+                        event.status === 'confirmed' ? 'default' :
+                        event.status === 'completed' ? 'secondary' : 'outline'
+                      }>
+                        {event.status}
+                      </Badge>
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {staffEvents.length > 0 && (
           <Card>

@@ -4146,6 +4146,24 @@ router.get("/api/resy/event-registration/my-events", async (req, res) => {
   }
 });
 
+router.get("/api/resy/event-registration/all-events", async (req, res) => {
+  try {
+    const code = req.query.code as string;
+    if (!code) {
+      return res.status(400).json({ message: "Staff code required" });
+    }
+    const staff = await resyStorage.getEventStaffCodeByCode(code);
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid staff code" });
+    }
+    const allEvents = await resyStorage.getAllPrivateEvents();
+    const activeEvents = allEvents.filter(e => e.status !== 'cancelled');
+    res.json(activeEvents);
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to fetch events: " + error.message });
+  }
+});
+
 router.post("/api/resy/event-registration/book", async (req, res) => {
   try {
     const { staffCode, ...eventData } = req.body;
