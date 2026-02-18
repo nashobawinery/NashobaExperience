@@ -13,7 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff, DollarSign, Pencil } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff, DollarSign, Pencil, Printer, ArrowUpDown, ArrowUp, ArrowDown, FileText } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { ResyEventStaffCode, ResyPrivateEvent, ResyLocation } from "@shared/schema";
 
@@ -61,12 +62,15 @@ export default function AdminEventRegistration() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
+        <TabsList className="grid grid-cols-4 w-full max-w-lg">
           <TabsTrigger value="staff" className="flex items-center gap-2" data-testid="tab-staff">
             <Users className="h-4 w-4" /> Staff
           </TabsTrigger>
           <TabsTrigger value="events" className="flex items-center gap-2" data-testid="tab-events">
             <Calendar className="h-4 w-4" /> Events
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center gap-2" data-testid="tab-reports">
+            <FileText className="h-4 w-4" /> Reports
           </TabsTrigger>
           <TabsTrigger value="embed" className="flex items-center gap-2" data-testid="tab-embed">
             <Code className="h-4 w-4" /> Embed
@@ -79,6 +83,10 @@ export default function AdminEventRegistration() {
 
         <TabsContent value="events" className="mt-6">
           <EventsPanel events={events || []} locationMap={locationMap} />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-6">
+          <ReportsPanel events={events || []} locationMap={locationMap} />
         </TabsContent>
 
         <TabsContent value="embed" className="mt-6">
@@ -773,6 +781,262 @@ function EventsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loca
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+type SortField = 'eventDate' | 'customerName' | 'location' | 'partySize' | 'startTime' | 'status' | 'estimatedRevenue' | 'actualRevenue' | 'bookedByStaffName';
+type SortDir = 'asc' | 'desc';
+
+function ReportsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; locationMap: Map<string, string> }) {
+  const [sortField, setSortField] = useState<SortField>('eventDate');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  const filtered = statusFilter === 'all' ? events : events.filter(e => e.status === statusFilter);
+
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    switch (sortField) {
+      case 'eventDate':
+        return (a.eventDate || '').localeCompare(b.eventDate || '') * dir;
+      case 'customerName':
+        return (a.customerName || '').localeCompare(b.customerName || '') * dir;
+      case 'location':
+        return ((locationMap.get(a.locationId || '') || '')).localeCompare(locationMap.get(b.locationId || '') || '') * dir;
+      case 'partySize':
+        return ((a.partySize || 0) - (b.partySize || 0)) * dir;
+      case 'startTime':
+        return (a.startTime || '').localeCompare(b.startTime || '') * dir;
+      case 'status':
+        return (a.status || '').localeCompare(b.status || '') * dir;
+      case 'estimatedRevenue':
+        return ((a.estimatedRevenue || 0) - (b.estimatedRevenue || 0)) * dir;
+      case 'actualRevenue':
+        return ((a.actualRevenue || 0) - (b.actualRevenue || 0)) * dir;
+      case 'bookedByStaffName':
+        return (a.bookedByStaffName || '').localeCompare(b.bookedByStaffName || '') * dir;
+      default:
+        return 0;
+    }
+  });
+
+  const totalEstimated = sorted.reduce((sum, e) => sum + (e.estimatedRevenue || 0), 0);
+  const totalActual = sorted.reduce((sum, e) => sum + (e.actualRevenue || 0), 0);
+  const totalGuests = sorted.reduce((sum, e) => sum + (e.partySize || 0), 0);
+
+  const formatDate = (dateStr: string) => {
+    try { return format(parseISO(dateStr), "MMM d, yyyy"); } catch { return dateStr; }
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const rows = sorted.map(e => `
+      <tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${formatDate(e.eventDate)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.customerName}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${locationMap.get(e.locationId || '') || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${formatTime12(e.startTime)} - ${formatTime12(e.endTime)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:center;">${e.partySize}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.status}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.customerEmail || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.customerPhone || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.estimatedRevenue != null ? '$' + e.estimatedRevenue.toLocaleString() : '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;text-align:right;">${e.actualRevenue != null ? '$' + e.actualRevenue.toLocaleString() : '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.bookedByStaffName || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #ddd;">${e.notes || '-'}</td>
+      </tr>
+    `).join('');
+
+    const filterLabel = statusFilter === 'all' ? 'All Events' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Events`;
+    const sortLabel = sortField === 'eventDate' ? 'Date' : sortField === 'customerName' ? 'Customer' : sortField === 'location' ? 'Location' : sortField === 'estimatedRevenue' ? 'Est. Revenue' : sortField === 'actualRevenue' ? 'Actual Revenue' : sortField;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Private Events Report</title>
+        <style>
+          body { font-family: 'Georgia', serif; margin: 40px; color: #333; }
+          h1 { font-size: 22px; margin-bottom: 4px; }
+          .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { padding: 8px 10px; border-bottom: 2px solid #333; text-align: left; font-weight: 600; background: #f5f0eb; }
+          .totals { margin-top: 20px; font-size: 14px; }
+          .totals span { margin-right: 30px; }
+          @media print { body { margin: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1>Nashoba Valley - Private Events Report</h1>
+        <p class="subtitle">${filterLabel} | Sorted by ${sortLabel} (${sortDir === 'asc' ? 'ascending' : 'descending'}) | ${sorted.length} events | Generated ${format(new Date(), "MMM d, yyyy h:mm a")}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Location</th>
+              <th>Time</th>
+              <th style="text-align:center;">Guests</th>
+              <th>Status</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th style="text-align:right;">Est. Revenue</th>
+              <th style="text-align:right;">Actual Revenue</th>
+              <th>Booked By</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="totals">
+          <span><strong>Total Events:</strong> ${sorted.length}</span>
+          <span><strong>Total Guests:</strong> ${totalGuests.toLocaleString()}</span>
+          <span><strong>Est. Revenue:</strong> $${totalEstimated.toLocaleString()}</span>
+          <span><strong>Actual Revenue:</strong> $${totalActual.toLocaleString()}</span>
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Events Report
+            </CardTitle>
+            <CardDescription>Sortable report of all private events - click column headers to sort</CardDescription>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-report-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handlePrint} data-testid="button-print-report">
+              <Printer className="h-4 w-4 mr-2" /> Print Report
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {sorted.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-muted-foreground">No events to display.</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('eventDate')} data-testid="sort-date">
+                      <span className="flex items-center">Date <SortIcon field="eventDate" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('customerName')} data-testid="sort-customer">
+                      <span className="flex items-center">Customer <SortIcon field="customerName" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('location')} data-testid="sort-location">
+                      <span className="flex items-center">Location <SortIcon field="location" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('startTime')} data-testid="sort-time">
+                      <span className="flex items-center">Time <SortIcon field="startTime" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap text-center" onClick={() => handleSort('partySize')} data-testid="sort-guests">
+                      <span className="flex items-center justify-center">Guests <SortIcon field="partySize" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('status')} data-testid="sort-status">
+                      <span className="flex items-center">Status <SortIcon field="status" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap text-right" onClick={() => handleSort('estimatedRevenue')} data-testid="sort-est-revenue">
+                      <span className="flex items-center justify-end">Est. Revenue <SortIcon field="estimatedRevenue" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap text-right" onClick={() => handleSort('actualRevenue')} data-testid="sort-actual-revenue">
+                      <span className="flex items-center justify-end">Actual Revenue <SortIcon field="actualRevenue" /></span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('bookedByStaffName')} data-testid="sort-booked-by">
+                      <span className="flex items-center">Booked By <SortIcon field="bookedByStaffName" /></span>
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap">Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map(event => (
+                    <TableRow key={event.id} data-testid={`report-row-${event.id}`}>
+                      <TableCell className="whitespace-nowrap">{formatDate(event.eventDate)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{event.customerName}</p>
+                          {event.customerEmail && <p className="text-xs text-muted-foreground">{event.customerEmail}</p>}
+                          {event.customerPhone && <p className="text-xs text-muted-foreground">{event.customerPhone}</p>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{locationMap.get(event.locationId || '') || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatTime12(event.startTime)} - {formatTime12(event.endTime)}</TableCell>
+                      <TableCell className="text-center">{event.partySize}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          event.status === 'confirmed' ? 'default' :
+                          event.status === 'cancelled' ? 'destructive' :
+                          event.status === 'completed' ? 'secondary' : 'outline'
+                        }>
+                          {event.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {event.estimatedRevenue != null ? `$${event.estimatedRevenue.toLocaleString()}` : '-'}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {event.actualRevenue != null ? `$${event.actualRevenue.toLocaleString()}` : '-'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{event.bookedByStaffName || '-'}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{event.notes || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4 flex items-center gap-6 text-sm font-medium flex-wrap">
+              <span data-testid="text-total-events">Total Events: {sorted.length}</span>
+              <span data-testid="text-total-guests">Total Guests: {totalGuests.toLocaleString()}</span>
+              <span data-testid="text-total-est-revenue">Est. Revenue: ${totalEstimated.toLocaleString()}</span>
+              <span data-testid="text-total-actual-revenue">Actual Revenue: ${totalActual.toLocaleString()}</span>
+            </div>
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }
