@@ -796,9 +796,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-item { text-align: center; margin-bottom: 20px; }
         .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
-        .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: 600; }
+        .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
@@ -822,8 +822,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-name { font-weight: 500; font-size: 1.1rem; }
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
-        .item-pairing { font-size: 0.9rem; color: #78716c; margin-top: 2px; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: 600; }
+        .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
