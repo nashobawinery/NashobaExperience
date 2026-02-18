@@ -31,6 +31,7 @@ import shopifyRouter from "./shopify/shopify-routes";
 import smsCampaignRouter from "./sms-campaign-routes";
 import unsubscribeRouter from "./unsubscribe-routes";
 import contractRouter from "./contract-routes";
+import growthStudioRouter from "./growth-studio-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
@@ -119,6 +120,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Mount Spot Inventory routes
   app.use("/api/spot-inventory", spotInventoryRouter);
+
+  // Mount Growth Studio routes
+  app.use(growthStudioRouter);
 
   // Mount Reactivation (Boomerang) routes
   app.use("/api/reactivation", reactivationRouter);

@@ -13,12 +13,17 @@ import {
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
   BookOpen, Store, Check, Crosshair, MessageSquare, UserPlus,
-  UtensilsCrossed
+  UtensilsCrossed, Wand2, CalendarDays, Rocket, Gauge, Sparkles
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
 import { SmsCampaignsTab } from "./SmsCampaigns";
 import { ToastMenuBrowser } from "./ToastMenuBrowser";
+import { AiContentStudio } from "./AiContentStudio";
+import { ContentCalendar } from "./ContentCalendar";
+import { CampaignBuilder } from "./CampaignBuilder";
+import { MarketingScorecard } from "./MarketingScorecard";
+import { QuickPromotions } from "./QuickPromotions";
 
 import {
   WeekSelector,
@@ -137,6 +142,19 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "analytics", label: "Analytics", icon: BarChart3 },
       { id: "ai-advisor", label: "AI Advisor", icon: Brain },
+    ],
+  },
+  {
+    id: "growth-studio",
+    label: "Growth Studio",
+    icon: Rocket,
+    defaultOpen: false,
+    items: [
+      { id: "content-studio", label: "AI Content Studio", icon: Wand2 },
+      { id: "content-calendar", label: "Content Calendar", icon: CalendarDays },
+      { id: "campaign-builder", label: "Campaign Builder", icon: Rocket },
+      { id: "scorecard", label: "Marketing Scorecard", icon: Gauge },
+      { id: "quick-promos", label: "Quick Promotions", icon: Sparkles },
     ],
   },
   {
@@ -466,6 +484,21 @@ export default function CommandCenter() {
 
       case "roi-projections":
         return <RoiProjections />;
+
+      case "content-studio":
+        return <AiContentStudio />;
+
+      case "content-calendar":
+        return <ContentCalendar />;
+
+      case "campaign-builder":
+        return <CampaignBuilder />;
+
+      case "scorecard":
+        return <MarketingScorecard />;
+
+      case "quick-promos":
+        return <QuickPromotions />;
 
       case "toast-menus":
         return <ToastMenuBrowser />;

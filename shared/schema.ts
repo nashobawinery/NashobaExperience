@@ -5273,3 +5273,90 @@ export const toastMenuItems = pgTable("toast_menu_items", {
 export const insertToastMenuItemSchema = createInsertSchema(toastMenuItems).omit({ id: true, syncedAt: true });
 export type InsertToastMenuItem = z.infer<typeof insertToastMenuItemSchema>;
 export type ToastMenuItem = typeof toastMenuItems.$inferSelect;
+
+// ── Growth Studio / Zeely-inspired features ──────────────────────────
+
+export const ccContentTypeEnum = pgEnum("cc_content_type", ["social_post", "email_subject", "ad_copy", "event_promo", "sms_blast"]);
+export const ccContentStatusEnum = pgEnum("cc_content_status", ["draft", "saved", "published", "archived"]);
+export const ccCalendarChannelEnum = pgEnum("cc_calendar_channel", ["email", "sms", "social", "on_site", "print"]);
+export const ccCalendarStatusEnum = pgEnum("cc_calendar_status", ["planned", "published", "cancelled"]);
+export const ccCampaignGoalEnum = pgEnum("cc_campaign_goal", ["traffic", "reactivation", "event_promotion", "new_product", "seasonal"]);
+export const ccCampaignStatusEnum = pgEnum("cc_campaign_status", ["draft", "ready", "launched", "completed", "cancelled"]);
+export const ccPromoTypeEnum = pgEnum("cc_promo_type", ["seasonal_special", "new_release", "weather_deal", "event_promo", "loyalty_reward", "flash_sale"]);
+
+export const ccContentAssets = pgTable("cc_content_assets", {
+  id: serial("id").primaryKey(),
+  type: ccContentTypeEnum("type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  context: text("context"),
+  variations: text("variations").array(),
+  selectedVariation: integer("selected_variation"),
+  channel: varchar("channel", { length: 50 }),
+  status: ccContentStatusEnum("status").default("draft").notNull(),
+  targetSegment: varchar("target_segment", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCcContentAssetSchema = createInsertSchema(ccContentAssets).omit({ id: true, createdAt: true });
+export type InsertCcContentAsset = z.infer<typeof insertCcContentAssetSchema>;
+export type CcContentAsset = typeof ccContentAssets.$inferSelect;
+
+export const ccContentCalendar = pgTable("cc_content_calendar", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  channel: ccCalendarChannelEnum("channel").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  notes: text("notes"),
+  status: ccCalendarStatusEnum("status").default("planned").notNull(),
+  contentAssetId: integer("content_asset_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCcContentCalendarSchema = createInsertSchema(ccContentCalendar).omit({ id: true, createdAt: true });
+export type InsertCcContentCalendar = z.infer<typeof insertCcContentCalendarSchema>;
+export type CcContentCalendarEntry = typeof ccContentCalendar.$inferSelect;
+
+export const ccCampaignBuilder = pgTable("cc_campaign_builder", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  goal: ccCampaignGoalEnum("goal").notNull(),
+  targetSegment: varchar("target_segment", { length: 100 }),
+  strategy: text("strategy"),
+  channels: text("channels").array(),
+  generatedContent: text("generated_content"),
+  status: ccCampaignStatusEnum("status").default("draft").notNull(),
+  estimatedReach: integer("estimated_reach"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCcCampaignBuilderSchema = createInsertSchema(ccCampaignBuilder).omit({ id: true, createdAt: true });
+export type InsertCcCampaignBuilder = z.infer<typeof insertCcCampaignBuilderSchema>;
+export type CcCampaignBuilder = typeof ccCampaignBuilder.$inferSelect;
+
+export const ccMarketingScorecards = pgTable("cc_marketing_scorecards", {
+  id: serial("id").primaryKey(),
+  periodLabel: varchar("period_label", { length: 100 }).notNull(),
+  metrics: text("metrics"),
+  insights: text("insights"),
+  recommendations: text("recommendations"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCcMarketingScorecardSchema = createInsertSchema(ccMarketingScorecards).omit({ id: true, createdAt: true });
+export type InsertCcMarketingScorecard = z.infer<typeof insertCcMarketingScorecardSchema>;
+export type CcMarketingScorecard = typeof ccMarketingScorecards.$inferSelect;
+
+export const ccQuickPromotions = pgTable("cc_quick_promotions", {
+  id: serial("id").primaryKey(),
+  type: ccPromoTypeEnum("type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  generatedContent: text("generated_content"),
+  channel: varchar("channel", { length: 50 }),
+  targetSegment: varchar("target_segment", { length: 100 }),
+  status: varchar("status", { length: 50 }).default("generated").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+})
+
+export const insertCcQuickPromotionSchema = createInsertSchema(ccQuickPromotions).omit({ id: true, createdAt: true });
+export type InsertCcQuickPromotion = z.infer<typeof insertCcQuickPromotionSchema>;
+export type CcQuickPromotion = typeof ccQuickPromotions.$inferSelect;
