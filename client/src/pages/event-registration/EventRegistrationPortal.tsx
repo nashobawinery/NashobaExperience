@@ -10,9 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KeyRound, CalendarPlus, LogOut, Calendar, MapPin, Clock, Users, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { KeyRound, CalendarPlus, LogOut, Calendar, MapPin, Clock, Users, Loader2, Pencil, DollarSign } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { ResyLocation, ResyPrivateEvent, ResyExperience } from "@shared/schema";
+
+function formatTime12(time24: string | null | undefined): string {
+  if (!time24) return "";
+  const [h, m] = time24.split(":");
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${hour12}:${m} ${ampm}`;
+}
 
 export default function EventRegistrationPortal() {
   const [staffCode, setStaffCode] = useState("");
@@ -137,6 +147,9 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
   const [customerPhone, setCustomerPhone] = useState("");
   const [partySize, setPartySize] = useState("");
   const [notes, setNotes] = useState("");
+  const [estimatedRevenue, setEstimatedRevenue] = useState("");
+  const [actualRevenue, setActualRevenue] = useState("");
+  const [editingEvent, setEditingEvent] = useState<ResyPrivateEvent | null>(null);
 
   const { data: locations, isLoading: locLoading } = useQuery<ResyLocation[]>({
     queryKey: ["/api/resy/locations"],
@@ -162,18 +175,43 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
     },
     onSuccess: () => {
       toast({ title: "Event booked successfully", description: "The location has been blocked for this date." });
-      queryClient.invalidateQueries({ queryKey: ["/api/resy/private-events"] });
-      setCustomerName("");
-      setCustomerEmail("");
-      setCustomerPhone("");
-      setPartySize("");
-      setNotes("");
-      setEventDate("");
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/my-events", staffCode] });
+      resetForm();
     },
     onError: (error: any) => {
       toast({ title: "Booking failed", description: error.message, variant: "destructive" });
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await apiRequest("PATCH", `/api/resy/event-registration/edit/${id}`, data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Event updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/resy/event-registration/my-events", staffCode] });
+      setEditingEvent(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setCustomerName("");
+    setCustomerEmail("");
+    setCustomerPhone("");
+    setPartySize("");
+    setNotes("");
+    setEstimatedRevenue("");
+    setActualRevenue("");
+    setEventDate("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,17 +231,21 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
       customerPhone: customerPhone || undefined,
       partySize: parseInt(partySize),
       notes: notes || undefined,
+      estimatedRevenue: estimatedRevenue ? parseInt(estimatedRevenue) : undefined,
+      actualRevenue: actualRevenue ? parseInt(actualRevenue) : undefined,
     });
   };
 
   const staffEvents = myEvents?.filter(e => e.status !== 'cancelled')
     .sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || '')) || [];
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "";
     try { return format(parseISO(dateStr), "MMM d, yyyy"); } catch { return dateStr; }
   };
 
   const locationMap = new Map(locations?.map(l => [l.id, l.name]) || []);
+  const experienceMap = new Map(experiences?.map(e => [e.id, e.name]) || []);
 
   if (locLoading || expLoading) {
     return (
@@ -354,6 +396,33 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
                 </div>
               </div>
 
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Estimated Revenue</Label>
+                  <Input
+                    type="number"
+                    placeholder="$0"
+                    value={estimatedRevenue}
+                    onChange={(e) => setEstimatedRevenue(e.target.value)}
+                    min={0}
+                    className="mt-1"
+                    data-testid="input-estimated-revenue"
+                  />
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Actual Revenue</Label>
+                  <Input
+                    type="number"
+                    placeholder="$0"
+                    value={actualRevenue}
+                    onChange={(e) => setActualRevenue(e.target.value)}
+                    min={0}
+                    className="mt-1"
+                    data-testid="input-actual-revenue"
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label>Notes</Label>
                 <Textarea
@@ -381,16 +450,61 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
             <CardContent>
               <div className="space-y-3">
                 {staffEvents.slice(0, 10).map(event => (
-                  <div key={event.id} className="flex items-center justify-between p-3 rounded-md bg-muted/30" data-testid={`booking-row-${event.id}`}>
-                    <div>
-                      <p className="font-medium">{event.customerName}</p>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                        <span>{formatDate(event.eventDate)}</span>
-                        <span>{event.startTime} - {event.endTime}</span>
-                        {event.locationId && <span>{locationMap.get(event.locationId)}</span>}
+                  <div key={event.id} className="p-3 rounded-md bg-muted/30 space-y-2" data-testid={`booking-row-${event.id}`}>
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="space-y-1">
+                        <p className="font-medium">{event.customerName}</p>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(event.eventDate)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatTime12(event.startTime)} - {formatTime12(event.endTime)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                          {event.locationId && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {locationMap.get(event.locationId)}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {event.partySize} guests
+                          </span>
+                        </div>
+                        {(event.estimatedRevenue !== null || event.actualRevenue !== null) && (
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                            {event.estimatedRevenue !== null && (
+                              <span className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                Est: ${event.estimatedRevenue?.toLocaleString()}
+                              </span>
+                            )}
+                            {event.actualRevenue !== null && (
+                              <span className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                Actual: ${event.actualRevenue?.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">{event.status}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingEvent(event)}
+                          data-testid={`button-edit-event-${event.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <Badge variant="default">{event.status}</Badge>
                   </div>
                 ))}
               </div>
@@ -398,6 +512,146 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
           </Card>
         )}
       </div>
+
+      {editingEvent && (
+        <EditEventDialog
+          event={editingEvent}
+          staffCode={staffCode}
+          locationMap={locationMap}
+          experienceMap={experienceMap}
+          onClose={() => setEditingEvent(null)}
+          onSave={(updates) => editMutation.mutate({ id: editingEvent.id, staffCode, ...updates })}
+          isSaving={editMutation.isPending}
+        />
+      )}
     </div>
+  );
+}
+
+function EditEventDialog({ event, staffCode, locationMap, experienceMap, onClose, onSave, isSaving }: {
+  event: ResyPrivateEvent;
+  staffCode: string;
+  locationMap: Map<string, string>;
+  experienceMap: Map<string, string>;
+  onClose: () => void;
+  onSave: (updates: any) => void;
+  isSaving: boolean;
+}) {
+  const [customerName, setCustomerName] = useState(event.customerName || "");
+  const [customerEmail, setCustomerEmail] = useState(event.customerEmail || "");
+  const [customerPhone, setCustomerPhone] = useState(event.customerPhone || "");
+  const [partySize, setPartySize] = useState(String(event.partySize || ""));
+  const [startTime, setStartTime] = useState(event.startTime || "10:00");
+  const [endTime, setEndTime] = useState(event.endTime || "22:00");
+  const [notes, setNotes] = useState(event.notes || "");
+  const [estimatedRevenue, setEstimatedRevenue] = useState(event.estimatedRevenue != null ? String(event.estimatedRevenue) : "");
+  const [actualRevenue, setActualRevenue] = useState(event.actualRevenue != null ? String(event.actualRevenue) : "");
+  const [status, setStatus] = useState(event.status || "confirmed");
+
+  const handleSave = () => {
+    onSave({
+      customerName,
+      customerEmail,
+      customerPhone: customerPhone || null,
+      partySize: parseInt(partySize) || event.partySize,
+      startTime,
+      endTime,
+      notes: notes || null,
+      estimatedRevenue: estimatedRevenue ? parseInt(estimatedRevenue) : null,
+      actualRevenue: actualRevenue ? parseInt(actualRevenue) : null,
+      status,
+    });
+  };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "";
+    try { return format(parseISO(dateStr), "EEEE, MMMM d, yyyy"); } catch { return dateStr; }
+  };
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Event</DialogTitle>
+          <DialogDescription>
+            {formatDate(event.eventDate)} at {locationMap.get(event.locationId || "") || "Unknown Location"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          <div className="grid gap-4 grid-cols-2">
+            <div>
+              <Label>Customer Name</Label>
+              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="mt-1" data-testid="edit-customer-name" />
+            </div>
+            <div>
+              <Label>Customer Email</Label>
+              <Input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className="mt-1" data-testid="edit-customer-email" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 grid-cols-2">
+            <div>
+              <Label>Phone</Label>
+              <Input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="mt-1" data-testid="edit-customer-phone" />
+            </div>
+            <div>
+              <Label>Party Size</Label>
+              <Input type="number" value={partySize} onChange={(e) => setPartySize(e.target.value)} min={1} className="mt-1" data-testid="edit-party-size" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 grid-cols-2">
+            <div>
+              <Label className="flex items-center gap-1"><Clock className="h-3 w-3" /> Start Time</Label>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-1" data-testid="edit-start-time" />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1"><Clock className="h-3 w-3" /> End Time</Label>
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="mt-1" data-testid="edit-end-time" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 grid-cols-2">
+            <div>
+              <Label className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Estimated Revenue</Label>
+              <Input type="number" placeholder="$0" value={estimatedRevenue} onChange={(e) => setEstimatedRevenue(e.target.value)} min={0} className="mt-1" data-testid="edit-estimated-revenue" />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Actual Revenue</Label>
+              <Input type="number" placeholder="$0" value={actualRevenue} onChange={(e) => setActualRevenue(e.target.value)} min={0} className="mt-1" data-testid="edit-actual-revenue" />
+            </div>
+          </div>
+
+          <div>
+            <Label>Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="mt-1" data-testid="edit-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" data-testid="edit-notes" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose} data-testid="button-cancel-edit">Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-edit">
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

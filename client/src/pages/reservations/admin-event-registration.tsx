@@ -11,9 +11,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff } from "lucide-react";
+import { Plus, Trash2, Users, Code, Calendar, Copy, Check, KeyRound, CalendarOff, DollarSign } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { ResyEventStaffCode, ResyPrivateEvent, ResyLocation } from "@shared/schema";
+
+function formatTime12(time24: string | null | undefined): string {
+  if (!time24) return "";
+  const [h, m] = time24.split(":");
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${hour12}:${m} ${ampm}`;
+}
 
 export default function AdminEventRegistration() {
   const { toast } = useToast();
@@ -313,10 +322,16 @@ function EventsPanel({ events, locationMap }: { events: ResyPrivateEvent[]; loca
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
                     <span>{formatDate(event.eventDate)}</span>
-                    <span>{event.startTime} - {event.endTime}</span>
+                    <span>{formatTime12(event.startTime)} - {formatTime12(event.endTime)}</span>
                     {event.locationId && <span>{locationMap.get(event.locationId) || 'Unknown Location'}</span>}
                     <span>{event.partySize} guests</span>
                   </div>
+                  {(event.estimatedRevenue != null || event.actualRevenue != null) && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+                      {event.estimatedRevenue != null && <span>Est: ${event.estimatedRevenue.toLocaleString()}</span>}
+                      {event.actualRevenue != null && <span>Actual: ${event.actualRevenue.toLocaleString()}</span>}
+                    </div>
+                  )}
                   {event.customerEmail && (
                     <p className="text-xs text-muted-foreground mt-0.5">{event.customerEmail} {event.customerPhone ? `| ${event.customerPhone}` : ''}</p>
                   )}

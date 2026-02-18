@@ -3969,6 +3969,57 @@ router.post("/api/resy/event-registration/book", async (req, res) => {
   }
 });
 
+router.patch("/api/resy/event-registration/edit/:id", async (req, res) => {
+  try {
+    const { staffCode, ...updates } = req.body;
+    if (!staffCode) {
+      return res.status(401).json({ message: "Staff code required" });
+    }
+    const staff = await resyStorage.getEventStaffCodeByCode(staffCode);
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid staff code" });
+    }
+
+    const allEvents = await resyStorage.getAllPrivateEvents();
+    const event = allEvents.find(e => e.id === req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    if (event.bookedByStaffName !== staff.staffName) {
+      return res.status(403).json({ message: "You can only edit your own events" });
+    }
+
+    const allowedFields: Record<string, any> = {};
+    const editableKeys = ['customerName', 'customerEmail', 'customerPhone', 'partySize', 'startTime', 'endTime', 'notes', 'estimatedRevenue', 'actualRevenue', 'status'];
+    for (const key of editableKeys) {
+      if (updates[key] !== undefined) {
+        allowedFields[key] = updates[key];
+      }
+    }
+    allowedFields.updatedAt = new Date();
+
+    const updated = await resyStorage.updatePrivateEvent(req.params.id, allowedFields);
+
+    if (event.specialDateId && (updates.startTime || updates.endTime || updates.customerName)) {
+      try {
+        await db.update(resySpecialDates)
+          .set({
+            startTime: updates.startTime || event.startTime,
+            endTime: updates.endTime || event.endTime,
+            name: `Private Event: ${updates.customerName || event.customerName}`,
+          })
+          .where(eq(resySpecialDates.id, event.specialDateId));
+      } catch (sdError: any) {
+        console.error("Failed to update special date:", sdError.message);
+      }
+    }
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(400).json({ message: "Failed to update event: " + error.message });
+  }
+});
+
 // ========== Public Embed Endpoint ==========
 
 router.get("/api/resy/public/private-events/blocked-dates", async (req, res) => {
