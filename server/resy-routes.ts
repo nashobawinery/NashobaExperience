@@ -4215,6 +4215,7 @@ router.post("/api/resy/event-registration/book", async (req, res) => {
       }
     }
 
+    sendNewPrivateEventNotification(event).catch(err => console.error("Notification error:", err));
     res.json(event);
   } catch (error: any) {
     res.status(400).json({ message: "Failed to book event: " + error.message });
