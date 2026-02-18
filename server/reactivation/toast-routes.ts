@@ -328,7 +328,8 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
         groupCount++;
 
         const items = group.menuItems || group.items || [];
-        for (const item of items) {
+        for (let ii = 0; ii < items.length; ii++) {
+          const item = items[ii];
           const itemGuid = item.guid || item.id || item.itemId || "";
           const itemName = item.name || "Unnamed Item";
           if (!itemGuid) continue;
@@ -369,7 +370,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
             suggestedPairing: finalPairing,
-            displayOrder: overrides?.displayOrder ?? null,
+            displayOrder: overrides?.displayOrder ?? ii,
           });
           itemCount++;
         }
@@ -438,17 +439,17 @@ router.get("/menu-items", isAuthenticated, async (req, res) => {
     if (groupGuid) {
       results = await db.select().from(toastMenuItems)
         .where(eq(toastMenuItems.groupGuid, groupGuid))
-        .orderBy(toastMenuItems.name);
+        .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
     } else if (menuGuid) {
       results = await db.select().from(toastMenuItems)
         .where(eq(toastMenuItems.menuGuid, menuGuid))
-        .orderBy(toastMenuItems.name);
+        .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
     } else if (restaurantGuid) {
       results = await db.select().from(toastMenuItems)
         .where(eq(toastMenuItems.restaurantGuid, restaurantGuid))
-        .orderBy(toastMenuItems.name);
+        .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
     } else {
-      results = await db.select().from(toastMenuItems).orderBy(toastMenuItems.name);
+      results = await db.select().from(toastMenuItems).orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
     }
 
     if (search) {
@@ -626,6 +627,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const groupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const rawScale = parseFloat(req.query.scale as string) || 100;
     const scale = Math.min(120, Math.max(60, rawScale));
+    const rawPages = parseInt(req.query.pages as string) || 0;
+    const pages = Math.min(10, Math.max(0, rawPages));
+    const customFooter = (req.query.footer as string) || "";
 
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
@@ -668,7 +672,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
     const allItems = await db.select().from(toastMenuItems)
       .where(eq(toastMenuItems.menuGuid, actualMenuGuid))
-      .orderBy(toastMenuItems.name);
+      .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
 
     const visibleItems = allItems.filter((i) => !i.hidden);
 
@@ -686,6 +690,12 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
     const escapeHtml = (str: string) =>
       str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+    const sanitizeDescriptionHtml = (str: string) => {
+      return str.replace(/<br\s*\/?>/gi, "___BR___")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+        .replace(/___BR___/g, "<br>");
+    };
 
     const extractDietaryTags = (name: string): string[] => {
       const tags: string[] = [];
@@ -736,7 +746,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           itemsHtml += `
             <div class="menu-item">
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
-              ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+              ${item.description ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
               ${pairingHtml}
             </div>`;
         } else {
@@ -746,7 +756,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
                 ${price ? `<span class="item-price">${price}</span>` : ""}
               </div>
-              ${item.description ? `<p class="item-description">${escapeHtml(item.description)}</p>` : ""}
+              ${item.description ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
               ${pairingHtml}
             </div>`;
         }
@@ -785,12 +795,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
         .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; font-style: italic; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: 600; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
-        @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } }
+        .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
+        @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
+        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } .custom-footer { color: #555; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
     } else {
       css = `
@@ -809,12 +820,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 0.9rem; color: #78716c; margin-top: 2px; }
-        .item-pairing::before { content: "Pairs with: "; font-weight: 600; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: 600; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
-        @page { margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } }
+        .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
+        @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } .custom-footer { color: #555; } }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
     }
 
@@ -834,6 +846,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     <div class="footer">
       <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
       <p>Alert your server if you have special dietary requirements.</p>
+      ${customFooter ? `<p class="custom-footer">${escapeHtml(customFooter)}</p>` : ""}
     </div>
   </div>
 </body>

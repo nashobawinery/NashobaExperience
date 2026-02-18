@@ -135,6 +135,8 @@ function ToastConnectContent() {
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
+  const [printPages, setPrintPages] = useState(0);
+  const [printFooter, setPrintFooter] = useState("");
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
@@ -243,7 +245,7 @@ function ToastConnectContent() {
     );
   };
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string) => {
     const base = window.location.origin;
     let menuId = menuGuid;
     let groupIds = groupGuids;
@@ -261,6 +263,8 @@ function ToastConnectContent() {
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuId)}/embed?template=${template}`;
     if (groupIds && groupIds.length > 0) url += `&groupGuid=${encodeURIComponent(groupIds.join(","))}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
+    if (pages && pages > 0) url += `&pages=${pages}`;
+    if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     return url;
   };
 
@@ -276,8 +280,8 @@ function ToastConnectContent() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, false, pages, footer);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -808,18 +812,51 @@ function ToastConnectContent() {
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Font Size: {printScale}%</label>
+          <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page.</p>
+          <input
+            type="range"
+            min={60}
+            max={120}
+            step={5}
+            value={printScale}
+            onChange={(e) => setPrintScale(Number(e.target.value))}
+            className="w-full max-w-xs accent-primary"
+            data-testid="slider-print-scale"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Target Pages: {printPages === 0 ? "Auto" : printPages}</label>
+          <p className="text-xs text-muted-foreground">Set the number of pages the menu should print on. Use with font size to fit content.</p>
+          <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
+            <SelectTrigger data-testid="select-print-pages">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Auto</SelectItem>
+              <SelectItem value="1">1 Page</SelectItem>
+              <SelectItem value="2">2 Pages</SelectItem>
+              <SelectItem value="3">3 Pages</SelectItem>
+              <SelectItem value="4">4 Pages</SelectItem>
+              <SelectItem value="5">5 Pages</SelectItem>
+              <SelectItem value="6">6 Pages</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <label className="text-sm font-medium">Font Size: {printScale}%</label>
-        <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page. In your browser's print dialog, uncheck "Headers and footers" to remove the date and page title.</p>
+        <label className="text-sm font-medium">Custom Footer</label>
+        <p className="text-xs text-muted-foreground">Add a custom message at the bottom of the last page (e.g., website URL, phone number, or special message).</p>
         <input
-          type="range"
-          min={60}
-          max={120}
-          step={5}
-          value={printScale}
-          onChange={(e) => setPrintScale(Number(e.target.value))}
-          className="w-full max-w-xs accent-primary"
-          data-testid="slider-print-scale"
+          type="text"
+          value={printFooter}
+          onChange={(e) => setPrintFooter(e.target.value)}
+          placeholder="e.g., Visit us at nashobawinery.com or call (978) 779-5521"
+          className="w-full max-w-lg px-3 py-2 rounded-md border border-input bg-background text-sm"
+          data-testid="input-print-footer"
         />
       </div>
 
@@ -846,7 +883,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale)}
+                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter)}
                   data-testid="button-print-fine-dining"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -875,7 +912,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale)}
+                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter)}
                   data-testid="button-print-modern"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -895,7 +932,7 @@ function ToastConnectContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale)}
+                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter)}
                 data-testid="button-open-print"
               >
                 <Printer className="w-4 h-4 mr-1" />
@@ -903,7 +940,7 @@ function ToastConnectContent() {
               </Button>
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale)}
+              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, false, printPages, printFooter)}
               className="w-full border-0"
               style={{ height: "600px" }}
               title="Print Preview"
