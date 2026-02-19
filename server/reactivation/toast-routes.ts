@@ -826,8 +826,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
-        @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title { font-size: 2rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { margin-bottom: 16px; } .group-name { font-size: 1.3rem; color: #1a1a18; } .item-name { font-size: 1.1rem; color: #1a1a18; } .item-description { color: #555; font-size: 0.95rem; } .item-price, .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #666; font-size: 0.95rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
     } else if (template === "beverage") {
       css = `
@@ -849,8 +849,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-footer { margin-top: 8px; font-size: 0.8rem; color: #78716c; font-style: italic; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
-        @page { size: letter; margin: 0.4in; margin-top: 0.2in; margin-bottom: 0.2in; }
-        @media print { body { font-size: ${scale}%; } .menu-container { padding: 8px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.6in));` : ""} } .bev-group { margin-bottom: 14px; } .footer { margin-top: 16px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 4px 0; } .menu-title { font-size: 1.5rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: 0.85rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: 0.8rem; } .bev-price { font-size: 0.8rem; } .footer { margin-top: 8px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else {
       css = `
@@ -876,8 +876,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
-        @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 8px 0; } .menu-title { font-size: 1.8rem; margin-bottom: 2px; } .menu-subtitle { margin-bottom: 16px; } .menu-group { margin-bottom: 14px; } .group-name { font-size: 1.1rem; margin-bottom: 2px; } .group-divider { margin-bottom: 8px; } .menu-item { padding: 4px 0; } .item-name { font-size: 1rem; } .item-description { font-size: 0.9rem; margin-top: 2px; } .item-pairing { font-size: 0.9rem; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
     }
 
