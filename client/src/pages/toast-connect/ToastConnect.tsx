@@ -522,6 +522,24 @@ function ToastConnectContent() {
           </div>
         </div>
 
+        <Card className="bg-muted/30">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium">HTML Formatting Guide for Descriptions</p>
+            <p className="text-xs text-muted-foreground">You can use these codes in the description fields below to control how text appears on printed and embedded menus:</p>
+            <div className="grid gap-1 text-xs font-mono">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <code className="bg-background px-2 py-0.5 rounded border text-xs whitespace-nowrap">&lt;br&gt;</code>
+                <span className="text-muted-foreground font-sans">Line break — starts a new line</span>
+              </div>
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <code className="bg-background px-2 py-0.5 rounded border text-xs whitespace-nowrap">&lt;br&gt;&lt;br&gt;</code>
+                <span className="text-muted-foreground font-sans">Double line break — adds a blank line between text</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground italic">Example: Roasted chicken with herbs&lt;br&gt;Served with seasonal vegetables</p>
+          </CardContent>
+        </Card>
+
         {groups.map((group) => (
           <div key={group.id} className="space-y-1">
             <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
