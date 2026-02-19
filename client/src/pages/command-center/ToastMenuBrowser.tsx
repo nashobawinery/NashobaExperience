@@ -213,7 +213,7 @@ export function ToastMenuBrowser() {
   };
 
   const updateItemOverride = useMutation({
-    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string }) => {
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string; description?: string }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
       return res.json();
     },
@@ -443,6 +443,24 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
+        <Card className="bg-muted/30">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium">HTML Formatting Guide for Descriptions</p>
+            <p className="text-xs text-muted-foreground">You can use these codes in the description fields below to control how text appears on printed and embedded menus:</p>
+            <div className="grid gap-1 text-xs font-mono">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <code className="bg-background px-2 py-0.5 rounded border text-xs whitespace-nowrap">&lt;br&gt;</code>
+                <span className="text-muted-foreground font-sans">Line break — starts a new line</span>
+              </div>
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <code className="bg-background px-2 py-0.5 rounded border text-xs whitespace-nowrap">&lt;br&gt;&lt;br&gt;</code>
+                <span className="text-muted-foreground font-sans">Double line break — adds a blank line between text</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground italic">Example: Roasted chicken with herbs&lt;br&gt;Served with seasonal vegetables</p>
+          </CardContent>
+        </Card>
+
         {groups.map((group) => (
           <div key={group.id} className="space-y-1">
             <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
@@ -478,9 +496,22 @@ export function ToastMenuBrowser() {
                           <span className="text-sm font-medium whitespace-nowrap">{formatPrice(item.price)}</span>
                         )}
                       </div>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground mt-0.5 italic">{item.description}</p>
-                      )}
+                      <div className="mt-1">
+                        <Textarea
+                          key={`desc-${item.id}-${item.description || ""}`}
+                          placeholder="Item description (use <br> for line breaks)..."
+                          defaultValue={item.description || ""}
+                          className="text-xs resize-none"
+                          rows={2}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val !== (item.description || "")) {
+                              updateItemOverride.mutate({ itemId: item.id, description: val });
+                            }
+                          }}
+                          data-testid={`input-description-${item.id}`}
+                        />
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Wine className="w-3 h-3 text-muted-foreground shrink-0" />
                         <Input
