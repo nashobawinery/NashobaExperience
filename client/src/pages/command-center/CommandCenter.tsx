@@ -13,12 +13,13 @@ import {
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
   BookOpen, Store, Check, Crosshair, MessageSquare, UserPlus,
-  UtensilsCrossed, Wand2, CalendarDays, Rocket, Gauge, Sparkles
+  UtensilsCrossed, Wand2, CalendarDays, Rocket, Gauge, Sparkles, FileText
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
 import { SmsCampaignsTab } from "./SmsCampaigns";
 import { ToastMenuBrowser } from "./ToastMenuBrowser";
+import { ToastConnectDocs } from "@/pages/toast-connect/ToastConnect";
 import { AiContentStudio } from "./AiContentStudio";
 import { ContentCalendar } from "./ContentCalendar";
 import { CampaignBuilder } from "./CampaignBuilder";
@@ -165,6 +166,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "toast-menus", label: "Toast Menus", icon: UtensilsCrossed },
       { id: "integrations", label: "Integrations", icon: Plug },
+      { id: "toast-docs", label: "Documentation", icon: FileText },
     ],
   },
 ];
@@ -505,6 +507,9 @@ export default function CommandCenter() {
 
       case "integrations":
         return <ToastIntegrationTab />;
+
+      case "toast-docs":
+        return <ToastConnectDocs />;
 
       case "docs":
         return <RccDocsPanel />;
