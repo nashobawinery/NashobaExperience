@@ -137,6 +137,7 @@ function ToastConnectContent() {
   const [printScale, setPrintScale] = useState(100);
   const [printPages, setPrintPages] = useState(0);
   const [printFooter, setPrintFooter] = useState("");
+  const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
@@ -246,7 +247,7 @@ function ToastConnectContent() {
     );
   };
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string, pageBreaks?: string[]) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
     const base = window.location.origin;
     let menuId = menuGuid;
     let groupIds = groupGuids;
@@ -267,6 +268,7 @@ function ToastConnectContent() {
     if (pages && pages > 0) url += `&pages=${pages}`;
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
+    if (hideDescriptions) url += `&hidedesc=1`;
     return url;
   };
 
@@ -282,8 +284,8 @@ function ToastConnectContent() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[]) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, false, pages, footer, pageBreaks);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, false, pages, footer, pageBreaks, hideDescriptions);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -836,6 +838,7 @@ function ToastConnectContent() {
             <SelectContent>
               <SelectItem value="fine-dining">Fine Dining</SelectItem>
               <SelectItem value="modern">Modern Clean</SelectItem>
+              <SelectItem value="beverage">Beverage Menu</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -893,6 +896,18 @@ function ToastConnectContent() {
         />
       </div>
 
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <Checkbox
+            checked={printHideDescriptions}
+            onCheckedChange={(checked) => setPrintHideDescriptions(!!checked)}
+            data-testid="checkbox-hide-descriptions"
+          />
+          <span className="font-medium">Hide Descriptions</span>
+          <span className="text-muted-foreground">- Show only item names and prices (ideal for wine lists or beverage menus)</span>
+        </label>
+      </div>
+
       {selectedMenu && menuDetail && menuDetail.groups.length > 1 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -927,7 +942,7 @@ function ToastConnectContent() {
         const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
         return (
         <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="overflow-hidden">
           <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
             <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
@@ -946,7 +961,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter, printPageBreaks)}
+                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
                   data-testid="button-print-fine-dining"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -975,8 +990,41 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter, printPageBreaks)}
+                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
                   data-testid="button-print-modern"
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="aspect-[3/4] bg-white flex flex-col items-center justify-center p-6 text-center">
+            <p className="text-[#1c1917] font-sans text-lg font-bold uppercase tracking-wider mb-3">Beverage Menu</p>
+            <div className="w-full text-left space-y-1 px-2">
+              <p className="text-[#1c1917] font-sans text-xs font-bold underline">Wine</p>
+              <div className="flex justify-between text-[10px] text-[#44403c]"><span>Chardonnay</span><span>$12</span></div>
+              <div className="flex justify-between text-[10px] text-[#44403c]"><span>Pinot Noir</span><span>$14</span></div>
+              <p className="text-[#1c1917] font-sans text-xs font-bold underline mt-2">Beer</p>
+              <div className="flex justify-between text-[10px] text-[#44403c]"><span>IPA</span><span>$8</span></div>
+              <div className="flex justify-between text-[10px] text-[#44403c]"><span>Lager</span><span>$7</span></div>
+            </div>
+            <p className="text-[#78716c] text-xs mt-3 italic">Compact list, no descriptions</p>
+          </div>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-medium text-sm">Beverage Menu</p>
+                <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
+              </div>
+              {selectedMenu && (
+                <Button
+                  size="sm"
+                  onClick={() => openPrintView(selectedMenu, "beverage", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+                  data-testid="button-print-beverage"
                 >
                   <Printer className="w-4 h-4 mr-1" />
                   Print
@@ -995,7 +1043,7 @@ function ToastConnectContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks)}
+                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
                 data-testid="button-open-print"
               >
                 <Printer className="w-4 h-4 mr-1" />
@@ -1003,7 +1051,7 @@ function ToastConnectContent() {
               </Button>
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, false, printPages, printFooter, printPageBreaks)}
+              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, false, printPages, printFooter, printPageBreaks, printHideDescriptions)}
               className="w-full border-0"
               style={{ height: "600px" }}
               title="Print Preview"

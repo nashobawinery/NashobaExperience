@@ -635,6 +635,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const customFooter = (req.query.footer as string) || "";
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
+    const hideDescriptions = req.query.hidedesc === "1";
 
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
@@ -747,12 +748,21 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           ? `<p class="item-pairing">${escapeHtml(item.suggestedPairing)}</p>`
           : "";
 
-        if (template === "fine-dining") {
+        const showDesc = !hideDescriptions && item.description;
+        const showPairing = !hideDescriptions ? pairingHtml : "";
+
+        if (template === "beverage") {
+          itemsHtml += `
+            <div class="bev-item">
+              <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+              ${price ? `<span class="bev-price">${price}</span>` : ""}
+            </div>`;
+        } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
-              ${item.description ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
-              ${pairingHtml}
+              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
             </div>`;
         } else {
           itemsHtml += `
@@ -761,18 +771,26 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
                 ${price ? `<span class="item-price">${price}</span>` : ""}
               </div>
-              ${item.description ? `<p class="item-description">${sanitizeDescriptionHtml(item.description)}</p>` : ""}
-              ${pairingHtml}
+              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
             </div>`;
         }
       }
       const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
-      groupsHtml += `
-        <div class="menu-group${hasPageBreak ? " page-break" : ""}">
-          <h2 class="group-name">${escapeHtml(group.name)}</h2>
-          <div class="group-divider"></div>
-          ${itemsHtml}
-        </div>`;
+      if (template === "beverage") {
+        groupsHtml += `
+          <div class="bev-group${hasPageBreak ? " page-break" : ""}">
+            <h2 class="bev-group-name">${escapeHtml(group.name)}</h2>
+            ${itemsHtml}
+          </div>`;
+      } else {
+        groupsHtml += `
+          <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            <h2 class="group-name">${escapeHtml(group.name)}</h2>
+            <div class="group-divider"></div>
+            ${itemsHtml}
+          </div>`;
+      }
     }
 
     const embedTitle = groupGuids.length === 1 && groups.length === 1
@@ -811,6 +829,29 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
         @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
+    } else if (template === "beverage") {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #fff; color: #1c1917; min-height: 100vh; font-size: 14px; }
+        .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
+        .menu-title { font-size: 2rem; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
+        .menu-subtitle { text-align: center; font-size: 0.85rem; color: #78716c; margin-bottom: 24px; }
+        .bev-groups-container { column-count: 2; column-gap: 32px; }
+        .bev-group { break-inside: avoid; margin-bottom: 20px; }
+        .bev-group-name { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
+        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; }
+        .bev-name { font-size: 0.85rem; font-weight: 400; }
+        .bev-price { font-size: 0.85rem; font-weight: 500; white-space: nowrap; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
+        .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
+        .custom-footer { margin-top: 8px; font-size: 0.8rem; color: #78716c; font-style: italic; }
+        .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
+        @page { size: letter; margin: 0.4in; margin-top: 0.2in; margin-bottom: 0.2in; }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 8px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.6in));` : ""} } .bev-group { margin-bottom: 14px; } .footer { margin-top: 16px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
     } else {
       css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -851,8 +892,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 <body>
   <div class="menu-container">
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
-    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : `<p class="menu-subtitle">Menu</p>`}
-    ${groupsHtml}
+    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
+    ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
       <p>Alert your server if you have special dietary requirements.</p>
