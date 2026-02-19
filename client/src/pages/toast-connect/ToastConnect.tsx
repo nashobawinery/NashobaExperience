@@ -990,8 +990,64 @@ function ToastConnectContent() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="text-2xl font-bold mb-2">Toast Connect Documentation</h2>
-        <p className="text-muted-foreground">Learn how to manage your menus, generate embed codes, and use permanent links.</p>
+        <p className="text-muted-foreground">How to keep your menus accurate and looking great across web and print.</p>
       </div>
+
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ListFilter className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold text-lg">Recommended Workflow</h3>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            Follow these steps in order whenever you need to update your menus. This ensures your descriptions stay consistent across all platforms — Toast POS, your website, and printed menus.
+          </p>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">1</div>
+              <div>
+                <p className="text-sm font-semibold">Make all changes in Toast first</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Always update item names, prices, and descriptions directly in your Toast POS system. Toast is the single source of truth for your menu content. Making changes there first ensures consistency across every place your menu appears — your POS terminals, your website, and your printed menus.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">2</div>
+              <div>
+                <p className="text-sm font-semibold">Sync your menus</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  After making changes in Toast, come here and click <strong>Sync from Toast</strong> to pull in the latest data. Select only the menus you changed to keep things fast. This brings over updated names, prices, descriptions, and item ordering.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">3</div>
+              <div>
+                <p className="text-sm font-semibold">Review and format for presentation</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Open the synced menu and review each item. Use the description fields to add formatting codes like <code className="bg-muted px-1.5 py-0.5 rounded text-xs">&lt;br&gt;</code> for line breaks to control how text appears on your website and printed menus. Add suggested wine pairings for each item as desired.
+                </p>
+                <div className="mt-2 p-3 bg-muted/50 rounded-md">
+                  <p className="text-xs font-medium mb-1">Important note about editing descriptions:</p>
+                  <p className="text-xs text-muted-foreground">
+                    While you can change the actual wording of a description here, it is <strong>not recommended</strong>. If you change the text here but not in Toast, your menu descriptions will be different in Toast vs. your website/print. Instead, use this editing feature only for <strong>presentation formatting</strong> — adding line breaks, spacing, and HTML codes to make items look their best on web and print.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">4</div>
+              <div>
+                <p className="text-sm font-semibold">Preview and print</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Use the <strong>Preview</strong> button to see how your menu looks, then go to <strong>Print Menus</strong> to generate print-ready versions. Adjust font size, target page count, and add a custom footer as needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -1007,7 +1063,9 @@ function ToastConnectContent() {
               <li>Go to the <strong>Menus</strong> tab.</li>
               <li>Click <strong>Sync from Toast</strong>.</li>
               <li>Select the menus you want to refresh.</li>
-              <li>Item names, prices, and descriptions will update instantly.</li>
+              <li>Item names, prices, and descriptions will update from Toast.</li>
+              <li>Any formatting (line breaks, HTML) you previously added will be preserved.</li>
+              <li>Items will appear in the same order as they are in Toast.</li>
             </ul>
           </CardContent>
         </Card>
@@ -1016,15 +1074,16 @@ function ToastConnectContent() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
               <Code className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold text-lg">Permanent Links</h3>
+              <h3 className="font-semibold text-lg">Formatting Descriptions</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Our embed codes and direct links are "frozen" by name.
+              Use simple HTML codes in the description fields to control how text appears on web and print:
             </p>
             <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
-              <li>Links use names like <code>/Evening Appetizer/</code> instead of IDs.</li>
-              <li>This means if you swap out items or groups in Toast, your website doesn't need a new code.</li>
-              <li>As long as the <strong>Menu Name</strong> stays the same, the link stays the same.</li>
+              <li><code className="bg-muted px-1 rounded text-xs">&lt;br&gt;</code> — inserts a line break</li>
+              <li><code className="bg-muted px-1 rounded text-xs">&lt;br&gt;&lt;br&gt;</code> — inserts a blank line</li>
+              <li>Example: <em>Roasted chicken&lt;br&gt;with seasonal vegetables</em></li>
+              <li>Only use formatting codes — avoid changing the actual wording here.</li>
             </ul>
           </CardContent>
         </Card>
@@ -1033,14 +1092,16 @@ function ToastConnectContent() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
               <Printer className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold text-lg">Print & Font Scaling</h3>
+              <h3 className="font-semibold text-lg">Print Options</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Generate beautiful, print-ready PDF menus.
+              Generate beautiful, print-ready menus with full control:
             </p>
             <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
-              <li>Use the <strong>Font Size</strong> slider (60%–120%) to fit more on a page.</li>
-              <li>Pro Tip: 85%–95% is usually best for dense dinner menus.</li>
+              <li><strong>Font Size</strong> slider (60%–120%) to fit more or less on a page.</li>
+              <li><strong>Target Pages</strong> selector to choose how many pages to print on.</li>
+              <li><strong>Custom Footer</strong> to add a message on the last page (website, phone, etc.).</li>
+              <li><strong>Course Filter</strong> to print only specific courses/groups.</li>
               <li>In your browser's print dialog, uncheck <strong>"Headers and footers"</strong> for a professional look.</li>
             </ul>
           </CardContent>
@@ -1059,6 +1120,23 @@ function ToastConnectContent() {
               <li>The system automatically extracts "Suggested Pairing" from Toast descriptions.</li>
               <li>You can manually override or add pairings in the <strong>Menus</strong> detail view.</li>
               <li>Pairings appear beautifully styled on both print and online menus.</li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Code className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">Permanent Links</h3>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Embed codes and direct links are "frozen" by name.
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
+              <li>Links use menu names instead of IDs.</li>
+              <li>If you swap items or groups in Toast, your website link stays the same.</li>
+              <li>As long as the <strong>Menu Name</strong> stays the same, the link stays the same.</li>
             </ul>
           </CardContent>
         </Card>
