@@ -633,6 +633,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
     const customFooter = (req.query.footer as string) || "";
+    const pagebreaksParam = req.query.pagebreaks as string | undefined;
+    const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
 
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
@@ -764,8 +766,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
             </div>`;
         }
       }
+      const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
       groupsHtml += `
-        <div class="menu-group">
+        <div class="menu-group${hasPageBreak ? " page-break" : ""}">
           <h2 class="group-name">${escapeHtml(group.name)}</h2>
           <div class="group-divider"></div>
           ${itemsHtml}
@@ -803,8 +806,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
+        .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
         @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } .custom-footer { color: #555; } }
+        @media print { body { background: white; color: #1a1a18; font-size: ${scale}%; } .menu-title, .group-name, .item-name { color: #1a1a18; } .item-description { color: #555; } .item-price, .menu-subtitle, .ornament { color: #444; } .group-divider { background: #333; } .item-pairing { color: #666; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 24px; } .menu-item { margin-bottom: 12px; } .footer { margin-top: 24px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
     } else {
       css = `
@@ -828,8 +833,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
+        .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.4in; margin-top: 0; margin-bottom: 0; }
-        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } .custom-footer { color: #555; } }
+        @media print { body { font-size: ${scale}%; } .menu-container { padding: 16px 0; ${pages > 0 ? `min-height: calc(${pages} * (11in - 0.8in));` : ""} } .menu-group { margin-bottom: 20px; } .menu-item { padding: 6px 0; } .footer { margin-top: 20px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
         @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
     }
 

@@ -41,7 +41,7 @@ import {
 import {
   RefreshCw, UtensilsCrossed, Loader2, Search,
   Code, Printer, Eye, EyeOff, Copy, Check, ChevronLeft,
-  ExternalLink, CalendarDays, ArrowLeft, FileText, ListFilter, Wine
+  ExternalLink, CalendarDays, ArrowLeft, FileText, ListFilter, Wine, Scissors
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation, Link } from "wouter";
@@ -142,6 +142,7 @@ function ToastConnectContent() {
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
   const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
+  const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -245,7 +246,7 @@ function ToastConnectContent() {
     );
   };
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string, pageBreaks?: string[]) => {
     const base = window.location.origin;
     let menuId = menuGuid;
     let groupIds = groupGuids;
@@ -265,6 +266,7 @@ function ToastConnectContent() {
     if (scale && scale !== 100) url += `&scale=${scale}`;
     if (pages && pages > 0) url += `&pages=${pages}`;
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
+    if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     return url;
   };
 
@@ -280,8 +282,8 @@ function ToastConnectContent() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, false, pages, footer);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[]) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, false, pages, footer, pageBreaks);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -814,7 +816,7 @@ function ToastConnectContent() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Menu</label>
-          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedPrintGroups([]); }}>
+          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedPrintGroups([]); setPrintPageBreaks([]); }}>
             <SelectTrigger data-testid="select-print-menu">
               <SelectValue placeholder="Choose a menu..." />
             </SelectTrigger>
@@ -891,6 +893,36 @@ function ToastConnectContent() {
         />
       </div>
 
+      {selectedMenu && menuDetail && menuDetail.groups.length > 1 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Scissors className="w-4 h-4 text-muted-foreground" />
+            <label className="text-sm font-medium">Page Breaks</label>
+          </div>
+          <p className="text-xs text-muted-foreground">Force a page break before specific courses so each starts on a new page when printing.</p>
+          <div className="flex flex-wrap gap-3">
+            {menuDetail.groups.map((g, idx) => {
+              if (idx === 0) return null;
+              const isChecked = printPageBreaks.includes(g.groupGuid);
+              return (
+                <label key={g.groupGuid} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={(checked) => {
+                      setPrintPageBreaks(prev =>
+                        checked ? [...prev, g.groupGuid] : prev.filter(id => id !== g.groupGuid)
+                      );
+                    }}
+                    data-testid={`checkbox-pagebreak-${g.groupGuid}`}
+                  />
+                  <span>Before "{g.name}"</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {(() => {
         const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
         return (
@@ -914,7 +946,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter)}
+                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter, printPageBreaks)}
                   data-testid="button-print-fine-dining"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -943,7 +975,7 @@ function ToastConnectContent() {
               {selectedMenu && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter)}
+                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter, printPageBreaks)}
                   data-testid="button-print-modern"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -963,7 +995,7 @@ function ToastConnectContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter)}
+                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks)}
                 data-testid="button-open-print"
               >
                 <Printer className="w-4 h-4 mr-1" />
@@ -971,7 +1003,7 @@ function ToastConnectContent() {
               </Button>
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, false, printPages, printFooter)}
+              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, false, printPages, printFooter, printPageBreaks)}
               className="w-full border-0"
               style={{ height: "600px" }}
               title="Print Preview"
