@@ -228,7 +228,7 @@ export interface ExcelProductRow {
   bottle_size?: string;
   price?: number | string;
   cost?: number | string;
-  wholesale_pricing?: number | string;
+  wholesale_override_price?: number | string;
   sku?: string;
   stock_quantity?: number | string;
   low_stock_threshold?: number | string;
@@ -316,7 +316,7 @@ export function parseExcelFile(buffer: Buffer): ParseResult {
       bottleSize: row.bottle_size?.trim() || null,
       price: String(Number(row.price).toFixed(2)),
       cost: row.cost ? String(Number(row.cost).toFixed(2)) : null,
-      wholesalePricing: row.wholesale_pricing ? String(Number(row.wholesale_pricing).toFixed(2)) : null,
+      wholesaleOverridePrice: row.wholesale_override_price ? String(Number(row.wholesale_override_price).toFixed(2)) : null,
       sku: row.sku?.trim() || null,
       stockQuantity: row.stock_quantity ? Number(row.stock_quantity) : 0,
       lowStockThreshold: row.low_stock_threshold ? Number(row.low_stock_threshold) : 10,
@@ -358,7 +358,7 @@ export function generateExcelTemplate(): Buffer {
       bottle_size: '750ml',
       price: 34.99,
       cost: 15.00,
-      wholesale_pricing: 24.99,
+      wholesale_override_price: 24.99,
       sku: 'WINE-CAB-2020',
       stock_quantity: 48,
       low_stock_threshold: 12,
@@ -403,7 +403,7 @@ export function exportProductsToExcel(products: any[]): Buffer {
     bottle_size: product.bottleSize || '',
     price: product.price ? parseFloat(product.price) : 0,
     cost: product.cost ? parseFloat(product.cost) : undefined,
-    wholesale_pricing: product.wholesalePricing ? parseFloat(product.wholesalePricing) : undefined,
+    wholesale_override_price: product.wholesaleOverridePrice ? parseFloat(product.wholesaleOverridePrice) : undefined,
     sku: product.sku || '',
     stock_quantity: product.stockQuantity || 0,
     low_stock_threshold: product.lowStockThreshold || 10,
@@ -475,7 +475,7 @@ export function exportAllDataToExcel(data: {
     bottle_size: product.bottleSize || '',
     price: product.price ? parseFloat(product.price) : 0,
     cost: product.cost ? parseFloat(product.cost) : undefined,
-    wholesale_pricing: product.wholesalePricing ? parseFloat(product.wholesalePricing) : undefined,
+    wholesale_override_price: product.wholesaleOverridePrice ? parseFloat(product.wholesaleOverridePrice) : undefined,
     sku: product.sku || '',
     stock_quantity: product.stockQuantity || 0,
     low_stock_threshold: product.lowStockThreshold || 10,
@@ -1062,7 +1062,7 @@ export function parseAllDataExcelFile(buffer: Buffer): ParseAllDataResult {
         bottleSize: row.bottle_size?.trim() || null,
         price: toCurrencyString(row.price),
         cost: toCurrencyString(row.cost),
-        wholesalePricing: toCurrencyString(row.wholesale_pricing),
+        wholesaleOverridePrice: toCurrencyString(row.wholesale_override_price),
         sku: row.sku ? String(row.sku).trim() : null,
         stockQuantity: toNumber(row.stock_quantity, 0),
         lowStockThreshold: toNumber(row.low_stock_threshold, 10),

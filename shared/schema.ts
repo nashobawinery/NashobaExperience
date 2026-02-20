@@ -119,7 +119,7 @@ export const products = pgTable("products", {
   bottleSize: text("bottle_size"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   cost: decimal("cost", { precision: 10, scale: 2 }),
-  wholesalePricing: decimal("wholesale_pricing", { precision: 10, scale: 2 }),
+  wholesaleOverridePrice: decimal("wholesale_pricing", { precision: 10, scale: 2 }),
   sku: text("sku").unique(),
   stockQuantity: integer("stock_quantity").default(0),
   lowStockThreshold: integer("low_stock_threshold").default(10),

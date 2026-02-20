@@ -1050,7 +1050,8 @@ router.get('/api/b2b/customer/products', requireB2bAuth, async (req: Request, re
       
       if (effectiveTier) {
         const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
-        const tierPrice = parseFloat(product.price) * (1 - tierDiscount);
+        const basePrice = parseFloat(product.wholesaleOverridePrice || product.price);
+        const tierPrice = basePrice * (1 - tierDiscount);
         return {
           ...product,
           tierPrice: tierPrice.toFixed(2)
@@ -1110,7 +1111,8 @@ router.get('/api/b2b/customer/previous-products', requireB2bAuth, async (req: Re
       
       if (effectiveTier) {
         const tierDiscount = parseFloat(effectiveTier.discountPercentage) / 100;
-        const tierPrice = parseFloat(product.price) * (1 - tierDiscount);
+        const basePrice = parseFloat(product.wholesaleOverridePrice || product.price);
+        const tierPrice = basePrice * (1 - tierDiscount);
         return {
           ...product,
           tierPrice: tierPrice.toFixed(2)
@@ -1301,8 +1303,9 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using retail price.`);
       }
       const tierDiscount = effectiveTier ? parseFloat(effectiveTier.discountPercentage) / 100 : 0;
-      // unitPrice is per case: retail bottle price × case size × (1 - tier discount)
-      const unitPrice = parseFloat(product.price) * product.caseSize * (1 - tierDiscount);
+      // unitPrice is per case: wholesale override bottle price × case size × (1 - tier discount)
+      const basePrice = parseFloat(product.wholesaleOverridePrice || product.price);
+      const unitPrice = basePrice * product.caseSize * (1 - tierDiscount);
       const lineTotal = unitPrice * item.quantity;
       
       subtotal += lineTotal;
@@ -1313,7 +1316,7 @@ router.post('/api/b2b/customer/orders', requireB2bAuth, async (req: Request, res
         sku: product.sku || '',
         quantity: item.quantity,
         unitPrice: unitPrice.toFixed(2),
-        retailPrice: product.price,
+        retailPrice: (basePrice * product.caseSize).toFixed(2),
         lineTotal: lineTotal.toFixed(2),
       });
     }
@@ -1916,10 +1919,10 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
         }
       }
 
-      const retailPrice = parseFloat(product.price);
-      const unitPrice = retailPrice * (1 - discountPercentage / 100);
+      const basePrice = parseFloat(product.wholesaleOverridePrice || product.price);
+      const unitPrice = basePrice * (1 - discountPercentage / 100);
       const lineTotal = unitPrice * item.quantity;
-      const lineDiscount = (retailPrice - unitPrice) * item.quantity;
+      const lineDiscount = (basePrice - unitPrice) * item.quantity;
       
       subtotal += lineTotal;
       totalDiscount += lineDiscount;
@@ -1931,7 +1934,7 @@ router.post('/api/b2b/sales-rep/orders/place', requireB2bSalesRep, async (req: R
         quantity: item.quantity,
         caseSize: product.caseSize || 12,
         unitPrice: unitPrice.toFixed(2),
-        retailPrice: retailPrice.toFixed(2),
+        retailPrice: basePrice.toFixed(2),
         totalPrice: lineTotal.toFixed(2),
       });
     }
@@ -2203,6 +2206,7 @@ router.get('/api/b2b/admin/reports/product-pricing-commissions', requireB2bAdmin
         category: p.category,
         sku: p.sku,
         retailPrice: p.price,
+        wholesaleOverridePrice: p.wholesaleOverridePrice || p.price,
         cost: p.cost,
         caseSize: p.caseSize,
       })),
@@ -4443,7 +4447,7 @@ router.post('/api/b2b/admin/tier-agreements/:agreementId/cancel', requireB2bAdmi
         if (productResults.length === 0) continue;
         
         const product = productResults[0];
-        const basePrice = parseFloat(product.wholesalePricing || product.price || '0');
+        const basePrice = parseFloat(product.wholesaleOverridePrice || product.price || '0');
         
         // Calculate Tier 1 price (base price with Tier 1 discount)
         const tier1 = tier1ByCategory.get(product.category);
@@ -5627,9 +5631,9 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
         }
       }
 
-      const retailBottlePrice = parseFloat(product.price);
+      const baseBottlePrice = parseFloat(product.wholesaleOverridePrice || product.price);
       const caseSize = product.caseSize || 12;
-      const wholesaleBottlePrice = retailBottlePrice * (1 - discountPercentage / 100);
+      const wholesaleBottlePrice = baseBottlePrice * (1 - discountPercentage / 100);
       
       const unitType = item.unitType || 'cases';
       let unitPrice: number;
@@ -5638,12 +5642,12 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       let lineDiscount: number;
       
       if (unitType === 'bottles') {
-        retailPrice = retailBottlePrice;
+        retailPrice = baseBottlePrice;
         unitPrice = wholesaleBottlePrice;
         lineTotal = unitPrice * item.quantity;
         lineDiscount = (retailPrice - unitPrice) * item.quantity;
       } else {
-        retailPrice = retailBottlePrice * caseSize;
+        retailPrice = baseBottlePrice * caseSize;
         unitPrice = wholesaleBottlePrice * caseSize;
         lineTotal = unitPrice * item.quantity;
         lineDiscount = (retailPrice - unitPrice) * item.quantity;
@@ -6113,13 +6117,13 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
         }
       }
 
-      const retailPrice = parseFloat(product.price);
-      // Calculate price: use tier discount if found, otherwise use retail price (no discount)
+      const basePrice = parseFloat(product.wholesaleOverridePrice || product.price);
+      // Calculate price: use tier discount if found, otherwise use wholesale override price (no discount)
       if (!effectiveTier) {
-        console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using retail price.`);
+        console.warn(`[Tier Config Gap] No active ${customerTierName} tier found for category "${productCategory}" on product "${product.name}" (${product.id}). Using wholesale override price.`);
       }
       const discountDecimal = effectiveTier ? parseFloat(effectiveTier.discountPercentage) / 100 : 0;
-      const unitPrice = retailPrice * (1 - discountDecimal);
+      const unitPrice = basePrice * (1 - discountDecimal);
       const lineTotal = unitPrice * item.quantity;
 
       subtotal += lineTotal;
@@ -6130,7 +6134,7 @@ router.patch('/api/b2b/admin/orders/:id', requireB2bAdmin, async (req: Request, 
         sku: product.sku || '',
         quantity: item.quantity,
         unitPrice: unitPrice.toFixed(2),
-        retailPrice: retailPrice.toFixed(2),
+        retailPrice: basePrice.toFixed(2),
         lineTotal: lineTotal.toFixed(2),
       });
     }

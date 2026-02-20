@@ -38,6 +38,7 @@ type Product = {
   alcoholContent?: string;
   bottleSize?: string;
   price: string;
+  wholesaleOverridePrice?: string;
   sku?: string;
   stockQuantity: number;
   imageUrl?: string;
@@ -134,7 +135,7 @@ export default function PricingSheetPage() {
             <TableRow>
               <TableHead className="min-w-[200px]">Product</TableHead>
               <TableHead>SKU</TableHead>
-              <TableHead className="text-right">Retail Price</TableHead>
+              <TableHead className="text-right">Override Price</TableHead>
               {categoryTiers.map(tier => (
                 <TableHead key={tier.id} className="text-right">
                   {tier.tierName}
@@ -163,15 +164,16 @@ export default function PricingSheetPage() {
                 </TableCell>
                 <TableCell className="text-xs font-mono">{product.sku || "-"}</TableCell>
                 <TableCell className="text-right font-semibold">
-                  ${parseFloat(product.price).toFixed(2)}
+                  ${parseFloat(product.wholesaleOverridePrice || product.price).toFixed(2)}
                 </TableCell>
                 {categoryTiers.map(tier => {
-                  const tierPrice = calculatePrice(product.price, tier.discountPercentage);
+                  const basePrice = product.wholesaleOverridePrice || product.price;
+                  const tierPrice = calculatePrice(basePrice, tier.discountPercentage);
                   return (
                     <TableCell key={tier.id} className="text-right">
                       <div className="font-medium">${tierPrice}</div>
                       <div className="text-xs text-muted-foreground">
-                        Margin: {calculateProfitMargin(product.price, tierPrice)}%
+                        Margin: {calculateProfitMargin(basePrice, tierPrice)}%
                       </div>
                     </TableCell>
                   );
@@ -368,15 +370,16 @@ export default function PricingSheetPage() {
           </h4>
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-              <span className="font-medium">Retail Price</span>
+              <span className="font-medium">Wholesale Override Price</span>
               <span className="text-lg font-semibold">
-                ${parseFloat(product.price).toFixed(2)}
+                ${parseFloat(product.wholesaleOverridePrice || product.price).toFixed(2)}
               </span>
             </div>
             
             {/* Filter tiers to only show those matching the product's exact category */}
             {(() => {
               const productTiers = tiers.filter(tier => tier.category === product.category);
+              const basePrice = product.wholesaleOverridePrice || product.price;
               
               if (productTiers.length === 0) {
                 return (
@@ -388,9 +391,9 @@ export default function PricingSheetPage() {
               }
               
               return productTiers.map(tier => {
-                const tierPrice = calculatePrice(product.price, tier.discountPercentage);
-                const profit = calculateProfit(product.price, tierPrice);
-                const profitMargin = calculateProfitMargin(product.price, tierPrice);
+                const tierPrice = calculatePrice(basePrice, tier.discountPercentage);
+                const profit = calculateProfit(basePrice, tierPrice);
+                const profitMargin = calculateProfitMargin(basePrice, tierPrice);
                 
                 return (
                   <div key={tier.id} className="border rounded-lg p-4 space-y-2">

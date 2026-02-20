@@ -914,7 +914,7 @@ export class DatabaseStorage implements IStorage {
         p.bottle_size AS "bottleSize",
         p.price,
         p.cost,
-        p.wholesale_pricing AS "wholesalePricing",
+        p.wholesale_pricing AS "wholesaleOverridePrice",
         p.sku,
         p.stock_quantity AS "stockQuantity",
         p.low_stock_threshold AS "lowStockThreshold",

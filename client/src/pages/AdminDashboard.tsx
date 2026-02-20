@@ -1796,13 +1796,13 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-wholesale">Wholesale Price</Label>
+                  <Label htmlFor="edit-wholesale">Wholesale Override Price</Label>
                   <Input
                     id="edit-wholesale"
                     type="number"
                     step="0.01"
-                    value={editProductData.wholesalePricing || ''}
-                    onChange={(e) => setEditProductData({ ...editProductData, wholesalePricing: e.target.value })}
+                    value={editProductData.wholesaleOverridePrice || ''}
+                    onChange={(e) => setEditProductData({ ...editProductData, wholesaleOverridePrice: e.target.value })}
                   />
                 </div>
               </div>

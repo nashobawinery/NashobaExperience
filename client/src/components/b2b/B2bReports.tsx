@@ -540,6 +540,7 @@ interface PricingReportData {
     category: string;
     sku: string | null;
     retailPrice: string;
+    wholesaleOverridePrice: string;
     cost: string | null;
     caseSize: number | null;
   }>;
@@ -668,7 +669,7 @@ function ProductPricingCommissionReport() {
                 <tr className="border-b">
                   <th className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">Product</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Category</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Retail</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Override</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Cost</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Pricing Tier</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Wholesale</th>
@@ -692,7 +693,7 @@ function ProductPricingCommissionReport() {
               <tbody>
                 {filteredProducts.map((product) => {
                   const pricingTiers = getDisplayPricingTiers(product.category);
-                  const retailPrice = parseFloat(product.retailPrice);
+                  const basePrice = parseFloat(product.wholesaleOverridePrice || product.retailPrice);
 
                   if (pricingTiers.length === 0) {
                     const costVal = product.cost ? parseFloat(product.cost) : 0;
@@ -702,14 +703,14 @@ function ProductPricingCommissionReport() {
                         <td className="py-2.5 px-3">
                           <Badge variant="secondary">{fmtCategory(product.category)}</Badge>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(basePrice)}</td>
                         <td className="py-2.5 px-3 text-right text-muted-foreground">{product.cost ? fmtCurrency(costVal) : '—'}</td>
                         <td className="py-2.5 px-3 text-right text-muted-foreground text-xs">No tier</td>
-                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(retailPrice)}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{fmtCurrency(basePrice)}</td>
                         {commissionTiers.map(ct => {
                           const rate = parseFloat(ct.ratePercent) / 100;
-                          const commission = retailPrice * rate;
-                          const net = retailPrice - commission;
+                          const commission = basePrice * rate;
+                          const net = basePrice - commission;
                           const netAfterCog = net - costVal;
                           return (
                             <Fragment key={ct.id}>
@@ -726,7 +727,7 @@ function ProductPricingCommissionReport() {
                   const costVal = product.cost ? parseFloat(product.cost) : 0;
                   return pricingTiers.map((tier, tierIdx) => {
                     const discount = parseFloat(tier.discountPercentage) / 100;
-                    const wholesalePrice = retailPrice * (1 - discount);
+                    const wholesalePrice = basePrice * (1 - discount);
 
                     return (
                       <tr
@@ -738,7 +739,7 @@ function ProductPricingCommissionReport() {
                         <td className="py-2.5 px-3">
                           {tierIdx === 0 && <Badge variant="secondary">{fmtCategory(product.category)}</Badge>}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-medium">{tierIdx === 0 ? fmtCurrency(retailPrice) : ''}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{tierIdx === 0 ? fmtCurrency(basePrice) : ''}</td>
                         <td className="py-2.5 px-3 text-right text-muted-foreground">{tierIdx === 0 ? (product.cost ? fmtCurrency(costVal) : '—') : ''}</td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <span className="text-xs">{tier.tierName}</span>
