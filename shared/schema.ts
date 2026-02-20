@@ -5468,3 +5468,26 @@ export const ccQuickPromotions = pgTable("cc_quick_promotions", {
 export const insertCcQuickPromotionSchema = createInsertSchema(ccQuickPromotions).omit({ id: true, createdAt: true });
 export type InsertCcQuickPromotion = z.infer<typeof insertCcQuickPromotionSchema>;
 export type CcQuickPromotion = typeof ccQuickPromotions.$inferSelect;
+
+// ============= Enhancement Requests Module =============
+export const enhancementRequests = pgTable("enhancement_requests", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  module: varchar("module", { length: 100 }),
+  submittedBy: varchar("submitted_by", { length: 255 }).notNull(),
+  submitterEmail: varchar("submitter_email", { length: 255 }),
+  status: varchar("status", { length: 50 }).default("new").notNull(),
+  priority: integer("priority").default(0).notNull(),
+  votes: integer("votes").default(0).notNull(),
+  adminNotes: text("admin_notes"),
+  changesDescription: text("changes_description"),
+  responseMessage: text("response_message"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertEnhancementRequestSchema = createInsertSchema(enhancementRequests).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export type InsertEnhancementRequest = z.infer<typeof insertEnhancementRequestSchema>;
+export type EnhancementRequest = typeof enhancementRequests.$inferSelect;
