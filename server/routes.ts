@@ -37,6 +37,7 @@ import revenueDetailRouter from "./revenue-detail-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
+import { initComplianceReminders, sendComplianceReminders } from "./complianceReminders";
 import { scheduleTicketReminders, sendManualAgentNotification } from "./supportTicketReminders";
 import { initMaintenanceReminders } from "./maintenanceReminders";
 import { initContractReminders } from "./contractReminders";
@@ -7915,7 +7916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const msg = {
         to: task.assigned_to_email,
-        from: 'support@nasobawinery.com',
+        from: process.env.SENDGRID_FROM_EMAIL || 'support@nashobawinery.com',
         subject,
         html,
         text: `Compliance Reminder: ${task.task_name}\n\nDue Date: ${dueDate?.toLocaleDateString() || 'Not set'}\nCategory: ${task.category}\nPriority: ${task.priority}\n\nDescription: ${task.description || 'N/A'}\n\nMark as Complete: ${completionUrl}`
@@ -19285,6 +19286,8 @@ Generate a professional response:`;
   scheduleNightlySync();
 
   initContractReminders();
+
+  initComplianceReminders();
 
   const httpServer = createServer(app);
   return httpServer;
