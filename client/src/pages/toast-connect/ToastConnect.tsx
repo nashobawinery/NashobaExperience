@@ -1726,7 +1726,7 @@ export function ToastConnectDocs() {
 }
 
 export function ToastPrintMenus() {
-  const { toast } = useToast();
+  const [selectedPrintMenus, setSelectedPrintMenus] = useState<string[]>([]);
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
@@ -1735,6 +1735,7 @@ export function ToastPrintMenus() {
   const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
+  const [printMenuTitle, setPrintMenuTitle] = useState("");
 
   const { data: menus = [] } = useQuery<ToastMenuData[]>({
     queryKey: ["/api/toast/menus"],
@@ -1750,7 +1751,65 @@ export function ToastPrintMenus() {
     enabled: !!selectedMenu,
   });
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
+  const { data: printMenusDetail = [] } = useQuery<{ menuGuid: string; menuName: string; groups: ToastMenuGroupData[] }[]>({
+    queryKey: ["/api/toast/cc-print-menus-detail", selectedPrintMenus],
+    queryFn: async () => {
+      const results = [];
+      for (const menuGuid of selectedPrintMenus) {
+        const res = await fetch(`/api/toast/public/menu/${menuGuid}?includeHidden=true`);
+        if (res.ok) {
+          const data = await res.json();
+          results.push({ menuGuid, menuName: data.menu.name, groups: data.groups });
+        }
+      }
+      return results;
+    },
+    enabled: selectedPrintMenus.length > 0,
+  });
+
+  const allPrintGroups = useMemo(() => {
+    const groups: { groupGuid: string; name: string; menuName: string }[] = [];
+    for (const detail of printMenusDetail) {
+      for (const group of detail.groups) {
+        groups.push({ groupGuid: group.groupGuid, name: group.name, menuName: detail.menuName });
+      }
+    }
+    return groups;
+  }, [printMenusDetail]);
+
+  const isMultiMenu = selectedPrintMenus.length > 1;
+  const isSingleMenu = selectedPrintMenus.length === 1;
+  const hasSelection = selectedPrintMenus.length > 0;
+
+  const togglePrintMenu = (menuGuid: string) => {
+    setSelectedPrintMenus(prev => {
+      const newSelection = prev.includes(menuGuid)
+        ? prev.filter(g => g !== menuGuid)
+        : [...prev, menuGuid];
+      if (newSelection.length === 1) {
+        setSelectedMenu(newSelection[0]);
+      } else if (newSelection.length === 0) {
+        setSelectedMenu(null);
+      }
+      if (newSelection.length !== 1) {
+        setSelectedPrintGroups([]);
+      }
+      return newSelection;
+    });
+    setPrintPageBreaks([]);
+  };
+
+  const movePrintMenu = (index: number, direction: "up" | "down") => {
+    setSelectedPrintMenus(prev => {
+      const newArr = [...prev];
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newArr.length) return prev;
+      [newArr[index], newArr[targetIndex]] = [newArr[targetIndex], newArr[index]];
+      return newArr;
+    });
+  };
+
+  const getSingleMenuEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -1762,8 +1821,38 @@ export function ToastPrintMenus() {
     return url;
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, pages, footer, pageBreaks, hideDescriptions);
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, title?: string) => {
+    const base = window.location.origin;
+    let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
+    if (scale && scale !== 100) url += `&scale=${scale}`;
+    if (pages && pages > 0) url += `&pages=${pages}`;
+    if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
+    if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
+    if (hideDescriptions) url += `&hidedesc=1`;
+    if (title && title.trim()) url += `&title=${encodeURIComponent(title.trim())}`;
+    return url;
+  };
+
+  const getPrintPreviewUrl = () => {
+    if (isMultiMenu) {
+      return getMultiMenuEmbedUrl(selectedPrintMenus, printTemplate, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printMenuTitle);
+    } else if (isSingleMenu) {
+      const groups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+      return getSingleMenuEmbedUrl(selectedPrintMenus[0], printTemplate, groups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
+    }
+    return "";
+  };
+
+  const handlePrint = (template: string) => {
+    let url: string;
+    if (isMultiMenu) {
+      url = getMultiMenuEmbedUrl(selectedPrintMenus, template, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printMenuTitle);
+    } else if (isSingleMenu) {
+      const groups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+      url = getSingleMenuEmbedUrl(selectedPrintMenus[0], template, groups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
+    } else {
+      return;
+    }
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -1786,31 +1875,89 @@ export function ToastPrintMenus() {
     return `${names.length} courses selected`;
   };
 
-  const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold" data-testid="text-cc-print-title">Print Menus</h2>
         <p className="text-sm text-muted-foreground">
-          Select a menu and template to generate a print-ready version. Opens in a new tab for printing.
+          Select one or more menus to combine into a single printable document. Use the arrows to control the order they appear.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Select Menu</label>
-          <Select value={selectedMenu || ""} onValueChange={(v) => { setSelectedMenu(v); setSelectedPrintGroups([]); setPrintPageBreaks([]); }}>
-            <SelectTrigger data-testid="select-cc-print-menu">
-              <SelectValue placeholder="Choose a menu..." />
-            </SelectTrigger>
-            <SelectContent>
-              {menus.map((m) => (
-                <SelectItem key={m.menuGuid} value={m.menuGuid}>{m.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <label className="text-sm font-medium">Select Menus</label>
+          <p className="text-xs text-muted-foreground">Check the menus you want to include. Select multiple to combine them into one printed menu.</p>
+          <div className="space-y-1 border rounded-md p-2 max-h-64 overflow-y-auto" data-testid="cc-print-menu-list">
+            {menus.map((m) => {
+              const isSelected = selectedPrintMenus.includes(m.menuGuid);
+              return (
+                <label
+                  key={m.menuGuid}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
+                  data-testid={`cc-print-menu-option-${m.menuGuid}`}
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => togglePrintMenu(m.menuGuid)}
+                  />
+                  <span className="text-sm flex-1">{m.name}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
+
+        <div className="space-y-2">
+          {hasSelection && (
+            <>
+              <label className="text-sm font-medium">
+                Print Order ({selectedPrintMenus.length} selected)
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {isMultiMenu ? "Reorder using arrows. Menus will appear in this order on the printed document." : "One menu selected."}
+              </p>
+              <div className="space-y-1 border rounded-md p-2" data-testid="cc-print-menu-order">
+                {selectedPrintMenus.map((guid, index) => {
+                  const menu = menus.find(m => m.menuGuid === guid);
+                  return (
+                    <div
+                      key={guid}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50"
+                      data-testid={`cc-print-order-item-${index}`}
+                    >
+                      <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm flex-1 truncate">{menu?.name || guid}</span>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === 0}
+                          onClick={() => movePrintMenu(index, "up")}
+                          data-testid={`cc-button-move-up-${index}`}
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === selectedPrintMenus.length - 1}
+                          onClick={() => movePrintMenu(index, "down")}
+                          data-testid={`cc-button-move-down-${index}`}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Print Template</label>
           <Select value={printTemplate} onValueChange={setPrintTemplate}>
@@ -1824,44 +1971,61 @@ export function ToastPrintMenus() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Courses / Groups</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-between text-left font-normal" data-testid="select-cc-print-group-trigger">
-                <span className="truncate">{getGroupLabel(selectedPrintGroups)}</span>
-                <ListFilter className="w-4 h-4 ml-2 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-2" align="start">
-              <div className="space-y-1">
-                <Button
-                  variant={selectedPrintGroups.length === 0 ? "secondary" : "ghost"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setSelectedPrintGroups([])}
-                  data-testid="select-cc-print-group-all"
-                >
-                  All courses (full menu)
+        {isSingleMenu && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Courses / Groups</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between text-left font-normal" data-testid="select-cc-print-group-trigger">
+                  <span className="truncate">{getGroupLabel(selectedPrintGroups)}</span>
+                  <ListFilter className="w-4 h-4 ml-2 shrink-0 opacity-50" />
                 </Button>
-                {menuDetail?.groups.map((g) => (
-                  <label
-                    key={g.groupGuid}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
-                    data-testid={`select-cc-print-group-${g.groupGuid}`}
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" align="start">
+                <div className="space-y-1">
+                  <Button
+                    variant={selectedPrintGroups.length === 0 ? "secondary" : "ghost"}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setSelectedPrintGroups([])}
+                    data-testid="select-cc-print-group-all"
                   >
-                    <Checkbox
-                      checked={selectedPrintGroups.includes(g.groupGuid)}
-                      onCheckedChange={() => toggleGroupSelection(g.groupGuid)}
-                    />
-                    <span className="text-sm">{g.name}</span>
-                  </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+                    All courses (full menu)
+                  </Button>
+                  {menuDetail?.groups.map((g) => (
+                    <label
+                      key={g.groupGuid}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
+                      data-testid={`select-cc-print-group-${g.groupGuid}`}
+                    >
+                      <Checkbox
+                        checked={selectedPrintGroups.includes(g.groupGuid)}
+                        onCheckedChange={() => toggleGroupSelection(g.groupGuid)}
+                      />
+                      <span className="text-sm">{g.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
+
+      {isMultiMenu && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Menu Title</label>
+          <p className="text-xs text-muted-foreground">Custom title for the combined menu. Leave blank to use "Menu" as the default.</p>
+          <input
+            type="text"
+            value={printMenuTitle}
+            onChange={(e) => setPrintMenuTitle(e.target.value)}
+            placeholder="e.g., Beverage Menu, Full Bar Menu, Nashoba Valley Spirits"
+            className="w-full max-w-lg px-3 py-2 rounded-md border border-input bg-background text-sm"
+            data-testid="input-cc-print-title"
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -1923,7 +2087,7 @@ export function ToastPrintMenus() {
         </label>
       </div>
 
-      {selectedMenu && menuDetail && menuDetail.groups.length > 1 && (
+      {hasSelection && allPrintGroups.length > 1 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Scissors className="w-4 h-4 text-muted-foreground" />
@@ -1931,7 +2095,7 @@ export function ToastPrintMenus() {
           </div>
           <p className="text-xs text-muted-foreground">Force a page break before specific courses so each starts on a new page when printing.</p>
           <div className="flex flex-wrap gap-3">
-            {menuDetail.groups.map((g, idx) => {
+            {allPrintGroups.map((g, idx) => {
               if (idx === 0) return null;
               const isChecked = printPageBreaks.includes(g.groupGuid);
               return (
@@ -1945,7 +2109,7 @@ export function ToastPrintMenus() {
                     }}
                     data-testid={`checkbox-cc-pagebreak-${g.groupGuid}`}
                   />
-                  <span>Before "{g.name}"</span>
+                  <span>Before "{g.name}"{isMultiMenu ? ` (${g.menuName})` : ""}</span>
                 </label>
               );
             })}
@@ -1969,10 +2133,10 @@ export function ToastPrintMenus() {
                 <p className="font-medium text-sm">Fine Dining</p>
                 <p className="text-xs text-muted-foreground">Dark, elegant, serif fonts</p>
               </div>
-              {selectedMenu && (
+              {hasSelection && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "fine-dining", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+                  onClick={() => handlePrint("fine-dining")}
                   data-testid="button-cc-print-fine-dining"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -1998,10 +2162,10 @@ export function ToastPrintMenus() {
                 <p className="font-medium text-sm">Modern Clean</p>
                 <p className="text-xs text-muted-foreground">Light, minimal, sans-serif</p>
               </div>
-              {selectedMenu && (
+              {hasSelection && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "modern", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+                  onClick={() => handlePrint("modern")}
                   data-testid="button-cc-print-modern"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -2031,10 +2195,10 @@ export function ToastPrintMenus() {
                 <p className="font-medium text-sm">Beverage Menu</p>
                 <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
               </div>
-              {selectedMenu && (
+              {hasSelection && (
                 <Button
                   size="sm"
-                  onClick={() => openPrintView(selectedMenu, "beverage", printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+                  onClick={() => handlePrint("beverage")}
                   data-testid="button-cc-print-beverage"
                 >
                   <Printer className="w-4 h-4 mr-1" />
@@ -2046,15 +2210,15 @@ export function ToastPrintMenus() {
         </Card>
       </div>
 
-      {selectedMenu && (
+      {hasSelection && (
         <Card>
           <CardContent className="p-0 overflow-hidden rounded-md">
             <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
-              <span>Print Preview</span>
+              <span>Print Preview {isMultiMenu ? `(${selectedPrintMenus.length} menus combined)` : ""}</span>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+                onClick={() => handlePrint(printTemplate)}
                 data-testid="button-cc-open-print"
               >
                 <Printer className="w-4 h-4 mr-1" />
@@ -2062,7 +2226,7 @@ export function ToastPrintMenus() {
               </Button>
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions)}
+              src={getPrintPreviewUrl()}
               className="w-full border-0"
               style={{ height: "600px" }}
               title="Print Preview"
