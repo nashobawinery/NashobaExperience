@@ -6,7 +6,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Heart, Wine } from "lucide-react";
+import { Heart, Wine, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -303,6 +303,20 @@ export default function ProductDetailModal({
                   </div>
                 )}
               </div>
+
+              {product.isDistributed && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg" data-testid="distributor-notice-detail">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-amber-800 dark:text-amber-300 text-sm mb-1">Distributed Product</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Order Section */}
               <div className="space-y-4">

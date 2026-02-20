@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, ShoppingCart, Package, DollarSign, UserCog, ArrowLeft, Grid3X3, List } from "lucide-react";
+import { Search, ShoppingCart, Package, DollarSign, UserCog, ArrowLeft, Grid3X3, List, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ProductDetailModal from "@/components/ProductDetailModal";
 
@@ -247,6 +247,16 @@ export default function CatalogPage() {
                   ${((product.tierPrice ? Number(product.tierPrice) : Number(product.price)) * product.caseSize).toFixed(2)} per case
                 </span>
               </div>
+              {product.isDistributed && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg" data-testid={`distributor-notice-${product.id}`}>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="pt-2 border-t space-y-3">
                 {(product.category === 'wine' || product.category === 'spirits') ? (
                   <>
@@ -466,6 +476,14 @@ export default function CatalogPage() {
                       <span className="text-muted-foreground">Case: {product.caseSize} bottles</span>
                     </div>
                   </div>
+                  {product.isDistributed && (
+                    <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mb-2" data-testid={`distributor-notice-listing-${product.id}`}>
+                      <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-800 dark:text-amber-300">
+                        Distributed by Carolina Wine & Spirits. Does not qualify for full tier discounts.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div 
                   className="flex flex-col gap-2 items-end flex-shrink-0 p-2 -m-2" 
@@ -660,6 +678,14 @@ export default function CatalogPage() {
                         </div>
                         <Badge variant="secondary">Previously Ordered</Badge>
                       </div>
+                      {product.isDistributed && (
+                        <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mt-2" data-testid={`distributor-notice-past-${product.id}`}>
+                          <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                          <p className="text-xs text-amber-800 dark:text-amber-300">
+                            Distributed by Carolina Wine & Spirits. Does not qualify for full tier discounts.
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2 items-end flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {(product.category === 'wine' || product.category === 'spirits') ? (

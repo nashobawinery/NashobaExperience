@@ -2109,6 +2109,17 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                   <Label htmlFor="edit-wine-of-month" className="cursor-pointer">Product of the Month</Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-is-distributed"
+                    checked={editProductData.isDistributed ?? false}
+                    onChange={(e) => setEditProductData({ ...editProductData, isDistributed: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                    data-testid="checkbox-is-distributed"
+                  />
+                  <Label htmlFor="edit-is-distributed" className="cursor-pointer">Distributed Product (Carolina Wine & Spirits)</Label>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-tags">Tags (comma-separated)</Label>

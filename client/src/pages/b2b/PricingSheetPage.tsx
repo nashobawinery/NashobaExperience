@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Wine, Martini, Package, Eye, TrendingUp, DollarSign, UserPlus } from "lucide-react";
+import { ArrowLeft, Wine, Martini, Package, Eye, TrendingUp, DollarSign, UserPlus, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Product = {
@@ -55,6 +55,7 @@ type Product = {
   awards?: string;
   rating?: string;
   available: boolean;
+  isDistributed?: boolean;
 };
 
 type TierPricing = {
@@ -153,7 +154,12 @@ export default function PricingSheetPage() {
               <TableRow key={product.id} data-testid={`product-row-${product.id}`}>
                 <TableCell className="font-medium">
                   <div>
-                    <div>{product.name}</div>
+                    <div className="flex items-center gap-2">
+                      {product.name}
+                      {product.isDistributed && (
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" title="Distributed by Carolina Wine & Spirits" />
+                      )}
+                    </div>
                     {product.varietal && (
                       <div className="text-xs text-muted-foreground">{product.varietal}</div>
                     )}
@@ -361,6 +367,20 @@ export default function PricingSheetPage() {
             </div>
           )}
         </div>
+
+        {product.isDistributed && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg" data-testid="distributor-notice-pricing">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-300 text-sm mb-1">Distributed Product</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Pricing Table */}
         <div className="border-t pt-6">
@@ -684,14 +704,27 @@ export default function PricingSheetPage() {
                 })}
               </Tabs>
 
-              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Package className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">Case Quantities</p>
-                    <p className="text-sm text-muted-foreground">
-                      All orders are calculated by case (12 bottles per case). Each beverage category has its own independent tier pricing structure.
-                    </p>
+              <div className="mt-6 space-y-3">
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Package className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">Case Quantities</p>
+                      <p className="text-sm text-muted-foreground">
+                        All orders are calculated by case (12 bottles per case). Each beverage category has its own independent tier pricing structure.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg" data-testid="distributor-disclosure">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium mb-1 text-amber-800 dark:text-amber-300">Distributed Products Disclosure</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        Some products are distributed by Carolina Wine & Spirits and are marked with a warning icon (<AlertTriangle className="h-3 w-3 inline text-amber-600 dark:text-amber-400" />) in the pricing table. These products do not qualify for full tier discounts. We encourage you to purchase distributed products directly from Carolina Wine & Spirits for the best pricing.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
