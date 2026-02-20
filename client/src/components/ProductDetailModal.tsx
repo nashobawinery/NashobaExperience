@@ -311,7 +311,7 @@ export default function ProductDetailModal({
                     <div>
                       <p className="font-medium text-amber-800 dark:text-amber-300 text-sm mb-1">Distributed Product</p>
                       <p className="text-sm text-amber-700 dark:text-amber-400">
-                        This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                        Distributed by Carolina - See note below
                       </p>
                     </div>
                   </div>

@@ -136,14 +136,10 @@ export default function PricingSheetPage() {
             <TableRow>
               <TableHead className="min-w-[200px]">Product</TableHead>
               <TableHead>SKU</TableHead>
-              <TableHead className="text-right">Override Price</TableHead>
+              <TableHead className="text-right">Retail Price</TableHead>
               {categoryTiers.map(tier => (
                 <TableHead key={tier.id} className="text-right">
                   {tier.tierName}
-                  <br />
-                  <span className="text-xs text-muted-foreground">
-                    ({tier.discountPercentage}% off)
-                  </span>
                 </TableHead>
               ))}
               <TableHead className="text-center">Details</TableHead>
@@ -157,7 +153,10 @@ export default function PricingSheetPage() {
                     <div className="flex items-center gap-2">
                       {product.name}
                       {product.isDistributed && (
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" title="Distributed by Carolina Wine & Spirits" />
+                        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 shrink-0">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span className="text-xs font-normal">Distributed by Carolina - See note below</span>
+                        </span>
                       )}
                     </div>
                     {product.varietal && (
@@ -170,16 +169,19 @@ export default function PricingSheetPage() {
                 </TableCell>
                 <TableCell className="text-xs font-mono">{product.sku || "-"}</TableCell>
                 <TableCell className="text-right font-semibold">
-                  ${parseFloat(product.wholesaleOverridePrice || product.price).toFixed(2)}
+                  ${parseFloat(product.price).toFixed(2)}
                 </TableCell>
                 {categoryTiers.map(tier => {
                   const basePrice = product.wholesaleOverridePrice || product.price;
+                  const retailPrice = parseFloat(product.price);
                   const tierPrice = calculatePrice(basePrice, tier.discountPercentage);
+                  const tierPriceNum = parseFloat(tierPrice);
+                  const pctOffRetail = retailPrice > 0 ? (((retailPrice - tierPriceNum) / retailPrice) * 100).toFixed(1) : "0.0";
                   return (
                     <TableCell key={tier.id} className="text-right">
                       <div className="font-medium">${tierPrice}</div>
                       <div className="text-xs text-muted-foreground">
-                        Margin: {calculateProfitMargin(basePrice, tierPrice)}%
+                        {pctOffRetail}% off retail
                       </div>
                     </TableCell>
                   );
@@ -375,7 +377,7 @@ export default function PricingSheetPage() {
               <div>
                 <p className="font-medium text-amber-800 dark:text-amber-300 text-sm mb-1">Distributed Product</p>
                 <p className="text-sm text-amber-700 dark:text-amber-400">
-                  This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                  Distributed by Carolina - See note below
                 </p>
               </div>
             </div>
@@ -390,16 +392,16 @@ export default function PricingSheetPage() {
           </h4>
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-              <span className="font-medium">Wholesale Override Price</span>
+              <span className="font-medium">Retail Price</span>
               <span className="text-lg font-semibold">
-                ${parseFloat(product.wholesaleOverridePrice || product.price).toFixed(2)}
+                ${parseFloat(product.price).toFixed(2)}
               </span>
             </div>
             
-            {/* Filter tiers to only show those matching the product's exact category */}
             {(() => {
               const productTiers = tiers.filter(tier => tier.category === product.category);
               const basePrice = product.wholesaleOverridePrice || product.price;
+              const retailPrice = parseFloat(product.price);
               
               if (productTiers.length === 0) {
                 return (
@@ -412,8 +414,9 @@ export default function PricingSheetPage() {
               
               return productTiers.map(tier => {
                 const tierPrice = calculatePrice(basePrice, tier.discountPercentage);
-                const profit = calculateProfit(basePrice, tierPrice);
-                const profitMargin = calculateProfitMargin(basePrice, tierPrice);
+                const tierPriceNum = parseFloat(tierPrice);
+                const savingsFromRetail = (retailPrice - tierPriceNum).toFixed(2);
+                const pctOffRetail = retailPrice > 0 ? (((retailPrice - tierPriceNum) / retailPrice) * 100).toFixed(1) : "0.0";
                 
                 return (
                   <div key={tier.id} className="border rounded-lg p-4 space-y-2">
@@ -421,7 +424,7 @@ export default function PricingSheetPage() {
                       <div>
                         <span className="font-semibold">{tier.tierName}</span>
                         <span className="text-sm text-muted-foreground ml-2">
-                          ({tier.discountPercentage}% off)
+                          ({pctOffRetail}% off retail)
                         </span>
                       </div>
                       <span className="text-lg font-semibold text-primary">
@@ -432,15 +435,15 @@ export default function PricingSheetPage() {
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-green-600" />
                         <div>
-                          <div className="text-muted-foreground">Profit</div>
-                          <div className="font-medium text-green-600">${profit}</div>
+                          <div className="text-muted-foreground">Savings from Retail</div>
+                          <div className="font-medium text-green-600">${savingsFromRetail}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-blue-600" />
                         <div>
-                          <div className="text-muted-foreground">Profit Margin</div>
-                          <div className="font-medium text-blue-600">{profitMargin}%</div>
+                          <div className="text-muted-foreground">Discount from Retail</div>
+                          <div className="font-medium text-blue-600">{pctOffRetail}%</div>
                         </div>
                       </div>
                     </div>
@@ -693,7 +696,7 @@ export default function PricingSheetPage() {
                               </div>
                               <div className="text-right">
                                 <p className="text-2xl font-bold text-primary">{tier.discountPercentage}%</p>
-                                <p className="text-sm text-muted-foreground">off retail</p>
+                                <p className="text-sm text-muted-foreground">wholesale discount</p>
                               </div>
                             </div>
                           ))}

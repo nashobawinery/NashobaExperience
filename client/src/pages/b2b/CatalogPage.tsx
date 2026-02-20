@@ -252,7 +252,7 @@ export default function CatalogPage() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                     <p className="text-xs text-amber-800 dark:text-amber-300">
-                      This product is distributed by Carolina Wine & Spirits. The product does not qualify for full tier discounts and we encourage you to purchase directly from Carolina.
+                      Distributed by Carolina - See note below
                     </p>
                   </div>
                 </div>
@@ -480,7 +480,7 @@ export default function CatalogPage() {
                     <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mb-2" data-testid={`distributor-notice-listing-${product.id}`}>
                       <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                       <p className="text-xs text-amber-800 dark:text-amber-300">
-                        Distributed by Carolina Wine & Spirits. Does not qualify for full tier discounts.
+                        Distributed by Carolina - See note below
                       </p>
                     </div>
                   )}
@@ -682,7 +682,7 @@ export default function CatalogPage() {
                         <div className="flex items-start gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mt-2" data-testid={`distributor-notice-past-${product.id}`}>
                           <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                           <p className="text-xs text-amber-800 dark:text-amber-300">
-                            Distributed by Carolina Wine & Spirits. Does not qualify for full tier discounts.
+                            Distributed by Carolina - See note below
                           </p>
                         </div>
                       )}
