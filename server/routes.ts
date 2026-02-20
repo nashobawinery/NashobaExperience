@@ -18600,7 +18600,12 @@ Generate a professional response:`;
         }
       })();
 
-      const missingShopifyDays = dailyRevenue.filter(d => d.shopifyRevenue == null);
+      const shopifyToday = new Date();
+      const shopifyTodayStr = `${shopifyToday.getFullYear()}-${String(shopifyToday.getMonth() + 1).padStart(2, '0')}-${String(shopifyToday.getDate()).padStart(2, '0')}`;
+      const missingShopifyDays = dailyRevenue.filter(d => {
+        if (d.date > shopifyTodayStr) return false;
+        return d.shopifyRevenue == null || d.shopifyRevenue === '0' || d.shopifyRevenue === '0.00';
+      });
       if (missingShopifyDays.length > 0 && isShopifyAvailable()) {
         (async () => {
           try {
