@@ -252,6 +252,227 @@ export async function fetchDailyRevenue(
   };
 }
 
+export async function fetchRevenueCenters(restaurantGuid: string): Promise<any[]> {
+  try {
+    const result = await toastApiRequest("/config/v2/revenueCenters", restaurantGuid);
+    return Array.isArray(result) ? result : [];
+  } catch (err: any) {
+    console.error(`[Toast Config] Error fetching revenue centers:`, err.message);
+    return [];
+  }
+}
+
+export async function fetchSalesCategories(restaurantGuid: string): Promise<any[]> {
+  try {
+    const result = await toastApiRequest("/config/v2/salesCategories", restaurantGuid);
+    return Array.isArray(result) ? result : [];
+  } catch (err: any) {
+    console.error(`[Toast Config] Error fetching sales categories:`, err.message);
+    return [];
+  }
+}
+
+export async function syncToastConfig(restaurantGuid: string): Promise<{
+  revenueCenters: Map<string, string>;
+  salesCategories: Map<string, string>;
+}> {
+  const revCenters = await fetchRevenueCenters(restaurantGuid);
+  const salesCats = await fetchSalesCategories(restaurantGuid);
+
+  const revCenterMap = new Map<string, string>();
+  const salesCatMap = new Map<string, string>();
+
+  for (const rc of revCenters) {
+    const guid = rc.guid;
+    const name = rc.name || "Unknown";
+    revCenterMap.set(guid, name);
+    await db.execute(sql`
+      INSERT INTO rcc_revenue_centers (guid, name, restaurant_guid, updated_at)
+      VALUES (${guid}, ${name}, ${restaurantGuid}, NOW())
+      ON CONFLICT (guid) DO UPDATE SET name = ${name}, updated_at = NOW()
+    `);
+  }
+
+  for (const sc of salesCats) {
+    const guid = sc.guid;
+    const name = sc.name || "Unknown";
+    salesCatMap.set(guid, name);
+    await db.execute(sql`
+      INSERT INTO rcc_sales_categories (guid, name, restaurant_guid, updated_at)
+      VALUES (${guid}, ${name}, ${restaurantGuid}, NOW())
+      ON CONFLICT (guid) DO UPDATE SET name = ${name}, updated_at = NOW()
+    `);
+  }
+
+  console.log(`[Toast Config] Synced ${revCenterMap.size} revenue centers, ${salesCatMap.size} sales categories for ${restaurantGuid}`);
+  return { revenueCenters: revCenterMap, salesCategories: salesCatMap };
+}
+
+export interface RevenueDetailResult {
+  netSales: number;
+  orderCount: number;
+  locationBreakdown: Record<string, number>;
+  revenueCenterBreakdown: Array<{ guid: string | null; name: string; netSales: number; orderCount: number }>;
+  salesCategoryBreakdown: Array<{ guid: string | null; name: string; netSales: number; itemCount: number }>;
+  itemSales: Array<{
+    itemName: string;
+    itemGuid: string | null;
+    salesCategoryGuid: string | null;
+    salesCategoryName: string | null;
+    revenueCenterGuid: string | null;
+    revenueCenterName: string | null;
+    quantity: number;
+    netSales: number;
+  }>;
+}
+
+export async function fetchDailyRevenueDetail(
+  businessDate: string
+): Promise<RevenueDetailResult> {
+  const restaurants = await getRestaurants();
+  let totalNetSales = 0;
+  let totalOrderCount = 0;
+  const locationBreakdown: Record<string, number> = {};
+  const revCenterAgg: Record<string, { guid: string | null; name: string; netSales: number; orderCount: number }> = {};
+  const salesCatAgg: Record<string, { guid: string | null; name: string; netSales: number; itemCount: number }> = {};
+  const itemAgg: Record<string, {
+    itemName: string; itemGuid: string | null;
+    salesCategoryGuid: string | null; salesCategoryName: string | null;
+    revenueCenterGuid: string | null; revenueCenterName: string | null;
+    quantity: number; netSales: number;
+  }> = {};
+
+  for (const restaurant of restaurants) {
+    const guid = restaurant.restaurantGuid;
+    const name = restaurant.restaurantName || restaurant.locationName || guid;
+
+    const { revenueCenters: revCenterMap, salesCategories: salesCatMap } = await syncToastConfig(guid);
+
+    let locationSales = 0;
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const orders = await getOrdersByBusinessDate(guid, businessDate, page, 100);
+        if (!Array.isArray(orders) || orders.length === 0) { hasMore = false; break; }
+
+        for (const order of orders) {
+          if (order.voided || order.deleted) continue;
+
+          const orderRevCenterGuid = order.revenueCenter?.guid || null;
+          const orderRevCenterName = orderRevCenterGuid ? (revCenterMap.get(orderRevCenterGuid) || "Unknown") : "Uncategorized";
+
+          let orderNetSales = 0;
+          const checks = order.checks || [];
+
+          for (const check of checks) {
+            if (check.voided || check.deleted) continue;
+            for (const selection of (check.selections || [])) {
+              if (selection.voided) continue;
+              const itemName = selection.displayName || "Unknown Item";
+              if (itemName.toLowerCase() === "gift card" || itemName.toLowerCase().includes("deposit")) continue;
+
+              const unitPrice = selection.price || 0;
+              const qty = selection.quantity || 1;
+              const lineTotal = unitPrice * qty;
+              const discount = selection.discount?.appliedDiscount || 0;
+              const lineSales = lineTotal - discount;
+              const selCatGuid = selection.salesCategory?.guid || null;
+              const selCatName = selCatGuid ? (salesCatMap.get(selCatGuid) || "Unknown") : "Uncategorized";
+              const selItemGuid = selection.item?.guid || selection.guid || null;
+
+              orderNetSales += lineSales;
+
+              const catKey = selCatGuid || "uncategorized";
+              if (!salesCatAgg[catKey]) {
+                salesCatAgg[catKey] = { guid: selCatGuid, name: selCatName, netSales: 0, itemCount: 0 };
+              }
+              salesCatAgg[catKey].netSales += lineSales;
+              salesCatAgg[catKey].itemCount += qty;
+
+              const itemKey = `${itemName}|${selCatGuid || ""}|${orderRevCenterGuid || ""}`;
+              if (!itemAgg[itemKey]) {
+                itemAgg[itemKey] = {
+                  itemName, itemGuid: selItemGuid,
+                  salesCategoryGuid: selCatGuid, salesCategoryName: selCatName,
+                  revenueCenterGuid: orderRevCenterGuid, revenueCenterName: orderRevCenterName,
+                  quantity: 0, netSales: 0,
+                };
+              }
+              itemAgg[itemKey].quantity += qty;
+              itemAgg[itemKey].netSales += lineSales;
+            }
+          }
+
+          const rcKey = orderRevCenterGuid || "uncategorized";
+          if (!revCenterAgg[rcKey]) {
+            revCenterAgg[rcKey] = { guid: orderRevCenterGuid, name: orderRevCenterName, netSales: 0, orderCount: 0 };
+          }
+          revCenterAgg[rcKey].netSales += orderNetSales;
+          revCenterAgg[rcKey].orderCount += 1;
+
+          locationSales += orderNetSales;
+          totalOrderCount++;
+        }
+
+        page++;
+        if (orders.length < 100) hasMore = false;
+      } catch (err: any) {
+        console.error(`[Toast Revenue Detail] Error fetching orders for ${name} page ${page}:`, err.message);
+        hasMore = false;
+      }
+    }
+
+    locationBreakdown[name] = Math.round(locationSales * 100) / 100;
+    totalNetSales += locationSales;
+  }
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  console.log(`[Toast Revenue Detail] ${businessDate}: $${round(totalNetSales).toFixed(2)} net, ${totalOrderCount} orders, ${Object.keys(revCenterAgg).length} centers, ${Object.keys(salesCatAgg).length} categories, ${Object.keys(itemAgg).length} items`);
+
+  return {
+    netSales: round(totalNetSales),
+    orderCount: totalOrderCount,
+    locationBreakdown,
+    revenueCenterBreakdown: Object.values(revCenterAgg).map(r => ({ ...r, netSales: round(r.netSales) })),
+    salesCategoryBreakdown: Object.values(salesCatAgg).map(c => ({ ...c, netSales: round(c.netSales) })),
+    itemSales: Object.values(itemAgg).map(i => ({ ...i, netSales: round(i.netSales) })),
+  };
+}
+
+export async function syncToastRevenueDetailToDb(businessDate: string): Promise<RevenueDetailResult> {
+  const detail = await fetchDailyRevenueDetail(businessDate);
+
+  await db.execute(sql`DELETE FROM rcc_daily_revenue_by_center WHERE date = ${businessDate} AND source = 'toast'`);
+  await db.execute(sql`DELETE FROM rcc_daily_revenue_by_category WHERE date = ${businessDate} AND source = 'toast'`);
+  await db.execute(sql`DELETE FROM rcc_daily_item_sales WHERE date = ${businessDate} AND source = 'toast'`);
+
+  for (const rc of detail.revenueCenterBreakdown) {
+    await db.execute(sql`
+      INSERT INTO rcc_daily_revenue_by_center (date, source, revenue_center_guid, revenue_center_name, net_sales, order_count)
+      VALUES (${businessDate}, 'toast', ${rc.guid}, ${rc.name}, ${rc.netSales.toFixed(2)}, ${rc.orderCount})
+    `);
+  }
+
+  for (const sc of detail.salesCategoryBreakdown) {
+    await db.execute(sql`
+      INSERT INTO rcc_daily_revenue_by_category (date, source, sales_category_guid, sales_category_name, net_sales, item_count)
+      VALUES (${businessDate}, 'toast', ${sc.guid}, ${sc.name}, ${sc.netSales.toFixed(2)}, ${sc.itemCount})
+    `);
+  }
+
+  for (const item of detail.itemSales) {
+    await db.execute(sql`
+      INSERT INTO rcc_daily_item_sales (date, source, item_name, item_guid, sales_category_guid, sales_category_name, revenue_center_guid, revenue_center_name, quantity, net_sales)
+      VALUES (${businessDate}, 'toast', ${item.itemName}, ${item.itemGuid}, ${item.salesCategoryGuid}, ${item.salesCategoryName}, ${item.revenueCenterGuid}, ${item.revenueCenterName}, ${item.quantity}, ${item.netSales.toFixed(2)})
+    `);
+  }
+
+  return detail;
+}
+
 function computeReactivationSegment(daysSinceLastVisit: number | null): string {
   if (daysSinceLastVisit === null) return "lost";
   if (daysSinceLastVisit <= 30) return "active";

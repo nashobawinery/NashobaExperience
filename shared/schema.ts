@@ -4702,6 +4702,113 @@ export const insertRccDailyRevenueSchema = createInsertSchema(rccDailyRevenue).o
 export type InsertRccDailyRevenue = z.infer<typeof insertRccDailyRevenueSchema>;
 export type RccDailyRevenue = typeof rccDailyRevenue.$inferSelect;
 
+// Revenue Detail - Toast Revenue Centers (cached from Config API)
+export const rccRevenueCenters = pgTable("rcc_revenue_centers", {
+  id: serial("id").primaryKey(),
+  guid: varchar("guid", { length: 64 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  restaurantGuid: varchar("restaurant_guid", { length: 64 }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_rev_center_guid").on(table.guid),
+]);
+
+export type RccRevenueCenter = typeof rccRevenueCenters.$inferSelect;
+
+// Revenue Detail - Toast Sales Categories (cached from Config API)
+export const rccSalesCategories = pgTable("rcc_sales_categories", {
+  id: serial("id").primaryKey(),
+  guid: varchar("guid", { length: 64 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  restaurantGuid: varchar("restaurant_guid", { length: 64 }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_sales_cat_guid").on(table.guid),
+]);
+
+export type RccSalesCategory = typeof rccSalesCategories.$inferSelect;
+
+// Revenue Detail - Daily revenue breakdown by revenue center
+export const rccDailyRevenueByCenter = pgTable("rcc_daily_revenue_by_center", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  source: varchar("source", { length: 20 }).notNull(),
+  revenueCenterGuid: varchar("revenue_center_guid", { length: 64 }),
+  revenueCenterName: varchar("revenue_center_name", { length: 255 }).notNull(),
+  netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  orderCount: integer("order_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_rev_by_center_date_source_guid").on(table.date, table.source, table.revenueCenterGuid),
+  index("idx_rcc_rev_by_center_date").on(table.date),
+]);
+
+export const insertRccDailyRevenueByCenterSchema = createInsertSchema(rccDailyRevenueByCenter).omit({ id: true, createdAt: true });
+export type InsertRccDailyRevenueByCenter = z.infer<typeof insertRccDailyRevenueByCenterSchema>;
+export type RccDailyRevenueByCenter = typeof rccDailyRevenueByCenter.$inferSelect;
+
+// Revenue Detail - Daily revenue breakdown by sales category
+export const rccDailyRevenueByCategory = pgTable("rcc_daily_revenue_by_category", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  source: varchar("source", { length: 20 }).notNull(),
+  salesCategoryGuid: varchar("sales_category_guid", { length: 64 }),
+  salesCategoryName: varchar("sales_category_name", { length: 255 }).notNull(),
+  netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  itemCount: integer("item_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_rcc_rev_by_cat_date_source_guid").on(table.date, table.source, table.salesCategoryGuid),
+  index("idx_rcc_rev_by_cat_date").on(table.date),
+]);
+
+export const insertRccDailyRevenueByCategorySchema = createInsertSchema(rccDailyRevenueByCategory).omit({ id: true, createdAt: true });
+export type InsertRccDailyRevenueByCategory = z.infer<typeof insertRccDailyRevenueByCategorySchema>;
+export type RccDailyRevenueByCategory = typeof rccDailyRevenueByCategory.$inferSelect;
+
+// Revenue Detail - Daily item-level sales
+export const rccDailyItemSales = pgTable("rcc_daily_item_sales", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  source: varchar("source", { length: 20 }).notNull(),
+  itemName: varchar("item_name", { length: 500 }).notNull(),
+  itemGuid: varchar("item_guid", { length: 64 }),
+  productId: varchar("product_id", { length: 64 }),
+  variantId: varchar("variant_id", { length: 64 }),
+  salesCategoryGuid: varchar("sales_category_guid", { length: 64 }),
+  salesCategoryName: varchar("sales_category_name", { length: 255 }),
+  revenueCenterGuid: varchar("revenue_center_guid", { length: 64 }),
+  revenueCenterName: varchar("revenue_center_name", { length: 255 }),
+  productType: varchar("product_type", { length: 255 }),
+  vendor: varchar("vendor", { length: 255 }),
+  quantity: integer("quantity").notNull().default(0),
+  netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_rcc_item_sales_date").on(table.date),
+  index("idx_rcc_item_sales_source").on(table.source),
+  index("idx_rcc_item_sales_date_source").on(table.date, table.source),
+]);
+
+export const insertRccDailyItemSalesSchema = createInsertSchema(rccDailyItemSales).omit({ id: true, createdAt: true });
+export type InsertRccDailyItemSales = z.infer<typeof insertRccDailyItemSalesSchema>;
+export type RccDailyItemSales = typeof rccDailyItemSales.$inferSelect;
+
+// Shopify Product Cache - stores product metadata for enrichment
+export const shopifyProductCache = pgTable("shopify_product_cache", {
+  id: serial("id").primaryKey(),
+  productId: varchar("product_id", { length: 64 }).notNull(),
+  title: varchar("title", { length: 500 }),
+  productType: varchar("product_type", { length: 255 }),
+  vendor: varchar("vendor", { length: 255 }),
+  collections: text("collections"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_shopify_product_cache_pid").on(table.productId),
+]);
+
+export type ShopifyProductCache = typeof shopifyProductCache.$inferSelect;
+
 // Toast Guests - synced from Toast POS guest/loyalty data
 export const toastGuests = pgTable("toast_guests", {
   id: serial("id").primaryKey(),

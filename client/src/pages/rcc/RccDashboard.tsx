@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addWeeks, addDays, parseISO } from "date-fns";
 import Holidays from 'date-holidays';
+import { RevenueDetailDialog } from "@/components/RevenueDetailDialog";
 import { 
   Target, 
   Lightbulb, 
@@ -1494,6 +1495,7 @@ function DailyRevenueRow({
   const [otherSource, setOtherSource] = useState(entry?.otherRevenueSource || "");
   const [notes, setNotes] = useState(entry?.notes || "");
   const [expanded, setExpanded] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const hd = new Holidays('US');
   const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
   const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
@@ -1563,7 +1565,12 @@ function DailyRevenueRow({
           <div className="flex items-center gap-4 flex-wrap">
             {!expanded && (
               <>
-                <div className="text-right">
+                <div
+                  className="text-right cursor-pointer hover-elevate rounded-md px-2 py-1"
+                  onClick={() => setDetailDialogOpen(true)}
+                  title="Click for revenue breakdown"
+                  data-testid={`btn-detail-toast-${day.date}`}
+                >
                   <p className="text-xs text-muted-foreground">Toast</p>
                   <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString()}</p>
                 </div>
@@ -1597,14 +1604,14 @@ function DailyRevenueRow({
                   <Badge variant="secondary" className="text-[10px] px-1 py-0">Auto</Badge>
                 </Label>
                 <div className="flex gap-1">
-                  <Input 
-                    type="number"
-                    placeholder="Auto-synced"
-                    value={toastRev}
-                    disabled
-                    className="bg-muted"
+                  <div
+                    className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-pointer hover-elevate items-center"
+                    onClick={() => setDetailDialogOpen(true)}
+                    title="Click for revenue breakdown"
                     data-testid={`input-toast-${day.date}`}
-                  />
+                  >
+                    {toastRev ? parseFloat(toastRev).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "Auto-synced"}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1626,14 +1633,14 @@ function DailyRevenueRow({
               <div className="space-y-1">
                 <Label>Shopify</Label>
                 <div className="flex gap-1">
-                  <Input 
-                    type="number"
-                    placeholder="Auto-synced"
-                    value={shopifyRev}
-                    disabled
-                    className="bg-muted"
+                  <div
+                    className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-pointer hover-elevate items-center"
+                    onClick={() => setDetailDialogOpen(true)}
+                    title="Click for revenue breakdown"
                     data-testid={`input-shopify-${day.date}`}
-                  />
+                  >
+                    {shopifyRev ? parseFloat(shopifyRev).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "Auto-synced"}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1754,6 +1761,15 @@ function DailyRevenueRow({
           </div>
         )}
       </CardContent>
+
+      <RevenueDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        date={day.date}
+        displayDate={day.displayDate}
+        toastRevenue={toastRev}
+        shopifyRevenue={shopifyRev}
+      />
     </Card>
   );
 }
