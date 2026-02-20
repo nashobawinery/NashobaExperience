@@ -43,7 +43,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
     - **AI Targeting Engine**: Smart customer reactivation system using RFM data to generate weekly target lists with offer recommendations, projected conversions, and campaign tracking.
     - **SMS Campaigns**: Twilio-powered SMS marketing with personalized messages, segment targeting, batch sending, and delivery tracking.
     - **Growth Studio**: AI-powered marketing toolkit including AI Content Studio, Content Calendar, Campaign Builder, Marketing Scorecard, and Quick Promotions.
-- **Toast Connect Module** (`/toast-connect`): Manages Toast POS menu integration, including menu display, embeddable widget/iframe generator, and print-ready menu templates.
+- **Toast Connect Module** (`/toast-connect`): Manages Toast POS menu integration, including menu display, embeddable widget/iframe generator, and print-ready menu templates. **Multi-Menu Print**: Print section supports selecting multiple menus and combining them into a single printable document with reorderable menu sequence, custom title, and all existing print options (template, scale, pages, footer, page breaks, hide descriptions). Backend endpoint: `GET /api/toast/public/menus/embed?menus=guid1,guid2&template=...`.
 - **Enhancement Requests** (`/enhancement-requests`): User-submitted feature requests with voting, status tracking (New/Reviewing/In Progress/Completed/Declined), admin editing, completion workflow with branded email notification via SendGrid. Routes in `server/enhancement-routes.ts`, page in `client/src/pages/EnhancementRequests.tsx`.
 
 ### System Design Choices

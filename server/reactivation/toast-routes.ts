@@ -911,6 +911,276 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
   }
 });
 
+router.get("/public/menus/embed", async (req, res) => {
+  try {
+    const menuGuidsParam = req.query.menus as string;
+    if (!menuGuidsParam) {
+      return res.status(400).send("<html><body><p>No menus specified</p></body></html>");
+    }
+    const menuIdentifiers = menuGuidsParam.split(",").map(g => g.trim()).filter(Boolean);
+    if (menuIdentifiers.length === 0) {
+      return res.status(400).send("<html><body><p>No menus specified</p></body></html>");
+    }
+
+    const template = (req.query.template as string) || "fine-dining";
+    const rawScale = parseFloat(req.query.scale as string) || 100;
+    const scale = Math.min(120, Math.max(60, rawScale));
+    const rawPages = parseInt(req.query.pages as string) || 0;
+    const pages = Math.min(10, Math.max(0, rawPages));
+    const customFooter = (req.query.footer as string) || "";
+    const pagebreaksParam = req.query.pagebreaks as string | undefined;
+    const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
+    const hideDescriptions = req.query.hidedesc === "1";
+    const customTitle = (req.query.title as string) || "";
+
+    const allGroups: { group: any; items: any[]; menuName: string }[] = [];
+    const menuNames: string[] = [];
+
+    for (const identifier of menuIdentifiers) {
+      const menu = await db.select().from(toastMenus)
+        .where(or(eq(toastMenus.menuGuid, identifier), eq(toastMenus.name, identifier)))
+        .limit(1);
+      if (menu.length === 0) continue;
+
+      const actualMenuGuid = menu[0].menuGuid;
+      menuNames.push(menu[0].name);
+
+      const groups = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.menuGuid, actualMenuGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+
+      const items = await db.select().from(toastMenuItems)
+        .where(eq(toastMenuItems.menuGuid, actualMenuGuid))
+        .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
+
+      const visibleItems = items.filter((i) => !i.hidden);
+
+      for (const group of groups) {
+        const groupItems = visibleItems.filter((i) => i.groupGuid === group.groupGuid);
+        if (groupItems.length > 0) {
+          allGroups.push({ group, items: groupItems, menuName: menu[0].name });
+        }
+      }
+    }
+
+    if (allGroups.length === 0) {
+      return res.status(404).send("<html><body><p>No menu items found</p></body></html>");
+    }
+
+    const formatPrice = (price: string | null) => {
+      if (!price) return "";
+      const num = parseFloat(price);
+      return isNaN(num) ? "" : `$${num.toFixed(2)}`;
+    };
+
+    const escapeHtml = (str: string) =>
+      str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+    const sanitizeDescriptionHtml = (str: string) => {
+      return str.replace(/<br\s*\/?>/gi, "___BR___")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+        .replace(/___BR___/g, "<br>");
+    };
+
+    const extractDietaryTags = (name: string): string[] => {
+      const tags: string[] = [];
+      const patterns = [
+        { regex: /\(GF\)/i, label: "GF" },
+        { regex: /\(V\)/i, label: "V" },
+        { regex: /\(VG\)/i, label: "VG" },
+        { regex: /\(DF\)/i, label: "DF" },
+        { regex: /\(NF\)/i, label: "NF" },
+        { regex: /gluten[- ]?free/i, label: "GF" },
+        { regex: /vegan/i, label: "VG" },
+        { regex: /vegetarian/i, label: "V" },
+      ];
+      for (const p of patterns) {
+        if (p.regex.test(name)) tags.push(p.label);
+      }
+      const seen = new Set<string>();
+      return tags.filter(t => { if (seen.has(t)) return false; seen.add(t); return true; });
+    };
+
+    const cleanItemName = (name: string): string => {
+      return name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim();
+    };
+
+    let groupsHtml = "";
+    for (const { group, items } of allGroups) {
+      let itemsHtml = "";
+      for (const item of items) {
+        const price = formatPrice(item.price);
+        const dietaryTags = extractDietaryTags(item.name);
+        const cleanName = cleanItemName(item.name);
+        const tagsHtml = dietaryTags.length > 0
+          ? `<span class="dietary-tags">${dietaryTags.map(t => `<span class="dietary-tag">${t}</span>`).join("")}</span>`
+          : "";
+        const pairingHtml = item.suggestedPairing
+          ? `<p class="item-pairing">${escapeHtml(item.suggestedPairing)}</p>`
+          : "";
+
+        const showDesc = !hideDescriptions && item.description;
+        const showPairing = !hideDescriptions ? pairingHtml : "";
+
+        if (template === "beverage") {
+          itemsHtml += `
+            <div class="bev-item">
+              <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+              ${price ? `<span class="bev-price">${price}</span>` : ""}
+            </div>`;
+        } else if (template === "fine-dining") {
+          itemsHtml += `
+            <div class="menu-item">
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
+            </div>`;
+        } else {
+          itemsHtml += `
+            <div class="menu-item">
+              <div class="item-header">
+                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                ${price ? `<span class="item-price">${price}</span>` : ""}
+              </div>
+              ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
+              ${showPairing}
+            </div>`;
+        }
+      }
+      const hasPageBreak = pagebreakGuids.includes(group.groupGuid);
+      if (template === "beverage") {
+        groupsHtml += `
+          <div class="bev-group${hasPageBreak ? " page-break" : ""}">
+            <h2 class="bev-group-name">${escapeHtml(group.name)}</h2>
+            ${itemsHtml}
+          </div>`;
+      } else {
+        groupsHtml += `
+          <div class="menu-group${hasPageBreak ? " page-break" : ""}">
+            <h2 class="group-name">${escapeHtml(group.name)}</h2>
+            <div class="group-divider"></div>
+            ${itemsHtml}
+          </div>`;
+      }
+    }
+
+    const embedTitle = customTitle || (menuNames.length === 1 ? menuNames[0] : "Menu");
+
+    const dietaryTagsCss = `
+        .dietary-tags { margin-left: 6px; }
+        .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
+    `;
+
+    let css = "";
+    if (template === "fine-dining") {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'EB Garamond', 'Georgia', serif; background: #1a1a18; color: #e8dcc8; min-height: 100vh; font-size: 18px; }
+        .menu-container { max-width: 800px; margin: 0 auto; padding: 48px 32px; }
+        .menu-title { font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-weight: 700; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; color: #d4b896; margin-bottom: 8px; }
+        .menu-subtitle { text-align: center; font-size: 1.1rem; letter-spacing: 0.3em; text-transform: uppercase; color: #a08c6e; margin-bottom: 40px; }
+        .ornament { text-align: center; font-size: 1.8rem; color: #a08c6e; margin: 32px 0; letter-spacing: 0.5em; }
+        .menu-group { margin-bottom: 40px; }
+        .group-name { font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; font-weight: 600; text-align: center; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b896; margin-bottom: 4px; }
+        .group-divider { width: 60px; height: 1px; background: #a08c6e; margin: 8px auto 24px; }
+        .menu-item { text-align: center; margin-bottom: 20px; }
+        .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
+        .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
+        .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
+        .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
+        .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
+        .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #1a1a18; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a08c6e; }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { html { font-size: ${scale}%; } body { background: white; color: #1a1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-title { font-size: 2rem; color: #1a1a18; margin-bottom: 4px; } .menu-subtitle { margin-bottom: 16px; } .group-name { font-size: 1.3rem; color: #1a1a18; } .item-name { font-size: 1.1rem; color: #1a1a18; } .item-description { color: #555; font-size: 0.95rem; } .item-price, .menu-subtitle, .ornament { color: #444; } .ornament { margin: 8px 0; font-size: 1.2rem; } .group-divider { background: #333; margin-bottom: 10px; } .item-pairing { color: #666; font-size: 0.95rem; } .dietary-tag { background: #f0f0f0; color: #333; border-color: #ccc; } .menu-container { padding: 8px 0; } .menu-group { margin-bottom: 14px; } .menu-item { margin-bottom: 6px; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 24px 16px; } .menu-title { font-size: 1.8rem; } .group-name { font-size: 1.2rem; } }`;
+    } else if (template === "beverage") {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #fff; color: #1c1917; min-height: 100vh; font-size: 14px; }
+        .menu-container { max-width: 850px; margin: 0 auto; padding: 32px 24px; }
+        .menu-title { font-size: 2rem; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; border-bottom: 2px solid #1c1917; padding-bottom: 8px; }
+        .menu-subtitle { text-align: center; font-size: 0.85rem; color: #78716c; margin-bottom: 24px; }
+        .bev-groups-container { column-count: 2; column-gap: 32px; }
+        .bev-group { break-inside: avoid; margin-bottom: 20px; }
+        .bev-group-name { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
+        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; }
+        .bev-name { font-size: 0.85rem; font-weight: 400; }
+        .bev-price { font-size: 0.85rem; font-weight: 500; white-space: nowrap; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
+        .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
+        .custom-footer { margin-top: 8px; font-size: 0.8rem; color: #78716c; font-style: italic; }
+        .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { html { font-size: ${scale}%; } body { display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-container { padding: 4px 0; } .menu-title { font-size: 1.5rem; margin-bottom: 2px; padding-bottom: 4px; } .menu-subtitle { margin-bottom: 12px; } .bev-group { margin-bottom: 10px; } .bev-group-name { font-size: 0.85rem; margin-bottom: 3px; } .bev-item { padding: 0; line-height: 1.3; } .bev-name { font-size: 0.8rem; } .bev-price { font-size: 0.8rem; } .footer { margin-top: 8px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @media (max-width: 600px) { .bev-groups-container { column-count: 1; } .menu-container { padding: 16px 12px; } }`;
+    } else {
+      css = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #fafaf9; color: #1c1917; min-height: 100vh; font-size: 16px; }
+        .menu-container { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
+        .menu-title { font-size: 2.2rem; font-weight: 600; text-align: center; margin-bottom: 4px; }
+        .menu-subtitle { text-align: center; font-size: 1rem; color: #78716c; margin-bottom: 32px; }
+        .menu-group { margin-bottom: 32px; }
+        .group-name { font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #44403c; margin-bottom: 4px; }
+        .group-divider { width: 100%; height: 1px; background: #e7e5e4; margin-bottom: 16px; }
+        .menu-item { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
+        .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .item-name { font-weight: 500; font-size: 1.1rem; }
+        .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
+        .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
+        .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
+        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        ${dietaryTagsCss}
+        .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
+        .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
+        .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
+        .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
+        .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
+        @page { size: letter; margin: 0.3in 0.4in; }
+        @media print { html { font-size: ${scale}%; } body { display: flex; align-items: center; justify-content: center; min-height: 100vh; } .menu-container { padding: 8px 0; } .menu-title { font-size: 1.8rem; margin-bottom: 2px; } .menu-subtitle { margin-bottom: 16px; } .menu-group { margin-bottom: 14px; } .group-name { font-size: 1.1rem; margin-bottom: 2px; } .group-divider { margin-bottom: 8px; } .menu-item { padding: 4px 0; } .item-name { font-size: 1rem; } .item-description { font-size: 0.9rem; margin-top: 2px; } .item-pairing { font-size: 0.9rem; } .footer { margin-top: 12px; } .custom-footer { color: #555; } .page-break { page-break-before: always; break-before: page; border-top: none; padding-top: 0; margin-top: 0; } .page-break::before { display: none; } }
+        @media (max-width: 600px) { .menu-container { padding: 20px 16px; } }`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(embedTitle)}</title>
+  <style>${css}</style>
+</head>
+<body>
+  <div class="menu-container">
+    <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
+    ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
+    ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
+    <div class="footer">
+      <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
+      <p>Alert your server if you have special dietary requirements.</p>
+      ${customFooter ? `<p class="custom-footer">${escapeHtml(customFooter)}</p>` : ""}
+    </div>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("<html><body><p>Error loading combined menu</p></body></html>");
+  }
+});
+
 router.get("/public/menus", async (_req, res) => {
   try {
     const menus = await db.select().from(toastMenus).orderBy(toastMenus.name);
