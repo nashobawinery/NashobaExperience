@@ -44,6 +44,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
     - **SMS Campaigns**: Twilio-powered SMS marketing with personalized messages, segment targeting, batch sending, and delivery tracking.
     - **Growth Studio**: AI-powered marketing toolkit including AI Content Studio, Content Calendar, Campaign Builder, Marketing Scorecard, and Quick Promotions.
 - **Toast Connect Module** (`/toast-connect`): Manages Toast POS menu integration, including menu display, embeddable widget/iframe generator, and print-ready menu templates.
+- **Enhancement Requests** (`/enhancement-requests`): User-submitted feature requests with voting, status tracking (New/Reviewing/In Progress/Completed/Declined), admin editing, completion workflow with branded email notification via SendGrid. Routes in `server/enhancement-routes.ts`, page in `client/src/pages/EnhancementRequests.tsx`.
 
 ### System Design Choices
 - **Microservices-inspired Modularity**: Independent module concerns within a monolithic structure.

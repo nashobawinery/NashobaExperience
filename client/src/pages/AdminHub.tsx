@@ -15,7 +15,7 @@ import {
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
   ArrowRight, Users, ShoppingCart, Package, TrendingUp, Clock, AlertCircle,
   Home, Settings, Bell, LayoutGrid, Headphones, Scale, Shield, ClipboardList,
-  LogOut, User, Lock, ChevronDown, Lightbulb, Info, UserCheck
+  LogOut, User, Lock, ChevronDown, Lightbulb, Info, UserCheck, Sparkles
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -363,6 +363,10 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
               <Link href="/future-concepts" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-future-concepts">
                 <Lightbulb className="h-4 w-4 text-yellow-500" />
                 Future Concepts
+              </Link>
+              <Link href="/enhancement-requests" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-enhancement-requests">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                Enhancement Requests
               </Link>
               <Link href="/company-info" className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors" data-testid="link-company-info">
                 <Info className="h-4 w-4 text-blue-500" />

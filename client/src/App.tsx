@@ -23,6 +23,7 @@ const ProceduresComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => (
 const AppleGameComingSoon = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.AppleGameComingSoon })));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
+const EnhancementRequests = lazy(() => import("@/pages/EnhancementRequests"));
 const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
 const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 
@@ -809,6 +810,24 @@ function FutureConceptsRoute() {
   );
 }
 
+function EnhancementRequestsRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <EnhancementRequests />
+    </Suspense>
+  );
+}
+
 function CompanyInfoRoute() {
   const { isLoading, isAdmin } = useAuth();
 
@@ -1189,6 +1208,7 @@ function Router() {
         <Route path="/reset-password" component={ResetPasswordRoute} />
         <Route path="/unsubscribe" component={UnsubscribeRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
+        <Route path="/enhancement-requests" component={EnhancementRequestsRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />
         <Route path="/lms" component={LmsLearnerRoute} />
         <Route path="/lms/admin" component={LmsAdminRoute} />
