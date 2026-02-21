@@ -972,7 +972,9 @@ export default function DailyReportsAdminDashboard() {
   const [departmentFormData, setDepartmentFormData] = useState({
     departmentLabel: "",
     notificationEmailsText: "",
-    sortOrder: 0
+    sortOrder: 0,
+    availableFromTime: "",
+    availableUntilTime: ""
   });
   
   const [isNewDepartmentDialogOpen, setIsNewDepartmentDialogOpen] = useState(false);
@@ -1224,7 +1226,7 @@ export default function DailyReportsAdminDashboard() {
   });
 
   const updateDepartmentMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { departmentLabel?: string; notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[]; sortOrder?: number } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { departmentLabel?: string; notificationEmails?: NotificationEmail[]; metrics?: DailyReportMetric[]; sortOrder?: number; availableFromTime?: string | null; availableUntilTime?: string | null } }) => {
       return await apiRequest('PATCH', `/api/daily-reports/templates/${id}`, data);
     },
     onSuccess: () => {
@@ -1777,7 +1779,9 @@ export default function DailyReportsAdminDashboard() {
     setDepartmentFormData({
       departmentLabel: template.departmentLabel || "",
       notificationEmailsText: emailsText,
-      sortOrder: template.sortOrder ?? 0
+      sortOrder: template.sortOrder ?? 0,
+      availableFromTime: (template as any).availableFromTime || "",
+      availableUntilTime: (template as any).availableUntilTime || ""
     });
     setIsDepartmentDialogOpen(true);
   };
@@ -1802,7 +1806,9 @@ export default function DailyReportsAdminDashboard() {
       data: {
         departmentLabel: trimmedLabel,
         notificationEmails: emailList,
-        sortOrder: departmentFormData.sortOrder
+        sortOrder: departmentFormData.sortOrder,
+        availableFromTime: departmentFormData.availableFromTime || null,
+        availableUntilTime: departmentFormData.availableUntilTime || null
       }
     });
   };
@@ -2920,8 +2926,14 @@ export default function DailyReportsAdminDashboard() {
                               <Icon className="h-5 w-5 text-amber-500" />
                               <div className="text-left">
                                 <div className="font-medium">{template.departmentLabel}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}
+                                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                                  <span>{(allFieldAssignments[template.id] || []).filter(a => a.isEnabled).length} fields, {procedures.length} procedures, {deptAccessCodes.length} access code{deptAccessCodes.length !== 1 ? 's' : ''}</span>
+                                  {((template as any).availableFromTime || (template as any).availableUntilTime) && (
+                                    <Badge variant="outline" className="text-xs">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      {(template as any).availableFromTime || '...'} - {(template as any).availableUntilTime || '...'}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -4595,6 +4607,43 @@ export default function DailyReportsAdminDashboard() {
                   Lower numbers appear first.
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Availability Window
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Optionally restrict when this department is visible to staff. Leave blank for always available.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="availableFromTime" className="text-xs">Available From</Label>
+                  <Input
+                    id="availableFromTime"
+                    type="time"
+                    value={departmentFormData.availableFromTime}
+                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableFromTime: e.target.value })}
+                    data-testid="input-available-from-time"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="availableUntilTime" className="text-xs">Available Until</Label>
+                  <Input
+                    id="availableUntilTime"
+                    type="time"
+                    value={departmentFormData.availableUntilTime}
+                    onChange={(e) => setDepartmentFormData({ ...departmentFormData, availableUntilTime: e.target.value })}
+                    data-testid="input-available-until-time"
+                  />
+                </div>
+              </div>
+              {departmentFormData.availableFromTime && departmentFormData.availableUntilTime && (
+                <p className="text-xs text-muted-foreground">
+                  Staff will only see this department between {departmentFormData.availableFromTime} and {departmentFormData.availableUntilTime}.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

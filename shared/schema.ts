@@ -2213,6 +2213,8 @@ export const dailyReportTemplates = pgTable("daily_report_templates", {
   notificationEmails: jsonb("notification_emails").default([]), // Array of { email, name?, role? }
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  availableFromTime: varchar("available_from_time", { length: 5 }), // HH:MM format, e.g. "10:00"
+  availableUntilTime: varchar("available_until_time", { length: 5 }), // HH:MM format, e.g. "17:00"
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

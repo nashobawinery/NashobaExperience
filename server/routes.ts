@@ -12334,6 +12334,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { code } = req.params;
       
+      const isDepartmentAvailableNow = (template: { availableFromTime?: string | null; availableUntilTime?: string | null }) => {
+        if (!template.availableFromTime && !template.availableUntilTime) return true;
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        if (template.availableFromTime) {
+          const [h, m] = template.availableFromTime.split(':').map(Number);
+          if (currentMinutes < h * 60 + m) return false;
+        }
+        if (template.availableUntilTime) {
+          const [h, m] = template.availableUntilTime.split(':').map(Number);
+          const untilMinutes = h * 60 + m;
+          const effectiveUntil = untilMinutes === 0 ? 24 * 60 : untilMinutes;
+          if (currentMinutes >= effectiveUntil) return false;
+        }
+        return true;
+      };
+
       // Get all active access codes that match this code (supports same code for multiple departments)
       const matchingCodes = await storage.getDailyReportAccessCodesByCode(code);
       
@@ -12344,47 +12361,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use the first matching code for staff name (they should all be the same staff if sharing a code)
       const primaryCode = matchingCodes[0];
       
-      if (matchingCodes.length > 1) {
-        // Same code assigned to multiple departments - return list for selection
-        const availableDepartments = await Promise.all(
-          matchingCodes.map(async (ac) => {
-            const template = await storage.getDailyReportTemplateByDepartment(ac.department);
-            return {
-              department: ac.department,
-              departmentLabel: template?.departmentLabel || ac.department,
-              code: ac.code
-            };
-          })
-        );
-
-        // Update last used timestamp for all matching codes
-        await storage.updateDailyReportAccessCodeLastUsed(code);
-
-        return res.json({
-          staffName: primaryCode.staffName,
-          multipleDepartments: true,
-          availableDepartments
-        });
+      // Collect all departments this staff has access to (via same code or multiple codes)
+      let allAccessCodes = matchingCodes;
+      if (matchingCodes.length === 1) {
+        const allStaffCodes = await storage.getActiveAccessCodesByStaffName(primaryCode.staffName);
+        if (allStaffCodes.length > 1) {
+          allAccessCodes = allStaffCodes;
+        }
       }
-      
-      // Also check if this staff member has other codes for different departments
-      const allStaffCodes = await storage.getActiveAccessCodesByStaffName(primaryCode.staffName);
-      
-      if (allStaffCodes.length > 1) {
-        // Staff has multiple departments - return list for selection
-        const availableDepartments = await Promise.all(
-          allStaffCodes.map(async (ac) => {
+
+      if (allAccessCodes.length > 1) {
+        // Build available departments, filtered by time window
+        const allDepartments = await Promise.all(
+          allAccessCodes.map(async (ac) => {
             const template = await storage.getDailyReportTemplateByDepartment(ac.department);
             return {
               department: ac.department,
               departmentLabel: template?.departmentLabel || ac.department,
-              code: ac.code
+              code: ac.code,
+              template
             };
           })
         );
+        const availableDepartments = allDepartments
+          .filter(d => d.template && isDepartmentAvailableNow(d.template))
+          .map(({ department, departmentLabel, code }) => ({ department, departmentLabel, code }));
 
-        // Update last used timestamp
         await storage.updateDailyReportAccessCodeLastUsed(code);
+
+        if (availableDepartments.length === 0) {
+          return res.status(404).json({ message: 'No departments are available at this time' });
+        }
+
+        if (availableDepartments.length === 1) {
+          // Only one department available after time filtering - go directly to form
+          const dept = availableDepartments[0];
+          const template = await storage.getDailyReportTemplateByDepartment(dept.department);
+          if (!template) {
+            return res.status(404).json({ message: 'Department template not found' });
+          }
+          const procedures = await storage.getDailyProcedureTemplates(dept.department, true);
+          const fieldAssignments = await storage.getDepartmentFieldAssignmentsWithDefinitions(template.id);
+          const enabledMetrics = fieldAssignments
+            .filter(a => a.isEnabled && a.fieldDefinition?.isActive)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map(a => ({
+              key: a.fieldDefinition?.key || '',
+              label: a.fieldDefinition?.label || '',
+              type: a.fieldDefinition?.type || 'text',
+              options: a.fieldDefinition?.options || null
+            }));
+
+          return res.json({
+            staffName: primaryCode.staffName,
+            department: dept.department,
+            departmentLabel: template.departmentLabel,
+            multipleDepartments: false,
+            metrics: enabledMetrics,
+            procedures: procedures.map(p => ({
+              id: p.id,
+              name: p.procedureName,
+              description: p.description,
+              type: p.procedureType,
+              isRequired: p.isRequired,
+              sortOrder: p.sortOrder
+            }))
+          });
+        }
 
         return res.json({
           staffName: primaryCode.staffName,
@@ -12395,11 +12438,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const accessCode = primaryCode;
 
-      // Single department - return form data directly
+      // Single department - check time window
       const template = await storage.getDailyReportTemplateByDepartment(accessCode.department);
 
       if (!template) {
         return res.status(404).json({ message: 'Department template not found' });
+      }
+
+      if (!isDepartmentAvailableNow(template)) {
+        return res.status(404).json({ message: 'This department is not available at this time' });
       }
 
       // Get active procedure templates for the department
