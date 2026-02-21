@@ -592,6 +592,20 @@ export async function syncToastRevenueDetailToDb(businessDate: string): Promise<
     `);
   }
 
+  const discountPct = detail.grossSales > 0 ? (detail.totalDiscounts / detail.grossSales) * 100 : 0;
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  await db.execute(sql`
+    UPDATE rcc_daily_revenue SET
+      toast_gross_sales = ${detail.grossSales.toFixed(2)},
+      toast_discount_amount = ${detail.totalDiscounts.toFixed(2)},
+      toast_discount_pct = ${round(discountPct).toFixed(2)},
+      toast_void_amount = ${detail.totalVoidAmount.toFixed(2)},
+      toast_void_count = ${detail.totalVoidCount},
+      toast_service_charges = ${detail.totalServiceCharges.toFixed(2)}
+    WHERE date = ${businessDate}
+  `);
+
   return detail;
 }
 
