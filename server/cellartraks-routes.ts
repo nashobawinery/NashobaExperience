@@ -3,8 +3,10 @@ import { db } from "./db";
 import { eq, and, isNotNull, sql } from "drizzle-orm";
 import {
   cellartraksProductClassifications,
+  cellartraksStateTaxClasses,
   products,
   insertCellartraksProductClassificationSchema,
+  insertCellartraksStateTaxClassSchema,
 } from "@shared/schema";
 
 const router = Router();
@@ -237,6 +239,100 @@ router.post('/api/cellartraks/product-classifications/batch', requireAuth, async
   } catch (error) {
     console.error("Error batch saving classifications:", error);
     res.status(500).json({ error: "Failed to batch save classifications" });
+  }
+});
+
+// ============ State Tax Classes ============
+
+router.get('/api/cellartraks/state-tax-classes', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { stateCode } = req.query;
+    const where = stateCode ? eq(cellartraksStateTaxClasses.stateCode, stateCode as string) : undefined;
+    const classes = await db
+      .select()
+      .from(cellartraksStateTaxClasses)
+      .where(where)
+      .orderBy(cellartraksStateTaxClasses.stateCode, cellartraksStateTaxClasses.sortOrder);
+    res.json(classes);
+  } catch (error) {
+    console.error("Error fetching state tax classes:", error);
+    res.status(500).json({ error: "Failed to fetch state tax classes" });
+  }
+});
+
+router.get('/api/cellartraks/state-tax-classes/states', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const states = await db
+      .selectDistinct({
+        stateCode: cellartraksStateTaxClasses.stateCode,
+        stateName: cellartraksStateTaxClasses.stateName,
+      })
+      .from(cellartraksStateTaxClasses)
+      .orderBy(cellartraksStateTaxClasses.stateName);
+    res.json(states);
+  } catch (error) {
+    console.error("Error fetching states:", error);
+    res.status(500).json({ error: "Failed to fetch states" });
+  }
+});
+
+router.post('/api/cellartraks/state-tax-classes', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const parsed = insertCellartraksStateTaxClassSchema.parse(req.body);
+    const [result] = await db
+      .insert(cellartraksStateTaxClasses)
+      .values(parsed)
+      .returning();
+    res.json(result);
+  } catch (error: any) {
+    console.error("Error creating state tax class:", error);
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: "Invalid data", details: error.errors });
+    }
+    if (error.code === '23505') {
+      return res.status(409).json({ error: "A classification with this key already exists for this state" });
+    }
+    res.status(500).json({ error: "Failed to create state tax class" });
+  }
+});
+
+router.put('/api/cellartraks/state-tax-classes/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const parsed = insertCellartraksStateTaxClassSchema.partial().parse(req.body);
+
+    const [result] = await db
+      .update(cellartraksStateTaxClasses)
+      .set({
+        ...parsed,
+        updatedAt: new Date(),
+      })
+      .where(eq(cellartraksStateTaxClasses.id, parseInt(id)))
+      .returning();
+
+    if (!result) {
+      return res.status(404).json({ error: "State tax class not found" });
+    }
+    res.json(result);
+  } catch (error: any) {
+    console.error("Error updating state tax class:", error);
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: "Invalid data", details: error.errors });
+    }
+    res.status(500).json({ error: "Failed to update state tax class" });
+  }
+});
+
+router.delete('/api/cellartraks/state-tax-classes/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await db
+      .delete(cellartraksStateTaxClasses)
+      .where(eq(cellartraksStateTaxClasses.id, parseInt(id)));
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting state tax class:", error);
+    res.status(500).json({ error: "Failed to delete state tax class" });
   }
 });
 

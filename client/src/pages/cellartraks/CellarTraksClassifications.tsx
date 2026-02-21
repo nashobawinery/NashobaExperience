@@ -84,15 +84,15 @@ const TTB_BEER_CLASSES: Record<string, string> = {
   hard_seltzer: "Hard Seltzer",
 };
 
-const MA_AB1_CLASSES: Record<string, string> = {
-  malt_beverages: "Malt Beverages ($3.30/barrel)",
-  hard_cider: "Hard Cider 3-6% ABV ($0.03/gal)",
-  still_wine: "Still Wine ($0.55/gal)",
-  sparkling_wine: "Sparkling Wine ($0.70/gal)",
-  alcoholic_beverages_15_or_less: "Alcoholic Beverages 15% or less ($1.10/gal)",
-  distilled_spirits_15_to_50: "Distilled Spirits 15-50% ABV ($4.05/gal)",
-  distilled_spirits_over_50: "Distilled Spirits >50% ABV ($4.05/proof gal)",
-};
+interface StateTaxClassOption {
+  id: number;
+  classKey: string;
+  displayName: string;
+  taxRate: string;
+  taxUnit: string;
+  stateCode: string;
+  isActive: boolean;
+}
 
 const REPORTING_UOMS: Record<string, string> = {
   wine_gallons: "Wine Gallons",
@@ -176,6 +176,10 @@ export function CellarTraksClassifications() {
     byDivision: { division: string; count: number }[];
   }>({
     queryKey: ['/api/cellartraks/classification-stats'],
+  });
+
+  const { data: stateTaxClasses } = useQuery<StateTaxClassOption[]>({
+    queryKey: ['/api/cellartraks/state-tax-classes'],
   });
 
   const saveMutation = useMutation({
@@ -380,19 +384,21 @@ export function CellarTraksClassifications() {
         </div>
 
         <div className="space-y-2">
-          <Label>State (MA AB-1) Classification</Label>
+          <Label>State Tax Classification</Label>
           <Select value={formMaAb1Class} onValueChange={setFormMaAb1Class}>
             <SelectTrigger data-testid="select-ma-ab1-class">
               <SelectValue placeholder="Select state classification" />
             </SelectTrigger>
             <SelectContent className="max-h-60">
-              {Object.entries(MA_AB1_CLASSES).map(([val, label]) => (
-                <SelectItem key={val} value={val}>{label}</SelectItem>
+              {(stateTaxClasses || []).filter(tc => tc.isActive !== false).map(tc => (
+                <SelectItem key={tc.classKey} value={tc.classKey}>
+                  {tc.displayName} (${parseFloat(tc.taxRate).toFixed(2)}/{tc.taxUnit.replace('per ', '')})
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            MA Form AB-1 - Alcoholic Beverages Excise Return
+            State excise tax classifications. Manage rates in State Tax Rates section.
           </p>
         </div>
 
@@ -556,7 +562,9 @@ export function CellarTraksClassifications() {
                       </TableCell>
                       <TableCell>
                         {record.maAb1Class ? (
-                          <span className="text-sm">{MA_AB1_CLASSES[record.maAb1Class] || record.maAb1Class}</span>
+                          <span className="text-sm">
+                            {stateTaxClasses?.find(tc => tc.classKey === record.maAb1Class)?.displayName || record.maAb1Class}
+                          </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">Not Set</span>
                         )}

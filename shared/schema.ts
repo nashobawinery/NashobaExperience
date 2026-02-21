@@ -5699,3 +5699,28 @@ export const cellartraksProductClassifications = pgTable("cellartraks_product_cl
 export const insertCellartraksProductClassificationSchema = createInsertSchema(cellartraksProductClassifications).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCellartraksProductClassification = z.infer<typeof insertCellartraksProductClassificationSchema>;
 export type CellartraksProductClassification = typeof cellartraksProductClassifications.$inferSelect;
+
+// CellarTraks State Tax Classes - editable state-level tax classifications
+export const cellartraksStateTaxClasses = pgTable("cellartraks_state_tax_classes", {
+  id: serial("id").primaryKey(),
+  stateCode: varchar("state_code", { length: 2 }).notNull(),
+  stateName: varchar("state_name", { length: 100 }).notNull(),
+  classKey: varchar("class_key", { length: 80 }).notNull(),
+  displayName: varchar("display_name", { length: 200 }).notNull(),
+  taxRate: numeric("tax_rate", { precision: 10, scale: 4 }).notNull(),
+  taxUnit: varchar("tax_unit", { length: 50 }).notNull(),
+  description: text("description"),
+  abvMin: numeric("abv_min", { precision: 5, scale: 2 }),
+  abvMax: numeric("abv_max", { precision: 5, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_ct_state_tax_state_key").on(table.stateCode, table.classKey),
+  index("idx_ct_state_tax_state").on(table.stateCode),
+]);
+
+export const insertCellartraksStateTaxClassSchema = createInsertSchema(cellartraksStateTaxClasses).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCellartraksStateTaxClass = z.infer<typeof insertCellartraksStateTaxClassSchema>;
+export type CellartraksStateTaxClass = typeof cellartraksStateTaxClasses.$inferSelect;
