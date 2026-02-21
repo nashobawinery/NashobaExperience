@@ -93,6 +93,7 @@ import {
   insertRccDailyRevenueSchema,
   insertCellartraksProductClassificationSchema,
   insertCellartraksStateTaxClassSchema,
+  insertCellartraksFederalTaxRateSchema,
 } from '@shared/schema';
 
 export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports' | 'reservation' | 'support' | 'rcc' | 'cellartraks';
@@ -1356,6 +1357,18 @@ export const SYNC_TABLES: SyncTableConfig[] = [
 
   // ============ CELLARTRAKS MODULE ============
   {
+    id: 'cellartraksFederalTaxRates',
+    name: 'Federal Tax Rates',
+    description: 'TTB federal excise tax rates for beer, wine, and spirits',
+    module: 'cellartraks',
+    sheetName: 'CtFederalTaxRates',
+    businessKey: ['rateKey'],
+    schema: insertCellartraksFederalTaxRateSchema,
+    exportFields: ['beverageType', 'rateKey', 'displayName', 'description', 'ratePerUnit', 'rateUnit', 'volumeMin', 'volumeMax', 'volumeUnit', 'producerType', 'creditAmount', 'effectiveRateAfterCredit', 'parentRateKey', 'sortOrder', 'isActive', 'effectiveDate', 'notes'],
+    dataType: 'configuration',
+    supportsBackup: true,
+  },
+  {
     id: 'cellartraksStateTaxClasses',
     name: 'State Tax Classes',
     description: 'State-level tax classifications with rates for regulatory reporting',
@@ -1376,7 +1389,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     businessKey: ['productId'],
     parentTables: ['products', 'cellartraksStateTaxClasses'],
     schema: insertCellartraksProductClassificationSchema,
-    exportFields: ['productId', 'division', 'ttbWineClass', 'ttbSpiritsClass', 'ttbBeerClass', 'maAb1Class', 'reportingUom', 'abvPercent', 'proofGallonFactor', 'bottleSizeMl', 'isClassified', 'notes'],
+    exportFields: ['productId', 'division', 'ttbWineClass', 'ttbSpiritsClass', 'ttbBeerClass', 'maAb1Class', 'reportingUom', 'abvPercent', 'proofGallonFactor', 'bottleSizeMl', 'federalTaxRateId', 'isClassified', 'notes'],
     dataType: 'reference',
     supportsBackup: true,
   },

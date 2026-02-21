@@ -12,8 +12,7 @@ import {
   LayoutDashboard, Clock, ArrowRightLeft, FlaskConical, Tag, DollarSign
 } from "lucide-react";
 import { AbccGallonsReport, AbccClassifications } from "../command-center/AbccReport";
-import { CellarTraksClassifications } from "./CellarTraksClassifications";
-import { StateTaxClassifications } from "./StateTaxClassifications";
+import { FederalStateTaxPage } from "./FederalStateTaxPage";
 
 interface NavSection {
   id: string;
@@ -87,8 +86,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: Tag,
     defaultOpen: true,
     items: [
-      { id: "regulatory-classifications", label: "Federal & State", icon: FileText },
-      { id: "state-tax-classes", label: "State Tax Rates", icon: DollarSign },
+      { id: "federal-state-tax", label: "Federal & State Tax", icon: DollarSign },
       { id: "toast-classifications", label: "Toast Item Mapping", icon: Wine },
     ],
   },
@@ -123,10 +121,8 @@ export default function CellarTraks() {
         return <CellarTraksDashboard />;
       case "wine-sales-report":
         return <AbccGallonsReport />;
-      case "regulatory-classifications":
-        return <CellarTraksClassifications />;
-      case "state-tax-classes":
-        return <StateTaxClassifications />;
+      case "federal-state-tax":
+        return <FederalStateTaxPage />;
       case "toast-classifications":
         return <AbccClassifications />;
       case "winery-production":

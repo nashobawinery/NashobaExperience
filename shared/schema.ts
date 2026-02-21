@@ -5668,6 +5668,7 @@ export const cellartraksProductClassifications = pgTable("cellartraks_product_cl
   abvPercent: numeric("abv_percent", { precision: 5, scale: 2 }),
   proofGallonFactor: numeric("proof_gallon_factor", { precision: 6, scale: 4 }),
   bottleSizeMl: numeric("bottle_size_ml", { precision: 8, scale: 2 }),
+  federalTaxRateId: integer("federal_tax_rate_id"),
   isClassified: boolean("is_classified").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -5681,6 +5682,37 @@ export const cellartraksProductClassifications = pgTable("cellartraks_product_cl
 export const insertCellartraksProductClassificationSchema = createInsertSchema(cellartraksProductClassifications).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCellartraksProductClassification = z.infer<typeof insertCellartraksProductClassificationSchema>;
 export type CellartraksProductClassification = typeof cellartraksProductClassifications.$inferSelect;
+
+// CellarTraks Federal Tax Rates - TTB federal excise tax rate reference
+export const cellartraksFederalTaxRates = pgTable("cellartraks_federal_tax_rates", {
+  id: serial("id").primaryKey(),
+  beverageType: varchar("beverage_type", { length: 20 }).notNull(), // 'beer', 'wine', 'spirits'
+  rateKey: varchar("rate_key", { length: 80 }).notNull(),
+  displayName: varchar("display_name", { length: 200 }).notNull(),
+  description: text("description"),
+  ratePerUnit: numeric("rate_per_unit", { precision: 10, scale: 4 }).notNull(),
+  rateUnit: varchar("rate_unit", { length: 50 }).notNull(), // 'per barrel', 'per wine gallon', 'per proof gallon'
+  volumeMin: numeric("volume_min", { precision: 15, scale: 2 }),
+  volumeMax: numeric("volume_max", { precision: 15, scale: 2 }),
+  volumeUnit: varchar("volume_unit", { length: 50 }),
+  producerType: varchar("producer_type", { length: 50 }), // 'small', 'large', 'general', 'credit_tier'
+  creditAmount: numeric("credit_amount", { precision: 10, scale: 4 }),
+  effectiveRateAfterCredit: numeric("effective_rate_after_credit", { precision: 10, scale: 4 }),
+  parentRateKey: varchar("parent_rate_key", { length: 80 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  effectiveDate: varchar("effective_date", { length: 20 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_ct_fed_rate_key").on(table.rateKey),
+  index("idx_ct_fed_rate_bev_type").on(table.beverageType),
+]);
+
+export const insertCellartraksFederalTaxRateSchema = createInsertSchema(cellartraksFederalTaxRates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCellartraksFederalTaxRate = z.infer<typeof insertCellartraksFederalTaxRateSchema>;
+export type CellartraksFederalTaxRate = typeof cellartraksFederalTaxRates.$inferSelect;
 
 // CellarTraks State Tax Classes - editable state-level tax classifications
 export const cellartraksStateTaxClasses = pgTable("cellartraks_state_tax_classes", {

@@ -103,6 +103,7 @@ interface ClassificationRecord {
   abvPercent: string | null;
   proofGallonFactor: string | null;
   bottleSizeMl: string | null;
+  federalTaxRateId: number | null;
   isClassified: boolean;
   notes: string | null;
 }
@@ -132,6 +133,7 @@ export function CellarTraksClassifications() {
   const [formReportingUom, setFormReportingUom] = useState<string>("");
   const [formAbvPercent, setFormAbvPercent] = useState("");
   const [formBottleSizeMl, setFormBottleSizeMl] = useState("");
+  const [formFederalTaxRateId, setFormFederalTaxRateId] = useState<string>("");
   const [formNotes, setFormNotes] = useState("");
 
   const classificationsUrl = divisionFilter === "all"
@@ -161,6 +163,10 @@ export function CellarTraksClassifications() {
 
   const { data: stateTaxClasses } = useQuery<StateTaxClassOption[]>({
     queryKey: ['/api/cellartraks/state-tax-classes'],
+  });
+
+  const { data: federalTaxRates } = useQuery<{ id: number; beverageType: string; rateKey: string; displayName: string; ratePerUnit: string; rateUnit: string; producerType: string | null }[]>({
+    queryKey: ['/api/cellartraks/federal-tax-rates'],
   });
 
   const saveMutation = useMutation({
@@ -194,6 +200,7 @@ export function CellarTraksClassifications() {
     setFormReportingUom("");
     setFormAbvPercent("");
     setFormBottleSizeMl("");
+    setFormFederalTaxRateId("");
     setFormNotes("");
     setSelectedProduct("");
   };
@@ -207,6 +214,7 @@ export function CellarTraksClassifications() {
     setFormReportingUom(record.reportingUom || "");
     setFormAbvPercent(record.abvPercent || "");
     setFormBottleSizeMl(record.bottleSizeMl || "");
+    setFormFederalTaxRateId(record.federalTaxRateId ? record.federalTaxRateId.toString() : "");
     setFormNotes(record.notes || "");
     setEditDialog({ isOpen: true, record });
   };
@@ -222,6 +230,7 @@ export function CellarTraksClassifications() {
       abvPercent: formAbvPercent || null,
       proofGallonFactor: formAbvPercent ? (parseFloat(formAbvPercent) * 2 / 100).toFixed(4) : null,
       bottleSizeMl: formBottleSizeMl || null,
+      federalTaxRateId: formFederalTaxRateId ? parseInt(formFederalTaxRateId) : null,
       notes: formNotes || null,
     };
 
@@ -380,7 +389,34 @@ export function CellarTraksClassifications() {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            State excise tax classifications. Manage rates in State Tax Rates section.
+            State excise tax classifications. Manage rates in State Tax Rates tab.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Federal Tax Rate</Label>
+          <Select value={formFederalTaxRateId} onValueChange={setFormFederalTaxRateId}>
+            <SelectTrigger data-testid="select-federal-tax-rate">
+              <SelectValue placeholder="Select applicable federal rate" />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              {(federalTaxRates || [])
+                .filter(r => {
+                  if (formDivision === 'winery') return r.beverageType === 'wine' && (r.producerType === 'base_rate' || !r.producerType?.startsWith('credit_tier'));
+                  if (formDivision === 'distillery') return r.beverageType === 'spirits';
+                  if (formDivision === 'brewery') return r.beverageType === 'beer';
+                  return true;
+                })
+                .filter(r => !r.producerType?.startsWith('credit_tier'))
+                .map(r => (
+                  <SelectItem key={r.id} value={r.id.toString()}>
+                    {r.displayName} (${parseFloat(r.ratePerUnit).toFixed(2)}/{r.rateUnit.replace('per ', '')})
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Federal excise tax rate from TTB. View all rates in Federal Tax Rates tab.
           </p>
         </div>
 
