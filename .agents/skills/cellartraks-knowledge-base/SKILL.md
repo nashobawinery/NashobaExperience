@@ -92,7 +92,24 @@ Our enum values map to the form's 6 reporting columns:
 Note: Column (a) covers two enum values (14% split) for more granular internal tracking.
 
 ### Spirits (Form 5110.40)
-Whisky (Bourbon, Rye, Corn, Malt, Wheat, American Single Malt, Blended, Other), Brandy (Grape, Fruit, Pomace, Applejack, Other), Rum, Gin, Distilled Gin, Vodka, Neutral Spirits, Cordials/Liqueurs, Tequila, Mezcal, Flavored Spirits, Other Spirits
+
+Our enum values match the form's reporting columns (b) through (l):
+
+| Enum Value | Display | Form Column |
+|---|---|---|
+| `whisky_160_and_under` | Whisky (160° and under) | (b) Whisky ≤160° |
+| `whisky_over_160` | Whisky (over 160°) | (c) Whisky >160° |
+| `brandy_170_and_under` | Brandy (170° and under) | (d) Brandy ≤170° |
+| `brandy_over_170` | Brandy (over 170°) | (e) Brandy >170° |
+| `rum` | Rum | (f) Rum |
+| `gin` | Gin | (g) Gin |
+| `vodka` | Vodka | (h) Vodka |
+| `alcohol_spirits_190_over` | Alcohol & Spirits (190°+) | (i) A&S ≥190° |
+| `alcohol_spirits_under_190` | Alcohol & Spirits (<190°) | (j) A&S <190° |
+| `other_spirits` | Other (Identify) | (k) Other |
+| `wine_proof_gallons` | Wine (Proof Gallons) | (l) Wine |
+
+Note: The degree symbol (°) refers to proof degrees, not temperature. Bourbon, rye, corn whisky etc. are all ≤160° proof. Product subtypes (bourbon vs rye vs corn) are tracked separately as product attributes, not as TTB form classifications.
 
 ### Beer (Form 5130.9)
 Beer, Lager, Ale, Porter, Stout, Malt Liquor, Malt Beverage, Flavored Malt Beverage, Hard Seltzer

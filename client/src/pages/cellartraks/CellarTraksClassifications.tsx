@@ -48,29 +48,17 @@ const TTB_WINE_CLASSES: Record<string, string> = {
 };
 
 const TTB_SPIRITS_CLASSES: Record<string, string> = {
-  whisky_bourbon: "Bourbon Whisky",
-  whisky_rye: "Rye Whisky",
-  whisky_corn: "Corn Whisky",
-  whisky_malt: "Malt Whisky",
-  whisky_wheat: "Wheat Whisky",
-  whisky_american_single_malt: "American Single Malt Whisky",
-  whisky_blended: "Blended Whisky",
-  whisky_other: "Other Whisky",
-  brandy_grape: "Grape Brandy",
-  brandy_fruit: "Fruit Brandy",
-  brandy_pomace: "Pomace Brandy",
-  brandy_applejack: "Applejack",
-  brandy_other: "Other Brandy",
+  whisky_160_and_under: "Whisky (160° and under)",
+  whisky_over_160: "Whisky (over 160°)",
+  brandy_170_and_under: "Brandy (170° and under)",
+  brandy_over_170: "Brandy (over 170°)",
   rum: "Rum",
   gin: "Gin",
-  gin_distilled: "Distilled Gin",
   vodka: "Vodka",
-  neutral_spirits: "Neutral Spirits",
-  cordials_liqueurs: "Cordials & Liqueurs",
-  tequila: "Tequila",
-  mezcal: "Mezcal",
-  flavored_spirits: "Flavored Spirits",
-  other_spirits: "Other Spirits",
+  alcohol_spirits_190_over: "Alcohol & Spirits (190° and over)",
+  alcohol_spirits_under_190: "Alcohol & Spirits (under 190°)",
+  other_spirits: "Other (Identify)",
+  wine_proof_gallons: "Wine (Proof Gallons)",
 };
 
 const TTB_BEER_CLASSES: Record<string, string> = {

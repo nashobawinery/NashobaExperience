@@ -5617,30 +5617,19 @@ export const ttbWineClassEnum = pgEnum("ttb_wine_class", [
 ]);
 
 // TTB Spirits Classifications (Form 5110.40) - reported in proof gallons
+// Enum values match the form's reporting columns (b) through (l)
 export const ttbSpiritsClassEnum = pgEnum("ttb_spirits_class", [
-  "whisky_bourbon",
-  "whisky_rye",
-  "whisky_corn",
-  "whisky_malt",
-  "whisky_wheat",
-  "whisky_american_single_malt",
-  "whisky_blended",
-  "whisky_other",
-  "brandy_grape",
-  "brandy_fruit",
-  "brandy_pomace",
-  "brandy_applejack",
-  "brandy_other",
-  "rum",
-  "gin",
-  "gin_distilled",
-  "vodka",
-  "neutral_spirits",
-  "cordials_liqueurs",
-  "tequila",
-  "mezcal",
-  "flavored_spirits",
-  "other_spirits",
+  "whisky_160_and_under",        // Whisky distilled at 160° and under (Form col b)
+  "whisky_over_160",             // Whisky distilled at over 160° (Form col c)
+  "brandy_170_and_under",        // Brandy distilled at 170° and under (Form col d)
+  "brandy_over_170",             // Brandy distilled at over 170° (Form col e)
+  "rum",                         // Rum (Form col f)
+  "gin",                         // Gin (Form col g)
+  "vodka",                       // Vodka (Form col h)
+  "alcohol_spirits_190_over",    // Alcohol & Spirits 190° and over (Form col i)
+  "alcohol_spirits_under_190",   // Alcohol & Spirits under 190° (Form col j)
+  "other_spirits",               // Other - Identify (Form col k)
+  "wine_proof_gallons",          // Wine in proof gallons (Form col l)
 ]);
 
 // TTB Beer/Malt Beverage Classifications (Form 5130.9) - reported in barrels (31 gallons)
