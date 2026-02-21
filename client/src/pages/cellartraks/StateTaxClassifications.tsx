@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DollarSign, Plus, Edit, Loader2, Trash2, CheckCircle2, XCircle, MapPin
+  DollarSign, Plus, Edit, Loader2, Trash2, CheckCircle2, XCircle, MapPin, Info, Calendar, FileText, ShieldCheck, Receipt
 } from "lucide-react";
 
 interface StateTaxClass {
@@ -438,6 +438,52 @@ export function StateTaxClassifications() {
           </Card>
         ))
       )}
+
+      <Card data-testid="card-compliance-notes">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30">
+              <Info className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <CardTitle className="text-base">MA Excise Tax Compliance Notes</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-3">
+              <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Filing Deadline</p>
+                <p className="text-xs text-muted-foreground">Monthly by the 20th of the following month (Form AB-1)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Production Reporting</p>
+                <p className="text-xs text-muted-foreground">Must report total gallons produced, even if not yet sold, to calculate tax liability</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Exemptions</p>
+                <p className="text-xs text-muted-foreground">No tax on sales for scientific/chemical/medical purposes, certain religious wine, or alcohol destroyed/stolen (if properly reported)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Receipt className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Sales Tax</p>
+                <p className="text-xs text-muted-foreground">Alcohol is NOT subject to general MA retail sales tax - the excise tax replaces it</p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4 pt-3 border-t">
+            Malt beverages barrel rate ($3.30/barrel) = $0.106/gallon equivalent (31 gallons per barrel). These are production/manufacturing excise rates.
+          </p>
+        </CardContent>
+      </Card>
 
       <Dialog open={editDialog.isOpen} onOpenChange={(open) => { if (!open) setEditDialog({ isOpen: false, record: null }); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="dialog-edit-tax-class">

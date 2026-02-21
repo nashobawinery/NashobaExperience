@@ -129,6 +129,15 @@ Stored in `cellartraks_state_tax_classes` table (database-driven, editable rates
 | distilled_spirits_15_to_50 | Distilled Spirits (15-50% ABV) | $4.05 | per gallon | 15-50% |
 | distilled_spirits_over_50 | Distilled Spirits (over 50% ABV) | $4.05 | per proof gallon | >50% |
 
+Note: Malt Beverages barrel rate = $0.106/gallon equivalent (31 gallons per barrel).
+
+### MA Excise Tax Compliance Notes
+- **Filing Deadline**: Monthly by the 20th of the following month (Form AB-1)
+- **Exemptions**: No tax on sales for scientific/chemical/medical purposes, certain religious wine sales, or alcohol destroyed/stolen (if properly reported)
+- **Production Reporting**: Manufacturers must report total gallons produced, even if not yet sold, to calculate tax liability
+- **Sales Tax**: Alcohol is NOT subject to general Massachusetts retail sales tax — the excise tax replaces it
+- **Rate Basis**: These are production/manufacturing excise rates, not retail rates
+
 ## Current Implementation Status
 
 ### Built
