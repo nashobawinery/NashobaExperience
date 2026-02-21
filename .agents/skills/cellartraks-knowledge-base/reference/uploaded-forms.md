@@ -16,9 +16,15 @@ When the user uploads a form, extract key details and add an entry below.
 - **Key data needed from CellarTraks**: Spirits produced (proof gallons), materials used, spirits in storage, spirits withdrawn
 
 ### TTB Form 5130.9 — Brewer's Report of Operations
-- **Status**: Not yet uploaded
+- **Status**: UPLOADED (February 2026)
+- **Detailed reference**: `reference/ttb-f5130-9-brewers-report.md`
 - **Purpose**: Monthly/quarterly report of all brewing operations
-- **Key data needed from CellarTraks**: Beer produced (barrels), materials used, beer removed for consumption/sale
+- **Reporting unit**: Barrels (31 gallons), rounded to 2 decimal places
+- **Filing**: Monthly if >$50K tax liability, Quarterly if ≤$50K; due 15th day after period end
+- **Key sections**: Part 1 (Beer Summary with inventory additions/removals across 5 location columns), Part 2 (Cereal Beverage for <0.5% ABV), Part 3 (Remarks)
+- **Taxable lines**: Line 14 (removed for sale) and Line 15 (removed to tavern) — tax calculated separately on TTB F 5000.24
+- **Location columns**: Cellar, Racking-Bulk, Racking-Keg, Bottling-Bulk, Bottling-Case
+- **Key data needed from CellarTraks**: Beginning/ending inventory by location, production volumes, internal transfers, sales removals, losses/shortages with explanations, physical inventory reconciliation
 
 ## Massachusetts State Forms
 

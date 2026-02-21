@@ -130,7 +130,9 @@ Stored in `cellartraks_state_tax_classes` table (database-driven, editable rates
 
 | Document | Description | Storage Location | Date Added |
 |---|---|---|---|
-| *(awaiting uploads)* | | | |
+| TTB F 5130.9 | Brewer's Report of Operations (form + instructions) | `reference/ttb-f5130-9-brewers-report.md` | Feb 2026 |
+
+For detailed form field breakdowns, see the individual reference files linked above.
 
 ## Key Technical Details
 
