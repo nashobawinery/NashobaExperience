@@ -67,6 +67,7 @@ import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/daily-reports";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
+import ToastVoidsDiscountsPanel from "@/components/ToastVoidsDiscountsPanel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -3739,6 +3740,19 @@ export default function DailyReportsAdminDashboard() {
                       <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedReport.staffingNotes}</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {selectedReport && (
+                <div className="border-t pt-4">
+                  <ToastVoidsDiscountsPanel
+                    date={format(new Date(selectedReport.reportDate), "yyyy-MM-dd")}
+                    reportId={selectedReport.id}
+                    explainedByName={selectedReport.submittedByName || undefined}
+                    explainedById={selectedReport.submittedById || undefined}
+                    mode={selectedReport.status === "draft" || selectedReport.status === "needs_revision" ? "edit" : "view"}
+                    showDiscounts={true}
+                  />
                 </div>
               )}
 

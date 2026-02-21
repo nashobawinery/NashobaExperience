@@ -308,6 +308,28 @@ export async function syncToastConfig(restaurantGuid: string): Promise<{
   return { revenueCenters: revCenterMap, salesCategories: salesCatMap };
 }
 
+export interface VoidDiscountRecord {
+  recordType: 'void' | 'discount';
+  level: 'order' | 'check' | 'item';
+  orderGuid: string | null;
+  orderNumber: string | null;
+  checkGuid: string | null;
+  itemName: string | null;
+  itemGuid: string | null;
+  amount: number;
+  discountName: string | null;
+  discountType: string | null;
+  discountReasonName: string | null;
+  discountReasonComment: string | null;
+  voidReasonGuid: string | null;
+  approverGuid: string | null;
+  serverGuid: string | null;
+  revenueCenterName: string | null;
+  restaurantGuid: string | null;
+  restaurantName: string | null;
+  occurredAt: string | null;
+}
+
 export interface RevenueDetailResult {
   netSales: number;
   grossSales: number;
@@ -329,6 +351,7 @@ export interface RevenueDetailResult {
     quantity: number;
     netSales: number;
   }>;
+  voidDiscountDetails: VoidDiscountRecord[];
 }
 
 export async function fetchDailyRevenueDetail(
@@ -352,6 +375,8 @@ export async function fetchDailyRevenueDetail(
     quantity: number; netSales: number;
   }> = {};
 
+  const voidDiscountDetails: VoidDiscountRecord[] = [];
+
   for (const restaurant of restaurants) {
     const guid = restaurant.restaurantGuid;
     const name = restaurant.restaurantName || restaurant.locationName || guid;
@@ -368,8 +393,14 @@ export async function fetchDailyRevenueDetail(
         if (!Array.isArray(orders) || orders.length === 0) { hasMore = false; break; }
 
         for (const order of orders) {
+          const orderServerGuid = order.server?.guid || null;
+          const orderRevCenterNameForVD = order.revenueCenter?.guid
+            ? (revCenterMap.get(order.revenueCenter.guid) || "Unknown")
+            : "Uncategorized";
+
           if (order.voided || order.deleted) {
             let voidEstimate = 0;
+            const voidItemNames: string[] = [];
             for (const vCheck of (order.checks || [])) {
               if (vCheck.totalAmount) {
                 voidEstimate += Math.abs(vCheck.totalAmount);
@@ -377,12 +408,34 @@ export async function fetchDailyRevenueDetail(
                 for (const vSel of (vCheck.selections || [])) {
                   const vPrice = vSel.preDiscountPrice != null ? vSel.preDiscountPrice : (vSel.price || 0) * (vSel.quantity || 1);
                   voidEstimate += vPrice;
+                  if (vSel.displayName) voidItemNames.push(vSel.displayName);
                 }
               }
             }
             if (voidEstimate > 0) {
               totalVoidAmount += voidEstimate;
               totalVoidCount++;
+              voidDiscountDetails.push({
+                recordType: 'void',
+                level: 'order',
+                orderGuid: order.guid || null,
+                orderNumber: order.displayNumber || null,
+                checkGuid: null,
+                itemName: voidItemNames.length > 0 ? voidItemNames.join(', ') : null,
+                itemGuid: null,
+                amount: Math.round(voidEstimate * 100) / 100,
+                discountName: null,
+                discountType: null,
+                discountReasonName: null,
+                discountReasonComment: null,
+                voidReasonGuid: null,
+                approverGuid: null,
+                serverGuid: orderServerGuid,
+                revenueCenterName: orderRevCenterNameForVD,
+                restaurantGuid: guid,
+                restaurantName: name,
+                occurredAt: order.voidDate || order.modifiedDate || null,
+              });
             }
             continue;
           }
@@ -402,6 +455,31 @@ export async function fetchDailyRevenueDetail(
               if (voidVal > 0) {
                 totalVoidAmount += voidVal;
                 totalVoidCount++;
+                const checkVoidItems: string[] = [];
+                for (const vSel of (check.selections || [])) {
+                  if (vSel.displayName) checkVoidItems.push(vSel.displayName);
+                }
+                voidDiscountDetails.push({
+                  recordType: 'void',
+                  level: 'check',
+                  orderGuid: order.guid || null,
+                  orderNumber: order.displayNumber || null,
+                  checkGuid: check.guid || null,
+                  itemName: checkVoidItems.length > 0 ? checkVoidItems.join(', ') : null,
+                  itemGuid: null,
+                  amount: Math.round(voidVal * 100) / 100,
+                  discountName: null,
+                  discountType: null,
+                  discountReasonName: null,
+                  discountReasonComment: null,
+                  voidReasonGuid: null,
+                  approverGuid: null,
+                  serverGuid: orderServerGuid,
+                  revenueCenterName: orderRevCenterNameForVD,
+                  restaurantGuid: guid,
+                  restaurantName: name,
+                  occurredAt: check.voidDate || check.modifiedDate || null,
+                });
               }
               continue;
             }
@@ -415,6 +493,27 @@ export async function fetchDailyRevenueDetail(
                 if (voidItemVal > 0) {
                   totalVoidAmount += voidItemVal;
                   totalVoidCount++;
+                  voidDiscountDetails.push({
+                    recordType: 'void',
+                    level: 'item',
+                    orderGuid: order.guid || null,
+                    orderNumber: order.displayNumber || null,
+                    checkGuid: check.guid || null,
+                    itemName: selection.displayName || null,
+                    itemGuid: selection.item?.guid || selection.guid || null,
+                    amount: Math.round(voidItemVal * 100) / 100,
+                    discountName: null,
+                    discountType: null,
+                    discountReasonName: null,
+                    discountReasonComment: null,
+                    voidReasonGuid: selection.voidReason?.guid || null,
+                    approverGuid: null,
+                    serverGuid: orderServerGuid,
+                    revenueCenterName: orderRevCenterNameForVD,
+                    restaurantGuid: guid,
+                    restaurantName: name,
+                    occurredAt: selection.voidDate || null,
+                  });
                 }
                 continue;
               }
@@ -428,7 +527,31 @@ export async function fetchDailyRevenueDetail(
               if (Array.isArray(selection.appliedDiscounts)) {
                 for (const disc of selection.appliedDiscounts) {
                   if (disc.processingState === 'VOID' || disc.processingState === 'PENDING_VOID') continue;
-                  itemDiscount += (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+                  const discAmt = (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+                  itemDiscount += discAmt;
+                  if (discAmt > 0) {
+                    voidDiscountDetails.push({
+                      recordType: 'discount',
+                      level: 'item',
+                      orderGuid: order.guid || null,
+                      orderNumber: order.displayNumber || null,
+                      checkGuid: check.guid || null,
+                      itemName: selection.displayName || null,
+                      itemGuid: selection.item?.guid || selection.guid || null,
+                      amount: Math.round(discAmt * 100) / 100,
+                      discountName: disc.name || null,
+                      discountType: disc.discountType || null,
+                      discountReasonName: disc.appliedDiscountReason?.name || null,
+                      discountReasonComment: disc.appliedDiscountReason?.comment || null,
+                      voidReasonGuid: null,
+                      approverGuid: disc.approver?.guid || null,
+                      serverGuid: orderServerGuid,
+                      revenueCenterName: orderRevCenterNameForVD,
+                      restaurantGuid: guid,
+                      restaurantName: name,
+                      occurredAt: order.modifiedDate || order.createdDate || null,
+                    });
+                  }
                 }
               }
 
@@ -467,7 +590,31 @@ export async function fetchDailyRevenueDetail(
             if (Array.isArray(check.appliedDiscounts)) {
               for (const disc of check.appliedDiscounts) {
                 if (disc.processingState === 'VOID' || disc.processingState === 'PENDING_VOID') continue;
-                checkLevelDiscount += (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+                const checkDiscAmt = (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+                checkLevelDiscount += checkDiscAmt;
+                if (checkDiscAmt > 0) {
+                  voidDiscountDetails.push({
+                    recordType: 'discount',
+                    level: 'check',
+                    orderGuid: order.guid || null,
+                    orderNumber: order.displayNumber || null,
+                    checkGuid: check.guid || null,
+                    itemName: null,
+                    itemGuid: null,
+                    amount: Math.round(checkDiscAmt * 100) / 100,
+                    discountName: disc.name || null,
+                    discountType: disc.discountType || null,
+                    discountReasonName: disc.appliedDiscountReason?.name || null,
+                    discountReasonComment: disc.appliedDiscountReason?.comment || null,
+                    voidReasonGuid: null,
+                    approverGuid: disc.approver?.guid || null,
+                    serverGuid: orderServerGuid,
+                    revenueCenterName: orderRevCenterNameForVD,
+                    restaurantGuid: guid,
+                    restaurantName: name,
+                    occurredAt: order.modifiedDate || order.createdDate || null,
+                  });
+                }
               }
             }
 
@@ -561,6 +708,7 @@ export async function fetchDailyRevenueDetail(
     revenueCenterBreakdown: Object.values(revCenterAgg).map(r => ({ ...r, netSales: round(r.netSales), grossSales: round(r.grossSales), discountAmount: round(r.discountAmount), serviceChargeAmount: round(r.serviceChargeAmount) })),
     salesCategoryBreakdown: Object.values(salesCatAgg).map(c => ({ ...c, netSales: round(c.netSales), grossSales: round(c.grossSales), discountAmount: round(c.discountAmount) })),
     itemSales: Object.values(itemAgg).map(i => ({ ...i, netSales: round(i.netSales) })),
+    voidDiscountDetails,
   };
 }
 
@@ -591,6 +739,71 @@ export async function syncToastRevenueDetailToDb(businessDate: string): Promise<
       VALUES (${businessDate}, 'toast', ${item.itemName}, ${item.itemGuid}, ${item.salesCategoryGuid}, ${item.salesCategoryName}, ${item.revenueCenterGuid}, ${item.revenueCenterName}, ${item.quantity}, ${item.netSales.toFixed(2)})
     `);
   }
+
+  const existingIds = new Set<number>();
+  for (const vd of detail.voidDiscountDetails) {
+    const existing = await db.execute(sql`
+      SELECT id FROM toast_void_discount_details
+      WHERE date = ${businessDate}
+        AND COALESCE(order_guid, '') = ${vd.orderGuid || ''}
+        AND COALESCE(check_guid, '') = ${vd.checkGuid || ''}
+        AND COALESCE(item_guid, '') = ${vd.itemGuid || ''}
+        AND record_type = ${vd.recordType}
+        AND level = ${vd.level}
+        AND COALESCE(discount_name, '') = ${vd.discountName || ''}
+      LIMIT 1
+    `);
+
+    if (existing.rows.length > 0) {
+      const existingId = (existing.rows[0] as any).id;
+      existingIds.add(existingId);
+      await db.execute(sql`
+        UPDATE toast_void_discount_details SET
+          order_number = ${vd.orderNumber},
+          item_name = ${vd.itemName},
+          amount = ${vd.amount.toFixed(2)},
+          discount_type = ${vd.discountType},
+          discount_reason_name = ${vd.discountReasonName},
+          discount_reason_comment = ${vd.discountReasonComment},
+          void_reason_guid = ${vd.voidReasonGuid},
+          approver_guid = ${vd.approverGuid},
+          server_guid = ${vd.serverGuid},
+          revenue_center_name = ${vd.revenueCenterName},
+          restaurant_guid = ${vd.restaurantGuid},
+          restaurant_name = ${vd.restaurantName},
+          occurred_at = ${vd.occurredAt}
+        WHERE id = ${existingId}
+      `);
+    } else {
+      const inserted = await db.execute(sql`
+        INSERT INTO toast_void_discount_details (date, record_type, level, order_guid, order_number, check_guid, item_name, item_guid, amount, discount_name, discount_type, discount_reason_name, discount_reason_comment, void_reason_guid, approver_guid, server_guid, revenue_center_name, restaurant_guid, restaurant_name, occurred_at)
+        VALUES (${businessDate}, ${vd.recordType}, ${vd.level}, ${vd.orderGuid}, ${vd.orderNumber}, ${vd.checkGuid}, ${vd.itemName}, ${vd.itemGuid}, ${vd.amount.toFixed(2)}, ${vd.discountName}, ${vd.discountType}, ${vd.discountReasonName}, ${vd.discountReasonComment}, ${vd.voidReasonGuid}, ${vd.approverGuid}, ${vd.serverGuid}, ${vd.revenueCenterName}, ${vd.restaurantGuid}, ${vd.restaurantName}, ${vd.occurredAt})
+        RETURNING id
+      `);
+      if (inserted.rows.length > 0) existingIds.add((inserted.rows[0] as any).id);
+    }
+  }
+
+  if (existingIds.size > 0) {
+    const idsArray = Array.from(existingIds);
+    await db.execute(sql`
+      DELETE FROM toast_void_explanations WHERE void_detail_id IN (
+        SELECT id FROM toast_void_discount_details WHERE date = ${businessDate} AND id != ALL(${idsArray}::int[])
+      )
+    `);
+    await db.execute(sql`
+      DELETE FROM toast_void_discount_details WHERE date = ${businessDate} AND id != ALL(${idsArray}::int[])
+    `);
+  } else if (detail.voidDiscountDetails.length === 0) {
+    await db.execute(sql`
+      DELETE FROM toast_void_explanations WHERE void_detail_id IN (
+        SELECT id FROM toast_void_discount_details WHERE date = ${businessDate}
+      )
+    `);
+    await db.execute(sql`DELETE FROM toast_void_discount_details WHERE date = ${businessDate}`);
+  }
+
+  console.log(`[Toast Void/Discount Details] ${businessDate}: ${detail.voidDiscountDetails.filter(v => v.recordType === 'void').length} voids, ${detail.voidDiscountDetails.filter(v => v.recordType === 'discount').length} discounts stored (preserved existing explanations)`);
 
   const discountPct = detail.grossSales > 0 ? (detail.totalDiscounts / detail.grossSales) * 100 : 0;
   const round = (n: number) => Math.round(n * 100) / 100;

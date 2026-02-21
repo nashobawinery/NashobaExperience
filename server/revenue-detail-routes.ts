@@ -310,4 +310,86 @@ router.get("/config", async (req, res) => {
   }
 });
 
+router.get("/voids-discounts", async (req, res) => {
+  try {
+    const { date, type } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: "date parameter required" });
+    }
+
+    let query = sql`
+      SELECT vd.*, 
+        ve.id as explanation_id, ve.explanation, ve.explained_by_name, ve.explained_by_id, ve.report_id as explanation_report_id
+      FROM toast_void_discount_details vd
+      LEFT JOIN toast_void_explanations ve ON ve.void_detail_id = vd.id
+      WHERE vd.date = ${date as string}
+    `;
+    if (type && (type === 'void' || type === 'discount')) {
+      query = sql`${query} AND vd.record_type = ${type as string}`;
+    }
+    query = sql`${query} ORDER BY vd.amount DESC`;
+
+    const result = await db.execute(query);
+    res.json(result.rows);
+  } catch (err: any) {
+    console.error("[Revenue Detail] voids-discounts error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/void-explanation", async (req, res) => {
+  try {
+    const { voidDetailId, explanation, explainedById, explainedByName, reportId } = req.body;
+    if (!voidDetailId || !explanation) {
+      return res.status(400).json({ error: "voidDetailId and explanation are required" });
+    }
+
+    await db.execute(sql`
+      INSERT INTO toast_void_explanations (void_detail_id, explanation, explained_by_id, explained_by_name, report_id)
+      VALUES (${voidDetailId}, ${explanation}, ${explainedById || null}, ${explainedByName || null}, ${reportId || null})
+      ON CONFLICT (void_detail_id) DO UPDATE SET
+        explanation = ${explanation},
+        explained_by_id = ${explainedById || null},
+        explained_by_name = ${explainedByName || null},
+        report_id = ${reportId || null},
+        updated_at = NOW()
+    `);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[Revenue Detail] void-explanation error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/void-explanations-batch", async (req, res) => {
+  try {
+    const { explanations, explainedById, explainedByName, reportId } = req.body;
+    if (!Array.isArray(explanations) || explanations.length === 0) {
+      return res.status(400).json({ error: "explanations array is required" });
+    }
+
+    let saved = 0;
+    for (const item of explanations) {
+      if (!item.voidDetailId || !item.explanation) continue;
+      await db.execute(sql`
+        INSERT INTO toast_void_explanations (void_detail_id, explanation, explained_by_id, explained_by_name, report_id)
+        VALUES (${item.voidDetailId}, ${item.explanation}, ${explainedById || null}, ${explainedByName || null}, ${reportId || null})
+        ON CONFLICT (void_detail_id) DO UPDATE SET
+          explanation = ${item.explanation},
+          explained_by_id = ${explainedById || null},
+          explained_by_name = ${explainedByName || null},
+          report_id = ${reportId || null},
+          updated_at = NOW()
+      `);
+      saved++;
+    }
+
+    res.json({ success: true, saved });
+  } catch (err: any) {
+    console.error("[Revenue Detail] void-explanations-batch error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

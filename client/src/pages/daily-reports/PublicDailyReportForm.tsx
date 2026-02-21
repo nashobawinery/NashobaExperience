@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, AlertTriangle, Star, CheckCircle2, Plus, X, Loader2, Building2, Sunrise, Moon, ListChecks, ChevronRight, Save, Send, RotateCcw, MessageSquare } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
+import ToastVoidsDiscountsPanel from "@/components/ToastVoidsDiscountsPanel";
 
 interface Procedure {
   id: string;
@@ -1039,6 +1040,16 @@ export default function PublicDailyReportForm() {
             />
           </CardContent>
         </Card>
+
+        <ToastVoidsDiscountsPanel
+          date={(() => {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          })()}
+          explainedByName={formData?.staffName}
+          mode="edit"
+          showDiscounts={true}
+        />
 
         <Card>
           <CardHeader className="pb-3">

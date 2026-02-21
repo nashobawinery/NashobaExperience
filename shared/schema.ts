@@ -4808,6 +4808,60 @@ export const insertRccDailyItemSalesSchema = createInsertSchema(rccDailyItemSale
 export type InsertRccDailyItemSales = z.infer<typeof insertRccDailyItemSalesSchema>;
 export type RccDailyItemSales = typeof rccDailyItemSales.$inferSelect;
 
+// Toast Void & Discount Details - individual void and discount records from Toast orders
+export const toastVoidDiscountDetails = pgTable("toast_void_discount_details", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  recordType: varchar("record_type", { length: 20 }).notNull(), // 'void' or 'discount'
+  level: varchar("level", { length: 20 }).notNull(), // 'order', 'check', 'item'
+  orderGuid: varchar("order_guid", { length: 64 }),
+  orderNumber: varchar("order_number", { length: 64 }),
+  checkGuid: varchar("check_guid", { length: 64 }),
+  itemName: varchar("item_name", { length: 500 }),
+  itemGuid: varchar("item_guid", { length: 64 }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  discountName: varchar("discount_name", { length: 255 }),
+  discountType: varchar("discount_type", { length: 50 }),
+  discountReasonName: varchar("discount_reason_name", { length: 255 }),
+  discountReasonComment: varchar("discount_reason_comment", { length: 500 }),
+  voidReasonGuid: varchar("void_reason_guid", { length: 64 }),
+  approverGuid: varchar("approver_guid", { length: 64 }),
+  serverGuid: varchar("server_guid", { length: 64 }),
+  revenueCenterName: varchar("revenue_center_name", { length: 255 }),
+  restaurantGuid: varchar("restaurant_guid", { length: 64 }),
+  restaurantName: varchar("restaurant_name", { length: 255 }),
+  occurredAt: timestamp("occurred_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_vd_date").on(table.date),
+  index("idx_toast_vd_type").on(table.recordType),
+  index("idx_toast_vd_date_type").on(table.date, table.recordType),
+]);
+
+export const insertToastVoidDiscountDetailSchema = createInsertSchema(toastVoidDiscountDetails).omit({ id: true, createdAt: true });
+export type InsertToastVoidDiscountDetail = z.infer<typeof insertToastVoidDiscountDetailSchema>;
+export type ToastVoidDiscountDetail = typeof toastVoidDiscountDetails.$inferSelect;
+
+// Toast Void Explanations - staff explanations for voids shown in Daily Reports
+export const toastVoidExplanations = pgTable("toast_void_explanations", {
+  id: serial("id").primaryKey(),
+  voidDetailId: integer("void_detail_id").notNull().references(() => toastVoidDiscountDetails.id, { onDelete: 'cascade' }),
+  explanation: text("explanation").notNull(),
+  explainedById: varchar("explained_by_id").references(() => platformUsers.id),
+  explainedByName: varchar("explained_by_name", { length: 255 }),
+  reportId: varchar("report_id").references(() => dailyReports.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_ve_void_detail").on(table.voidDetailId),
+  index("idx_toast_ve_report").on(table.reportId),
+  uniqueIndex("idx_toast_ve_unique").on(table.voidDetailId),
+]);
+
+export const insertToastVoidExplanationSchema = createInsertSchema(toastVoidExplanations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertToastVoidExplanation = z.infer<typeof insertToastVoidExplanationSchema>;
+export type ToastVoidExplanation = typeof toastVoidExplanations.$inferSelect;
+
 // ABCC Product Classification - maps Toast items to beverage types for MA ABCC gallons reporting
 export const abccProductClassification = pgTable("abcc_product_classification", {
   id: serial("id").primaryKey(),
