@@ -63,14 +63,6 @@ const TTB_SPIRITS_CLASSES: Record<string, string> = {
 
 const TTB_BEER_CLASSES: Record<string, string> = {
   beer: "Beer",
-  lager: "Lager",
-  ale: "Ale",
-  porter: "Porter",
-  stout: "Stout",
-  malt_liquor: "Malt Liquor",
-  malt_beverage: "Malt Beverage",
-  flavored_malt_beverage: "Flavored Malt Beverage",
-  hard_seltzer: "Hard Seltzer",
 };
 
 interface StateTaxClassOption {

@@ -112,7 +112,8 @@ Our enum values match the form's reporting columns (b) through (l):
 Note: The degree symbol (°) refers to proof degrees, not temperature. Bourbon, rye, corn whisky etc. are all ≤160° proof. Product subtypes (bourbon vs rye vs corn) are tracked separately as product attributes, not as TTB form classifications.
 
 ### Beer (Form 5130.9)
-Beer, Lager, Ale, Porter, Stout, Malt Liquor, Malt Beverage, Flavored Malt Beverage, Hard Seltzer
+
+Single classification — all beer/malt beverages are reported simply as "Beer" in barrels (31 gallons).
 
 ## State Tax Classifications (Currently Implemented)
 

@@ -5632,17 +5632,9 @@ export const ttbSpiritsClassEnum = pgEnum("ttb_spirits_class", [
   "wine_proof_gallons",          // Wine in proof gallons (Form col l)
 ]);
 
-// TTB Beer/Malt Beverage Classifications (Form 5130.9) - reported in barrels (31 gallons)
+// TTB Beer Classification (Form 5130.9) - single classification, reported in barrels (31 gallons)
 export const ttbBeerClassEnum = pgEnum("ttb_beer_class", [
-  "beer",
-  "lager",
-  "ale",
-  "porter",
-  "stout",
-  "malt_liquor",
-  "malt_beverage",
-  "flavored_malt_beverage",
-  "hard_seltzer",
+  "beer",                          // Beer (Form 5130.9 - single category)
 ]);
 
 // Massachusetts AB-1 State Tax Classifications
