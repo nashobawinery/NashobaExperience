@@ -36,6 +36,7 @@ import cellartraksRouter from "./cellartraks-routes";
 import growthStudioRouter from "./growth-studio-routes";
 import revenueDetailRouter from "./revenue-detail-routes";
 import abccRouter from "./abcc-routes";
+import nashobatvRouter from "./nashobatv-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
@@ -142,6 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/abcc", abccRouter);
   app.use(enhancementRouter);
   app.use(cellartraksRouter);
+  app.use(nashobatvRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();

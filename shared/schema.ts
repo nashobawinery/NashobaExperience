@@ -5738,3 +5738,113 @@ export const cellartraksStateTaxClasses = pgTable("cellartraks_state_tax_classes
 export const insertCellartraksStateTaxClassSchema = createInsertSchema(cellartraksStateTaxClasses).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCellartraksStateTaxClass = z.infer<typeof insertCellartraksStateTaxClassSchema>;
 export type CellartraksStateTaxClass = typeof cellartraksStateTaxClasses.$inferSelect;
+
+// ====== NashobaTV Digital Signage ======
+
+export const nashobatvSlideTypeEnum = pgEnum("nashobatv_slide_type", [
+  "welcome", "events_today", "wine_list", "food_menu", "upcoming_events",
+  "photo_gallery", "announcement", "weather", "wine_club", "daily_specials", "custom"
+]);
+
+export const nashobatvSlides = pgTable("nashobatv_slides", {
+  id: serial("id").primaryKey(),
+  slideType: nashobatvSlideTypeEnum("slide_type").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  bodyText: text("body_text"),
+  bodyHtml: text("body_html"),
+  backgroundImageUrl: text("background_image_url"),
+  mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
+  duration: integer("duration").notNull().default(12),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  location: text("location"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const nashobatvEvents = pgTable("nashobatv_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  eventDate: text("event_date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  location: text("location"),
+  category: text("category"),
+  imageUrl: text("image_url"),
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  recurrenceRule: text("recurrence_rule"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const nashobatvAnnouncements = pgTable("nashobatv_announcements", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  priority: integer("priority").notNull().default(0),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const nashobatvPhotos = pgTable("nashobatv_photos", {
+  id: serial("id").primaryKey(),
+  imageUrl: text("image_url").notNull(),
+  mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
+  caption: text("caption"),
+  category: text("category"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isDisplayed: boolean("is_displayed").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const nashobatvDisplaySettings = pgTable("nashobatv_display_settings", {
+  id: serial("id").primaryKey(),
+  slideType: text("slide_type").notNull().unique(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  duration: integer("duration").notNull().default(12),
+  sortOrder: integer("sort_order").notNull().default(0),
+  backgroundImageUrl: text("background_image_url"),
+});
+
+export const nashobatvDailySpecials = pgTable("nashobatv_daily_specials", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  validDate: text("valid_date"),
+  happyHourStart: text("happy_hour_start"),
+  happyHourEnd: text("happy_hour_end"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertNashobatvSlideSchema = createInsertSchema(nashobatvSlides).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertNashobatvSlide = z.infer<typeof insertNashobatvSlideSchema>;
+export type NashobatvSlide = typeof nashobatvSlides.$inferSelect;
+
+export const insertNashobatvEventSchema = createInsertSchema(nashobatvEvents).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertNashobatvEvent = z.infer<typeof insertNashobatvEventSchema>;
+export type NashobatvEvent = typeof nashobatvEvents.$inferSelect;
+
+export const insertNashobatvAnnouncementSchema = createInsertSchema(nashobatvAnnouncements).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertNashobatvAnnouncement = z.infer<typeof insertNashobatvAnnouncementSchema>;
+export type NashobatvAnnouncement = typeof nashobatvAnnouncements.$inferSelect;
+
+export const insertNashobatvPhotoSchema = createInsertSchema(nashobatvPhotos).omit({ id: true, createdAt: true });
+export type InsertNashobatvPhoto = z.infer<typeof insertNashobatvPhotoSchema>;
+export type NashobatvPhoto = typeof nashobatvPhotos.$inferSelect;
+
+export const insertNashobatvDisplaySettingSchema = createInsertSchema(nashobatvDisplaySettings).omit({ id: true });
+export type InsertNashobatvDisplaySetting = z.infer<typeof insertNashobatvDisplaySettingSchema>;
+export type NashobatvDisplaySetting = typeof nashobatvDisplaySettings.$inferSelect;
+
+export const insertNashobatvDailySpecialSchema = createInsertSchema(nashobatvDailySpecials).omit({ id: true, createdAt: true });
+export type InsertNashobatvDailySpecial = z.infer<typeof insertNashobatvDailySpecialSchema>;
+export type NashobatvDailySpecial = typeof nashobatvDailySpecials.$inferSelect;

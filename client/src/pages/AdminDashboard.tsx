@@ -18,6 +18,7 @@ import CommercialManager from "@/components/CommercialManager";
 import ShopifyImportComponent from "@/components/ShopifyImport";
 import ObjectStorageManager from "@/components/ObjectStorageManager";
 import NotesManager from "@/components/NotesManager";
+import NashobatvAdmin from "@/components/NashobatvAdmin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database, Home, Archive } from "lucide-react";
+import { Package, Upload, HelpCircle, Settings as SettingsIcon, ArrowLeft, Edit, Trash2, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Filter, Check, ChevronsUpDown, X, QrCode, Image, BookOpen, Video, LogOut, Info, HardDrive, Building, Database, Home, Archive, Monitor } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/tasting";
@@ -903,6 +904,18 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
             <Card className="p-4">
               <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Digital Signage</h3>
+                <TabsList className="grid w-full grid-cols-1 h-auto">
+                  <TabsTrigger value="nashobatv" data-testid="tab-nashobatv" className="flex items-center justify-center gap-2">
+                    <Monitor className="w-4 h-4" />
+                    <span>NashobaTV</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="space-y-3">
                 <h3 className="text-sm font-medium text-muted-foreground">Tools & Configuration</h3>
                 <TabsList className="grid w-full grid-cols-3 h-auto">
                   <TabsTrigger value="qrcode" data-testid="tab-qrcode" className="flex items-center justify-center gap-2">
@@ -1413,6 +1426,10 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
           <TabsContent value="notes">
             <NotesManager appType="base" />
+          </TabsContent>
+
+          <TabsContent value="nashobatv">
+            <NashobatvAdmin />
           </TabsContent>
         </Tabs>
       </main>

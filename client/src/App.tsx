@@ -97,6 +97,9 @@ const ToastConnect = lazy(() => import("@/pages/toast-connect/ToastConnect"));
 // Lazy load CellarTraks module
 const CellarTraks = lazy(() => import("@/pages/cellartraks/CellarTraks"));
 
+// Lazy load NashobaTV display
+const NashobatvDisplay = lazy(() => import("@/pages/NashobatvDisplay"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -1175,6 +1178,7 @@ function Router() {
       <Switch>
         <Route path="/" component={AdminHubRoute} />
         <Route path="/tasting" component={GuestApp} />
+        <Route path="/display">{() => <Suspense fallback={<PageLoader />}><NashobatvDisplay /></Suspense>}</Route>
         <Route path="/daily-report/:code" component={PublicDailyReportRoute} />
         <Route path="/daily-report" component={PublicDailyReportRoute} />
         <Route path="/hub">{() => <Redirect to="/" />}</Route>
