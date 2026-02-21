@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,15 @@ export function AbccGallonsReport() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ completed: number; totalDates: number } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const { data: reportData, isLoading } = useQuery<{
     monthly: { month: string; beverage_type: string; total_units: string; total_sales: string; total_gallons: string; unique_items: string }[];
@@ -125,6 +134,52 @@ export function AbccGallonsReport() {
     URL.revokeObjectURL(url);
   };
 
+  const startBulkSync = async () => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const startDate = `${year}-01-01`;
+    const endDate = year === currentYear ? todayStr : `${year}-12-31`;
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    setIsSyncing(true);
+    setSyncProgress({ completed: 0, totalDates: 0 });
+
+    try {
+      const res = await apiRequest("POST", "/api/revenue-detail/bulk-sync-detail", {
+        startDate,
+        endDate,
+        source: "toast",
+      });
+      const data = await res.json();
+      const jobId = data.jobId;
+      setSyncProgress({ completed: 0, totalDates: data.totalDates });
+      toast({
+        title: "Sync Started",
+        description: `Syncing ${data.totalDates} days of Toast item sales data. This runs in the background and may take a few minutes.`,
+      });
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/revenue-detail/bulk-sync-status?jobId=${encodeURIComponent(jobId)}`);
+          const status = await statusRes.json();
+          setSyncProgress({ completed: status.completed, totalDates: status.totalDates });
+          if (status.done) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setIsSyncing(false);
+            setSyncProgress(null);
+            queryClient.invalidateQueries({ predicate: (query) => (query.queryKey[0] as string)?.toString().startsWith("/api/abcc") });
+            toast({ title: "Sync Complete", description: `${status.completed - status.errors} days synced successfully${status.errors > 0 ? `, ${status.errors} errors` : ""}.` });
+          }
+        } catch (_e) {}
+      }, 5000);
+    } catch (err: any) {
+      setIsSyncing(false);
+      setSyncProgress(null);
+      toast({ title: "Sync Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const classificationRate = stats ? (stats.totalSoldItems > 0 ? Math.round((stats.totalClassified / Math.max(stats.totalSoldItems, 1)) * 100) : 0) : 0;
 
   return (
@@ -159,6 +214,10 @@ export function AbccGallonsReport() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={startBulkSync} disabled={isSyncing} data-testid="btn-resync-data">
+            {isSyncing ? <RefreshCw className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+            {isSyncing ? (syncProgress && syncProgress.totalDates > 0 ? `Syncing (${syncProgress.completed}/${syncProgress.totalDates})` : "Starting...") : `Sync ${year} Data`}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => autoClassifyMutation.mutate()} disabled={autoClassifyMutation.isPending} data-testid="btn-auto-classify">
             {autoClassifyMutation.isPending ? <RefreshCw className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
             Auto-Classify

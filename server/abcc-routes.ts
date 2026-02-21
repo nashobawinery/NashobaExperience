@@ -54,6 +54,28 @@ function classifyMenuGroup(groupName: string): { beverageType: string; defaultSi
   return null;
 }
 
+const ITEM_NAME_RULES: { patterns: string[]; exclude?: string[]; result: { beverageType: string; defaultSizeOz: number; containerType: string } }[] = [
+  { patterns: ["wine tasting", "wine flight", "tasting flight"], result: { beverageType: "wine", defaultSizeOz: 3, containerType: "tasting" } },
+  { patterns: ["pav wine", "pav tasting"], result: { beverageType: "wine", defaultSizeOz: 3, containerType: "tasting" } },
+  { patterns: ["glass of wine", "wine glass", "wine by the glass", "house wine"], result: { beverageType: "wine", defaultSizeOz: 6, containerType: "glass" } },
+  { patterns: ["bottle of wine", "wine bottle"], result: { beverageType: "wine", defaultSizeOz: 25.4, containerType: "bottle" } },
+  { patterns: ["prosecco", "champagne", "sparkling wine", "mimosa", "sangria", "bellini"], result: { beverageType: "wine", defaultSizeOz: 6, containerType: "glass" } },
+  { patterns: ["margarita", "martini", "manhattan", "old fashioned", "negroni", "daiquiri", "mojito", "cosmopolitan"], result: { beverageType: "spirits", defaultSizeOz: 2, containerType: "cocktail" } },
+  { patterns: ["whiskey", "bourbon", "vodka", "gin ", "rum ", "tequila", "mezcal", "brandy", "cognac", "scotch", "liqueur"], result: { beverageType: "spirits", defaultSizeOz: 1.5, containerType: "shot" } },
+  { patterns: ["draft beer", "craft beer", "beer flight", "pint of"], result: { beverageType: "beer", defaultSizeOz: 16, containerType: "pint" } },
+  { patterns: ["hard cider", "cider flight"], result: { beverageType: "cider", defaultSizeOz: 16, containerType: "pint" } },
+];
+
+function classifyByItemName(itemName: string): { beverageType: string; defaultSizeOz: number; containerType: string } | null {
+  const lower = itemName.toLowerCase().trim();
+  for (const rule of ITEM_NAME_RULES) {
+    const hasPattern = rule.patterns.some(p => lower.includes(p));
+    const hasExclude = rule.exclude?.some(ex => lower.includes(ex));
+    if (hasPattern && !hasExclude) return rule.result;
+  }
+  return null;
+}
+
 router.post("/auto-classify", async (req, res) => {
   try {
     const itemsResult = await db.execute(sql`
@@ -88,7 +110,39 @@ router.post("/auto-classify", async (req, res) => {
       }
     }
 
-    res.json({ classified, skipped, total: itemsResult.rows.length });
+    const salesItemsResult = await db.execute(sql`
+      SELECT DISTINCT s.item_name, s.item_guid, s.sales_category_name
+      FROM rcc_daily_item_sales s
+      WHERE s.source = 'toast'
+        AND NOT EXISTS (
+          SELECT 1 FROM abcc_product_classification c 
+          WHERE (c.item_guid IS NOT NULL AND c.item_guid = s.item_guid) 
+             OR (c.item_name = s.item_name)
+        )
+    `);
+
+    let salesClassified = 0;
+    for (const item of salesItemsResult.rows as any[]) {
+      const key = item.item_guid || item.item_name;
+      if (existingSet.has(key)) continue;
+
+      const nameMatch = classifyByItemName(item.item_name || "");
+      const catMatch = classifyMenuGroup(item.sales_category_name || "");
+      const match = nameMatch || catMatch;
+
+      if (match) {
+        await db.execute(sql`
+          INSERT INTO abcc_product_classification 
+          (item_guid, item_name, menu_group_name, beverage_type, serving_size_oz, container_type, auto_classified)
+          VALUES (${item.item_guid || null}, ${item.item_name}, ${item.sales_category_name || null}, ${match.beverageType}, ${match.defaultSizeOz.toString()}, ${match.containerType}, true)
+        `);
+        salesClassified++;
+        classified++;
+        existingSet.add(key);
+      }
+    }
+
+    res.json({ classified, skipped, salesItemsScanned: salesItemsResult.rows.length, salesClassified, total: itemsResult.rows.length });
   } catch (err: any) {
     console.error("[ABCC] Auto-classify error:", err.message);
     res.status(500).json({ error: err.message });

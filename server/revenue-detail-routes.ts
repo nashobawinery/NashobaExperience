@@ -171,6 +171,78 @@ router.post("/sync-detail", async (req, res) => {
   }
 });
 
+const bulkSyncJobs = new Map<string, { totalDates: number; completed: number; errors: number; done: boolean; startDate: string; endDate: string }>();
+
+router.post("/bulk-sync-detail", async (req, res) => {
+  try {
+    const { startDate, endDate, source } = req.body;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "startDate and endDate required" });
+    }
+
+    const start = new Date(startDate + "T00:00:00");
+    const end = new Date(endDate + "T00:00:00");
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+    }
+
+    const dates: string[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    }
+
+    const jobId = `${startDate}_${endDate}_${source || "all"}`;
+    const job = { totalDates: dates.length, completed: 0, errors: 0, done: false, startDate, endDate };
+    bulkSyncJobs.set(jobId, job);
+
+    res.json({ status: "started", totalDates: dates.length, startDate, endDate, jobId });
+
+    (async () => {
+      for (const dateStr of dates) {
+        try {
+          if (!source || source === "toast") {
+            await syncToastRevenueDetailToDb(dateStr);
+          }
+          if (!source || source === "shopify") {
+            try { await syncShopifyRevenueDetailToDb(dateStr); } catch (_e) {}
+          }
+          job.completed++;
+          console.log(`[Bulk Detail Sync] ${dateStr} synced (${job.completed}/${dates.length})`);
+        } catch (err: any) {
+          job.errors++;
+          job.completed++;
+          console.error(`[Bulk Detail Sync] ${dateStr} error: ${err.message}`);
+        }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      job.done = true;
+      console.log(`[Bulk Detail Sync] Complete: ${job.completed - job.errors} synced, ${job.errors} errors out of ${dates.length} dates`);
+      setTimeout(() => bulkSyncJobs.delete(jobId), 300000);
+    })();
+  } catch (err: any) {
+    console.error("[Revenue Detail] bulk-sync-detail error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/bulk-sync-status", async (req, res) => {
+  try {
+    const { jobId } = req.query;
+    if (jobId && bulkSyncJobs.has(jobId as string)) {
+      const job = bulkSyncJobs.get(jobId as string)!;
+      return res.json({
+        completed: job.completed,
+        totalDates: job.totalDates,
+        errors: job.errors,
+        done: job.done,
+      });
+    }
+    res.json({ completed: 0, totalDates: 0, errors: 0, done: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/config", async (req, res) => {
   try {
     const [centers, categories] = await Promise.all([
