@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import OpenAI from "openai";
 import {
   ccContentAssets, insertCcContentAssetSchema,
   ccContentCalendar, insertCcContentCalendarSchema,
@@ -14,10 +15,14 @@ const router = Router();
 
 function getOpenAI() {
   try {
-    if (!process.env.OPENAI_API_KEY) return null;
-    const OpenAI = require("openai").default;
-    return new OpenAI();
-  } catch {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      console.log('[Growth Studio] OPENAI_API_KEY not found in env');
+      return null;
+    }
+    return new OpenAI({ apiKey });
+  } catch (err: any) {
+    console.error('[Growth Studio] Failed to create OpenAI client:', err.message);
     return null;
   }
 }

@@ -1307,6 +1307,18 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
   };
   const grandTotal = weeklyTotals.toast + weeklyTotals.shopify + weeklyTotals.wholesale + weeklyTotals.other;
 
+  const weeklyDiscountVoidSummary = {
+    grossSales: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastGrossSales || '0'), 0) || 0,
+    discounts: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastDiscountAmount || '0'), 0) || 0,
+    voids: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastVoidAmount || '0'), 0) || 0,
+    voidCount: dailyRevenue?.reduce((sum, d) => sum + (d.toastVoidCount || 0), 0) || 0,
+    serviceCharges: dailyRevenue?.reduce((sum, d) => sum + parseFloat(d.toastServiceCharges || '0'), 0) || 0,
+    flaggedDays: dailyRevenue?.filter(d => parseFloat(d.toastDiscountPct || '0') > 10 || parseFloat(d.toastVoidAmount || '0') > 50).length || 0,
+  };
+  const weeklyDiscountPct = weeklyDiscountVoidSummary.grossSales > 0 
+    ? (weeklyDiscountVoidSummary.discounts / weeklyDiscountVoidSummary.grossSales) * 100 
+    : 0;
+
   const priorYearMap = new Map<string, { toast: number; shopify: number; wholesale: number; other: number; total: number }>();
   historicalData?.priorYearData?.forEach(d => {
     const toast = parseFloat(d.netRevenue || '0');
@@ -1378,6 +1390,39 @@ export function RevenuePanel({ weekId, week, revenue }: { weekId: number; week: 
           )}
         </div>
       </div>
+
+      {(weeklyDiscountVoidSummary.discounts > 0 || weeklyDiscountVoidSummary.voids > 0) && (
+        <div className="flex items-center gap-4 flex-wrap text-sm" data-testid="weekly-discount-void-summary">
+          {weeklyDiscountVoidSummary.discounts > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Wk Discounts:</span>
+              <span className={weeklyDiscountPct > 10 ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
+                ${weeklyDiscountVoidSummary.discounts.toLocaleString()} ({weeklyDiscountPct.toFixed(1)}%)
+              </span>
+            </div>
+          )}
+          {weeklyDiscountVoidSummary.voids > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Wk Voids:</span>
+              <span className={weeklyDiscountVoidSummary.voids > 200 ? 'text-orange-600 dark:text-orange-400 font-medium' : ''}>
+                ${weeklyDiscountVoidSummary.voids.toLocaleString()} ({weeklyDiscountVoidSummary.voidCount})
+              </span>
+            </div>
+          )}
+          {weeklyDiscountVoidSummary.serviceCharges > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Svc Charges:</span>
+              <span>${weeklyDiscountVoidSummary.serviceCharges.toLocaleString()}</span>
+            </div>
+          )}
+          {weeklyDiscountVoidSummary.flaggedDays > 0 && (
+            <Badge variant="destructive" className="text-[10px]" data-testid="flagged-days-count">
+              <AlertCircle className="h-3 w-3 mr-0.5" />
+              {weeklyDiscountVoidSummary.flaggedDays} day{weeklyDiscountVoidSummary.flaggedDays > 1 ? 's' : ''} flagged
+            </Badge>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-4">
         {weekDays.map((day) => {
@@ -1574,6 +1619,30 @@ function DailyRevenueRow({
                   <p className="text-xs text-muted-foreground">Toast</p>
                   <p className="font-medium">${parseFloat(toastRev || '0').toLocaleString()}</p>
                 </div>
+                {(() => {
+                  const discPct = parseFloat(entry?.toastDiscountPct || '0');
+                  const voidAmt = parseFloat(entry?.toastVoidAmount || '0');
+                  const voidCount = entry?.toastVoidCount || 0;
+                  const hasDiscountFlag = discPct > 10;
+                  const hasVoidFlag = voidAmt > 50;
+                  if (!hasDiscountFlag && !hasVoidFlag) return null;
+                  return (
+                    <div className="flex flex-col gap-0.5" data-testid={`flags-${day.date}`}>
+                      {hasDiscountFlag && (
+                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0" data-testid={`flag-discount-${day.date}`}>
+                          <AlertCircle className="h-3 w-3 mr-0.5" />
+                          {discPct.toFixed(1)}% disc
+                        </Badge>
+                      )}
+                      {hasVoidFlag && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-orange-400 text-orange-600 dark:text-orange-400" data-testid={`flag-void-${day.date}`}>
+                          <AlertCircle className="h-3 w-3 mr-0.5" />
+                          ${voidAmt.toLocaleString()} void ({voidCount})
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">Total</p>
                   <p className="font-bold text-green-600">${dayTotal.toLocaleString()}</p>
@@ -1627,6 +1696,30 @@ function DailyRevenueRow({
                   <div className="pt-1">
                     <p className="text-xs text-muted-foreground">PY Toast{priorYearDate ? ` (${priorYearDate})` : ''}</p>
                     <p className="text-xs font-medium">${priorYearRevenue.toast.toLocaleString()}</p>
+                  </div>
+                )}
+                {(parseFloat(entry?.toastDiscountPct || '0') > 0 || (entry?.toastVoidCount || 0) > 0) && (
+                  <div className="pt-1 space-y-0.5" data-testid={`detail-flags-${day.date}`}>
+                    {parseFloat(entry?.toastGrossSales || '0') > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Gross: ${parseFloat(entry?.toastGrossSales || '0').toLocaleString()}
+                      </p>
+                    )}
+                    {parseFloat(entry?.toastDiscountAmount || '0') > 0 && (
+                      <p className={`text-xs ${parseFloat(entry?.toastDiscountPct || '0') > 10 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                        Discounts: ${parseFloat(entry?.toastDiscountAmount || '0').toLocaleString()} ({parseFloat(entry?.toastDiscountPct || '0').toFixed(1)}%)
+                      </p>
+                    )}
+                    {parseFloat(entry?.toastServiceCharges || '0') > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Svc Charges: ${parseFloat(entry?.toastServiceCharges || '0').toLocaleString()}
+                      </p>
+                    )}
+                    {(entry?.toastVoidCount || 0) > 0 && (
+                      <p className={`text-xs ${parseFloat(entry?.toastVoidAmount || '0') > 50 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-muted-foreground'}`}>
+                        Voids: ${parseFloat(entry?.toastVoidAmount || '0').toLocaleString()} ({entry?.toastVoidCount} items)
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
