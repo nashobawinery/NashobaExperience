@@ -130,7 +130,10 @@ Stored in `cellartraks_state_tax_classes` table (database-driven, editable rates
 
 | Document | Description | Storage Location | Date Added |
 |---|---|---|---|
+| TTB F 5120.17 | Report of Wine Premises Operations (form + color-coded sample with instructions) | `reference/ttb-f5120-17-wine-premises.md` | Feb 2026 |
+| TTB F 5110.40 | Monthly Report of Production Operations — Distillery (includes 5110.11 Storage and 5110.28 Processing) | `reference/ttb-f5110-40-distillery-production.md` | Feb 2026 |
 | TTB F 5130.9 | Brewer's Report of Operations (form + instructions) | `reference/ttb-f5130-9-brewers-report.md` | Feb 2026 |
+| MA Form AB-1 | Alcoholic Beverages Excise Return (all schedules A through I, plus Schedule F deductions) | `reference/ma-form-ab1-excise-return.md` | Feb 2026 |
 
 For detailed form field breakdowns, see the individual reference files linked above.
 
