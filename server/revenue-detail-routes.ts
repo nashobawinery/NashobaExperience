@@ -117,6 +117,58 @@ router.get("/daily-breakdown", async (req, res) => {
   }
 });
 
+router.get("/wholesale-breakdown", async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: "date required" });
+    }
+
+    const result = await db.execute(sql`
+      SELECT o.id, o.order_number, o.status, o.total, o.subtotal,
+             c.company_name as customer_name,
+             COALESCE(json_agg(
+               json_build_object(
+                 'name', oi.product_name,
+                 'quantity', oi.quantity,
+                 'price', oi.unit_price,
+                 'total', oi.line_total
+               )
+             ) FILTER (WHERE oi.id IS NOT NULL), '[]') as items,
+             COUNT(oi.id)::int as item_count
+      FROM b2b_orders o
+      LEFT JOIN b2b_customers c ON o.customer_id = c.id
+      LEFT JOIN b2b_order_items oi ON oi.order_id = o.id
+      WHERE (o.scheduled_delivery_date::date = ${date as string}::date
+             OR o.delivered_at::date = ${date as string}::date
+             OR o.order_date::date = ${date as string}::date)
+        AND o.status NOT IN ('cancelled', 'rejected')
+      GROUP BY o.id, o.order_number, o.status, o.total, o.subtotal, c.company_name
+      ORDER BY o.total::numeric DESC
+    `);
+
+    const orders = (result.rows as any[]).map(row => ({
+      orderNumber: row.order_number,
+      customerName: row.customer_name || "Unknown",
+      status: row.status,
+      totalAmount: row.total || "0",
+      itemCount: row.item_count || 0,
+      items: typeof row.items === 'string' ? JSON.parse(row.items) : (row.items || []),
+    }));
+
+    const totalAmount = orders.reduce((sum, o) => sum + parseFloat(o.totalAmount || "0"), 0);
+
+    res.json({
+      orders,
+      totalAmount,
+      orderCount: orders.length,
+    });
+  } catch (err: any) {
+    console.error("[Revenue Detail] wholesale-breakdown error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/sync-detail", async (req, res) => {
   try {
     const { date, source } = req.body;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +19,8 @@ import {
   Package,
 } from "lucide-react";
 
+type SourceFilter = "all" | "toast" | "shopify" | "wholesale";
+
 interface RevenueDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +28,8 @@ interface RevenueDetailDialogProps {
   displayDate: string;
   toastRevenue?: string | null;
   shopifyRevenue?: string | null;
+  wholesaleRevenue?: string | null;
+  sourceFilter?: SourceFilter;
 }
 
 interface CenterRow {
@@ -73,6 +77,22 @@ function SourceBadge({ source }: { source: string }) {
   return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{source}</Badge>;
 }
 
+const SOURCE_LABELS: Record<SourceFilter, string> = {
+  all: "Revenue Detail",
+  toast: "Toast POS Detail",
+  shopify: "Shopify Detail",
+  wholesale: "Wholesale (B2B) Detail",
+};
+
+interface WholesaleOrderRow {
+  orderNumber: string;
+  customerName: string;
+  status: string;
+  totalAmount: string;
+  itemCount: number;
+  items: Array<{ name: string; quantity: number; price: string; total: string }>;
+}
+
 export function RevenueDetailDialog({
   open,
   onOpenChange,
@@ -80,9 +100,22 @@ export function RevenueDetailDialog({
   displayDate,
   toastRevenue,
   shopifyRevenue,
+  wholesaleRevenue,
+  sourceFilter = "all",
 }: RevenueDetailDialogProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
+  const defaultTab = sourceFilter === "shopify" ? "categories" : "overview";
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab(sourceFilter === "shopify" ? "categories" : "overview");
+    }
+  }, [sourceFilter, open]);
+
+  const showToast = sourceFilter === "all" || sourceFilter === "toast";
+  const showShopify = sourceFilter === "all" || sourceFilter === "shopify";
+  const showWholesale = sourceFilter === "wholesale";
 
   const { data: breakdown, isLoading, refetch } = useQuery<{
     revenueCenters: CenterRow[];
@@ -90,7 +123,16 @@ export function RevenueDetailDialog({
     topItems: ItemRow[];
   }>({
     queryKey: ["/api/revenue-detail/daily-breakdown", { date }],
-    enabled: open,
+    enabled: open && (showToast || showShopify),
+  });
+
+  const { data: wholesaleBreakdown, isLoading: isLoadingWholesale } = useQuery<{
+    orders: WholesaleOrderRow[];
+    totalAmount: number;
+    orderCount: number;
+  }>({
+    queryKey: ["/api/revenue-detail/wholesale-breakdown", { date }],
+    enabled: open && showWholesale,
   });
 
   const syncMutation = useMutation({
@@ -110,6 +152,7 @@ export function RevenueDetailDialog({
 
   const totalToast = parseFloat(toastRevenue || "0");
   const totalShopify = parseFloat(shopifyRevenue || "0");
+  const totalWholesale = parseFloat(wholesaleRevenue || "0");
   const grandTotal = totalToast + totalShopify;
 
   const hasData = breakdown && (
@@ -131,43 +174,120 @@ export function RevenueDetailDialog({
           <DialogTitle className="flex items-center justify-between gap-2 flex-wrap" data-testid="dialog-title-revenue-detail">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-muted-foreground" />
-              <span>Revenue Detail — {displayDate}</span>
+              <span>{SOURCE_LABELS[sourceFilter]} — {displayDate}</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              data-testid="btn-sync-revenue-detail"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-              {syncMutation.isPending ? "Syncing..." : "Sync Detail"}
-            </Button>
+            {(showToast || showShopify) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                data-testid="btn-sync-revenue-detail"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                {syncMutation.isPending ? "Syncing..." : "Sync Detail"}
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Toast POS</p>
-              <p className="text-lg font-bold" data-testid="text-toast-total">{formatCurrency(totalToast)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Shopify</p>
-              <p className="text-lg font-bold" data-testid="text-shopify-total">{formatCurrency(totalShopify)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Combined</p>
-              <p className="text-lg font-bold text-green-600 dark:text-green-400" data-testid="text-combined-total">{formatCurrency(grandTotal)}</p>
-            </CardContent>
-          </Card>
-        </div>
+        {sourceFilter === "all" ? (
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <Card>
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-muted-foreground">Toast POS</p>
+                <p className="text-lg font-bold" data-testid="text-toast-total">{formatCurrency(totalToast)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-muted-foreground">Shopify</p>
+                <p className="text-lg font-bold" data-testid="text-shopify-total">{formatCurrency(totalShopify)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-muted-foreground">Combined</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400" data-testid="text-combined-total">{formatCurrency(grandTotal)}</p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <Card>
+              <CardContent className="p-3 text-center">
+                <p className="text-xs text-muted-foreground">{SOURCE_LABELS[sourceFilter].replace(" Detail", "")}</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-source-total">
+                  {formatCurrency(sourceFilter === "toast" ? totalToast : sourceFilter === "shopify" ? totalShopify : totalWholesale)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {isLoading ? (
+        {showWholesale && (
+          isLoadingWholesale ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : wholesaleBreakdown && wholesaleBreakdown.orders.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">{wholesaleBreakdown.orderCount} order{wholesaleBreakdown.orderCount !== 1 ? "s" : ""}</span>
+                <span className="font-bold">{formatCurrency(wholesaleBreakdown.totalAmount)}</span>
+              </div>
+              {wholesaleBreakdown.orders.map((order, i) => (
+                <Card key={i}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <p className="font-medium text-sm" data-testid={`text-wholesale-order-${i}`}>Order #{order.orderNumber}</p>
+                        <p className="text-xs text-muted-foreground">{order.customerName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-sm">{formatCurrency(order.totalAmount)}</p>
+                        <Badge variant="outline" className="text-[10px]" data-testid={`badge-wholesale-status-${i}`}>{order.status}</Badge>
+                      </div>
+                    </div>
+                    {order.items.length > 0 && (
+                      <div className="border-t pt-2">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-left text-muted-foreground">
+                              <th className="pb-1 font-medium">Item</th>
+                              <th className="pb-1 font-medium text-right">Qty</th>
+                              <th className="pb-1 font-medium text-right">Price</th>
+                              <th className="pb-1 font-medium text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {order.items.map((item, j) => (
+                              <tr key={j} className="border-b border-muted/30 last:border-0">
+                                <td className="py-1 truncate max-w-[200px]">{item.name}</td>
+                                <td className="py-1 text-right">{item.quantity}</td>
+                                <td className="py-1 text-right">{formatCurrency(item.price)}</td>
+                                <td className="py-1 text-right font-medium">{formatCurrency(item.total)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No wholesale orders for this date</p>
+              <p className="text-sm mt-1">B2B orders that were delivered on this date will appear here.</p>
+            </div>
+          )
+        )}
+
+        {(showToast || showShopify) && !showWholesale && (isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-24 w-full" />
@@ -182,12 +302,18 @@ export function RevenueDetailDialog({
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full" data-testid="tabs-revenue-detail">
-              <TabsTrigger value="overview" className="flex-1" data-testid="tab-overview">
-                <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Overview
-              </TabsTrigger>
-              <TabsTrigger value="centers" className="flex-1" data-testid="tab-centers">
-                <Store className="h-3.5 w-3.5 mr-1.5" />Centers
-              </TabsTrigger>
+              {sourceFilter !== "shopify" && (
+                <>
+                  <TabsTrigger value="overview" className="flex-1" data-testid="tab-overview">
+                    <TrendingUp className="h-3.5 w-3.5 mr-1.5" />Overview
+                  </TabsTrigger>
+                  {showToast && (
+                    <TabsTrigger value="centers" className="flex-1" data-testid="tab-centers">
+                      <Store className="h-3.5 w-3.5 mr-1.5" />Centers
+                    </TabsTrigger>
+                  )}
+                </>
+              )}
               <TabsTrigger value="categories" className="flex-1" data-testid="tab-categories">
                 <Tag className="h-3.5 w-3.5 mr-1.5" />Categories
               </TabsTrigger>
@@ -197,7 +323,7 @@ export function RevenueDetailDialog({
             </TabsList>
 
             <TabsContent value="overview" className="mt-4 space-y-4">
-              {toastCenters.length > 0 && (
+              {showToast && toastCenters.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                     <Store className="h-4 w-4 text-muted-foreground" />
@@ -217,21 +343,21 @@ export function RevenueDetailDialog({
                 </div>
               )}
 
-              {(toastCategories.length > 0 || shopifyCategories.length > 0) && (
+              {((showToast && toastCategories.length > 0) || (showShopify && shopifyCategories.length > 0)) && (
                 <div>
                   <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                     <Tag className="h-4 w-4 text-muted-foreground" />
                     Top Categories
                   </h4>
                   <div className="space-y-1.5">
-                    {[...toastCategories, ...shopifyCategories]
+                    {[...(showToast ? toastCategories : []), ...(showShopify ? shopifyCategories : [])]
                       .sort((a, b) => parseFloat(b.net_sales) - parseFloat(a.net_sales))
                       .slice(0, 8)
                       .map((cat, i) => (
                         <div key={i} className="flex items-center justify-between gap-2 text-sm">
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="truncate">{cat.name}</span>
-                            <SourceBadge source={cat.source} />
+                            {sourceFilter === "all" && <SourceBadge source={cat.source} />}
                           </div>
                           <span className="font-medium shrink-0">{formatCurrency(cat.net_sales)}</span>
                         </div>
@@ -283,7 +409,7 @@ export function RevenueDetailDialog({
             </TabsContent>
 
             <TabsContent value="categories" className="mt-4 space-y-4">
-              {toastCategories.length > 0 && (
+              {showToast && toastCategories.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Toast Sales Categories</h4>
                   <div className="space-y-1.5">
@@ -310,7 +436,7 @@ export function RevenueDetailDialog({
                 </div>
               )}
 
-              {shopifyCategories.length > 0 && (
+              {showShopify && shopifyCategories.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Shopify Product Types</h4>
                   <div className="space-y-1.5">
@@ -341,7 +467,7 @@ export function RevenueDetailDialog({
             </TabsContent>
 
             <TabsContent value="items" className="mt-4 space-y-4">
-              {toastItems.length > 0 && (
+              {showToast && toastItems.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Toast Items</h4>
                   <div className="overflow-x-auto">
@@ -372,7 +498,7 @@ export function RevenueDetailDialog({
                 </div>
               )}
 
-              {shopifyItems.length > 0 && (
+              {showShopify && shopifyItems.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Shopify Items</h4>
                   <div className="overflow-x-auto">
@@ -408,7 +534,7 @@ export function RevenueDetailDialog({
               )}
             </TabsContent>
           </Tabs>
-        )}
+        ))}
       </DialogContent>
     </Dialog>
   );

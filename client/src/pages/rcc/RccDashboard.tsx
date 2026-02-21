@@ -1541,6 +1541,7 @@ function DailyRevenueRow({
   const [notes, setNotes] = useState(entry?.notes || "");
   const [expanded, setExpanded] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailSourceFilter, setDetailSourceFilter] = useState<"all" | "toast" | "shopify" | "wholesale">("all");
   const hd = new Holidays('US');
   const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
   const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
@@ -1612,8 +1613,8 @@ function DailyRevenueRow({
               <>
                 <div
                   className="text-right cursor-pointer hover-elevate rounded-md px-2 py-1"
-                  onClick={() => setDetailDialogOpen(true)}
-                  title="Click for revenue breakdown"
+                  onClick={() => { setDetailSourceFilter("toast"); setDetailDialogOpen(true); }}
+                  title="Click for Toast POS breakdown"
                   data-testid={`btn-detail-toast-${day.date}`}
                 >
                   <p className="text-xs text-muted-foreground">Toast</p>
@@ -1643,7 +1644,12 @@ function DailyRevenueRow({
                     </div>
                   );
                 })()}
-                <div className="text-right">
+                <div
+                  className="text-right cursor-pointer hover-elevate rounded-md px-2 py-1"
+                  onClick={() => { setDetailSourceFilter("all"); setDetailDialogOpen(true); }}
+                  title="Click for combined revenue breakdown"
+                  data-testid={`btn-detail-total-${day.date}`}
+                >
                   <p className="text-xs text-muted-foreground">Total</p>
                   <p className="font-bold text-green-600">${dayTotal.toLocaleString()}</p>
                 </div>
@@ -1675,8 +1681,8 @@ function DailyRevenueRow({
                 <div className="flex gap-1">
                   <div
                     className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-pointer hover-elevate items-center"
-                    onClick={() => setDetailDialogOpen(true)}
-                    title="Click for revenue breakdown"
+                    onClick={() => { setDetailSourceFilter("toast"); setDetailDialogOpen(true); }}
+                    title="Click for Toast POS breakdown"
                     data-testid={`input-toast-${day.date}`}
                   >
                     {toastRev ? parseFloat(toastRev).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "Auto-synced"}
@@ -1728,8 +1734,8 @@ function DailyRevenueRow({
                 <div className="flex gap-1">
                   <div
                     className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-pointer hover-elevate items-center"
-                    onClick={() => setDetailDialogOpen(true)}
-                    title="Click for revenue breakdown"
+                    onClick={() => { setDetailSourceFilter("shopify"); setDetailDialogOpen(true); }}
+                    title="Click for Shopify breakdown"
                     data-testid={`input-shopify-${day.date}`}
                   >
                     {shopifyRev ? parseFloat(shopifyRev).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "Auto-synced"}
@@ -1758,14 +1764,14 @@ function DailyRevenueRow({
                   <Badge variant="secondary" className="text-[10px] px-1 py-0">Auto</Badge>
                 </Label>
                 <div className="flex gap-1">
-                  <Input 
-                    type="number"
-                    placeholder="Auto-synced from B2B orders"
-                    value={wholesaleRev}
-                    disabled
-                    className="bg-muted"
+                  <div
+                    className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm cursor-pointer hover-elevate items-center"
+                    onClick={() => { setDetailSourceFilter("wholesale"); setDetailDialogOpen(true); }}
+                    title="Click for wholesale order breakdown"
                     data-testid={`input-wholesale-${day.date}`}
-                  />
+                  >
+                    {wholesaleRev ? parseFloat(wholesaleRev).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "Auto-synced"}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1862,6 +1868,8 @@ function DailyRevenueRow({
         displayDate={day.displayDate}
         toastRevenue={toastRev}
         shopifyRevenue={shopifyRev}
+        wholesaleRevenue={wholesaleRev}
+        sourceFilter={detailSourceFilter}
       />
     </Card>
   );
