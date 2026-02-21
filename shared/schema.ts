@@ -4806,6 +4806,30 @@ export const insertRccDailyItemSalesSchema = createInsertSchema(rccDailyItemSale
 export type InsertRccDailyItemSales = z.infer<typeof insertRccDailyItemSalesSchema>;
 export type RccDailyItemSales = typeof rccDailyItemSales.$inferSelect;
 
+// ABCC Product Classification - maps Toast items to beverage types for MA ABCC gallons reporting
+export const abccProductClassification = pgTable("abcc_product_classification", {
+  id: serial("id").primaryKey(),
+  itemGuid: varchar("item_guid", { length: 64 }),
+  itemName: varchar("item_name", { length: 500 }).notNull(),
+  menuGroupGuid: varchar("menu_group_guid", { length: 64 }),
+  menuGroupName: varchar("menu_group_name", { length: 255 }),
+  beverageType: varchar("beverage_type", { length: 50 }).notNull(),
+  servingSizeOz: numeric("serving_size_oz", { precision: 8, scale: 2 }).notNull().default("0"),
+  containerType: varchar("container_type", { length: 50 }),
+  isActive: boolean("is_active").notNull().default(true),
+  autoClassified: boolean("auto_classified").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_abcc_item_guid").on(table.itemGuid),
+  index("idx_abcc_item_name").on(table.itemName),
+  index("idx_abcc_beverage_type").on(table.beverageType),
+]);
+
+export const insertAbccProductClassificationSchema = createInsertSchema(abccProductClassification).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAbccProductClassification = z.infer<typeof insertAbccProductClassificationSchema>;
+export type AbccProductClassification = typeof abccProductClassification.$inferSelect;
+
 // Shopify Product Cache - stores product metadata for enrichment
 export const shopifyProductCache = pgTable("shopify_product_cache", {
   id: serial("id").primaryKey(),

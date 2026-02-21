@@ -25,6 +25,7 @@ import { ContentCalendar } from "./ContentCalendar";
 import { CampaignBuilder } from "./CampaignBuilder";
 import { MarketingScorecard } from "./MarketingScorecard";
 import { QuickPromotions } from "./QuickPromotions";
+import { AbccGallonsReport, AbccClassifications } from "./AbccReport";
 
 import {
   WeekSelector,
@@ -156,6 +157,16 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "campaign-builder", label: "Campaign Builder", icon: Rocket },
       { id: "scorecard", label: "Marketing Scorecard", icon: Gauge },
       { id: "quick-promos", label: "Quick Promotions", icon: Sparkles },
+    ],
+  },
+  {
+    id: "compliance",
+    label: "Compliance",
+    icon: FileText,
+    defaultOpen: false,
+    items: [
+      { id: "abcc-report", label: "ABCC Gallons Report", icon: BarChart3 },
+      { id: "abcc-classifications", label: "Product Classifications", icon: Store },
     ],
   },
   {
@@ -502,6 +513,12 @@ export default function CommandCenter() {
 
       case "quick-promos":
         return <QuickPromotions />;
+
+      case "abcc-report":
+        return <AbccGallonsReport />;
+
+      case "abcc-classifications":
+        return <AbccClassifications />;
 
       case "toast-menus":
         return <ToastMenuBrowser />;

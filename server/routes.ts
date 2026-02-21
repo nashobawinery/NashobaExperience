@@ -34,6 +34,7 @@ import contractRouter from "./contract-routes";
 import enhancementRouter from "./enhancement-routes";
 import growthStudioRouter from "./growth-studio-routes";
 import revenueDetailRouter from "./revenue-detail-routes";
+import abccRouter from "./abcc-routes";
 import { fetchDailyRevenue } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
@@ -137,6 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/unsubscribe", unsubscribeRouter);
   app.use("/api/contracts", contractRouter);
   app.use("/api/revenue-detail", revenueDetailRouter);
+  app.use("/api/abcc", abccRouter);
   app.use(enhancementRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
