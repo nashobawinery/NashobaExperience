@@ -32,6 +32,7 @@ import smsCampaignRouter from "./sms-campaign-routes";
 import unsubscribeRouter from "./unsubscribe-routes";
 import contractRouter from "./contract-routes";
 import enhancementRouter from "./enhancement-routes";
+import cellartraksRouter from "./cellartraks-routes";
 import growthStudioRouter from "./growth-studio-routes";
 import revenueDetailRouter from "./revenue-detail-routes";
 import abccRouter from "./abcc-routes";
@@ -140,6 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/revenue-detail", revenueDetailRouter);
   app.use("/api/abcc", abccRouter);
   app.use(enhancementRouter);
+  app.use(cellartraksRouter);
 
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();

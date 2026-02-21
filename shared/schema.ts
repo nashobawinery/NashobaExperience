@@ -5601,3 +5601,101 @@ export const enhancementRequests = pgTable("enhancement_requests", {
 export const insertEnhancementRequestSchema = createInsertSchema(enhancementRequests).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export type InsertEnhancementRequest = z.infer<typeof insertEnhancementRequestSchema>;
 export type EnhancementRequest = typeof enhancementRequests.$inferSelect;
+
+// ===== CellarTraks: Federal & State Alcohol Classification Enums =====
+
+// TTB Wine Classifications (Form 5120.17) - reported in wine gallons
+export const ttbWineClassEnum = pgEnum("ttb_wine_class", [
+  "still_wine_14_or_less",         // Still Wine - not over 14% alcohol
+  "still_wine_14_to_16",           // Still Wine - over 14% to 16%
+  "still_wine_16_to_21",           // Still Wine - over 16% to 21%
+  "hard_cider",                    // Hard Cider (0.5% to <8.5% ABV, apple/pear derived)
+  "artificially_carbonated",       // Artificially Carbonated Wine
+  "sparkling_bottle_fermented",    // Sparkling Wine - Bottle Fermented
+  "sparkling_bulk_process",        // Sparkling Wine - Bulk Process
+]);
+
+// TTB Spirits Classifications (Form 5110.40) - reported in proof gallons
+export const ttbSpiritsClassEnum = pgEnum("ttb_spirits_class", [
+  "whisky_bourbon",
+  "whisky_rye",
+  "whisky_corn",
+  "whisky_malt",
+  "whisky_wheat",
+  "whisky_american_single_malt",
+  "whisky_blended",
+  "whisky_other",
+  "brandy_grape",
+  "brandy_fruit",
+  "brandy_pomace",
+  "brandy_applejack",
+  "brandy_other",
+  "rum",
+  "gin",
+  "gin_distilled",
+  "vodka",
+  "neutral_spirits",
+  "cordials_liqueurs",
+  "tequila",
+  "mezcal",
+  "flavored_spirits",
+  "other_spirits",
+]);
+
+// TTB Beer/Malt Beverage Classifications (Form 5130.9) - reported in barrels (31 gallons)
+export const ttbBeerClassEnum = pgEnum("ttb_beer_class", [
+  "beer",
+  "lager",
+  "ale",
+  "porter",
+  "stout",
+  "malt_liquor",
+  "malt_beverage",
+  "flavored_malt_beverage",
+  "hard_seltzer",
+]);
+
+// Massachusetts AB-1 State Tax Classifications
+export const maAb1ClassEnum = pgEnum("ma_ab1_class", [
+  "malt_beverages",                // Beer/Malt - $3.30/barrel
+  "hard_cider",                    // Hard Cider 3-6% ABV - $0.03/gal
+  "still_wine",                    // Still Wine (incl. vermouth) - $0.55/gal
+  "sparkling_wine",                // Sparkling Wine/Champagne - $0.70/gal
+  "alcoholic_beverages_15_or_less",// Alcoholic Beverages ≤15% ABV - $1.10/gal
+  "distilled_spirits_15_to_50",    // Distilled Spirits 15-50% ABV - $4.05/gal
+  "distilled_spirits_over_50",     // Distilled Spirits >50% ABV - $4.05/proof gal
+]);
+
+// Federal reporting unit of measure
+export const ttbReportingUomEnum = pgEnum("ttb_reporting_uom", [
+  "wine_gallons",
+  "proof_gallons",
+  "barrels",
+]);
+
+// CellarTraks Product Classifications table - maps products to regulatory classifications
+export const cellartraksProductClassifications = pgTable("cellartraks_product_classifications", {
+  id: serial("id").primaryKey(),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
+  division: varchar("division", { length: 20 }).notNull(), // 'winery', 'distillery', 'brewery'
+  ttbWineClass: ttbWineClassEnum("ttb_wine_class"),
+  ttbSpiritsClass: ttbSpiritsClassEnum("ttb_spirits_class"),
+  ttbBeerClass: ttbBeerClassEnum("ttb_beer_class"),
+  maAb1Class: maAb1ClassEnum("ma_ab1_class"),
+  reportingUom: ttbReportingUomEnum("reporting_uom"),
+  abvPercent: numeric("abv_percent", { precision: 5, scale: 2 }),
+  proofGallonFactor: numeric("proof_gallon_factor", { precision: 6, scale: 4 }),
+  bottleSizeMl: numeric("bottle_size_ml", { precision: 8, scale: 2 }),
+  isClassified: boolean("is_classified").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_ct_prod_class_product").on(table.productId),
+  index("idx_ct_prod_class_division").on(table.division),
+  index("idx_ct_prod_class_ma_ab1").on(table.maAb1Class),
+]);
+
+export const insertCellartraksProductClassificationSchema = createInsertSchema(cellartraksProductClassifications).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCellartraksProductClassification = z.infer<typeof insertCellartraksProductClassificationSchema>;
+export type CellartraksProductClassification = typeof cellartraksProductClassifications.$inferSelect;
