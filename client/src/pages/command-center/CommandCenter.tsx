@@ -13,7 +13,7 @@ import {
   Users, BarChart3, Search, Award, Gift, Zap, Share2, Plug,
   ChevronDown, ChevronRight, LayoutDashboard, TrendingUp,
   BookOpen, Store, Check, Crosshair, MessageSquare, UserPlus,
-  UtensilsCrossed, Wand2, CalendarDays, Rocket, Gauge, Sparkles, FileText, Printer
+  UtensilsCrossed, Wand2, CalendarDays, Rocket, Gauge, Sparkles, FileText, Printer, Home
 } from "lucide-react";
 
 import { TargetingOverview, RoiProjections } from "./TargetingDashboard";
@@ -641,13 +641,24 @@ export default function CommandCenter() {
         <ScrollArea className="flex-1">
           <div className="p-6 max-w-7xl">
             <div className="mb-4">
-              {currentSectionLabel && currentNavItem && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                  <span>{currentSectionLabel}</span>
-                  <ChevronRight className="h-3 w-3" />
-                  <span className="font-medium text-foreground">{currentNavItem.label}</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                {currentSectionLabel && currentNavItem ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <span>{currentSectionLabel}</span>
+                    <ChevronRight className="h-3 w-3" />
+                    <span className="font-medium text-foreground">{currentNavItem.label}</span>
+                  </div>
+                ) : <div />}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/")}
+                  data-testid="button-return-to-hub"
+                >
+                  <Home className="h-4 w-4 mr-2" />
+                  Return to Hub
+                </Button>
+              </div>
             </div>
             {renderContent()}
           </div>
