@@ -34,6 +34,7 @@ import {
   b2bCommissions,
   b2bCommissionTiers,
   b2bTierAgreements,
+  b2bPurchaseOrders,
   insertB2bCommissionTierSchema,
 } from '@shared/schema';
 import sendgrid from '@sendgrid/mail';
@@ -875,6 +876,10 @@ router.post('/api/b2b/login/customer', async (req: Request, res: Response) => {
 
     if (!customer) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (customer.customerType === 'distributor') {
+      return res.status(403).json({ error: 'Distributor accounts do not have portal access. Please contact your sales representative.' });
     }
 
     req.session.b2bUserId = customer.id;
@@ -5612,45 +5617,60 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
     let totalDiscount = 0;
     const orderItems = [];
 
+    const isDistributor = customer.customerType === 'distributor';
+    
     for (const item of items) {
       const product = productsData.find((p: any) => p.id === item.productId);
       if (!product) {
         return res.status(404).json({ error: `Product ${item.productId} not found` });
       }
 
-      // Find the tier that matches both customer's tier name AND product category
-      let discountPercentage = 0;
-      if (customerTierName) {
-        const matchingTier = allTiers.find((t: any) => 
-          t.tierName === customerTierName && 
-          t.category === product.category && 
-          t.active
-        );
-        if (matchingTier) {
-          discountPercentage = parseFloat(matchingTier.discountPercentage);
-        }
-      }
-
       const baseBottlePrice = parseFloat(product.wholesaleOverridePrice || product.price);
       const caseSize = product.caseSize || 12;
-      const wholesaleBottlePrice = baseBottlePrice * (1 - discountPercentage / 100);
-      
       const unitType = item.unitType || 'cases';
       let unitPrice: number;
       let retailPrice: number;
       let lineTotal: number;
       let lineDiscount: number;
+      let unitPriceOverride: number | null = null;
       
-      if (unitType === 'bottles') {
-        retailPrice = baseBottlePrice;
-        unitPrice = wholesaleBottlePrice;
+      if (isDistributor && item.unitPriceOverride != null) {
+        unitPriceOverride = parseFloat(item.unitPriceOverride);
+        if (unitType === 'bottles') {
+          retailPrice = baseBottlePrice;
+          unitPrice = unitPriceOverride;
+        } else {
+          retailPrice = baseBottlePrice * caseSize;
+          unitPrice = unitPriceOverride;
+        }
         lineTotal = unitPrice * item.quantity;
         lineDiscount = (retailPrice - unitPrice) * item.quantity;
       } else {
-        retailPrice = baseBottlePrice * caseSize;
-        unitPrice = wholesaleBottlePrice * caseSize;
-        lineTotal = unitPrice * item.quantity;
-        lineDiscount = (retailPrice - unitPrice) * item.quantity;
+        let discountPercentage = 0;
+        if (customerTierName) {
+          const matchingTier = allTiers.find((t: any) => 
+            t.tierName === customerTierName && 
+            t.category === product.category && 
+            t.active
+          );
+          if (matchingTier) {
+            discountPercentage = parseFloat(matchingTier.discountPercentage);
+          }
+        }
+
+        const wholesaleBottlePrice = baseBottlePrice * (1 - discountPercentage / 100);
+        
+        if (unitType === 'bottles') {
+          retailPrice = baseBottlePrice;
+          unitPrice = wholesaleBottlePrice;
+          lineTotal = unitPrice * item.quantity;
+          lineDiscount = (retailPrice - unitPrice) * item.quantity;
+        } else {
+          retailPrice = baseBottlePrice * caseSize;
+          unitPrice = wholesaleBottlePrice * caseSize;
+          lineTotal = unitPrice * item.quantity;
+          lineDiscount = (retailPrice - unitPrice) * item.quantity;
+        }
       }
       
       subtotal += lineTotal;
@@ -5664,6 +5684,7 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
         caseSize: caseSize,
         unitType: unitType,
         unitPrice: unitPrice.toFixed(2),
+        unitPriceOverride: unitPriceOverride ? unitPriceOverride.toFixed(2) : null,
         retailPrice: retailPrice.toFixed(2),
         totalPrice: lineTotal.toFixed(2),
       });
@@ -5705,6 +5726,7 @@ router.post('/api/b2b/admin/orders/manual', requireB2bAdminOrSalesRep, async (re
       sku: item.productSku,
       quantity: isReturn ? -item.quantity : item.quantity,
       unitPrice: item.unitPrice,
+      unitPriceOverride: item.unitPriceOverride || null,
       retailPrice: item.retailPrice,
       lineTotal: isReturn ? (-parseFloat(item.totalPrice)).toFixed(2) : item.totalPrice,
     })));
@@ -7836,6 +7858,143 @@ router.get('/api/b2b/customer/count', requireB2bCustomer, async (req: Request, r
   } catch (error) {
     console.error('Error fetching customer count:', error);
     res.status(500).json({ error: 'Failed to fetch customer count' });
+  }
+});
+
+// ========== Purchase Order (PO) Upload Routes for Distributors ==========
+
+router.get('/api/b2b/admin/purchase-orders/:customerId', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId } = req.params;
+    const pos = await storage.getB2bPurchaseOrders(customerId);
+    res.json(pos);
+  } catch (error) {
+    console.error('Error fetching purchase orders:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase orders' });
+  }
+});
+
+router.post('/api/b2b/admin/purchase-orders/upload-url', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const privateDir = process.env.PRIVATE_OBJECT_DIR || '';
+    if (!privateDir) {
+      return res.status(500).json({ error: 'Object storage not configured' });
+    }
+    const { randomUUID } = await import('crypto');
+    const uuid = randomUUID();
+    const fullPath = `${privateDir}/purchase-orders/${uuid}`;
+
+    const pathParts = fullPath.startsWith('/') ? fullPath.split('/') : `/${fullPath}`.split('/');
+    const bucketName = pathParts[1];
+    const objectName = pathParts.slice(2).join('/');
+
+    const request = {
+      bucket_name: bucketName,
+      object_name: objectName,
+      method: 'PUT',
+      expires_at: new Date(Date.now() + 900 * 1000).toISOString(),
+    };
+    const response = await fetch('http://127.0.0.1:1106/object-storage/signed-object-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to sign URL: ${response.status}`);
+    }
+    const { signed_url } = await response.json();
+    res.json({ uploadUrl: signed_url, objectPath: fullPath });
+  } catch (error) {
+    console.error('Error generating PO upload URL:', error);
+    res.status(500).json({ error: 'Failed to generate upload URL' });
+  }
+});
+
+router.post('/api/b2b/admin/purchase-orders', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { customerId, fileName, fileUrl, poNumber, notes } = req.body;
+    if (!customerId || !fileName || !fileUrl) {
+      return res.status(400).json({ error: 'Customer, file name, and file URL are required' });
+    }
+    const po = await storage.createB2bPurchaseOrder({
+      customerId,
+      fileName,
+      fileUrl,
+      poNumber: poNumber || null,
+      notes: notes || null,
+      uploadedBy: (req.session as any).b2bUserId || null,
+      status: 'pending',
+    });
+    res.json(po);
+  } catch (error) {
+    console.error('Error creating purchase order:', error);
+    res.status(500).json({ error: 'Failed to create purchase order' });
+  }
+});
+
+router.patch('/api/b2b/admin/purchase-orders/:id', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, orderId, notes } = req.body;
+    const updateData: any = {};
+    if (status !== undefined) updateData.status = status;
+    if (orderId !== undefined) updateData.orderId = orderId;
+    if (notes !== undefined) updateData.notes = notes;
+    const po = await storage.updateB2bPurchaseOrder(id, updateData);
+    if (!po) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+    res.json(po);
+  } catch (error) {
+    console.error('Error updating purchase order:', error);
+    res.status(500).json({ error: 'Failed to update purchase order' });
+  }
+});
+
+router.delete('/api/b2b/admin/purchase-orders/:id', requireB2bAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await storage.deleteB2bPurchaseOrder(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting purchase order:', error);
+    res.status(500).json({ error: 'Failed to delete purchase order' });
+  }
+});
+
+router.get('/api/b2b/admin/purchase-orders/:id/download', requireB2bAdminOrSalesRep, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pos = await db.select().from(b2bPurchaseOrders).where(eq(b2bPurchaseOrders.id, id));
+    if (pos.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+    const po = pos[0];
+    const fileUrl = po.fileUrl;
+
+    const pathParts = fileUrl.startsWith('/') ? fileUrl.split('/') : `/${fileUrl}`.split('/');
+    const bucketName = pathParts[1];
+    const objectName = pathParts.slice(2).join('/');
+
+    const request = {
+      bucket_name: bucketName,
+      object_name: objectName,
+      method: 'GET',
+      expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+    };
+    const response = await fetch('http://127.0.0.1:1106/object-storage/signed-object-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to sign URL: ${response.status}`);
+    }
+    const { signed_url } = await response.json();
+    res.json({ downloadUrl: signed_url });
+  } catch (error) {
+    console.error('Error generating PO download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
   }
 });
 

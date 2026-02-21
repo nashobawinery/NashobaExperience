@@ -48,7 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreVertical, Truck, CreditCard } from "lucide-react";
+import { Users, CheckCircle2, Building, Mail, Phone, ShoppingCart, UserCog, Settings as SettingsIcon, Lock, Plus, Edit, DollarSign, Pencil, Trash2, Shield, Image, Calendar, Send, QrCode, Wine, LogOut, Package, Copy, Download, Upload, Loader2, X, Search, Home, FileSignature, Eye, MoreVertical, Truck, CreditCard, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { CommissionTierManager } from "@/components/b2b/CommissionTierManager";
@@ -68,7 +68,7 @@ import "@/docs/b2b";
 const createCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
   primaryContactName: z.string().min(1, "Contact name is required"),
-  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other"]).optional(),
+  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other", "distributor"]).optional(),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
   licenseNumber: z.string().optional(), // Optional per database schema
@@ -111,7 +111,7 @@ type CreateCustomerFormData = z.infer<typeof createCustomerSchema>;
 const editCustomerSchema = z.object({
   accountName: z.string().min(1, "Business name is required"),
   primaryContactName: z.string().min(1, "Contact name is required"),
-  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other"]).optional(),
+  customerType: z.enum(["retail_liquor", "restaurant", "private_club", "other", "distributor"]).optional(),
   emailAddress: z.string().email("Invalid email address"),
   phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
   licenseNumber: z.string().min(1, "License number is required"),
@@ -139,6 +139,7 @@ const manualOrderSchema = z.object({
     productId: z.string().min(1, "Product is required"),
     quantity: z.number().min(1, "Quantity must be at least 1"),
     unitType: z.enum(["cases", "bottles"]).default("cases"),
+    unitPriceOverride: z.string().optional(),
   })).min(1, "At least one product is required"),
 });
 
@@ -1152,7 +1153,7 @@ export default function AdminDashboard() {
   const [createCustomerDialog, setCreateCustomerDialog] = useState(false);
   const [manualOrderDialog, setManualOrderDialog] = useState(false);
   const [returnDialog, setReturnDialog] = useState(false);
-  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number; unitType: "cases" | "bottles" }>>([{ productId: "", quantity: 1, unitType: "cases" }]);
+  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number; unitType: "cases" | "bottles"; unitPriceOverride?: string }>>([{ productId: "", quantity: 1, unitType: "cases" }]);
 
   const createCustomerForm = useForm<CreateCustomerFormData>({
     resolver: zodResolver(createCustomerSchema),
@@ -1279,6 +1280,11 @@ export default function AdminDashboard() {
     isOpen: false,
     customer: null,
   });
+  const [poDialog, setPoDialog] = useState<{ isOpen: boolean; customer: any | null }>({
+    isOpen: false,
+    customer: null,
+  });
+  const [poUploading, setPoUploading] = useState(false);
   const { data: customerOrderHistory, isLoading: loadingOrderHistory } = useQuery<any[]>({
     queryKey: ['/api/b2b/customer/orders', orderHistoryDialog.customer?.id],
     queryFn: async () => {
@@ -1290,6 +1296,75 @@ export default function AdminDashboard() {
     },
     enabled: !!orderHistoryDialog.customer?.id,
   });
+
+  const { data: purchaseOrders, isLoading: loadingPOs, refetch: refetchPOs } = useQuery<any[]>({
+    queryKey: ['/api/b2b/purchase-orders', poDialog.customer?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2b/admin/purchase-orders/${poDialog.customer?.id}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch purchase orders');
+      return res.json();
+    },
+    enabled: !!poDialog.customer?.id && poDialog.isOpen,
+  });
+
+  const handlePoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !poDialog.customer) return;
+    setPoUploading(true);
+    try {
+      const urlRes = await fetch('/api/b2b/admin/purchase-orders/upload-url', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name }),
+      });
+      if (!urlRes.ok) throw new Error('Failed to get upload URL');
+      const { uploadUrl, objectPath } = await urlRes.json();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!uploadRes.ok) throw new Error('Failed to upload file');
+
+      const recordRes = await fetch('/api/b2b/admin/purchase-orders', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: poDialog.customer.id,
+          fileName: file.name,
+          fileUrl: objectPath,
+          poNumber: file.name.replace(/\.[^/.]+$/, ''),
+        }),
+      });
+      if (!recordRes.ok) throw new Error('Failed to save PO record');
+
+      toast({ title: "PO Uploaded", description: `${file.name} has been uploaded successfully.` });
+      refetchPOs();
+    } catch (err: any) {
+      toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setPoUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handlePoDownload = async (poId: string) => {
+    try {
+      const res = await fetch(`/api/b2b/admin/purchase-orders/${poId}/download`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to get download URL');
+      const data = await res.json();
+      window.open(data.downloadUrl || data.url, '_blank');
+    } catch (err: any) {
+      toast({ title: "Download Failed", description: err.message, variant: "destructive" });
+    }
+  };
 
   const editCustomerForm = useForm<EditCustomerFormData>({
     resolver: zodResolver(editCustomerSchema),
@@ -2248,9 +2323,12 @@ export default function AdminDashboard() {
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <CardTitle className="font-serif text-xl mb-2 flex items-center gap-2">
+            <CardTitle className="font-serif text-xl mb-2 flex items-center gap-2 flex-wrap">
               <Building className="h-5 w-5 text-primary" />
               {customer.accountName}
+              {customer.customerType === 'distributor' && (
+                <Badge variant="outline" className="text-xs" data-testid={`badge-distributor-${customer.id}`}>Distributor</Badge>
+              )}
             </CardTitle>
             <div className="space-y-1 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -2347,6 +2425,19 @@ export default function AdminDashboard() {
               >
                 <Package className="h-4 w-4 mr-2" />
                 View Orders
+              </Button>
+            )}
+            
+            {/* PO Uploads button - Distributor customers only */}
+            {!isPending && customer.customerType === 'distributor' && canEditCustomer(customer) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPoDialog({ isOpen: true, customer })}
+                data-testid={`button-po-uploads-${customer.id}`}
+              >
+                <FileUp className="h-4 w-4 mr-2" />
+                POs
               </Button>
             )}
             
@@ -3922,6 +4013,62 @@ export default function AdminDashboard() {
         </TabsContent>
       </Tabs>
 
+      {/* Purchase Orders Dialog */}
+      <Dialog open={poDialog.isOpen} onOpenChange={(open) => setPoDialog({ isOpen: open, customer: open ? poDialog.customer : null })}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" data-testid="dialog-purchase-orders">
+          <DialogHeader>
+            <DialogTitle>Purchase Orders - {poDialog.customer?.accountName}</DialogTitle>
+            <DialogDescription>
+              Upload and manage purchase order documents for this distributor
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => document.getElementById('po-file-input')?.click()} disabled={poUploading} data-testid="button-upload-po">
+                {poUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                Upload PO
+              </Button>
+              <input
+                id="po-file-input"
+                type="file"
+                className="hidden"
+                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
+                onChange={handlePoUpload}
+                data-testid="input-po-file"
+              />
+              <span className="text-xs text-muted-foreground">PDF, images, or documents</span>
+            </div>
+            {loadingPOs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : purchaseOrders && purchaseOrders.length > 0 ? (
+              <div className="space-y-2">
+                {purchaseOrders.map((po: any) => (
+                  <div key={po.id} className="flex items-center justify-between gap-2 p-3 border rounded-md" data-testid={`po-item-${po.id}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{po.poNumber || po.fileName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(po.createdAt), "MMM d, yyyy h:mm a")}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs flex-shrink-0">{po.status || 'uploaded'}</Badge>
+                    <Button size="icon" variant="ghost" onClick={() => handlePoDownload(po.id)} data-testid={`button-download-po-${po.id}`}>
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No purchase orders uploaded yet</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Approval Dialog */}
       <Dialog open={approveDialog.isOpen} onOpenChange={(open) => setApproveDialog({ isOpen: open, customer: approveDialog.customer })}>
         <DialogContent data-testid="dialog-approve-customer">
@@ -4523,6 +4670,7 @@ export default function AdminDashboard() {
                       <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
                       <SelectItem value="restaurant">Restaurant</SelectItem>
                       <SelectItem value="private_club">Private Club</SelectItem>
+                      <SelectItem value="distributor">Distributor</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
@@ -4899,6 +5047,7 @@ export default function AdminDashboard() {
                         <SelectItem value="retail_liquor">Retail Liquor</SelectItem>
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="private_club">Private Club</SelectItem>
+                        <SelectItem value="distributor">Distributor</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
@@ -5783,6 +5932,36 @@ export default function AdminDashboard() {
                           </FormItem>
                         )}
                       />
+
+                      {(() => {
+                        const selectedCustomerId = manualOrderForm.watch("customerId");
+                        const selectedCust = activeCustomers?.find((c: any) => c.id === selectedCustomerId);
+                        if (selectedCust?.customerType === 'distributor') {
+                          return (
+                            <FormField
+                              control={manualOrderForm.control}
+                              name={`items.${index}.unitPriceOverride`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Price Override ($)</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="Leave blank for tier pricing"
+                                      {...field}
+                                      data-testid={`input-price-override-${index}`}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {orderItems.length > 1 && (

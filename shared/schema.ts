@@ -12,7 +12,7 @@ export const userRoleEnum = pgEnum("user_role", ["viewer", "admin"]);
 export const rewardTypeEnum = pgEnum("reward_type", ["discount", "token"]);
 export const redemptionStatusEnum = pgEnum("redemption_status", ["pending", "applied", "void"]);
 export const accountStatusEnum = pgEnum("account_status", ["active", "pending_approval", "inactive", "suspended", "archived"]);
-export const customerTypeEnum = pgEnum("customer_type", ["retail_liquor", "restaurant", "private_club", "other"]);
+export const customerTypeEnum = pgEnum("customer_type", ["retail_liquor", "restaurant", "private_club", "other", "distributor"]);
 export const b2bUserTypeEnum = pgEnum("b2b_user_type", ["customer", "sales_rep", "admin"]);
 export const productMediaRoleEnum = pgEnum("product_media_role", ["primary", "label", "lifestyle", "gallery"]);
 
@@ -658,9 +658,24 @@ export const b2bOrderItems = pgTable("b2b_order_items", {
   sku: text("sku"),
   quantity: integer("quantity").notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  unitPriceOverride: decimal("unit_price_override", { precision: 10, scale: 2 }),
   retailPrice: decimal("retail_price", { precision: 10, scale: 2 }).notNull(),
   lineTotal: decimal("line_total", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const b2bPurchaseOrders = pgTable("b2b_purchase_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => b2bCustomers.id),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  poNumber: text("po_number"),
+  notes: text("notes"),
+  orderId: varchar("order_id").references(() => b2bOrders.id),
+  status: varchar("status").notNull().default("pending"),
+  uploadedBy: varchar("uploaded_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const b2bCommissions = pgTable("b2b_commissions", {
@@ -1796,6 +1811,7 @@ export const insertB2bCustomerManualProductSchema = createInsertSchema(b2bCustom
 export const insertB2bTierAgreementSchema = createInsertSchema(b2bTierAgreements).omit({ id: true, createdAt: true, updatedAt: true, sentAt: true });
 export const insertB2bOrderSchema = createInsertSchema(b2bOrders).omit({ id: true, createdAt: true, updatedAt: true, orderDate: true });
 export const insertB2bOrderItemSchema = createInsertSchema(b2bOrderItems).omit({ id: true, createdAt: true, orderId: true });
+export const insertB2bPurchaseOrderSchema = createInsertSchema(b2bPurchaseOrders).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCommissionSchema = createInsertSchema(b2bCommissions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bCommissionTierSchema = createInsertSchema(b2bCommissionTiers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertB2bSettingSchema = createInsertSchema(b2bSettings).omit({ id: true, updatedAt: true });
@@ -1992,6 +2008,9 @@ export type B2bOrder = typeof b2bOrders.$inferSelect;
 
 export type InsertB2bOrderItem = z.infer<typeof insertB2bOrderItemSchema>;
 export type B2bOrderItem = typeof b2bOrderItems.$inferSelect;
+
+export type InsertB2bPurchaseOrder = z.infer<typeof insertB2bPurchaseOrderSchema>;
+export type B2bPurchaseOrder = typeof b2bPurchaseOrders.$inferSelect;
 
 export type InsertB2bCommission = z.infer<typeof insertB2bCommissionSchema>;
 export type B2bCommission = typeof b2bCommissions.$inferSelect;

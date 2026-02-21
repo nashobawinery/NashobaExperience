@@ -82,6 +82,7 @@ import {
   b2bCustomerManualProducts,
   b2bOrders,
   b2bOrderItems,
+  b2bPurchaseOrders,
   b2bCommissions,
   b2bCommissionTiers,
   b2bSettings,
@@ -111,6 +112,8 @@ import {
   type B2bOrder,
   type InsertB2bOrderItem,
   type B2bOrderItem,
+  type InsertB2bPurchaseOrder,
+  type B2bPurchaseOrder,
   type InsertB2bCommission,
   type B2bCommission,
   type InsertB2bCommissionTier,
@@ -582,6 +585,12 @@ export interface IStorage {
   deleteB2bOrder(id: string): Promise<boolean>;
   getCustomerPreviousProducts(customerId: string): Promise<Product[]>;
   upsertB2bOrder(orderData: InsertB2bOrder, items: InsertB2bOrderItem[]): Promise<{ order: B2bOrder; action: 'created' | 'updated' }>;
+
+  // B2B - Purchase Orders (Distributor PO uploads)
+  getB2bPurchaseOrders(customerId: string): Promise<B2bPurchaseOrder[]>;
+  createB2bPurchaseOrder(data: InsertB2bPurchaseOrder): Promise<B2bPurchaseOrder>;
+  updateB2bPurchaseOrder(id: string, data: Partial<InsertB2bPurchaseOrder>): Promise<B2bPurchaseOrder | undefined>;
+  deleteB2bPurchaseOrder(id: string): Promise<boolean>;
 
   // B2B - Commissions
   getAllB2bCommissions(): Promise<B2bCommission[]>;
@@ -3812,6 +3821,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(b2bCommissions.id, commissionId))
       .returning();
     return updated;
+  }
+
+  async getB2bPurchaseOrders(customerId: string): Promise<B2bPurchaseOrder[]> {
+    return await db.select().from(b2bPurchaseOrders)
+      .where(eq(b2bPurchaseOrders.customerId, customerId))
+      .orderBy(desc(b2bPurchaseOrders.createdAt));
+  }
+
+  async createB2bPurchaseOrder(data: InsertB2bPurchaseOrder): Promise<B2bPurchaseOrder> {
+    const [po] = await db.insert(b2bPurchaseOrders).values(data).returning();
+    return po;
+  }
+
+  async updateB2bPurchaseOrder(id: string, data: Partial<InsertB2bPurchaseOrder>): Promise<B2bPurchaseOrder | undefined> {
+    const [po] = await db.update(b2bPurchaseOrders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(b2bPurchaseOrders.id, id))
+      .returning();
+    return po;
+  }
+
+  async deleteB2bPurchaseOrder(id: string): Promise<boolean> {
+    const result = await db.delete(b2bPurchaseOrders).where(eq(b2bPurchaseOrders.id, id));
+    return true;
   }
 
   async getAllB2bCommissions(): Promise<B2bCommission[]> {
