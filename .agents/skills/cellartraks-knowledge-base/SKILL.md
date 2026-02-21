@@ -75,13 +75,21 @@ The TTB requires monthly or quarterly reports depending on the operation size an
 These are stored as enums in the database and assigned to products via `cellartraks_product_classifications`.
 
 ### Wine (Form 5120.17)
-- Still Wine - not over 14% ABV
-- Still Wine - over 14% to 16%
-- Still Wine - over 16% to 21%
-- Hard Cider (0.5% to <8.5% ABV, apple/pear derived)
-- Artificially Carbonated Wine
-- Sparkling Wine - Bottle Fermented
-- Sparkling Wine - Bulk Process
+
+Our enum values map to the form's 6 reporting columns:
+
+| Enum Value | Display | Form Column |
+|---|---|---|
+| `still_wine_14_or_less` | Still Wine (14% or less) | (a) Not Over 16% |
+| `still_wine_14_to_16` | Still Wine (14% to 16%) | (a) Not Over 16% |
+| `still_wine_16_to_21` | Still Wine (16% to 21%) | (b) Over 16 to 21% |
+| `still_wine_21_to_24` | Still Wine (21% to 24%) | (c) Over 21 to 24% |
+| `hard_cider` | Hard Cider | (f) Hard Cider |
+| `artificially_carbonated` | Artificially Carbonated Wine | (d) Artificially Carbonated |
+| `sparkling_bottle_fermented` | Sparkling Wine (Bottle Fermented) | (e) Sparkling - BF |
+| `sparkling_bulk_process` | Sparkling Wine (Bulk Process) | (e) Sparkling - BP |
+
+Note: Column (a) covers two enum values (14% split) for more granular internal tracking.
 
 ### Spirits (Form 5110.40)
 Whisky (Bourbon, Rye, Corn, Malt, Wheat, American Single Malt, Blended, Other), Brandy (Grape, Fruit, Pomace, Applejack, Other), Rum, Gin, Distilled Gin, Vodka, Neutral Spirits, Cordials/Liqueurs, Tequila, Mezcal, Flavored Spirits, Other Spirits

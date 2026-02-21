@@ -5606,13 +5606,14 @@ export type EnhancementRequest = typeof enhancementRequests.$inferSelect;
 
 // TTB Wine Classifications (Form 5120.17) - reported in wine gallons
 export const ttbWineClassEnum = pgEnum("ttb_wine_class", [
-  "still_wine_14_or_less",         // Still Wine - not over 14% alcohol
-  "still_wine_14_to_16",           // Still Wine - over 14% to 16%
-  "still_wine_16_to_21",           // Still Wine - over 16% to 21%
-  "hard_cider",                    // Hard Cider (0.5% to <8.5% ABV, apple/pear derived)
-  "artificially_carbonated",       // Artificially Carbonated Wine
-  "sparkling_bottle_fermented",    // Sparkling Wine - Bottle Fermented
-  "sparkling_bulk_process",        // Sparkling Wine - Bulk Process
+  "still_wine_14_or_less",         // Still Wine - not over 14% alcohol (Form col a)
+  "still_wine_14_to_16",           // Still Wine - over 14% to 16% (Form col a)
+  "still_wine_16_to_21",           // Still Wine - over 16% to 21% (Form col b)
+  "still_wine_21_to_24",           // Still Wine - over 21% to 24% (Form col c) - fortified wines
+  "hard_cider",                    // Hard Cider (0.5% to <8.5% ABV, apple/pear derived) (Form col f)
+  "artificially_carbonated",       // Artificially Carbonated Wine (Form col d)
+  "sparkling_bottle_fermented",    // Sparkling Wine - Bottle Fermented (Form col e BF)
+  "sparkling_bulk_process",        // Sparkling Wine - Bulk Process (Form col e BP)
 ]);
 
 // TTB Spirits Classifications (Form 5110.40) - reported in proof gallons

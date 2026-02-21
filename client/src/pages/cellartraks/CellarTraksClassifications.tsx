@@ -40,6 +40,7 @@ const TTB_WINE_CLASSES: Record<string, string> = {
   still_wine_14_or_less: "Still Wine (14% or less)",
   still_wine_14_to_16: "Still Wine (14% to 16%)",
   still_wine_16_to_21: "Still Wine (16% to 21%)",
+  still_wine_21_to_24: "Still Wine (21% to 24%)",
   hard_cider: "Hard Cider",
   artificially_carbonated: "Artificially Carbonated Wine",
   sparkling_bottle_fermented: "Sparkling Wine (Bottle Fermented)",
@@ -270,7 +271,8 @@ export function CellarTraksClassifications() {
     if (division === 'brewery') return 'malt_beverages';
     if (division === 'winery') {
       if (ttbClass === 'hard_cider') return 'hard_cider';
-      if (ttbClass.includes('sparkling')) return 'sparkling_wine';
+      if (ttbClass.includes('sparkling') || ttbClass === 'artificially_carbonated') return 'sparkling_wine';
+      if (ttbClass === 'still_wine_21_to_24') return 'distilled_spirits_15_to_50';
       return 'still_wine';
     }
     if (division === 'distillery') return 'distilled_spirits_15_to_50';
