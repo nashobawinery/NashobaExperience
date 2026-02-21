@@ -16,6 +16,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addWeeks, addDays, parseISO } from "date-fns";
 import Holidays from 'date-holidays';
 import { RevenueDetailDialog } from "@/components/RevenueDetailDialog";
+import { VoidDiscountDetailDialog } from "@/components/VoidDiscountDetailDialog";
 import { 
   Target, 
   Lightbulb, 
@@ -1542,6 +1543,8 @@ function DailyRevenueRow({
   const [expanded, setExpanded] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailSourceFilter, setDetailSourceFilter] = useState<"all" | "toast" | "shopify" | "wholesale">("all");
+  const [voidDiscountDialogOpen, setVoidDiscountDialogOpen] = useState(false);
+  const [voidDiscountDialogTab, setVoidDiscountDialogTab] = useState<"voids" | "discounts">("voids");
   const hd = new Holidays('US');
   const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
   const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
@@ -1712,7 +1715,12 @@ function DailyRevenueRow({
                       </p>
                     )}
                     {parseFloat(entry?.toastDiscountAmount || '0') > 0 && (
-                      <p className={`text-xs ${parseFloat(entry?.toastDiscountPct || '0') > 10 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                      <p
+                        className={`text-xs cursor-pointer underline decoration-dotted ${parseFloat(entry?.toastDiscountPct || '0') > 10 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}
+                        onClick={() => { setVoidDiscountDialogTab("discounts"); setVoidDiscountDialogOpen(true); }}
+                        title="Click for discount detail"
+                        data-testid={`link-discount-detail-${day.date}`}
+                      >
                         Discounts: ${parseFloat(entry?.toastDiscountAmount || '0').toLocaleString()} ({parseFloat(entry?.toastDiscountPct || '0').toFixed(1)}%)
                       </p>
                     )}
@@ -1722,7 +1730,12 @@ function DailyRevenueRow({
                       </p>
                     )}
                     {(entry?.toastVoidCount || 0) > 0 && (
-                      <p className={`text-xs ${parseFloat(entry?.toastVoidAmount || '0') > 50 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-muted-foreground'}`}>
+                      <p
+                        className={`text-xs cursor-pointer underline decoration-dotted ${parseFloat(entry?.toastVoidAmount || '0') > 50 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-muted-foreground'}`}
+                        onClick={() => { setVoidDiscountDialogTab("voids"); setVoidDiscountDialogOpen(true); }}
+                        title="Click for void detail"
+                        data-testid={`link-void-detail-${day.date}`}
+                      >
                         Voids: ${parseFloat(entry?.toastVoidAmount || '0').toLocaleString()} ({entry?.toastVoidCount} items)
                       </p>
                     )}
@@ -1870,6 +1883,13 @@ function DailyRevenueRow({
         shopifyRevenue={shopifyRev}
         wholesaleRevenue={wholesaleRev}
         sourceFilter={detailSourceFilter}
+      />
+      <VoidDiscountDetailDialog
+        open={voidDiscountDialogOpen}
+        onOpenChange={setVoidDiscountDialogOpen}
+        date={day.date}
+        displayDate={day.displayDate}
+        initialTab={voidDiscountDialogTab}
       />
     </Card>
   );

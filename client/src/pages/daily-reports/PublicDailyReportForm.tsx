@@ -1048,7 +1048,7 @@ export default function PublicDailyReportForm() {
           })()}
           explainedByName={formData?.staffName}
           mode="edit"
-          showDiscounts={true}
+          showDiscounts={false}
         />
 
         <Card>

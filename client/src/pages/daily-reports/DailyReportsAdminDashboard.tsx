@@ -61,13 +61,15 @@ import {
   X,
   RotateCcw,
   Save,
-  Loader2
+  Loader2,
+  Tag
 } from "lucide-react";
 import { getModuleDocs } from "@/docs";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
 import "@/docs/daily-reports";
 import dailyReportIcon from "@assets/Daily Report_1764626305136.png";
 import ToastVoidsDiscountsPanel from "@/components/ToastVoidsDiscountsPanel";
+import { VoidDiscountDetailDialog } from "@/components/VoidDiscountDetailDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -927,6 +929,7 @@ export default function DailyReportsAdminDashboard() {
   const [selectedReport, setSelectedReport] = useState<DailyReport | null>(null);
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null);
   const [editingIncident, setEditingIncident] = useState<DailyReportIncident | null>(null);
+  const [voidDiscountDialogOpen, setVoidDiscountDialogOpen] = useState(false);
   
   const [reportFormData, setReportFormData] = useState({
     department: "",
@@ -3744,14 +3747,31 @@ export default function DailyReportsAdminDashboard() {
               )}
 
               {selectedReport && (
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 space-y-3">
                   <ToastVoidsDiscountsPanel
                     date={format(new Date(selectedReport.reportDate), "yyyy-MM-dd")}
                     reportId={selectedReport.id}
                     explainedByName={selectedReport.submittedByName || undefined}
                     explainedById={selectedReport.submittedById || undefined}
                     mode={selectedReport.status === "draft" || selectedReport.status === "needs_revision" ? "edit" : "view"}
-                    showDiscounts={true}
+                    showDiscounts={false}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setVoidDiscountDialogOpen(true)}
+                    data-testid="btn-view-void-discount-detail"
+                  >
+                    <Tag className="h-3.5 w-3.5" />
+                    View Void & Discount Detail
+                  </Button>
+                  <VoidDiscountDetailDialog
+                    open={voidDiscountDialogOpen}
+                    onOpenChange={setVoidDiscountDialogOpen}
+                    date={format(new Date(selectedReport.reportDate), "yyyy-MM-dd")}
+                    displayDate={format(new Date(selectedReport.reportDate), "MMM d, yyyy")}
+                    initialTab="discounts"
                   />
                 </div>
               )}
