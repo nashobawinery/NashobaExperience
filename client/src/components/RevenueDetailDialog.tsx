@@ -33,6 +33,9 @@ interface CenterRow {
   name: string;
   source: string;
   net_sales: string;
+  gross_sales?: string;
+  discount_amount?: string;
+  service_charge_amount?: string;
   order_count: string;
 }
 
@@ -41,6 +44,8 @@ interface CategoryRow {
   name: string;
   source: string;
   net_sales: string;
+  gross_sales?: string;
+  discount_amount?: string;
   item_count: string;
 }
 
@@ -241,6 +246,8 @@ export function RevenueDetailDialog({
                 <div className="space-y-2">
                   {toastCenters.map((rc, i) => {
                     const pct = grandTotal > 0 ? (parseFloat(rc.net_sales) / grandTotal) * 100 : 0;
+                    const discount = parseFloat(rc.discount_amount || "0");
+                    const svcCharge = parseFloat(rc.service_charge_amount || "0");
                     return (
                       <div key={i} className="space-y-1">
                         <div className="flex items-center justify-between gap-2 text-sm">
@@ -256,7 +263,16 @@ export function RevenueDetailDialog({
                             style={{ width: `${Math.min(pct, 100)}%` }}
                           />
                         </div>
-                        <p className="text-[11px] text-muted-foreground">{pct.toFixed(1)}% of total revenue</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-muted-foreground">{pct.toFixed(1)}% of total revenue</p>
+                          {(discount > 0 || svcCharge > 0) && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {discount > 0 && <span className="text-red-500 dark:text-red-400">-{formatCurrency(discount)} disc</span>}
+                              {discount > 0 && svcCharge > 0 && " / "}
+                              {svcCharge > 0 && <span className="text-blue-500 dark:text-blue-400">+{formatCurrency(svcCharge)} svc</span>}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -273,12 +289,14 @@ export function RevenueDetailDialog({
                   <div className="space-y-1.5">
                     {toastCategories.map((cat, i) => {
                       const pct = totalToast > 0 ? (parseFloat(cat.net_sales) / totalToast) * 100 : 0;
+                      const discount = parseFloat(cat.discount_amount || "0");
                       return (
                         <div key={i}>
                           <div className="flex items-center justify-between gap-2 text-sm">
                             <span className="truncate">{cat.name}</span>
                             <div className="flex items-center gap-3 shrink-0">
                               <span className="text-muted-foreground text-xs">{cat.item_count} items</span>
+                              {discount > 0 && <span className="text-red-500 dark:text-red-400 text-xs">-{formatCurrency(discount)}</span>}
                               <span className="font-medium">{formatCurrency(cat.net_sales)}</span>
                             </div>
                           </div>

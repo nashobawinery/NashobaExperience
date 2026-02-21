@@ -15,7 +15,9 @@ router.get("/by-center", async (req, res) => {
 
     let query = sql`
       SELECT revenue_center_guid as guid, revenue_center_name as name, source,
-             SUM(net_sales::numeric) as total_sales, SUM(order_count) as total_orders
+             SUM(net_sales::numeric) as total_sales, SUM(order_count) as total_orders,
+             SUM(gross_sales::numeric) as total_gross, SUM(discount_amount::numeric) as total_discounts,
+             SUM(service_charge_amount::numeric) as total_service_charges
       FROM rcc_daily_revenue_by_center
       WHERE date >= ${startDate as string} AND date <= ${endDate as string}
     `;
@@ -39,7 +41,8 @@ router.get("/by-category", async (req, res) => {
 
     let query = sql`
       SELECT sales_category_guid as guid, sales_category_name as name, source,
-             SUM(net_sales::numeric) as total_sales, SUM(item_count) as total_items
+             SUM(net_sales::numeric) as total_sales, SUM(item_count) as total_items,
+             SUM(gross_sales::numeric) as total_gross, SUM(discount_amount::numeric) as total_discounts
       FROM rcc_daily_revenue_by_category
       WHERE date >= ${startDate as string} AND date <= ${endDate as string}
     `;
@@ -90,11 +93,11 @@ router.get("/daily-breakdown", async (req, res) => {
 
     const [centers, categories, items] = await Promise.all([
       db.execute(sql`
-        SELECT revenue_center_guid as guid, revenue_center_name as name, source, net_sales, order_count
+        SELECT revenue_center_guid as guid, revenue_center_name as name, source, net_sales, gross_sales, discount_amount, service_charge_amount, order_count
         FROM rcc_daily_revenue_by_center WHERE date = ${date as string} ORDER BY net_sales DESC
       `),
       db.execute(sql`
-        SELECT sales_category_guid as guid, sales_category_name as name, source, net_sales, item_count
+        SELECT sales_category_guid as guid, sales_category_name as name, source, net_sales, gross_sales, discount_amount, item_count
         FROM rcc_daily_revenue_by_category WHERE date = ${date as string} ORDER BY net_sales DESC
       `),
       db.execute(sql`
@@ -144,6 +147,9 @@ router.post("/sync-detail", async (req, res) => {
       date,
       toast: toastResult ? {
         netSales: toastResult.netSales,
+        grossSales: toastResult.grossSales,
+        totalDiscounts: toastResult.totalDiscounts,
+        totalServiceCharges: toastResult.totalServiceCharges,
         orderCount: toastResult.orderCount,
         revenueCenters: toastResult.revenueCenterBreakdown?.length || 0,
         salesCategories: toastResult.salesCategoryBreakdown?.length || 0,

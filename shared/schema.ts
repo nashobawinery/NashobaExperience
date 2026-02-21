@@ -4737,6 +4737,9 @@ export const rccDailyRevenueByCenter = pgTable("rcc_daily_revenue_by_center", {
   revenueCenterGuid: varchar("revenue_center_guid", { length: 64 }),
   revenueCenterName: varchar("revenue_center_name", { length: 255 }).notNull(),
   netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  grossSales: numeric("gross_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  serviceChargeAmount: numeric("service_charge_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   orderCount: integer("order_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
@@ -4756,6 +4759,8 @@ export const rccDailyRevenueByCategory = pgTable("rcc_daily_revenue_by_category"
   salesCategoryGuid: varchar("sales_category_guid", { length: 64 }),
   salesCategoryName: varchar("sales_category_name", { length: 255 }).notNull(),
   netSales: numeric("net_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  grossSales: numeric("gross_sales", { precision: 12, scale: 2 }).notNull().default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   itemCount: integer("item_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [

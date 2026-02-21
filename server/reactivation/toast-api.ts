@@ -310,10 +310,13 @@ export async function syncToastConfig(restaurantGuid: string): Promise<{
 
 export interface RevenueDetailResult {
   netSales: number;
+  grossSales: number;
+  totalDiscounts: number;
+  totalServiceCharges: number;
   orderCount: number;
   locationBreakdown: Record<string, number>;
-  revenueCenterBreakdown: Array<{ guid: string | null; name: string; netSales: number; orderCount: number }>;
-  salesCategoryBreakdown: Array<{ guid: string | null; name: string; netSales: number; itemCount: number }>;
+  revenueCenterBreakdown: Array<{ guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; serviceChargeAmount: number; orderCount: number }>;
+  salesCategoryBreakdown: Array<{ guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; itemCount: number }>;
   itemSales: Array<{
     itemName: string;
     itemGuid: string | null;
@@ -331,10 +334,13 @@ export async function fetchDailyRevenueDetail(
 ): Promise<RevenueDetailResult> {
   const restaurants = await getRestaurants();
   let totalNetSales = 0;
+  let totalGrossSales = 0;
+  let totalDiscounts = 0;
+  let totalServiceCharges = 0;
   let totalOrderCount = 0;
   const locationBreakdown: Record<string, number> = {};
-  const revCenterAgg: Record<string, { guid: string | null; name: string; netSales: number; orderCount: number }> = {};
-  const salesCatAgg: Record<string, { guid: string | null; name: string; netSales: number; itemCount: number }> = {};
+  const revCenterAgg: Record<string, { guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; serviceChargeAmount: number; orderCount: number }> = {};
+  const salesCatAgg: Record<string, { guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; itemCount: number }> = {};
   const itemAgg: Record<string, {
     itemName: string; itemGuid: string | null;
     salesCategoryGuid: string | null; salesCategoryName: string | null;
@@ -363,32 +369,50 @@ export async function fetchDailyRevenueDetail(
           const orderRevCenterGuid = order.revenueCenter?.guid || null;
           const orderRevCenterName = orderRevCenterGuid ? (revCenterMap.get(orderRevCenterGuid) || "Unknown") : "Uncategorized";
 
-          let orderNetSales = 0;
+          let orderGrossSales = 0;
+          let orderItemDiscounts = 0;
+          let orderCheckDiscounts = 0;
+          let orderServiceCharges = 0;
           const checks = order.checks || [];
 
           for (const check of checks) {
             if (check.voided || check.deleted) continue;
+
+            let checkGrossSales = 0;
+            let checkItemDiscounts = 0;
+
             for (const selection of (check.selections || [])) {
               if (selection.voided) continue;
               const itemName = selection.displayName || "Unknown Item";
               if (itemName.toLowerCase() === "gift card" || itemName.toLowerCase().includes("deposit")) continue;
 
-              const unitPrice = selection.price || 0;
               const qty = selection.quantity || 1;
-              const lineTotal = unitPrice * qty;
-              const discount = selection.discount?.appliedDiscount || 0;
-              const lineSales = lineTotal - discount;
+              const preDiscountPrice = selection.preDiscountPrice != null ? selection.preDiscountPrice : (selection.price || 0) * qty;
+
+              let itemDiscount = 0;
+              if (Array.isArray(selection.appliedDiscounts)) {
+                for (const disc of selection.appliedDiscounts) {
+                  if (disc.processingState === 'VOID' || disc.processingState === 'PENDING_VOID') continue;
+                  itemDiscount += (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+                }
+              }
+
+              const lineSales = preDiscountPrice - itemDiscount;
+
+              checkGrossSales += preDiscountPrice;
+              checkItemDiscounts += itemDiscount;
+
               const selCatGuid = selection.salesCategory?.guid || null;
               const selCatName = selCatGuid ? (salesCatMap.get(selCatGuid) || "Unknown") : "Uncategorized";
               const selItemGuid = selection.item?.guid || selection.guid || null;
 
-              orderNetSales += lineSales;
-
               const catKey = selCatGuid || "uncategorized";
               if (!salesCatAgg[catKey]) {
-                salesCatAgg[catKey] = { guid: selCatGuid, name: selCatName, netSales: 0, itemCount: 0 };
+                salesCatAgg[catKey] = { guid: selCatGuid, name: selCatName, netSales: 0, grossSales: 0, discountAmount: 0, itemCount: 0 };
               }
               salesCatAgg[catKey].netSales += lineSales;
+              salesCatAgg[catKey].grossSales += preDiscountPrice;
+              salesCatAgg[catKey].discountAmount += itemDiscount;
               salesCatAgg[catKey].itemCount += qty;
 
               const itemKey = `${itemName}|${selCatGuid || ""}|${orderRevCenterGuid || ""}`;
@@ -403,16 +427,74 @@ export async function fetchDailyRevenueDetail(
               itemAgg[itemKey].quantity += qty;
               itemAgg[itemKey].netSales += lineSales;
             }
+
+            let checkLevelDiscount = 0;
+            if (Array.isArray(check.appliedDiscounts)) {
+              for (const disc of check.appliedDiscounts) {
+                if (disc.processingState === 'VOID' || disc.processingState === 'PENDING_VOID') continue;
+                checkLevelDiscount += (disc.nonTaxableDiscountAmount || disc.discountAmount || 0);
+              }
+            }
+
+            let serviceCharges = 0;
+            if (Array.isArray(check.appliedServiceCharges)) {
+              for (const sc of check.appliedServiceCharges) {
+                if (sc.voided) continue;
+                if (sc.gratuity) continue;
+                serviceCharges += (sc.chargeAmount || 0);
+              }
+            }
+
+            orderGrossSales += checkGrossSales;
+            orderItemDiscounts += checkItemDiscounts;
+            orderCheckDiscounts += checkLevelDiscount;
+            orderServiceCharges += serviceCharges;
+
+            if (checkLevelDiscount > 0 && checkGrossSales > 0) {
+              for (const selection of (check.selections || [])) {
+                if (selection.voided) continue;
+                const selItemName = selection.displayName || "Unknown Item";
+                if (selItemName.toLowerCase() === "gift card" || selItemName.toLowerCase().includes("deposit")) continue;
+
+                const selPreDiscount = selection.preDiscountPrice != null ? selection.preDiscountPrice : (selection.price || 0) * (selection.quantity || 1);
+                if (selPreDiscount <= 0) continue;
+
+                const proportion = selPreDiscount / checkGrossSales;
+                const allocatedCheckDiscount = checkLevelDiscount * proportion;
+
+                const selCatGuid2 = selection.salesCategory?.guid || null;
+                const catKey2 = selCatGuid2 || "uncategorized";
+                if (salesCatAgg[catKey2]) {
+                  salesCatAgg[catKey2].netSales -= allocatedCheckDiscount;
+                  salesCatAgg[catKey2].discountAmount += allocatedCheckDiscount;
+                }
+
+                const selRevCenterGuid = orderRevCenterGuid;
+                const itemKey2 = `${selItemName}|${selCatGuid2 || ""}|${selRevCenterGuid || ""}`;
+                if (itemAgg[itemKey2]) {
+                  itemAgg[itemKey2].netSales -= allocatedCheckDiscount;
+                }
+              }
+            }
           }
+
+          const orderTotalDiscounts = orderItemDiscounts + orderCheckDiscounts;
+          const orderNetSales = orderGrossSales - orderTotalDiscounts + orderServiceCharges;
 
           const rcKey = orderRevCenterGuid || "uncategorized";
           if (!revCenterAgg[rcKey]) {
-            revCenterAgg[rcKey] = { guid: orderRevCenterGuid, name: orderRevCenterName, netSales: 0, orderCount: 0 };
+            revCenterAgg[rcKey] = { guid: orderRevCenterGuid, name: orderRevCenterName, netSales: 0, grossSales: 0, discountAmount: 0, serviceChargeAmount: 0, orderCount: 0 };
           }
           revCenterAgg[rcKey].netSales += orderNetSales;
+          revCenterAgg[rcKey].grossSales += orderGrossSales;
+          revCenterAgg[rcKey].discountAmount += orderTotalDiscounts;
+          revCenterAgg[rcKey].serviceChargeAmount += orderServiceCharges;
           revCenterAgg[rcKey].orderCount += 1;
 
           locationSales += orderNetSales;
+          totalGrossSales += orderGrossSales;
+          totalDiscounts += orderTotalDiscounts;
+          totalServiceCharges += orderServiceCharges;
           totalOrderCount++;
         }
 
@@ -430,14 +512,17 @@ export async function fetchDailyRevenueDetail(
 
   const round = (n: number) => Math.round(n * 100) / 100;
 
-  console.log(`[Toast Revenue Detail] ${businessDate}: $${round(totalNetSales).toFixed(2)} net, ${totalOrderCount} orders, ${Object.keys(revCenterAgg).length} centers, ${Object.keys(salesCatAgg).length} categories, ${Object.keys(itemAgg).length} items`);
+  console.log(`[Toast Revenue Detail] ${businessDate}: $${round(totalNetSales).toFixed(2)} net ($${round(totalGrossSales).toFixed(2)} gross - $${round(totalDiscounts).toFixed(2)} discounts + $${round(totalServiceCharges).toFixed(2)} svc charges), ${totalOrderCount} orders, ${Object.keys(revCenterAgg).length} centers, ${Object.keys(salesCatAgg).length} categories, ${Object.keys(itemAgg).length} items`);
 
   return {
     netSales: round(totalNetSales),
+    grossSales: round(totalGrossSales),
+    totalDiscounts: round(totalDiscounts),
+    totalServiceCharges: round(totalServiceCharges),
     orderCount: totalOrderCount,
     locationBreakdown,
-    revenueCenterBreakdown: Object.values(revCenterAgg).map(r => ({ ...r, netSales: round(r.netSales) })),
-    salesCategoryBreakdown: Object.values(salesCatAgg).map(c => ({ ...c, netSales: round(c.netSales) })),
+    revenueCenterBreakdown: Object.values(revCenterAgg).map(r => ({ ...r, netSales: round(r.netSales), grossSales: round(r.grossSales), discountAmount: round(r.discountAmount), serviceChargeAmount: round(r.serviceChargeAmount) })),
+    salesCategoryBreakdown: Object.values(salesCatAgg).map(c => ({ ...c, netSales: round(c.netSales), grossSales: round(c.grossSales), discountAmount: round(c.discountAmount) })),
     itemSales: Object.values(itemAgg).map(i => ({ ...i, netSales: round(i.netSales) })),
   };
 }
@@ -451,15 +536,15 @@ export async function syncToastRevenueDetailToDb(businessDate: string): Promise<
 
   for (const rc of detail.revenueCenterBreakdown) {
     await db.execute(sql`
-      INSERT INTO rcc_daily_revenue_by_center (date, source, revenue_center_guid, revenue_center_name, net_sales, order_count)
-      VALUES (${businessDate}, 'toast', ${rc.guid}, ${rc.name}, ${rc.netSales.toFixed(2)}, ${rc.orderCount})
+      INSERT INTO rcc_daily_revenue_by_center (date, source, revenue_center_guid, revenue_center_name, net_sales, gross_sales, discount_amount, service_charge_amount, order_count)
+      VALUES (${businessDate}, 'toast', ${rc.guid}, ${rc.name}, ${rc.netSales.toFixed(2)}, ${rc.grossSales.toFixed(2)}, ${rc.discountAmount.toFixed(2)}, ${rc.serviceChargeAmount.toFixed(2)}, ${rc.orderCount})
     `);
   }
 
   for (const sc of detail.salesCategoryBreakdown) {
     await db.execute(sql`
-      INSERT INTO rcc_daily_revenue_by_category (date, source, sales_category_guid, sales_category_name, net_sales, item_count)
-      VALUES (${businessDate}, 'toast', ${sc.guid}, ${sc.name}, ${sc.netSales.toFixed(2)}, ${sc.itemCount})
+      INSERT INTO rcc_daily_revenue_by_category (date, source, sales_category_guid, sales_category_name, net_sales, gross_sales, discount_amount, item_count)
+      VALUES (${businessDate}, 'toast', ${sc.guid}, ${sc.name}, ${sc.netSales.toFixed(2)}, ${sc.grossSales.toFixed(2)}, ${sc.discountAmount.toFixed(2)}, ${sc.itemCount})
     `);
   }
 
