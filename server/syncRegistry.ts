@@ -91,9 +91,11 @@ import {
   insertRccAiRecommendationSchema,
   insertRccToastHistoricalRevenueSchema,
   insertRccDailyRevenueSchema,
+  insertCellartraksProductClassificationSchema,
+  insertCellartraksStateTaxClassSchema,
 } from '@shared/schema';
 
-export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports' | 'reservation' | 'support' | 'rcc';
+export type SyncModule = 'tasting' | 'b2b' | 'lms' | 'compliance' | 'rbac' | 'platform' | 'daily_reports' | 'reservation' | 'support' | 'rcc' | 'cellartraks';
 
 // Data type classification for sync safety
 export type DataType = 
@@ -138,6 +140,7 @@ export const SYNC_MODULES: Record<SyncModule, { name: string; description: strin
   reservation: { name: 'Reservations', description: 'Guest reservation and booking system', icon: 'Calendar' },
   support: { name: 'Customer Support', description: 'Customer support tickets and knowledge base', icon: 'MessageSquare' },
   rcc: { name: 'Revenue Command Center', description: 'Weekly revenue planning and daily tracking', icon: 'TrendingUp' },
+  cellartraks: { name: 'CellarTraks', description: 'Production management and regulatory classifications', icon: 'FlaskConical' },
 };
 
 export const SYNC_TABLES: SyncTableConfig[] = [
@@ -1348,6 +1351,33 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     exportFields: ['weekId', 'date', 'dayOfWeek', 'toastRevenue', 'shopifyRevenue', 'otherRevenue', 'notes', 'weatherHigh', 'weatherLow', 'weatherCondition', 'weatherPrecipitation'],
     mergeFields: ['toastRevenue', 'shopifyRevenue', 'otherRevenue', 'notes', 'weatherHigh', 'weatherLow', 'weatherCondition', 'weatherPrecipitation'],
     dataType: 'user_generated',
+    supportsBackup: true,
+  },
+
+  // ============ CELLARTRAKS MODULE ============
+  {
+    id: 'cellartraksStateTaxClasses',
+    name: 'State Tax Classes',
+    description: 'State-level tax classifications with rates for regulatory reporting',
+    module: 'cellartraks',
+    sheetName: 'CtStateTaxClasses',
+    businessKey: ['stateCode', 'classKey'],
+    schema: insertCellartraksStateTaxClassSchema,
+    exportFields: ['stateCode', 'stateName', 'classKey', 'displayName', 'taxRate', 'taxUnit', 'description', 'abvMin', 'abvMax', 'sortOrder', 'isActive'],
+    dataType: 'configuration',
+    supportsBackup: true,
+  },
+  {
+    id: 'cellartraksProductClassifications',
+    name: 'Product Classifications',
+    description: 'Federal (TTB) and state tax classifications assigned to products',
+    module: 'cellartraks',
+    sheetName: 'CtProductClassifications',
+    businessKey: ['productId'],
+    parentTables: ['products', 'cellartraksStateTaxClasses'],
+    schema: insertCellartraksProductClassificationSchema,
+    exportFields: ['productId', 'division', 'ttbWineClass', 'ttbSpiritsClass', 'ttbBeerClass', 'maAb1Class', 'reportingUom', 'abvPercent', 'proofGallonFactor', 'bottleSizeMl', 'isClassified', 'notes'],
+    dataType: 'reference',
     supportsBackup: true,
   },
 ];
