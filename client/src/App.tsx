@@ -94,6 +94,9 @@ const CommandCenter = lazy(() => import("@/pages/command-center/CommandCenter"))
 // Lazy load Toast Connect module
 const ToastConnect = lazy(() => import("@/pages/toast-connect/ToastConnect"));
 
+// Lazy load CellarTraks module
+const CellarTraks = lazy(() => import("@/pages/cellartraks/CellarTraks"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -575,6 +578,13 @@ function CommandCenterRoute() {
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
   return <Suspense fallback={<PageLoader />}><CommandCenter /></Suspense>;
+}
+
+function CellarTraksRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><CellarTraks /></Suspense>;
 }
 
 function ToastConnectRoute() {
@@ -1203,6 +1213,7 @@ function Router() {
         <Route path="/boomerang" component={BoomerangDashboardRoute} />
         <Route path="/boomerang/admin" component={BoomerangDashboardRoute} />
         <Route path="/command-center" component={CommandCenterRoute} />
+        <Route path="/cellartraks" component={CellarTraksRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />
