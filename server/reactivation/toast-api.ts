@@ -313,6 +313,8 @@ export interface RevenueDetailResult {
   grossSales: number;
   totalDiscounts: number;
   totalServiceCharges: number;
+  totalVoidAmount: number;
+  totalVoidCount: number;
   orderCount: number;
   locationBreakdown: Record<string, number>;
   revenueCenterBreakdown: Array<{ guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; serviceChargeAmount: number; orderCount: number }>;
@@ -337,6 +339,8 @@ export async function fetchDailyRevenueDetail(
   let totalGrossSales = 0;
   let totalDiscounts = 0;
   let totalServiceCharges = 0;
+  let totalVoidAmount = 0;
+  let totalVoidCount = 0;
   let totalOrderCount = 0;
   const locationBreakdown: Record<string, number> = {};
   const revCenterAgg: Record<string, { guid: string | null; name: string; netSales: number; grossSales: number; discountAmount: number; serviceChargeAmount: number; orderCount: number }> = {};
@@ -364,7 +368,24 @@ export async function fetchDailyRevenueDetail(
         if (!Array.isArray(orders) || orders.length === 0) { hasMore = false; break; }
 
         for (const order of orders) {
-          if (order.voided || order.deleted) continue;
+          if (order.voided || order.deleted) {
+            let voidEstimate = 0;
+            for (const vCheck of (order.checks || [])) {
+              if (vCheck.totalAmount) {
+                voidEstimate += Math.abs(vCheck.totalAmount);
+              } else {
+                for (const vSel of (vCheck.selections || [])) {
+                  const vPrice = vSel.preDiscountPrice != null ? vSel.preDiscountPrice : (vSel.price || 0) * (vSel.quantity || 1);
+                  voidEstimate += vPrice;
+                }
+              }
+            }
+            if (voidEstimate > 0) {
+              totalVoidAmount += voidEstimate;
+              totalVoidCount++;
+            }
+            continue;
+          }
 
           const orderRevCenterGuid = order.revenueCenter?.guid || null;
           const orderRevCenterName = orderRevCenterGuid ? (revCenterMap.get(orderRevCenterGuid) || "Unknown") : "Uncategorized";
@@ -376,13 +397,27 @@ export async function fetchDailyRevenueDetail(
           const checks = order.checks || [];
 
           for (const check of checks) {
-            if (check.voided || check.deleted) continue;
+            if (check.voided || check.deleted) {
+              const voidVal = check.totalAmount ? Math.abs(check.totalAmount) : 0;
+              if (voidVal > 0) {
+                totalVoidAmount += voidVal;
+                totalVoidCount++;
+              }
+              continue;
+            }
 
             let checkGrossSales = 0;
             let checkItemDiscounts = 0;
 
             for (const selection of (check.selections || [])) {
-              if (selection.voided) continue;
+              if (selection.voided) {
+                const voidItemVal = selection.preDiscountPrice != null ? selection.preDiscountPrice : (selection.price || 0) * (selection.quantity || 1);
+                if (voidItemVal > 0) {
+                  totalVoidAmount += voidItemVal;
+                  totalVoidCount++;
+                }
+                continue;
+              }
               const itemName = selection.displayName || "Unknown Item";
               if (itemName.toLowerCase() === "gift card" || itemName.toLowerCase().includes("deposit")) continue;
 
@@ -512,13 +547,15 @@ export async function fetchDailyRevenueDetail(
 
   const round = (n: number) => Math.round(n * 100) / 100;
 
-  console.log(`[Toast Revenue Detail] ${businessDate}: $${round(totalNetSales).toFixed(2)} net ($${round(totalGrossSales).toFixed(2)} gross - $${round(totalDiscounts).toFixed(2)} discounts + $${round(totalServiceCharges).toFixed(2)} svc charges), ${totalOrderCount} orders, ${Object.keys(revCenterAgg).length} centers, ${Object.keys(salesCatAgg).length} categories, ${Object.keys(itemAgg).length} items`);
+  console.log(`[Toast Revenue Detail] ${businessDate}: $${round(totalNetSales).toFixed(2)} net ($${round(totalGrossSales).toFixed(2)} gross - $${round(totalDiscounts).toFixed(2)} discounts + $${round(totalServiceCharges).toFixed(2)} svc charges), voids: $${round(totalVoidAmount).toFixed(2)} (${totalVoidCount}), ${totalOrderCount} orders, ${Object.keys(revCenterAgg).length} centers, ${Object.keys(salesCatAgg).length} categories, ${Object.keys(itemAgg).length} items`);
 
   return {
     netSales: round(totalNetSales),
     grossSales: round(totalGrossSales),
     totalDiscounts: round(totalDiscounts),
     totalServiceCharges: round(totalServiceCharges),
+    totalVoidAmount: round(totalVoidAmount),
+    totalVoidCount,
     orderCount: totalOrderCount,
     locationBreakdown,
     revenueCenterBreakdown: Object.values(revCenterAgg).map(r => ({ ...r, netSales: round(r.netSales), grossSales: round(r.grossSales), discountAmount: round(r.discountAmount), serviceChargeAmount: round(r.serviceChargeAmount) })),
