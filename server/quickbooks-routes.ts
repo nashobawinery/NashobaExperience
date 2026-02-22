@@ -256,8 +256,30 @@ router.post("/api/quickbooks/customers/sync", async (_req: Request, res: Respons
     const conn = await getActiveConnection();
     if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
 
-    const result = await qbApiRequest(conn, "/query?query=" + encodeURIComponent("SELECT * FROM Customer MAXRESULTS 1000"));
-    const qbCustomers = result?.QueryResponse?.Customer || [];
+    const invResult = await qbApiRequest(conn, "/query?query=" + encodeURIComponent("SELECT * FROM Invoice WHERE TxnDate >= '2024-01-01' MAXRESULTS 1000"));
+    const allInvoices = invResult?.QueryResponse?.Invoice || [];
+    const ekosInvoices = allInvoices.filter((inv: any) => (inv.DocNumber || "").startsWith("E"));
+
+    const ekosCustomerIds = new Set<string>();
+    for (const inv of ekosInvoices) {
+      if (inv.CustomerRef?.value) {
+        ekosCustomerIds.add(String(inv.CustomerRef.value));
+      }
+    }
+
+    if (ekosCustomerIds.size === 0) {
+      return res.json({ total: 0, newMapped: 0, alreadyMapped: 0, message: "No EKOS invoices found - no customers to sync" });
+    }
+
+    const customerIds = Array.from(ekosCustomerIds);
+    const qbCustomers: any[] = [];
+    const batchSize = 30;
+    for (let i = 0; i < customerIds.length; i += batchSize) {
+      const batch = customerIds.slice(i, i + batchSize);
+      const inClause = batch.map(id => `'${id}'`).join(",");
+      const custResult = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(`SELECT * FROM Customer WHERE Id IN (${inClause}) MAXRESULTS 100`));
+      qbCustomers.push(...(custResult?.QueryResponse?.Customer || []));
+    }
 
     const existingB2b = await db.select().from(b2bCustomers);
     const existingMaps = await db.select().from(qbCustomerMap);
@@ -267,8 +289,9 @@ router.post("/api/quickbooks/customers/sync", async (_req: Request, res: Respons
       const existing = existingMaps.find(m => m.qbCustomerId === String(qbCust.Id));
       if (existing) continue;
 
+      const qbName = (qbCust.DisplayName || qbCust.CompanyName || "").toLowerCase().trim();
       const nameMatch = existingB2b.find(b =>
-        b.accountName.toLowerCase().trim() === (qbCust.DisplayName || qbCust.CompanyName || "").toLowerCase().trim()
+        b.accountName.toLowerCase().trim() === qbName
       );
 
       await db.insert(qbCustomerMap).values({
@@ -280,7 +303,7 @@ router.post("/api/quickbooks/customers/sync", async (_req: Request, res: Respons
       if (nameMatch) newMapped++;
     }
 
-    res.json({ total: qbCustomers.length, newMapped, alreadyMapped: existingMaps.length });
+    res.json({ total: qbCustomers.length, newMapped, alreadyMapped: existingMaps.length, ekosInvoicesScanned: ekosInvoices.length });
   } catch (error: any) {
     console.error("QB customer sync error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });
@@ -722,6 +745,8 @@ async function fetchAndAnalyzePayments(conn: typeof qbConnection.$inferSelect, s
     invoiceMapByQbId[m.qbInvoiceId] = m;
   }
 
+  const importedQbInvoiceIds = new Set(invoiceMaps.map(m => m.qbInvoiceId));
+
   const analyzedPayments: any[] = [];
 
   for (const pmt of payments) {
@@ -733,12 +758,16 @@ async function fetchAndAnalyzePayments(conn: typeof qbConnection.$inferSelect, s
     const customerName = pmt.CustomerRef?.name || "Unknown";
 
     const linkedInvoices: any[] = [];
+    let hasImportedInvoiceLink = false;
     const lines = pmt.Line || [];
     for (const line of lines) {
       const linkedTxns = line.LinkedTxn || [];
       for (const lt of linkedTxns) {
         if (lt.TxnType === "Invoice") {
           const invMap = invoiceMapByQbId[lt.TxnId];
+          if (importedQbInvoiceIds.has(lt.TxnId)) {
+            hasImportedInvoiceLink = true;
+          }
           linkedInvoices.push({
             qbInvoiceId: lt.TxnId,
             amountApplied: parseFloat(line.Amount || "0"),
@@ -748,6 +777,10 @@ async function fetchAndAnalyzePayments(conn: typeof qbConnection.$inferSelect, s
           });
         }
       }
+    }
+
+    if (!hasImportedInvoiceLink && !importedPaymentIds.has(qbPaymentId)) {
+      continue;
     }
 
     let status = "ready";

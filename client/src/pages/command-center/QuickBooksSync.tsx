@@ -204,16 +204,22 @@ export default function QuickBooksSync() {
   });
 
   const syncCustomersMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/quickbooks/customers/sync"),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/customers/sync");
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/customers"] });
-      toast({ title: "Customers Synced", description: `Found ${data.total} customers. ${data.newMapped} auto-matched.` });
+      toast({ title: "Customers Synced", description: `Found ${data.total} EKOS customers (from ${data.ekosInvoicesScanned || 0} invoices). ${data.newMapped} auto-matched.` });
     },
     onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
   });
 
   const syncItemsMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/quickbooks/items/sync"),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/items/sync");
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/items"] });
       toast({ title: "Items Synced", description: `Found ${data.total} items. ${data.newMapped} auto-matched.` });
@@ -239,12 +245,15 @@ export default function QuickBooksSync() {
   });
 
   const importMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/quickbooks/sync/invoices", {
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      docNumberPrefix: ekosOnly ? "E" : "",
-      selectedInvoiceIds: Array.from(selectedIds),
-    }),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/sync/invoices", {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        docNumberPrefix: ekosOnly ? "E" : "",
+        selectedInvoiceIds: Array.from(selectedIds),
+      });
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/sync/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/status"] });
@@ -307,11 +316,14 @@ export default function QuickBooksSync() {
   });
 
   const paymentImportMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/quickbooks/sync/payments/import", {
-      startDate: pmtStartDate || undefined,
-      endDate: pmtEndDate || undefined,
-      selectedPaymentIds: Array.from(selectedPaymentIds),
-    }),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/sync/payments/import", {
+        startDate: pmtStartDate || undefined,
+        endDate: pmtEndDate || undefined,
+        selectedPaymentIds: Array.from(selectedPaymentIds),
+      });
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/sync/history"] });
       setPaymentPreview(null);
@@ -553,7 +565,7 @@ export default function QuickBooksSync() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <CardTitle>Customer Mappings</CardTitle>
-                <CardDescription>Map QuickBooks customers to your B2B wholesale accounts</CardDescription>
+                <CardDescription>Only customers from EKOS invoices (starting with "E") are pulled from QuickBooks. Map them to your B2B wholesale accounts below.</CardDescription>
               </div>
               <Button onClick={() => syncCustomersMutation.mutate()} disabled={syncCustomersMutation.isPending} data-testid="button-sync-customers">
                 <RefreshCw className={`w-4 h-4 mr-2 ${syncCustomersMutation.isPending ? "animate-spin" : ""}`} />
