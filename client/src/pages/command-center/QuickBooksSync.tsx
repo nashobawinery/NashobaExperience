@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Link2, Link2Off, RefreshCw, Users, Package, FileText, AlertTriangle,
   CheckCircle, XCircle, Clock, ArrowRight, Eye, EyeOff, Filter, Search,
-  ShieldCheck, Copy, CircleSlash, HelpCircle
+  ShieldCheck, Copy, CircleSlash, HelpCircle, DollarSign, CreditCard
 } from "lucide-react";
 
 interface QbStatus {
@@ -102,7 +102,36 @@ interface PreviewResult {
   invoices: PreviewInvoice[];
 }
 
-type TabType = "connection" | "customers" | "items" | "sync";
+interface PaymentPreview {
+  qbPaymentId: string;
+  txnDate: string;
+  totalAmt: number;
+  paymentMethod: string | null;
+  paymentRefNum: string | null;
+  customerName: string;
+  linkedInvoices: {
+    qbInvoiceId: string;
+    amountApplied: number;
+    b2bOrderId: string | null;
+    qbDocNumber: string | null;
+    mapped: boolean;
+  }[];
+  status: "ready" | "already_imported" | "no_invoices" | "unmapped_invoices" | "partial_match";
+  statusReason: string;
+}
+
+interface PaymentPreviewResult {
+  summary: {
+    total: number;
+    ready: number;
+    alreadyImported: number;
+    unmappedInvoices: number;
+    noInvoices: number;
+  };
+  payments: PaymentPreview[];
+}
+
+type TabType = "connection" | "customers" | "items" | "sync" | "payments";
 
 export default function QuickBooksSync() {
   const { toast } = useToast();
@@ -112,6 +141,10 @@ export default function QuickBooksSync() {
   const [ekosOnly, setEkosOnly] = useState(true);
   const [previewData, setPreviewData] = useState<PreviewResult | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pmtStartDate, setPmtStartDate] = useState("2026-01-01");
+  const [pmtEndDate, setPmtEndDate] = useState("");
+  const [paymentPreview, setPaymentPreview] = useState<PaymentPreviewResult | null>(null);
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -257,11 +290,77 @@ export default function QuickBooksSync() {
     },
   });
 
+  const paymentPreviewMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/sync/payments/preview", {
+        startDate: pmtStartDate || undefined,
+        endDate: pmtEndDate || undefined,
+      });
+      return res as unknown as PaymentPreviewResult;
+    },
+    onSuccess: (data: PaymentPreviewResult) => {
+      setPaymentPreview(data);
+      const readyIds = new Set(data.payments.filter(p => p.status === "ready" || p.status === "partial_match").map(p => p.qbPaymentId));
+      setSelectedPaymentIds(readyIds);
+    },
+    onError: (err: any) => toast({ title: "Preview Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const paymentImportMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/quickbooks/sync/payments/import", {
+      startDate: pmtStartDate || undefined,
+      endDate: pmtEndDate || undefined,
+      selectedPaymentIds: Array.from(selectedPaymentIds),
+    }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/sync/history"] });
+      setPaymentPreview(null);
+      setSelectedPaymentIds(new Set());
+      toast({
+        title: "Payment Sync Complete",
+        description: `${data.applied} payments applied, ${data.skipped} skipped, ${data.failed} failed.`,
+      });
+    },
+    onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const togglePaymentSelection = (id: string) => {
+    setSelectedPaymentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const paymentStatusIcon = (s: PaymentPreview["status"]) => {
+    switch (s) {
+      case "ready": return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "already_imported": return <ShieldCheck className="w-4 h-4 text-blue-500" />;
+      case "partial_match": return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case "unmapped_invoices": return <FileText className="w-4 h-4 text-destructive" />;
+      case "no_invoices": return <CircleSlash className="w-4 h-4 text-muted-foreground" />;
+      default: return <HelpCircle className="w-4 h-4" />;
+    }
+  };
+
+  const paymentStatusLabel = (s: PaymentPreview["status"]) => {
+    switch (s) {
+      case "ready": return "Ready to Apply";
+      case "already_imported": return "Already Applied";
+      case "partial_match": return "Partial Match";
+      case "unmapped_invoices": return "Invoices Not Imported";
+      case "no_invoices": return "No Linked Invoices";
+      default: return s;
+    }
+  };
+
   const tabs: { key: TabType; label: string; icon: typeof Link2 }[] = [
     { key: "connection", label: "Connection", icon: Link2 },
     { key: "customers", label: "Customers", icon: Users },
     { key: "items", label: "Products", icon: Package },
     { key: "sync", label: "Import Invoices", icon: FileText },
+    { key: "payments", label: "Sync Payments", icon: DollarSign },
   ];
 
   const unmappedCustomers = customerMappings?.filter(m => !m.b2bCustomerId && !m.isIgnored).length || 0;
@@ -783,10 +882,10 @@ export default function QuickBooksSync() {
                           <span className="font-medium capitalize">{log.syncType}</span>
                           <span className="text-muted-foreground">{new Date(log.startedAt).toLocaleString()}</span>
                         </div>
-                        {log.syncType === "invoices" && (
+                        {(log.syncType === "invoices" || log.syncType === "payments") && (
                           <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
                             <span>Processed: {log.invoicesProcessed}</span>
-                            <span className="text-green-600">Created: {log.invoicesCreated}</span>
+                            <span className="text-green-600">{log.syncType === "payments" ? "Applied" : "Created"}: {log.invoicesCreated}</span>
                             <span>Skipped: {log.invoicesSkipped}</span>
                             {(log.invoicesFailed || 0) > 0 && <span className="text-destructive">Failed: {log.invoicesFailed}</span>}
                           </div>
@@ -804,6 +903,188 @@ export default function QuickBooksSync() {
               )}
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {activeTab === "payments" && status?.connected && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Sync Payments from QuickBooks
+              </CardTitle>
+              <CardDescription>
+                Match QuickBooks payments to imported EKOS invoices to mark B2B orders as paid. This unlocks commission payouts for sales reps.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-end gap-3 flex-wrap">
+                <div>
+                  <label className="text-xs text-muted-foreground">Start Date</label>
+                  <Input
+                    type="date"
+                    value={pmtStartDate}
+                    onChange={e => setPmtStartDate(e.target.value)}
+                    data-testid="input-pmt-start-date"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">End Date</label>
+                  <Input
+                    type="date"
+                    value={pmtEndDate}
+                    onChange={e => setPmtEndDate(e.target.value)}
+                    data-testid="input-pmt-end-date"
+                  />
+                </div>
+                <Button
+                  onClick={() => paymentPreviewMutation.mutate()}
+                  disabled={paymentPreviewMutation.isPending}
+                  data-testid="button-preview-payments"
+                >
+                  {paymentPreviewMutation.isPending ? (
+                    <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
+                  ) : (
+                    <><Eye className="w-4 h-4 mr-2" /> Preview Payments</>
+                  )}
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-md bg-muted/50 text-sm space-y-1">
+                <p className="font-medium">How Payment Sync Works:</p>
+                <p className="text-muted-foreground">1. Fetches payments from QuickBooks for the selected date range</p>
+                <p className="text-muted-foreground">2. Matches them to imported EKOS invoices (via Invoice Import tab)</p>
+                <p className="text-muted-foreground">3. Marks matched B2B orders as paid and updates commission status to "earned"</p>
+                <p className="text-muted-foreground">4. Earned commissions become available for payroll/payout</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {paymentPreview && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle>Payment Preview</CardTitle>
+                  <Button
+                    onClick={() => paymentImportMutation.mutate()}
+                    disabled={paymentImportMutation.isPending || selectedPaymentIds.size === 0}
+                    data-testid="button-apply-payments"
+                  >
+                    {paymentImportMutation.isPending ? (
+                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Applying...</>
+                    ) : (
+                      <><DollarSign className="w-4 h-4 mr-2" /> Apply {selectedPaymentIds.size} Payment{selectedPaymentIds.size !== 1 ? "s" : ""}</>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2 flex-wrap">
+                  <Badge variant="outline" className="gap-1">
+                    {paymentPreview.summary.total} Total
+                  </Badge>
+                  {paymentPreview.summary.ready > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                      {paymentPreview.summary.ready} Ready
+                    </Badge>
+                  )}
+                  {paymentPreview.summary.alreadyImported > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <ShieldCheck className="w-3 h-3 text-blue-500" />
+                      {paymentPreview.summary.alreadyImported} Already Applied
+                    </Badge>
+                  )}
+                  {paymentPreview.summary.unmappedInvoices > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <FileText className="w-3 h-3 text-destructive" />
+                      {paymentPreview.summary.unmappedInvoices} Invoices Not Imported
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {paymentPreview.payments.map(pmt => {
+                    const isSelectable = pmt.status === "ready" || pmt.status === "partial_match";
+                    const isSelected = selectedPaymentIds.has(pmt.qbPaymentId);
+
+                    return (
+                      <div
+                        key={pmt.qbPaymentId}
+                        className={`flex items-start gap-3 p-3 rounded-md border text-sm ${
+                          pmt.status === "ready" ? "border-green-500/20 bg-green-500/5" :
+                          pmt.status === "partial_match" ? "border-amber-500/20 bg-amber-500/5" :
+                          pmt.status === "already_imported" ? "border-blue-500/20 bg-blue-500/5" :
+                          "border-destructive/20 bg-destructive/5"
+                        }`}
+                        data-testid={`preview-payment-${pmt.qbPaymentId}`}
+                      >
+                        {isSelectable && (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => togglePaymentSelection(pmt.qbPaymentId)}
+                            className="mt-0.5"
+                            data-testid={`checkbox-payment-${pmt.qbPaymentId}`}
+                          />
+                        )}
+                        <div className="flex-shrink-0 mt-0.5">
+                          {paymentStatusIcon(pmt.status)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">${pmt.totalAmt.toFixed(2)}</span>
+                            <span className="text-muted-foreground">{pmt.customerName}</span>
+                            <span className="text-muted-foreground">{pmt.txnDate}</span>
+                            {pmt.paymentMethod && (
+                              <Badge variant="secondary" className="text-xs">{pmt.paymentMethod}</Badge>
+                            )}
+                            {pmt.paymentRefNum && (
+                              <span className="text-xs text-muted-foreground">Ref: {pmt.paymentRefNum}</span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 flex-wrap">
+                            <Badge variant={pmt.status === "ready" ? "outline" : "secondary"} className="text-xs">
+                              {paymentStatusLabel(pmt.status)}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {pmt.linkedInvoices.length} linked invoice{pmt.linkedInvoices.length !== 1 ? "s" : ""}
+                              {pmt.linkedInvoices.filter(li => li.mapped).length > 0 && (
+                                <> ({pmt.linkedInvoices.filter(li => li.mapped).length} matched)</>
+                              )}
+                            </span>
+                          </div>
+                          {pmt.linkedInvoices.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {pmt.linkedInvoices.map((li, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  {li.mapped ? (
+                                    <CheckCircle className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <XCircle className="w-3 h-3 text-destructive" />
+                                  )}
+                                  <span>Invoice #{li.qbDocNumber || li.qbInvoiceId}</span>
+                                  <span className="text-muted-foreground">${li.amountApplied.toFixed(2)}</span>
+                                  {!li.mapped && <span className="text-destructive">(not imported)</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {pmt.statusReason && pmt.status !== "ready" && (
+                            <p className="text-xs text-muted-foreground mt-1">{pmt.statusReason}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {paymentPreview.payments.length === 0 && (
+                  <p className="text-center py-6 text-muted-foreground">No payments found for the selected date range.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

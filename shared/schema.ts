@@ -5921,8 +5921,24 @@ export const qbInvoiceMap = pgTable("qb_invoice_map", {
   index("idx_qb_invoice_map_b2b_id").on(table.b2bOrderId),
 ]);
 
+export const qbPaymentMap = pgTable("qb_payment_map", {
+  id: serial("id").primaryKey(),
+  qbPaymentId: varchar("qb_payment_id").notNull().unique(),
+  qbInvoiceId: varchar("qb_invoice_id").notNull(),
+  b2bOrderId: varchar("b2b_order_id").notNull().references(() => b2bOrders.id),
+  amountApplied: decimal("amount_applied", { precision: 10, scale: 2 }).notNull(),
+  paymentDate: timestamp("payment_date").notNull(),
+  paymentMethod: varchar("payment_method"),
+  paymentRefNum: varchar("payment_ref_num"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_qb_payment_map_qb_id").on(table.qbPaymentId),
+  index("idx_qb_payment_map_b2b_id").on(table.b2bOrderId),
+]);
+
 export type QbConnection = typeof qbConnection.$inferSelect;
 export type QbCustomerMap = typeof qbCustomerMap.$inferSelect;
 export type QbItemMap = typeof qbItemMap.$inferSelect;
 export type QbSyncLog = typeof qbSyncLog.$inferSelect;
 export type QbInvoiceMap = typeof qbInvoiceMap.$inferSelect;
+export type QbPaymentMap = typeof qbPaymentMap.$inferSelect;

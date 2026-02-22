@@ -1,8 +1,9 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
 import { db } from "./db";
-import { qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, b2bOrders, b2bOrderItems, b2bCustomers, products } from "@shared/schema";
-import { eq, desc, and, isNull, sql } from "drizzle-orm";
+import { qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, b2bOrders, b2bOrderItems, b2bCustomers, products } from "@shared/schema";
+import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
+import { storage } from "./storage";
 import crypto from "crypto";
 
 const router = Router();
@@ -675,6 +676,220 @@ router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response)
     });
   } catch (error: any) {
     console.error("QB invoice sync error:", error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Payment Sync ====================
+
+async function fetchAndAnalyzePayments(conn: typeof qbConnection.$inferSelect, startDate?: string, endDate?: string) {
+  let query = "SELECT * FROM Payment";
+  const conditions: string[] = [];
+  if (startDate) conditions.push(`TxnDate >= '${startDate}'`);
+  if (endDate) conditions.push(`TxnDate <= '${endDate}'`);
+  if (!startDate && !endDate) {
+    conditions.push(`TxnDate >= '2026-01-01'`);
+  }
+  if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
+  query += " MAXRESULTS 500";
+
+  const result = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(query));
+  const payments = result?.QueryResponse?.Payment || [];
+
+  const existingPaymentMaps = await db.select().from(qbPaymentMap);
+  const importedPaymentIds = new Set(existingPaymentMaps.map(p => p.qbPaymentId));
+
+  const invoiceMaps = await db.select().from(qbInvoiceMap);
+  const invoiceMapByQbId: Record<string, typeof invoiceMaps[0]> = {};
+  for (const m of invoiceMaps) {
+    invoiceMapByQbId[m.qbInvoiceId] = m;
+  }
+
+  const analyzedPayments: any[] = [];
+
+  for (const pmt of payments) {
+    const qbPaymentId = pmt.Id;
+    const txnDate = pmt.TxnDate;
+    const totalAmt = parseFloat(pmt.TotalAmt || "0");
+    const paymentMethodName = pmt.PaymentMethodRef?.name || null;
+    const paymentRefNum = pmt.PaymentRefNum || null;
+    const customerName = pmt.CustomerRef?.name || "Unknown";
+
+    const linkedInvoices: any[] = [];
+    const lines = pmt.Line || [];
+    for (const line of lines) {
+      const linkedTxns = line.LinkedTxn || [];
+      for (const lt of linkedTxns) {
+        if (lt.TxnType === "Invoice") {
+          const invMap = invoiceMapByQbId[lt.TxnId];
+          linkedInvoices.push({
+            qbInvoiceId: lt.TxnId,
+            amountApplied: parseFloat(line.Amount || "0"),
+            b2bOrderId: invMap?.b2bOrderId || null,
+            qbDocNumber: invMap?.qbDocNumber || null,
+            mapped: !!invMap,
+          });
+        }
+      }
+    }
+
+    let status = "ready";
+    let statusReason = "";
+
+    if (importedPaymentIds.has(qbPaymentId)) {
+      status = "already_imported";
+      statusReason = "Payment already synced";
+    } else if (linkedInvoices.length === 0) {
+      status = "no_invoices";
+      statusReason = "No linked invoices found";
+    } else if (linkedInvoices.every((li: any) => !li.mapped)) {
+      status = "unmapped_invoices";
+      statusReason = "Linked invoices not imported into B2B yet";
+    } else if (linkedInvoices.some((li: any) => !li.mapped)) {
+      status = "partial_match";
+      statusReason = "Some linked invoices not imported into B2B";
+    }
+
+    analyzedPayments.push({
+      qbPaymentId,
+      txnDate,
+      totalAmt,
+      paymentMethod: paymentMethodName,
+      paymentRefNum,
+      customerName,
+      linkedInvoices,
+      status,
+      statusReason,
+    });
+  }
+
+  return analyzedPayments;
+}
+
+router.post("/api/quickbooks/sync/payments/preview", async (req: Request, res: Response) => {
+  try {
+    const conn = await getActiveConnection();
+    if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
+
+    const { startDate, endDate } = req.body;
+    const analyzed = await fetchAndAnalyzePayments(conn, startDate, endDate);
+
+    const summary = {
+      total: analyzed.length,
+      ready: analyzed.filter(p => p.status === "ready" || p.status === "partial_match").length,
+      alreadyImported: analyzed.filter(p => p.status === "already_imported").length,
+      unmappedInvoices: analyzed.filter(p => p.status === "unmapped_invoices").length,
+      noInvoices: analyzed.filter(p => p.status === "no_invoices").length,
+    };
+
+    res.json({ summary, payments: analyzed });
+  } catch (error: any) {
+    console.error("QB payment preview error:", error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/quickbooks/sync/payments/import", async (req: Request, res: Response) => {
+  try {
+    const conn = await getActiveConnection();
+    if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
+
+    const { startDate, endDate, selectedPaymentIds } = req.body;
+    const analyzed = await fetchAndAnalyzePayments(conn, startDate, endDate);
+
+    const toImport = selectedPaymentIds
+      ? analyzed.filter(a => selectedPaymentIds.includes(a.qbPaymentId) && a.status !== "already_imported")
+      : analyzed.filter(a => a.status === "ready");
+
+    let applied = 0;
+    let skipped = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const pmt of toImport) {
+      try {
+        const mappedInvoices = pmt.linkedInvoices.filter((li: any) => li.mapped && li.b2bOrderId);
+
+        if (mappedInvoices.length === 0) {
+          skipped++;
+          continue;
+        }
+
+        for (const li of mappedInvoices) {
+          const existingPmtMap = await db.select().from(qbPaymentMap)
+            .where(and(
+              eq(qbPaymentMap.qbPaymentId, pmt.qbPaymentId),
+              eq(qbPaymentMap.qbInvoiceId, li.qbInvoiceId)
+            )).limit(1);
+
+          if (existingPmtMap.length > 0) continue;
+
+          await db.insert(qbPaymentMap).values({
+            qbPaymentId: pmt.qbPaymentId,
+            qbInvoiceId: li.qbInvoiceId,
+            b2bOrderId: li.b2bOrderId,
+            amountApplied: String(li.amountApplied),
+            paymentDate: new Date(pmt.txnDate),
+            paymentMethod: pmt.paymentMethod,
+            paymentRefNum: pmt.paymentRefNum,
+          });
+
+          const [order] = await db.select().from(b2bOrders).where(eq(b2bOrders.id, li.b2bOrderId)).limit(1);
+          if (order && !order.paidAt) {
+            await db.update(b2bOrders)
+              .set({
+                status: "completed",
+                paidAt: new Date(pmt.txnDate),
+                completedAt: new Date(pmt.txnDate),
+                paymentMethod: pmt.paymentMethod || "QuickBooks Payment",
+                paymentReference: pmt.paymentRefNum || `QB-PMT-${pmt.qbPaymentId}`,
+                paymentNotes: `Synced from QuickBooks (Payment #${pmt.qbPaymentId})`,
+                updatedAt: new Date(),
+              })
+              .where(eq(b2bOrders.id, li.b2bOrderId));
+
+            try {
+              const commissions = await storage.getCommissionsByOrderId(li.b2bOrderId);
+              for (const commission of commissions) {
+                if (commission.status === "pending") {
+                  await storage.updateCommissionStatus(commission.id, "earned");
+                }
+              }
+            } catch (commErr) {
+              console.error("Error updating commissions for order:", li.b2bOrderId, commErr);
+            }
+          }
+        }
+
+        applied++;
+      } catch (err: any) {
+        failed++;
+        errors.push(`Payment ${pmt.qbPaymentId}: ${err.message}`);
+      }
+    }
+
+    const [logEntry] = await db.insert(qbSyncLog).values({
+      syncType: "payments",
+      status: failed > 0 ? "completed_with_errors" : "completed",
+      invoicesProcessed: toImport.length,
+      invoicesCreated: applied,
+      invoicesSkipped: skipped,
+      invoicesFailed: failed,
+      errorDetails: errors.length > 0 ? errors.join("; ") : null,
+      completedAt: new Date(),
+    }).returning();
+
+    res.json({
+      success: true,
+      logId: logEntry.id,
+      processed: toImport.length,
+      applied,
+      skipped,
+      failed,
+      errors: errors.slice(0, 20),
+    });
+  } catch (error: any) {
+    console.error("QB payment sync error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });
   }
 });
