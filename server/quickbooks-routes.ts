@@ -138,15 +138,7 @@ router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
     const accessTokenExpiresAt = new Date(Date.now() + response.data.expires_in * 1000);
     const refreshTokenExpiresAt = new Date(Date.now() + response.data.x_refresh_token_expires_in * 1000);
 
-    await db.delete(qbConnection).where(eq(qbConnection.isActive, true));
-
-    const tempConn = {
-      realmId: realmId as string,
-      accessToken: response.data.access_token,
-      refreshToken: response.data.refresh_token,
-      accessTokenExpiresAt,
-      refreshTokenExpiresAt,
-    };
+    await db.delete(qbConnection);
 
     let companyName = null;
     try {
@@ -155,7 +147,9 @@ router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
         { headers: { Authorization: `Bearer ${response.data.access_token}`, Accept: "application/json" } }
       );
       companyName = companyInfo.data?.CompanyInfo?.CompanyName || null;
-    } catch (e) {}
+    } catch (e) {
+      console.log("[QB OAuth] Could not fetch company name:", (e as any)?.message);
+    }
 
     await db.insert(qbConnection).values({
       realmId: realmId as string,
