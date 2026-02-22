@@ -10,8 +10,14 @@ import {
   nashobatvDailySpecials,
   products,
 } from "@shared/schema";
+import { objectStorageClient } from "./objectStorage";
 
 const router = Router();
+
+function photoProxyUrl(photoId: number, imageUrl: string): string {
+  if (!imageUrl.startsWith("https://storage.googleapis.com/")) return imageUrl;
+  return `/api/public/display/photo-file/${photoId}`;
+}
 
 function requireAuth(req: Request, res: Response, next: Function) {
   if (!(req as any).user) {
@@ -140,10 +146,51 @@ router.get("/api/public/display/photos", async (_req: Request, res: Response) =>
       .from(nashobatvPhotos)
       .where(eq(nashobatvPhotos.isDisplayed, true))
       .orderBy(asc(nashobatvPhotos.sortOrder));
-    res.json(photos);
+    const mapped = photos.map((p) => ({
+      ...p,
+      imageUrl: photoProxyUrl(p.id, p.imageUrl),
+    }));
+    res.json(mapped);
   } catch (error) {
     console.error("Error fetching photos:", error);
     res.status(500).json({ error: "Failed to fetch photos" });
+  }
+});
+
+router.get("/api/public/display/photo-file/:photoId", async (req: Request, res: Response) => {
+  try {
+    const photoId = parseInt(req.params.photoId);
+    if (isNaN(photoId)) return res.status(400).json({ error: "Invalid photo ID" });
+
+    const [photo] = await db
+      .select()
+      .from(nashobatvPhotos)
+      .where(eq(nashobatvPhotos.id, photoId));
+    if (!photo) return res.status(404).json({ error: "Photo not found" });
+
+    const imageUrl = photo.imageUrl;
+    if (imageUrl.startsWith("https://storage.googleapis.com/")) {
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split("/").filter(Boolean);
+      const bucketName = pathParts[0];
+      const objectName = pathParts.slice(1).join("/");
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      const [metadata] = await file.getMetadata();
+      res.setHeader("Content-Type", metadata.contentType || "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      const stream = file.createReadStream();
+      stream.on("error", (err) => {
+        console.error("Photo stream error:", err);
+        if (!res.headersSent) res.status(500).json({ error: "Error streaming photo" });
+      });
+      stream.pipe(res);
+    } else {
+      res.redirect(imageUrl);
+    }
+  } catch (error) {
+    console.error("Error serving photo:", error);
+    res.status(500).json({ error: "Failed to serve photo" });
   }
 });
 
