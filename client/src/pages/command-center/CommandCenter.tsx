@@ -25,6 +25,7 @@ import { ContentCalendar } from "./ContentCalendar";
 import { CampaignBuilder } from "./CampaignBuilder";
 import { MarketingScorecard } from "./MarketingScorecard";
 import { QuickPromotions } from "./QuickPromotions";
+import QuickBooksSync from "./QuickBooksSync";
 
 import {
   WeekSelector,
@@ -168,6 +169,15 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "toast-print", label: "Print Menus", icon: Printer },
       { id: "integrations", label: "Integrations", icon: Plug },
       { id: "toast-docs", label: "Documentation", icon: FileText },
+    ],
+  },
+  {
+    id: "quickbooks",
+    label: "QuickBooks",
+    icon: BookOpen,
+    defaultOpen: false,
+    items: [
+      { id: "qb-sync", label: "Invoice Import", icon: FileText },
     ],
   },
 ];
@@ -323,10 +333,19 @@ function CombinedDashboard({
 
 export default function CommandCenter() {
   const [, navigate] = useLocation();
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const [activeSection, setActiveSection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("section") || "dashboard";
+  });
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     NAV_SECTIONS.forEach(s => { initial[s.id] = s.defaultOpen ?? false; });
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section");
+    if (section) {
+      const parent = NAV_SECTIONS.find(ns => ns.items.some(i => i.id === section));
+      if (parent) initial[parent.id] = true;
+    }
     return initial;
   });
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
@@ -514,6 +533,9 @@ export default function CommandCenter() {
 
       case "toast-docs":
         return <ToastConnectDocs />;
+
+      case "qb-sync":
+        return <QuickBooksSync />;
 
       case "docs":
         return <RccDocsPanel />;

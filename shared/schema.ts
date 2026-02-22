@@ -5848,3 +5848,80 @@ export type NashobatvDisplaySetting = typeof nashobatvDisplaySettings.$inferSele
 export const insertNashobatvDailySpecialSchema = createInsertSchema(nashobatvDailySpecials).omit({ id: true, createdAt: true });
 export type InsertNashobatvDailySpecial = z.infer<typeof insertNashobatvDailySpecialSchema>;
 export type NashobatvDailySpecial = typeof nashobatvDailySpecials.$inferSelect;
+
+// ==================== QuickBooks Integration ====================
+
+export const qbConnection = pgTable("qb_connection", {
+  id: serial("id").primaryKey(),
+  realmId: varchar("realm_id").notNull().unique(),
+  companyName: varchar("company_name"),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  accessTokenExpiresAt: timestamp("access_token_expires_at").notNull(),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const qbCustomerMap = pgTable("qb_customer_map", {
+  id: serial("id").primaryKey(),
+  qbCustomerId: varchar("qb_customer_id").notNull(),
+  qbCustomerName: varchar("qb_customer_name").notNull(),
+  b2bCustomerId: varchar("b2b_customer_id").references(() => b2bCustomers.id),
+  isAutoMatched: boolean("is_auto_matched").notNull().default(false),
+  isIgnored: boolean("is_ignored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_qb_customer_map_qb_id").on(table.qbCustomerId),
+  index("idx_qb_customer_map_b2b_id").on(table.b2bCustomerId),
+]);
+
+export const qbItemMap = pgTable("qb_item_map", {
+  id: serial("id").primaryKey(),
+  qbItemId: varchar("qb_item_id").notNull(),
+  qbItemName: varchar("qb_item_name").notNull(),
+  productId: varchar("product_id").references(() => products.id),
+  isAutoMatched: boolean("is_auto_matched").notNull().default(false),
+  isIgnored: boolean("is_ignored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_qb_item_map_qb_id").on(table.qbItemId),
+  index("idx_qb_item_map_product_id").on(table.productId),
+]);
+
+export const qbSyncLog = pgTable("qb_sync_log", {
+  id: serial("id").primaryKey(),
+  syncType: varchar("sync_type").notNull(),
+  status: varchar("status").notNull(),
+  invoicesProcessed: integer("invoices_processed").default(0),
+  invoicesCreated: integer("invoices_created").default(0),
+  invoicesSkipped: integer("invoices_skipped").default(0),
+  invoicesFailed: integer("invoices_failed").default(0),
+  customersProcessed: integer("customers_processed").default(0),
+  customersMapped: integer("customers_mapped").default(0),
+  errorDetails: text("error_details"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const qbInvoiceMap = pgTable("qb_invoice_map", {
+  id: serial("id").primaryKey(),
+  qbInvoiceId: varchar("qb_invoice_id").notNull().unique(),
+  qbDocNumber: varchar("qb_doc_number"),
+  b2bOrderId: varchar("b2b_order_id").notNull().references(() => b2bOrders.id),
+  qbLastUpdated: timestamp("qb_last_updated"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_qb_invoice_map_qb_id").on(table.qbInvoiceId),
+  index("idx_qb_invoice_map_b2b_id").on(table.b2bOrderId),
+]);
+
+export type QbConnection = typeof qbConnection.$inferSelect;
+export type QbCustomerMap = typeof qbCustomerMap.$inferSelect;
+export type QbItemMap = typeof qbItemMap.$inferSelect;
+export type QbSyncLog = typeof qbSyncLog.$inferSelect;
+export type QbInvoiceMap = typeof qbInvoiceMap.$inferSelect;
