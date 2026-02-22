@@ -5702,6 +5702,7 @@ export const cellartraksFederalTaxRates = pgTable("cellartraks_federal_tax_rates
   parentRateKey: varchar("parent_rate_key", { length: 80 }),
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  isSelectedForOperation: boolean("is_selected_for_operation").notNull().default(false),
   effectiveDate: varchar("effective_date", { length: 20 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
