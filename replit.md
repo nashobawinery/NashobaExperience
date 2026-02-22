@@ -20,7 +20,7 @@ The platform utilizes React with TypeScript, `shadcn/ui` (Radix UI), and Tailwin
 - **Data Synchronization**: An environment sync tool for selective data export/import and object storage synchronization.
 
 ### Feature Specifications
-- **Central Admin Hub**: Unified entry point with KPIs and quick actions.
+- **Central Admin Hub**: Unified entry point with KPIs, quick actions, and AI-powered feature search. The feature search (in header) uses OpenAI to intelligently match user queries against a 67+ feature catalog covering all platform pages, with debounced input, keyboard navigation, and fallback text matching. Backend: `POST /api/platform/feature-search`, Frontend: `client/src/components/FeatureSearch.tsx`.
 - **Platform Foundation**: Shared tables for module registry, user management with global and module-specific roles, cross-module audit logging, shared locations, equipment, and document storage.
 - **LMS Module**: Mobile-first microlearning with course catalog, lessons, quizzes, progress tracking, and certification.
 - **Tasting Experience Module**: Interactive guest experience with product browsing, AI recommendations, shopping cart, and tasting surveys.

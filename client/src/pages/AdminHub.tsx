@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ModuleDocumentation from "@/components/ModuleDocumentation";
+import FeatureSearch from "@/components/FeatureSearch";
 import { getModuleDocs } from "@/docs/index";
 import "@/docs/admin-hub";
 import type { RbacPermissions, UserWithRbac } from "@/hooks/useAuth";
@@ -260,6 +261,9 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
           </div>
           
           <div className="flex items-center gap-2">
+            <div className="hidden md:block">
+              <FeatureSearch />
+            </div>
             {isAdmin && (
               <>
                 <Button 
@@ -267,6 +271,7 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
                   size="sm"
                   onClick={() => setLocation('/modules')}
                   data-testid="button-module-directory"
+                  className="hidden lg:inline-flex"
                 >
                   <LayoutGrid className="h-4 w-4 mr-2" />
                   Module Directory
@@ -276,6 +281,7 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
                   size="sm"
                   onClick={() => setLocation('/access-control')}
                   data-testid="button-access-control"
+                  className="hidden lg:inline-flex"
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   Access Control
@@ -285,6 +291,7 @@ export default function AdminHub({ onBackToGuest, user, rbac, isAdmin }: AdminHu
                   size="sm"
                   onClick={() => setLocation('/module-management')}
                   data-testid="button-module-management"
+                  className="hidden lg:inline-flex"
                 >
                   <Settings className="h-4 w-4 mr-2" />
                   Modules

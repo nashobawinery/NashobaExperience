@@ -147,6 +147,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(nashobatvRouter);
   app.use(quickbooksRouter);
 
+  // AI-powered feature search endpoint
+  app.post("/api/platform/feature-search", async (req, res) => {
+    if (!(req.session as any)?.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const { z } = await import("zod");
+    const bodySchema = z.object({ query: z.string().min(2) });
+    let parsed: { query: string };
+    try {
+      parsed = bodySchema.parse(req.body);
+    } catch (err: any) {
+      return res.status(400).json({ error: "Search query must be at least 2 characters", details: err.errors });
+    }
+    const query = parsed.query;
+
+    const featureCatalog = [
+      { name: "Operations Hub", path: "/", description: "Central admin dashboard with KPIs, module overview, and quick actions", keywords: "home dashboard hub admin main overview kpi" },
+      { name: "Tasting Experience", path: "/tasting", description: "Guest-facing tasting app with product browsing, AI recommendations, and surveys", keywords: "tasting guest wine beer spirits browse products recommendations" },
+      { name: "Tasting Admin", path: "/admin", description: "Manage products, media, slideshows, trivia, surveys, and tasting room settings", keywords: "tasting admin products media slideshow trivia survey digital signage nashobatv" },
+      { name: "NashobaTV Digital Signage", path: "/admin", description: "TV display management with slides, events, announcements, photos, specials - in Tasting Admin under Digital Signage tab", keywords: "tv display signage slides events announcements photos specials nashobatv digital" },
+      { name: "NashobaTV Display", path: "/display", description: "Full-screen TV display with auto-rotating slides for venue screens", keywords: "tv display screen signage nashobatv public" },
+      { name: "B2B Wholesale Admin", path: "/b2b/admin", description: "Wholesale customer management, orders, pricing tiers, and sales rep assignments", keywords: "wholesale b2b customers orders pricing tiers sales reps business accounts" },
+      { name: "B2B Commissions", path: "/b2b/commissions", description: "Sales rep commission tracking and management for wholesale orders", keywords: "commissions sales rep wholesale payments earnings" },
+      { name: "B2B Product Catalog", path: "/b2b/catalog", description: "Wholesale product catalog for B2B customers to browse and order", keywords: "wholesale catalog products ordering b2b" },
+      { name: "B2B Pricing Sheet", path: "/b2b/pricing-sheet", description: "Public-facing wholesale pricing sheet", keywords: "wholesale pricing price list sheet b2b" },
+      { name: "QuickBooks Sync", path: "/command-center", description: "QuickBooks Online integration for syncing wholesale invoices and payments - in Command Center", keywords: "quickbooks qb sync invoices payments accounting ekos wholesale" },
+      { name: "LMS Admin", path: "/lms/admin", description: "Learning management - create courses, lessons, quizzes, and manage certifications", keywords: "lms learning training courses lessons quizzes certificates education" },
+      { name: "LMS Learner Portal", path: "/lms/portal", description: "Staff training portal for taking courses and tracking progress", keywords: "training portal learner courses progress" },
+      { name: "Training Portal", path: "/lms/portal", description: "External training access for staff members", keywords: "training staff external" },
+      { name: "Compliance Admin", path: "/compliance/admin", description: "Regulatory compliance task management with deadlines, reminders, and audit history", keywords: "compliance regulatory tasks deadlines reminders audit ttb abcc" },
+      { name: "Department Calendar", path: "/department-calendar", description: "Department event and task calendar management", keywords: "calendar department events schedule tasks" },
+      { name: "Contracts Management", path: "/contracts/admin", description: "Contract lifecycle management with document upload, AI extraction, and renewal tracking", keywords: "contracts agreements documents renewal expiration vendor" },
+      { name: "Maintenance Admin", path: "/maintenance/admin", description: "CMMS with work orders, preventive maintenance, asset and technician management", keywords: "maintenance work orders preventive pm assets equipment technicians cmms" },
+      { name: "Technician Work Orders", path: "/maintenance/work-orders", description: "Technician view for assigned maintenance work orders", keywords: "technician work orders maintenance assigned tasks" },
+      { name: "Spot Inventory Admin", path: "/spot-inventory/admin", description: "Inventory counting management with location hierarchy and reporting", keywords: "inventory counting stock audit products location barcode" },
+      { name: "Spot Inventory Staff", path: "/spot-inventory/staff", description: "Mobile inventory counting interface for staff", keywords: "inventory counting staff mobile barcode" },
+      { name: "Daily Reports Admin", path: "/daily-reports/admin", description: "Manager daily report templates, incidents, and review workflow", keywords: "daily reports incidents managers review logs" },
+      { name: "Daily Procedures Admin", path: "/procedures/admin", description: "Create and manage opening/closing procedure templates and checklists", keywords: "procedures checklists opening closing templates daily" },
+      { name: "Procedure Submissions", path: "/procedures/submissions", description: "Review submitted daily procedure completions", keywords: "procedures submissions review completed checklists" },
+      { name: "Staff Portal", path: "/staff", description: "Unified staff entry point for daily reports, procedures, and maintenance work orders", keywords: "staff portal access code daily reports procedures work orders" },
+      { name: "Staff Dashboard", path: "/staff-dashboard", description: "Staff dashboard overview", keywords: "staff dashboard overview" },
+      { name: "Staff Dashboard Admin", path: "/staff-dashboard/admin", description: "Admin view of staff dashboard settings", keywords: "staff dashboard admin settings" },
+      { name: "Reservations Landing", path: "/reservations", description: "Customer-facing reservation booking for dining experiences", keywords: "reservations booking dining experiences guests" },
+      { name: "Reservations Admin", path: "/reservations/admin", description: "Manage reservations, experiences, locations, special dates, and settings", keywords: "reservations admin manage bookings calendar experiences locations" },
+      { name: "Reservation Calendar", path: "/reservations/admin/calendar", description: "Calendar view of all reservations", keywords: "reservations calendar schedule bookings" },
+      { name: "Reservation Experiences", path: "/reservations/admin/experiences", description: "Manage dining experiences and packages available for booking", keywords: "experiences packages dining reservations manage" },
+      { name: "Reservation Locations", path: "/reservations/admin/locations", description: "Manage venue locations and seating areas for reservations", keywords: "locations venues seating areas tables reservations" },
+      { name: "Private Events Admin", path: "/reservations/admin/private-events", description: "Manage private event bookings and inquiries", keywords: "private events parties bookings venue rental functions catering" },
+      { name: "Event Registration Admin", path: "/reservations/admin/event-registration", description: "Manage public event registration, ticketing, and attendee tracking", keywords: "events registration tickets attendees public events manage admin" },
+      { name: "Event Registration Portal", path: "/event-registration", description: "Public-facing event registration and ticket purchase portal", keywords: "events registration tickets public portal sign up" },
+      { name: "Event Calendar", path: "/event-calendar", description: "Public event calendar showing upcoming events", keywords: "events calendar upcoming schedule public" },
+      { name: "Special Dates", path: "/reservations/admin/special-dates", description: "Manage special dates that affect reservation availability", keywords: "special dates holidays blackout availability reservations" },
+      { name: "Holiday Management", path: "/reservations/admin/holidays", description: "Configure holiday schedules for reservation system", keywords: "holidays schedule closures reservations" },
+      { name: "Reservation Clubs", path: "/reservations/admin/clubs", description: "Wine club and membership management for reservations", keywords: "wine club membership reservations vip" },
+      { name: "Customer Support Admin", path: "/support/admin", description: "AI-powered support ticket management, routing, and agent assignment", keywords: "support tickets help desk customer service agents" },
+      { name: "Support Knowledge Base", path: "/support/knowledge-base", description: "Customer support knowledge base articles and FAQs", keywords: "knowledge base articles faq help documentation" },
+      { name: "Support Analytics", path: "/admin/support/analytics", description: "Support ticket analytics and performance metrics", keywords: "support analytics metrics performance tickets" },
+      { name: "Social Reviews", path: "/admin/support/social-reviews", description: "Monitor and respond to social media reviews", keywords: "reviews social media google yelp monitoring" },
+      { name: "Support Agents", path: "/admin/support/agents", description: "Manage customer support agents and assignments", keywords: "support agents team assignments customer service" },
+      { name: "Contact Form", path: "/contact", description: "Public contact form for customer inquiries", keywords: "contact form inquiry message customer" },
+      { name: "FAQ Page", path: "/faq", description: "Frequently asked questions page", keywords: "faq questions answers help" },
+      { name: "Command Center", path: "/command-center", description: "Data & Marketing hub with revenue tracking, customer insights, campaigns, Toast/Shopify data, AI advisor, and QuickBooks sync", keywords: "command center revenue marketing campaigns data analytics toast shopify ai advisor quickbooks" },
+      { name: "Revenue Tracking", path: "/command-center", description: "Daily revenue entry, Toast POS and Shopify sales tracking with prior year comparison - in Command Center", keywords: "revenue sales tracking toast shopify daily entry comparison" },
+      { name: "Customer Insights", path: "/command-center", description: "Customer segmentation, RFM analysis, and loyalty program - in Command Center", keywords: "customers segmentation rfm loyalty insights analytics" },
+      { name: "AI Targeting Engine", path: "/command-center", description: "Smart customer reactivation with weekly target lists and offer recommendations - in Command Center", keywords: "ai targeting reactivation customers offers campaigns smart" },
+      { name: "SMS Campaigns", path: "/command-center", description: "Twilio-powered SMS marketing with segment targeting - in Command Center", keywords: "sms text message campaigns marketing twilio" },
+      { name: "Growth Studio", path: "/command-center", description: "AI content studio, content calendar, campaign builder, and marketing scorecard - in Command Center", keywords: "growth studio ai content marketing calendar campaigns scorecard promotions" },
+      { name: "Boomerang Dashboard", path: "/boomerang", description: "Customer reactivation and loyalty engagement dashboard", keywords: "boomerang reactivation loyalty engagement customers return" },
+      { name: "CellarTraks", path: "/cellartraks", description: "Production management for winery, distillery, and brewery with compliance reporting", keywords: "cellartraks production winery distillery brewery ttb abcc compliance wine making" },
+      { name: "Product Classifications", path: "/cellartraks", description: "Federal and state tax classifications for products - in CellarTraks", keywords: "classifications tax federal state ttb abcc products cellartraks" },
+      { name: "Federal Tax Rates", path: "/cellartraks", description: "Federal excise tax rate management for beer, wine, and spirits - in CellarTraks", keywords: "federal tax rates excise ttb beer wine spirits cellartraks" },
+      { name: "Product Channel Mapping", path: "/cellartraks", description: "Map Toast, Shopify, and wholesale products to master catalog for unified reporting - in CellarTraks", keywords: "product mapping toast shopify wholesale channel gallon reporting cellartraks" },
+      { name: "Wine Sales Report", path: "/cellartraks", description: "ABCC gallons report for Massachusetts regulatory reporting - in CellarTraks", keywords: "wine sales abcc gallons report regulatory massachusetts cellartraks" },
+      { name: "Toast Connect", path: "/toast-connect", description: "Toast POS menu integration with display, embeddable widgets, and print-ready menus", keywords: "toast menu pos integration widget embed print" },
+      { name: "Access Control", path: "/access-control", description: "Role-based access control with user groups, module access, and permissions", keywords: "access control rbac roles permissions users groups security" },
+      { name: "Module Management", path: "/module-management", description: "Admin UI for managing platform module metadata and configuration", keywords: "modules management admin configure platform" },
+      { name: "Module Directory", path: "/modules", description: "Browse all platform modules and their status", keywords: "modules directory browse list all" },
+      { name: "Database Sync", path: "/admin/database-sync", description: "Environment data sync tool for selective export/import between databases", keywords: "database sync export import data migration environment" },
+      { name: "Enhancement Requests", path: "/enhancement-requests", description: "Submit and vote on feature requests with status tracking", keywords: "enhancement requests features voting ideas improvements suggestions" },
+      { name: "Future Concepts", path: "/future-concepts", description: "Explore planned future features and concepts", keywords: "future concepts ideas planned features roadmap" },
+      { name: "Company Info", path: "/company-info", description: "Company information and settings", keywords: "company info settings about information" },
+      { name: "Reservation Flow Settings", path: "/reservations/admin/flow-settings", description: "Configure the reservation booking flow and customer experience", keywords: "reservation flow settings booking experience configuration" },
+      { name: "Reservation Settings", path: "/reservations/admin/settings", description: "General reservation system settings and configuration", keywords: "reservation settings configuration system" },
+    ];
+
+    try {
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI();
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a feature search assistant for the Nashoba Valley Operations Platform. Given a user's search query, return the most relevant features from the catalog. Return a JSON array of objects with "name", "path", and "description" fields. Return up to 8 most relevant results, ordered by relevance. Only include features that are genuinely relevant to the query. If the query is very specific, return fewer results. Consider synonyms, abbreviations, and related concepts.
+
+Feature Catalog:
+${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, description: f.description, keywords: f.keywords })), null, 0)}`
+          },
+          {
+            role: "user",
+            content: query.trim()
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1000,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.json({ results: [] });
+      }
+      const parsed = JSON.parse(content);
+      const results = Array.isArray(parsed.results) ? parsed.results : Array.isArray(parsed) ? parsed : [];
+      res.json({ results: results.slice(0, 8) });
+    } catch (error: any) {
+      console.error("Feature search error:", error);
+      // Fallback to simple text matching if AI fails
+      const q = query.toLowerCase().trim();
+      const results = featureCatalog
+        .filter(f => 
+          f.name.toLowerCase().includes(q) || 
+          f.description.toLowerCase().includes(q) || 
+          f.keywords.toLowerCase().includes(q)
+        )
+        .slice(0, 8)
+        .map(f => ({ name: f.name, path: f.path, description: f.description }));
+      res.json({ results, fallback: true });
+    }
+  });
+
   // Seed platform modules and user groups (ensures production database has core data)
   await seedPlatformModules();
   await seedUserGroups();
