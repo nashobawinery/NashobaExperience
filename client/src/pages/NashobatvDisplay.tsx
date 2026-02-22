@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Wine, Calendar, Clock, Utensils, Star, Camera, Bell, Sun, Cloud, CloudRain, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight } from "lucide-react";
+import { Wine, Calendar, Clock, Utensils, Star, Camera, Bell, Sun, Cloud, CloudRain, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -525,6 +525,28 @@ export default function NashobatvDisplay() {
     };
   }, [currentSlideIndex, slideOrder]);
 
+  const goToSlide = useCallback((direction: "next" | "prev") => {
+    if (slideOrder.length === 0) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setCurrentSlideIndex((i) => {
+      if (direction === "next") return (i + 1) % slideOrder.length;
+      return (i - 1 + slideOrder.length) % slideOrder.length;
+    });
+  }, [slideOrder.length]);
+
+  const [showControls, setShowControls] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseMove = useCallback(() => {
+    setShowControls(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, []);
+
   const current = slideOrder[currentSlideIndex];
 
   const renderSlide = () => {
@@ -547,7 +569,9 @@ export default function NashobatvDisplay() {
   return (
     <div
       className="fixed inset-0 bg-gradient-to-br from-[#1a0e2e] via-[#0d1117] to-[#1a0e2e] overflow-hidden"
-      style={{ cursor: "none" }}
+      style={{ cursor: showControls ? "default" : "none" }}
+      onMouseMove={handleMouseMove}
+      onTouchStart={handleMouseMove}
       data-testid="nashobatv-display"
     >
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMC41IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9zdmc+')] opacity-50" />
@@ -564,6 +588,23 @@ export default function NashobatvDisplay() {
           {renderSlide()}
         </motion.div>
       </AnimatePresence>
+
+      <button
+        onClick={() => goToSlide("prev")}
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-white/70 hover:bg-black/60 hover:text-white transition-all duration-300"
+        style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? "auto" : "none" }}
+        data-testid="button-slide-prev"
+      >
+        <ChevronLeft className="w-8 h-8" />
+      </button>
+      <button
+        onClick={() => goToSlide("next")}
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-white/70 hover:bg-black/60 hover:text-white transition-all duration-300"
+        style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? "auto" : "none" }}
+        data-testid="button-slide-next"
+      >
+        <ChevronRight className="w-8 h-8" />
+      </button>
 
       <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
         {slideOrder.map((_, i) => (
