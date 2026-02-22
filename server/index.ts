@@ -65,9 +65,9 @@ app.use(express.static(path.join(process.cwd(), 'public')));
     app.use("/api/reactivation", reactivationRoutes);
   }
 
-  app.use(meetingNotesRoutes);
-
   const server = await registerRoutes(app);
+
+  app.use(meetingNotesRoutes);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

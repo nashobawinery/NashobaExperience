@@ -2,19 +2,14 @@ import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { meetingNotes } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import multer from "multer";
-import { Readable } from "stream";
+import { isAdmin } from "./replitAuth";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-function requireAuth(req: Request, res: Response, next: any) {
-  if (!(req.session as any)?.user) return res.status(401).json({ error: "Unauthorized" });
-  next();
-}
-
-router.get("/api/meeting-notes", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/meeting-notes", isAdmin, async (_req: Request, res: Response) => {
   try {
     const notes = await db.select().from(meetingNotes).orderBy(desc(meetingNotes.createdAt));
     res.json(notes);
@@ -24,7 +19,7 @@ router.get("/api/meeting-notes", requireAuth, async (_req: Request, res: Respons
   }
 });
 
-router.get("/api/meeting-notes/:id", requireAuth, async (req: Request, res: Response) => {
+router.get("/api/meeting-notes/:id", isAdmin, async (req: Request, res: Response) => {
   try {
     const [note] = await db.select().from(meetingNotes).where(eq(meetingNotes.id, parseInt(req.params.id)));
     if (!note) return res.status(404).json({ error: "Meeting note not found" });
@@ -34,11 +29,12 @@ router.get("/api/meeting-notes/:id", requireAuth, async (req: Request, res: Resp
   }
 });
 
-router.post("/api/meeting-notes", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/meeting-notes", isAdmin, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
     const [note] = await db.insert(meetingNotes).values({
       ...req.body,
-      createdBy: (req.session as any)?.user?.id || null,
+      createdBy: user?.claims?.sub || null,
     }).returning();
     res.json(note);
   } catch (error) {
@@ -47,7 +43,7 @@ router.post("/api/meeting-notes", requireAuth, async (req: Request, res: Respons
   }
 });
 
-router.put("/api/meeting-notes/:id", requireAuth, async (req: Request, res: Response) => {
+router.put("/api/meeting-notes/:id", isAdmin, async (req: Request, res: Response) => {
   try {
     const [note] = await db.update(meetingNotes)
       .set({ ...req.body, updatedAt: new Date() })
@@ -59,7 +55,7 @@ router.put("/api/meeting-notes/:id", requireAuth, async (req: Request, res: Resp
   }
 });
 
-router.delete("/api/meeting-notes/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/api/meeting-notes/:id", isAdmin, async (req: Request, res: Response) => {
   try {
     await db.delete(meetingNotes).where(eq(meetingNotes.id, parseInt(req.params.id)));
     res.json({ success: true });
@@ -68,14 +64,13 @@ router.delete("/api/meeting-notes/:id", requireAuth, async (req: Request, res: R
   }
 });
 
-router.post("/api/meeting-notes/transcribe", requireAuth, upload.single("audio"), async (req: Request, res: Response) => {
+router.post("/api/meeting-notes/transcribe", isAdmin, upload.single("audio"), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No audio file provided" });
 
     const openai = new OpenAI();
 
-    const audioBuffer = req.file.buffer;
-    const audioFile = new File([audioBuffer], "recording.webm", { type: req.file.mimetype || "audio/webm" });
+    const audioFile = await toFile(req.file.buffer, "recording.webm", { type: req.file.mimetype || "audio/webm" });
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
@@ -90,7 +85,7 @@ router.post("/api/meeting-notes/transcribe", requireAuth, upload.single("audio")
   }
 });
 
-router.post("/api/meeting-notes/:id/summarize", requireAuth, async (req: Request, res: Response) => {
+router.post("/api/meeting-notes/:id/summarize", isAdmin, async (req: Request, res: Response) => {
   try {
     const [note] = await db.select().from(meetingNotes).where(eq(meetingNotes.id, parseInt(req.params.id)));
     if (!note) return res.status(404).json({ error: "Meeting note not found" });
@@ -119,7 +114,7 @@ Format your response in clear markdown. Be concise but thorough.`
           content: `Please summarize this meeting transcript:\n\n${note.transcript}`
         }
       ],
-      max_completion_tokens: 2048,
+      max_tokens: 2048,
     });
 
     const summary = response.choices[0]?.message?.content || "Unable to generate summary";
@@ -136,7 +131,7 @@ Format your response in clear markdown. Be concise but thorough.`
           content: note.transcript
         }
       ],
-      max_completion_tokens: 1024,
+      max_tokens: 1024,
     });
 
     const actionItems = actionItemsResponse.choices[0]?.message?.content || "";

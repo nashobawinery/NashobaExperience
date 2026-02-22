@@ -25,6 +25,7 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const FutureConcepts = lazy(() => import("@/pages/FutureConcepts"));
 const EnhancementRequests = lazy(() => import("@/pages/EnhancementRequests"));
 const CompanyInfo = lazy(() => import("@/pages/CompanyInfo"));
+const MeetingNotes = lazy(() => import("@/pages/MeetingNotes"));
 const UnsubscribePage = lazy(() => import("@/pages/UnsubscribePage"));
 
 // Lazy load LMS module
@@ -841,6 +842,24 @@ function EnhancementRequestsRoute() {
   );
 }
 
+function OperationsDashboardRoute() {
+  const { isLoading, isAdmin } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!isAdmin) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <MeetingNotes />
+    </Suspense>
+  );
+}
+
 function CompanyInfoRoute() {
   const { isLoading, isAdmin } = useAuth();
 
@@ -1224,6 +1243,7 @@ function Router() {
         <Route path="/unsubscribe" component={UnsubscribeRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
         <Route path="/enhancement-requests" component={EnhancementRequestsRoute} />
+        <Route path="/operations" component={OperationsDashboardRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />
         <Route path="/lms" component={LmsLearnerRoute} />
         <Route path="/lms/admin" component={LmsAdminRoute} />

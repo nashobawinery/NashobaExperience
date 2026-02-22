@@ -1048,11 +1048,11 @@ export async function seedPlatformModules(): Promise<void> {
     {
       moduleKey: 'operations',
       moduleName: 'Operations Dashboard',
-      description: 'Central operations management with workflows, tasks, and team coordination',
+      description: 'Central operations management with meeting notes, AI summaries, and team coordination',
       icon: 'Factory',
       color: 'bg-orange-500',
       routePrefix: '/operations',
-      status: 'planned',
+      status: 'active',
       sortOrder: 6
     },
     {
