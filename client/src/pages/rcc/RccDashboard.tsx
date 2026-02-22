@@ -16,7 +16,6 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addWeeks, addDays, parseISO } from "date-fns";
 import Holidays from 'date-holidays';
 import { RevenueDetailDialog } from "@/components/RevenueDetailDialog";
-import { VoidDiscountDetailDialog } from "@/components/VoidDiscountDetailDialog";
 import { 
   Target, 
   Lightbulb, 
@@ -27,6 +26,8 @@ import {
   Check, 
   ChevronLeft, 
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Calendar,
   User,
   Clock,
@@ -36,6 +37,9 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
+  AlertTriangle,
+  Ban,
+  Tag,
   History,
   CloudRain,
   Cloud,
@@ -1543,8 +1547,49 @@ function DailyRevenueRow({
   const [expanded, setExpanded] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailSourceFilter, setDetailSourceFilter] = useState<"all" | "toast" | "shopify" | "wholesale">("all");
-  const [voidDiscountDialogOpen, setVoidDiscountDialogOpen] = useState(false);
-  const [voidDiscountDialogTab, setVoidDiscountDialogTab] = useState<"voids" | "discounts">("voids");
+  const [expandedDiscounts, setExpandedDiscounts] = useState(false);
+  const [expandedVoids, setExpandedVoids] = useState(false);
+
+  interface VDRecord {
+    id: number;
+    record_type: "void" | "discount";
+    level: string;
+    order_number: string | null;
+    item_name: string | null;
+    amount: string;
+    discount_name: string | null;
+    discount_reason_name: string | null;
+    discount_reason_comment: string | null;
+    revenue_center_name: string | null;
+    occurred_at: string | null;
+    explanation: string | null;
+    explained_by_name: string | null;
+  }
+
+  const { data: voidDiscountRecords = [], isLoading: vdLoading } = useQuery<VDRecord[]>({
+    queryKey: ["/api/revenue-detail/voids-discounts", day.date],
+    queryFn: async () => {
+      const res = await fetch(`/api/revenue-detail/voids-discounts?date=${day.date}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: expandedDiscounts || expandedVoids,
+  });
+
+  const voidRecords = voidDiscountRecords.filter(r => r.record_type === "void");
+  const discountRecords = voidDiscountRecords.filter(r => r.record_type === "discount");
+
+  const discountsByName = discountRecords.reduce((acc, d) => {
+    const name = d.discount_name || "Other";
+    if (!acc[name]) acc[name] = { items: [] as VDRecord[], total: 0 };
+    acc[name].items.push(d);
+    acc[name].total += parseFloat(d.amount || "0");
+    return acc;
+  }, {} as Record<string, { items: VDRecord[]; total: number }>);
+
+  const sortedDiscountGroups = Object.entries(discountsByName).sort(
+    ([, a], [, b]) => b.total - a.total
+  );
   const hd = new Holidays('US');
   const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
   const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
@@ -1715,14 +1760,42 @@ function DailyRevenueRow({
                       </p>
                     )}
                     {parseFloat(entry?.toastDiscountAmount || '0') > 0 && (
-                      <p
-                        className={`text-xs cursor-pointer underline decoration-dotted ${parseFloat(entry?.toastDiscountPct || '0') > 10 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}
-                        onClick={() => { setVoidDiscountDialogTab("discounts"); setVoidDiscountDialogOpen(true); }}
-                        title="Click for discount detail"
+                      <button
+                        className={`flex items-center gap-1 text-xs cursor-pointer ${parseFloat(entry?.toastDiscountPct || '0') > 10 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}
+                        onClick={() => setExpandedDiscounts(!expandedDiscounts)}
                         data-testid={`link-discount-detail-${day.date}`}
                       >
+                        <Tag className="h-3 w-3" />
                         Discounts: ${parseFloat(entry?.toastDiscountAmount || '0').toLocaleString()} ({parseFloat(entry?.toastDiscountPct || '0').toFixed(1)}%)
-                      </p>
+                        {expandedDiscounts ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    )}
+                    {expandedDiscounts && (
+                      <div className="pl-1 pt-1 pb-1 space-y-1.5 border-l-2 border-blue-200 dark:border-blue-800 ml-1">
+                        {vdLoading ? (
+                          <p className="text-[11px] text-muted-foreground pl-2">Loading...</p>
+                        ) : sortedDiscountGroups.length > 0 ? sortedDiscountGroups.map(([name, group]) => (
+                          <div key={name} className="space-y-0.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap pl-2">
+                              <span className="text-xs font-medium">{name} <span className="text-muted-foreground">({group.items.length}x)</span></span>
+                              <span className="text-xs font-semibold">${group.total.toFixed(2)}</span>
+                            </div>
+                            <div className="space-y-0.5 pl-4">
+                              {group.items.map(d => (
+                                <div key={d.id} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground" data-testid={`discount-inline-${d.id}`}>
+                                  <span className="truncate">
+                                    {d.order_number ? `#${d.order_number}` : ""}{d.item_name ? ` ${d.item_name}` : ""}
+                                    {d.discount_reason_name ? ` — ${d.discount_reason_name}` : ""}
+                                  </span>
+                                  <span className="whitespace-nowrap">${parseFloat(d.amount).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )) : (
+                          <p className="text-[11px] text-muted-foreground pl-2">No discount details available</p>
+                        )}
+                      </div>
                     )}
                     {parseFloat(entry?.toastServiceCharges || '0') > 0 && (
                       <p className="text-xs text-muted-foreground">
@@ -1730,14 +1803,52 @@ function DailyRevenueRow({
                       </p>
                     )}
                     {(entry?.toastVoidCount || 0) > 0 && (
-                      <p
-                        className={`text-xs cursor-pointer underline decoration-dotted ${parseFloat(entry?.toastVoidAmount || '0') > 50 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-muted-foreground'}`}
-                        onClick={() => { setVoidDiscountDialogTab("voids"); setVoidDiscountDialogOpen(true); }}
-                        title="Click for void detail"
+                      <button
+                        className={`flex items-center gap-1 text-xs cursor-pointer ${parseFloat(entry?.toastVoidAmount || '0') > 50 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-muted-foreground'}`}
+                        onClick={() => setExpandedVoids(!expandedVoids)}
                         data-testid={`link-void-detail-${day.date}`}
                       >
+                        <Ban className="h-3 w-3" />
                         Voids: ${parseFloat(entry?.toastVoidAmount || '0').toLocaleString()} ({entry?.toastVoidCount} items)
-                      </p>
+                        {expandedVoids ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    )}
+                    {expandedVoids && (
+                      <div className="pl-1 pt-1 pb-1 space-y-1.5 border-l-2 border-orange-200 dark:border-orange-800 ml-1">
+                        {vdLoading ? (
+                          <p className="text-[11px] text-muted-foreground pl-2">Loading...</p>
+                        ) : voidRecords.length > 0 ? voidRecords.map(v => (
+                          <div key={v.id} className="space-y-0.5 pl-2" data-testid={`void-inline-${v.id}`}>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  {v.level === "order" ? "Order" : v.level === "check" ? "Check" : "Item"}
+                                </Badge>
+                                {v.order_number && <span className="text-[11px] text-muted-foreground">#{v.order_number}</span>}
+                                {v.revenue_center_name && v.revenue_center_name !== "Uncategorized" && (
+                                  <span className="text-[11px] text-muted-foreground">{v.revenue_center_name}</span>
+                                )}
+                              </div>
+                              <span className="text-xs font-semibold text-destructive">${parseFloat(v.amount).toFixed(2)}</span>
+                            </div>
+                            {v.item_name && <p className="text-[11px]">{v.item_name}</p>}
+                            {v.occurred_at && (
+                              <p className="text-[11px] text-muted-foreground">{format(new Date(v.occurred_at), "h:mm a")}</p>
+                            )}
+                            {v.explanation ? (
+                              <p className="text-[11px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
+                                {v.explanation}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-amber-600 flex items-center gap-0.5">
+                                <AlertTriangle className="h-2.5 w-2.5" /> No explanation
+                              </p>
+                            )}
+                          </div>
+                        )) : (
+                          <p className="text-[11px] text-muted-foreground pl-2">No void details available</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1883,13 +1994,6 @@ function DailyRevenueRow({
         shopifyRevenue={shopifyRev}
         wholesaleRevenue={wholesaleRev}
         sourceFilter={detailSourceFilter}
-      />
-      <VoidDiscountDetailDialog
-        open={voidDiscountDialogOpen}
-        onOpenChange={setVoidDiscountDialogOpen}
-        date={day.date}
-        displayDate={day.displayDate}
-        initialTab={voidDiscountDialogTab}
       />
     </Card>
   );
