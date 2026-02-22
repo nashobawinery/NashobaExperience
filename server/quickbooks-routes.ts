@@ -15,9 +15,16 @@ const QB_API_BASE_SANDBOX = "https://sandbox-quickbooks.api.intuit.com";
 const QB_API_BASE_PROD = "https://quickbooks.api.intuit.com";
 const QB_SCOPES = "com.intuit.quickbooks.accounting";
 
-function getRedirectUri() {
+function getRedirectUri(req?: Request) {
   if (process.env.QB_REDIRECT_URI) {
     return process.env.QB_REDIRECT_URI;
+  }
+  if (req) {
+    const host = req.get("host");
+    const protocol = req.get("x-forwarded-proto") || req.protocol || "https";
+    if (host) {
+      return `${protocol}://${host}/api/quickbooks/callback`;
+    }
   }
   const base = process.env.REPLIT_DEV_DOMAIN
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
@@ -104,7 +111,8 @@ async function qbApiRequest(conn: typeof qbConnection.$inferSelect, endpoint: st
 
 router.get("/api/quickbooks/connect", (req: Request, res: Response) => {
   const state = crypto.randomBytes(16).toString("hex");
-  const redirectUri = getRedirectUri();
+  const redirectUri = getRedirectUri(req);
+  console.log("[QB OAuth] Connect - redirect URI:", redirectUri);
   const authUrl = `${QB_AUTH_URL}?client_id=${process.env.QUICKBOOKS_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(QB_SCOPES)}&state=${state}`;
   res.json({ authUrl, redirectUri });
 });
@@ -117,7 +125,7 @@ router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
   }
 
   try {
-    const redirectUri = getRedirectUri();
+    const redirectUri = getRedirectUri(req);
     const clientId = process.env.QUICKBOOKS_CLIENT_ID;
     const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
     console.log("[QB OAuth] Token exchange attempt:", {
@@ -939,8 +947,8 @@ router.get("/api/quickbooks/products", async (_req: Request, res: Response) => {
   }
 });
 
-router.get("/api/quickbooks/redirect-uri", (_req: Request, res: Response) => {
-  res.json({ redirectUri: getRedirectUri() });
+router.get("/api/quickbooks/redirect-uri", (req: Request, res: Response) => {
+  res.json({ redirectUri: getRedirectUri(req) });
 });
 
 export default router;
