@@ -371,131 +371,267 @@ router.patch("/api/quickbooks/items/:id", async (req: Request, res: Response) =>
 
 // ==================== Invoice Sync Routes ====================
 
-router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response) => {
+async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, startDate?: string, endDate?: string, docNumberPrefix?: string) {
+  const ekosPrefix = docNumberPrefix !== undefined ? docNumberPrefix : "E";
+
+  let query = "SELECT * FROM Invoice";
+  const conditions: string[] = [];
+  if (startDate) conditions.push(`TxnDate >= '${startDate}'`);
+  if (endDate) conditions.push(`TxnDate <= '${endDate}'`);
+  if (!startDate && !endDate && conn.lastSyncAt) {
+    conditions.push(`MetaData.LastUpdatedTime >= '${conn.lastSyncAt.toISOString()}'`);
+  } else if (!startDate && !endDate) {
+    conditions.push(`TxnDate >= '2026-01-01'`);
+  }
+  if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
+  query += " MAXRESULTS 500";
+
+  const result = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(query));
+  let invoices = result?.QueryResponse?.Invoice || [];
+
+  if (ekosPrefix) {
+    invoices = invoices.filter((inv: any) => {
+      const docNum = inv.DocNumber || "";
+      return docNum.startsWith(ekosPrefix);
+    });
+  }
+
+  const customerMaps = await db.select().from(qbCustomerMap);
+  const itemMaps = await db.select().from(qbItemMap);
+  const existingInvoiceMaps = await db.select().from(qbInvoiceMap);
+  const allProducts = await db.select().from(products);
+
+  const existingOrders = await db.select({
+    id: b2bOrders.id,
+    orderNumber: b2bOrders.orderNumber,
+    invoiceNumber: b2bOrders.invoiceNumber,
+    customerId: b2bOrders.customerId,
+    orderDate: b2bOrders.orderDate,
+    total: b2bOrders.total,
+    status: b2bOrders.status,
+    orderSource: b2bOrders.orderSource,
+  }).from(b2bOrders);
+
+  const existingOrderItems = await db.select().from(b2bOrderItems);
+
+  const analyzed: any[] = [];
+
+  for (const invoice of invoices) {
+    const qbInvId = String(invoice.Id);
+    const docNumber = invoice.DocNumber || "";
+    const custMap = customerMaps.find(m => m.qbCustomerId === String(invoice.CustomerRef?.value));
+    const invoiceTotal = parseFloat(invoice.TotalAmt || "0");
+    const invoiceDate = invoice.TxnDate || "";
+
+    let status: "ready" | "already_imported" | "duplicate_detected" | "unmapped_customer" | "unmapped_items" | "no_lines" = "ready";
+    let duplicateMatch: any = null;
+    let duplicateReason = "";
+    const itemIssues: string[] = [];
+
+    if (existingInvoiceMaps.find(m => m.qbInvoiceId === qbInvId)) {
+      status = "already_imported";
+    } else if (!custMap?.b2bCustomerId) {
+      status = "unmapped_customer";
+    } else {
+      const ekosOrderNumber = `EKOS-${docNumber || qbInvId}`;
+      const qbOrderNumber = `QB-${docNumber || qbInvId}`;
+      const matchByOrderNumber = existingOrders.find(o => o.orderNumber === ekosOrderNumber || o.orderNumber === qbOrderNumber);
+      if (matchByOrderNumber) {
+        status = "duplicate_detected";
+        duplicateMatch = matchByOrderNumber;
+        duplicateReason = `Order ${matchByOrderNumber.orderNumber} already exists`;
+      }
+
+      if (status === "ready" && docNumber) {
+        const matchByInvoice = existingOrders.find(o =>
+          o.invoiceNumber && o.invoiceNumber === docNumber
+        );
+        if (matchByInvoice) {
+          status = "duplicate_detected";
+          duplicateMatch = matchByInvoice;
+          duplicateReason = `Existing order ${matchByInvoice.orderNumber} has same invoice number "${docNumber}"`;
+        }
+      }
+
+      if (status === "ready" && custMap?.b2bCustomerId) {
+        const matchByCustomerTotal = existingOrders.find(o => {
+          if (o.customerId !== custMap.b2bCustomerId) return false;
+          const orderDate = new Date(o.orderDate);
+          const qbDate = new Date(invoiceDate + "T12:00:00");
+          const daysDiff = Math.abs(orderDate.getTime() - qbDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > 2) return false;
+          const orderTotal = parseFloat(o.total || "0");
+          const totalDiff = Math.abs(orderTotal - invoiceTotal);
+          return totalDiff < 0.50;
+        });
+        if (matchByCustomerTotal) {
+          status = "duplicate_detected";
+          duplicateMatch = matchByCustomerTotal;
+          duplicateReason = `Existing order ${matchByCustomerTotal.orderNumber} matches same customer, date (within 2 days), and total ($${parseFloat(matchByCustomerTotal.total || "0").toFixed(2)} vs $${invoiceTotal.toFixed(2)})`;
+        }
+      }
+    }
+
+    const lines = (invoice.Line || []).filter((l: any) => l.DetailType === "SalesItemLineDetail");
+    if (lines.length === 0 && status === "ready") {
+      status = "no_lines";
+    }
+
+    const orderItems: any[] = [];
+    let hasUnmappedItems = false;
+
+    for (const line of lines) {
+      const qbItemId = String(line.SalesItemLineDetail?.ItemRef?.value || "");
+      const qbItemName = line.SalesItemLineDetail?.ItemRef?.name || "Unknown";
+      const itemMap = itemMaps.find(m => m.qbItemId === qbItemId);
+
+      if (!itemMap?.productId) {
+        if (!itemMap?.isIgnored) {
+          hasUnmappedItems = true;
+          itemIssues.push(`"${qbItemName}" not mapped`);
+        }
+        continue;
+      }
+
+      const product = allProducts.find(p => p.id === itemMap.productId);
+      if (!product) continue;
+
+      const qty = line.SalesItemLineDetail?.Qty || 1;
+      const unitPrice = line.SalesItemLineDetail?.UnitPrice || 0;
+      const lineTotal = line.Amount || (qty * unitPrice);
+
+      orderItems.push({
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku || null,
+        quantity: qty,
+        unitPrice: String(unitPrice),
+        retailPrice: String(product.price),
+        lineTotal: String(lineTotal),
+      });
+    }
+
+    if (hasUnmappedItems && status === "ready" && orderItems.length === 0) {
+      status = "unmapped_items";
+    }
+
+    analyzed.push({
+      qbInvoiceId: qbInvId,
+      docNumber,
+      customerName: invoice.CustomerRef?.name || "Unknown",
+      b2bCustomerId: custMap?.b2bCustomerId || null,
+      b2bCustomerName: custMap ? undefined : null,
+      date: invoiceDate,
+      total: invoiceTotal,
+      lineCount: lines.length,
+      status,
+      duplicateReason,
+      duplicateMatch: duplicateMatch ? {
+        orderId: duplicateMatch.id,
+        orderNumber: duplicateMatch.orderNumber,
+        total: duplicateMatch.total,
+        status: duplicateMatch.status,
+      } : null,
+      itemIssues,
+      orderItems,
+    });
+  }
+
+  return analyzed;
+}
+
+router.post("/api/quickbooks/sync/preview", async (req: Request, res: Response) => {
   try {
     const conn = await getActiveConnection();
     if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
 
     const { startDate, endDate, docNumberPrefix } = req.body;
-    const ekosPrefix = docNumberPrefix !== undefined ? docNumberPrefix : "E";
+    const analyzed = await fetchAndAnalyzeInvoices(conn, startDate, endDate, docNumberPrefix);
+
+    const summary = {
+      total: analyzed.length,
+      ready: analyzed.filter(a => a.status === "ready").length,
+      alreadyImported: analyzed.filter(a => a.status === "already_imported").length,
+      duplicateDetected: analyzed.filter(a => a.status === "duplicate_detected").length,
+      unmappedCustomer: analyzed.filter(a => a.status === "unmapped_customer").length,
+      unmappedItems: analyzed.filter(a => a.status === "unmapped_items").length,
+      noLines: analyzed.filter(a => a.status === "no_lines").length,
+    };
+
+    res.json({ summary, invoices: analyzed });
+  } catch (error: any) {
+    console.error("QB preview error:", error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response) => {
+  try {
+    const conn = await getActiveConnection();
+    if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
+
+    const { startDate, endDate, docNumberPrefix, selectedInvoiceIds } = req.body;
+    const analyzed = await fetchAndAnalyzeInvoices(conn, startDate, endDate, docNumberPrefix);
+
+    const toImport = selectedInvoiceIds
+      ? analyzed.filter(a => selectedInvoiceIds.includes(a.qbInvoiceId) && (a.status === "ready" || a.status === "duplicate_detected"))
+      : analyzed.filter(a => a.status === "ready");
 
     const [logEntry] = await db.insert(qbSyncLog).values({
       syncType: "invoices",
       status: "running",
     }).returning();
 
-    let query = "SELECT * FROM Invoice";
-    const conditions: string[] = [];
-    if (startDate) conditions.push(`TxnDate >= '${startDate}'`);
-    if (endDate) conditions.push(`TxnDate <= '${endDate}'`);
-    if (conn.lastSyncAt && !startDate && !endDate) {
-      conditions.push(`MetaData.LastUpdatedTime >= '${conn.lastSyncAt.toISOString()}'`);
-    }
-    if (conditions.length > 0) query += " WHERE " + conditions.join(" AND ");
-    query += " MAXRESULTS 500";
-
-    const result = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(query));
-    let invoices = result?.QueryResponse?.Invoice || [];
-
-    if (ekosPrefix) {
-      invoices = invoices.filter((inv: any) => {
-        const docNum = inv.DocNumber || "";
-        return docNum.startsWith(ekosPrefix);
-      });
-    }
-
-    const customerMaps = await db.select().from(qbCustomerMap);
-    const itemMaps = await db.select().from(qbItemMap);
-    const existingInvoiceMaps = await db.select().from(qbInvoiceMap);
-    const allProducts = await db.select().from(products);
-
     let created = 0, skipped = 0, failed = 0;
     const errors: string[] = [];
 
-    for (const invoice of invoices) {
+    for (const inv of toImport) {
       try {
-        const qbInvId = String(invoice.Id);
-        if (existingInvoiceMaps.find(m => m.qbInvoiceId === qbInvId)) {
+        if (inv.status !== "ready" && !selectedInvoiceIds) {
           skipped++;
           continue;
         }
 
-        const custMap = customerMaps.find(m => m.qbCustomerId === String(invoice.CustomerRef?.value));
-        if (!custMap?.b2bCustomerId) {
-          errors.push(`Invoice #${invoice.DocNumber || invoice.Id}: Customer "${invoice.CustomerRef?.name}" not mapped`);
+        if (!inv.b2bCustomerId) {
+          errors.push(`Invoice #${inv.docNumber}: Customer not mapped`);
           failed++;
           continue;
         }
 
-        const lines = (invoice.Line || []).filter((l: any) => l.DetailType === "SalesItemLineDetail");
-        if (lines.length === 0) {
-          skipped++;
+        if (inv.orderItems.length === 0) {
+          errors.push(`Invoice #${inv.docNumber}: No mapped line items`);
+          failed++;
           continue;
         }
 
-        const orderItems: any[] = [];
-        let hasUnmappedItems = false;
+        const subtotal = inv.orderItems.reduce((sum: number, i: any) => sum + parseFloat(i.lineTotal), 0);
+        const tax = inv.total - subtotal;
+        const orderNumber = `EKOS-${inv.docNumber || inv.qbInvoiceId}`;
 
-        for (const line of lines) {
-          const qbItemId = String(line.SalesItemLineDetail?.ItemRef?.value || "");
-          const itemMap = itemMaps.find(m => m.qbItemId === qbItemId);
-
-          if (!itemMap?.productId) {
-            hasUnmappedItems = true;
-            errors.push(`Invoice #${invoice.DocNumber || invoice.Id}: Item "${line.SalesItemLineDetail?.ItemRef?.name}" not mapped`);
-            continue;
-          }
-
-          const product = allProducts.find(p => p.id === itemMap.productId);
-          if (!product) continue;
-
-          const qty = line.SalesItemLineDetail?.Qty || 1;
-          const unitPrice = line.SalesItemLineDetail?.UnitPrice || 0;
-          const lineTotal = line.Amount || (qty * unitPrice);
-
-          orderItems.push({
-            productId: product.id,
-            productName: product.name,
-            sku: product.sku || null,
-            quantity: qty,
-            unitPrice: String(unitPrice),
-            retailPrice: String(product.price),
-            lineTotal: String(lineTotal),
-          });
-        }
-
-        if (orderItems.length === 0) {
-          if (hasUnmappedItems) failed++;
-          else skipped++;
-          continue;
-        }
-
-        const subtotal = orderItems.reduce((sum, i) => sum + parseFloat(i.lineTotal), 0);
-        const tax = parseFloat(invoice.TxnTaxDetail?.TotalTax || "0");
-        const total = subtotal + tax;
-
-        const orderNumber = `QB-${invoice.DocNumber || invoice.Id}`;
-
-        const [existingOrder] = await db.select().from(b2bOrders).where(eq(b2bOrders.orderNumber, orderNumber)).limit(1);
+        const legacyOrderNumber = `QB-${inv.docNumber || inv.qbInvoiceId}`;
+        const [existingOrder] = await db.select().from(b2bOrders)
+          .where(sql`${b2bOrders.orderNumber} IN (${orderNumber}, ${legacyOrderNumber})`)
+          .limit(1);
         if (existingOrder) {
           skipped++;
           continue;
         }
 
         const [newOrder] = await db.insert(b2bOrders).values({
-          customerId: custMap.b2bCustomerId,
+          customerId: inv.b2bCustomerId,
           orderNumber,
-          invoiceNumber: invoice.DocNumber || null,
+          invoiceNumber: inv.docNumber || null,
           orderType: "order",
-          orderDate: invoice.TxnDate ? new Date(invoice.TxnDate + "T12:00:00") : new Date(),
+          orderSource: "quickbooks",
+          orderDate: inv.date ? new Date(inv.date + "T12:00:00") : new Date(),
           status: "delivered",
-          subtotal: String(subtotal),
-          tax: String(tax),
-          total: String(total),
-          notes: `Imported from QuickBooks (Invoice #${invoice.DocNumber || invoice.Id})`,
+          subtotal: String(subtotal.toFixed(2)),
+          tax: String(Math.max(0, tax).toFixed(2)),
+          total: String(inv.total.toFixed(2)),
+          notes: `Wholesale - Imported from EKOS via QuickBooks (Invoice #${inv.docNumber || inv.qbInvoiceId})`,
         }).returning();
 
-        for (const item of orderItems) {
+        for (const item of inv.orderItems) {
           await db.insert(b2bOrderItems).values({
             orderId: newOrder.id,
             ...item,
@@ -503,22 +639,21 @@ router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response)
         }
 
         await db.insert(qbInvoiceMap).values({
-          qbInvoiceId: qbInvId,
-          qbDocNumber: invoice.DocNumber || null,
+          qbInvoiceId: inv.qbInvoiceId,
+          qbDocNumber: inv.docNumber || null,
           b2bOrderId: newOrder.id,
-          qbLastUpdated: invoice.MetaData?.LastUpdatedTime ? new Date(invoice.MetaData.LastUpdatedTime) : null,
         });
 
         created++;
       } catch (err: any) {
-        errors.push(`Invoice #${invoice.DocNumber || invoice.Id}: ${err.message}`);
+        errors.push(`Invoice #${inv.docNumber || inv.qbInvoiceId}: ${err.message}`);
         failed++;
       }
     }
 
     await db.update(qbSyncLog).set({
       status: "completed",
-      invoicesProcessed: invoices.length,
+      invoicesProcessed: toImport.length,
       invoicesCreated: created,
       invoicesSkipped: skipped,
       invoicesFailed: failed,
@@ -532,7 +667,7 @@ router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response)
     }).where(eq(qbConnection.id, conn.id));
 
     res.json({
-      processed: invoices.length,
+      processed: toImport.length,
       created,
       skipped,
       failed,

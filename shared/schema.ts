@@ -613,6 +613,7 @@ export const b2bOrders = pgTable("b2b_orders", {
   orderNumber: varchar("order_number").notNull().unique(),
   invoiceNumber: varchar("invoice_number"),
   orderType: varchar("order_type").notNull().default("order"), // 'order' or 'return'
+  orderSource: varchar("order_source").default("manual"), // 'manual', 'quickbooks', 'shopify'
   orderDate: timestamp("order_date").notNull().defaultNow(),
   status: varchar("status").notNull().default("pending_delivery_date"),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),

@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link2, Link2Off, RefreshCw, Users, Package, FileText, AlertTriangle, CheckCircle, XCircle, Clock, ArrowRight, Eye, EyeOff, Filter } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Link2, Link2Off, RefreshCw, Users, Package, FileText, AlertTriangle,
+  CheckCircle, XCircle, Clock, ArrowRight, Eye, EyeOff, Filter, Search,
+  ShieldCheck, Copy, CircleSlash, HelpCircle
+} from "lucide-react";
 
 interface QbStatus {
   connected: boolean;
@@ -70,14 +74,44 @@ interface SyncLog {
   completedAt: string | null;
 }
 
+interface PreviewInvoice {
+  qbInvoiceId: string;
+  docNumber: string;
+  customerName: string;
+  b2bCustomerId: string | null;
+  date: string;
+  total: number;
+  lineCount: number;
+  status: "ready" | "already_imported" | "duplicate_detected" | "unmapped_customer" | "unmapped_items" | "no_lines";
+  duplicateReason: string;
+  duplicateMatch: { orderId: string; orderNumber: string; total: string; status: string } | null;
+  itemIssues: string[];
+  orderItems: any[];
+}
+
+interface PreviewResult {
+  summary: {
+    total: number;
+    ready: number;
+    alreadyImported: number;
+    duplicateDetected: number;
+    unmappedCustomer: number;
+    unmappedItems: number;
+    noLines: number;
+  };
+  invoices: PreviewInvoice[];
+}
+
 type TabType = "connection" | "customers" | "items" | "sync";
 
 export default function QuickBooksSync() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>("connection");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState("2026-01-01");
   const [endDate, setEndDate] = useState("");
   const [ekosOnly, setEkosOnly] = useState(true);
+  const [previewData, setPreviewData] = useState<PreviewResult | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -154,21 +188,41 @@ export default function QuickBooksSync() {
     onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
   });
 
-  const syncInvoicesMutation = useMutation({
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/sync/preview", {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        docNumberPrefix: ekosOnly ? "E" : "",
+      });
+      return res as unknown as PreviewResult;
+    },
+    onSuccess: (data: PreviewResult) => {
+      setPreviewData(data);
+      const readyIds = new Set(data.invoices.filter(i => i.status === "ready").map(i => i.qbInvoiceId));
+      setSelectedIds(readyIds);
+    },
+    onError: (err: any) => toast({ title: "Preview Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const importMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/quickbooks/sync/invoices", {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       docNumberPrefix: ekosOnly ? "E" : "",
+      selectedInvoiceIds: Array.from(selectedIds),
     }),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/sync/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/status"] });
+      setPreviewData(null);
+      setSelectedIds(new Set());
       toast({
-        title: "Invoice Sync Complete",
-        description: `Processed ${data.processed}: ${data.created} created, ${data.skipped} skipped, ${data.failed} failed.`,
+        title: "Import Complete",
+        description: `${data.created} orders created, ${data.skipped} skipped, ${data.failed} failed.`,
       });
     },
-    onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Import Failed", description: err.message, variant: "destructive" }),
   });
 
   const updateCustomerMapping = useMutation({
@@ -213,12 +267,45 @@ export default function QuickBooksSync() {
   const unmappedCustomers = customerMappings?.filter(m => !m.b2bCustomerId && !m.isIgnored).length || 0;
   const unmappedItems = itemMappings?.filter(m => !m.productId && !m.isIgnored).length || 0;
 
+  const toggleInvoiceSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const statusIcon = (s: PreviewInvoice["status"]) => {
+    switch (s) {
+      case "ready": return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "already_imported": return <ShieldCheck className="w-4 h-4 text-blue-500" />;
+      case "duplicate_detected": return <Copy className="w-4 h-4 text-amber-500" />;
+      case "unmapped_customer": return <Users className="w-4 h-4 text-destructive" />;
+      case "unmapped_items": return <Package className="w-4 h-4 text-destructive" />;
+      case "no_lines": return <CircleSlash className="w-4 h-4 text-muted-foreground" />;
+      default: return <HelpCircle className="w-4 h-4" />;
+    }
+  };
+
+  const statusLabel = (s: PreviewInvoice["status"]) => {
+    switch (s) {
+      case "ready": return "Ready to Import";
+      case "already_imported": return "Already Imported";
+      case "duplicate_detected": return "Possible Duplicate";
+      case "unmapped_customer": return "Customer Not Mapped";
+      case "unmapped_items": return "Products Not Mapped";
+      case "no_lines": return "No Line Items";
+      default: return s;
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="quickbooks-sync-page">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-2xl font-bold" data-testid="text-qb-title">QuickBooks Integration</h2>
-          <p className="text-sm text-muted-foreground">Import wholesale invoices from QuickBooks into your B2B platform</p>
+          <p className="text-sm text-muted-foreground">Import wholesale invoices from QuickBooks/EKOS into your B2B platform</p>
         </div>
         {status?.connected && (
           <Badge variant="outline" className="gap-1" data-testid="badge-qb-connected">
@@ -316,7 +403,7 @@ export default function QuickBooksSync() {
           <Card>
             <CardHeader>
               <CardTitle>How It Works</CardTitle>
-              <CardDescription>Step-by-step guide to importing invoices</CardDescription>
+              <CardDescription>Step-by-step guide to importing EKOS invoices</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 text-sm">
@@ -331,23 +418,30 @@ export default function QuickBooksSync() {
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">2</div>
                   <div>
                     <p className="font-medium">Map Customers</p>
-                    <p className="text-muted-foreground">Match QB customers to your B2B accounts</p>
+                    <p className="text-muted-foreground">Match QB customers to your B2B wholesale accounts</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">3</div>
                   <div>
                     <p className="font-medium">Map Products</p>
-                    <p className="text-muted-foreground">Match QB items to your product catalog</p>
+                    <p className="text-muted-foreground">Match EKOS items to your existing products (same product, bond warehouse)</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">4</div>
                   <div>
-                    <p className="font-medium">Import Invoices</p>
-                    <p className="text-muted-foreground">Pull invoices and create B2B orders automatically</p>
+                    <p className="font-medium">Preview & Import</p>
+                    <p className="text-muted-foreground">Review invoices for duplicates, then import as wholesale orders</p>
                   </div>
                 </div>
+              </div>
+              <div className="mt-4 p-3 rounded-md bg-muted text-sm">
+                <p className="font-medium mb-1">Revenue Tracking</p>
+                <p className="text-muted-foreground">
+                  Imported orders count as <strong>Wholesale</strong> revenue, same as manually entered B2B orders. 
+                  Toast/retail = Retail revenue. EKOS/QB = Wholesale revenue (bond warehouse).
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -431,7 +525,9 @@ export default function QuickBooksSync() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <CardTitle>Product Mappings</CardTitle>
-                <CardDescription>Map QuickBooks items to your product catalog</CardDescription>
+                <CardDescription>
+                  Map QuickBooks/EKOS items to your product catalog. EKOS products are the same as your retail products (same Merlot, different warehouse).
+                </CardDescription>
               </div>
               <Button onClick={() => syncItemsMutation.mutate()} disabled={syncItemsMutation.isPending} data-testid="button-sync-items">
                 <RefreshCw className={`w-4 h-4 mr-2 ${syncItemsMutation.isPending ? "animate-spin" : ""}`} />
@@ -500,9 +596,9 @@ export default function QuickBooksSync() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Import Invoices</CardTitle>
+              <CardTitle>Import EKOS Invoices</CardTitle>
               <CardDescription>
-                Pull invoices from QuickBooks and create B2B orders. Only mapped customers and products will be imported.
+                Preview invoices from QuickBooks, check for duplicates, then import as wholesale orders.
                 {unmappedCustomers > 0 && (
                   <span className="block mt-1 text-destructive">{unmappedCustomers} unmapped customer(s) - map them first in the Customers tab.</span>
                 )}
@@ -514,16 +610,21 @@ export default function QuickBooksSync() {
             <CardContent className="space-y-4">
               <div className="flex items-end gap-3 flex-wrap">
                 <div>
-                  <label className="text-sm text-muted-foreground block mb-1">Start Date (optional)</label>
+                  <label className="text-sm text-muted-foreground block mb-1">Start Date</label>
                   <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-44" data-testid="input-start-date" />
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground block mb-1">End Date (optional)</label>
                   <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-44" data-testid="input-end-date" />
                 </div>
-                <Button onClick={() => syncInvoicesMutation.mutate()} disabled={syncInvoicesMutation.isPending} data-testid="button-sync-invoices">
-                  <FileText className={`w-4 h-4 mr-2 ${syncInvoicesMutation.isPending ? "animate-spin" : ""}`} />
-                  {syncInvoicesMutation.isPending ? "Importing..." : "Import Invoices"}
+                <Button
+                  variant="outline"
+                  onClick={() => { setPreviewData(null); previewMutation.mutate(); }}
+                  disabled={previewMutation.isPending}
+                  data-testid="button-preview-invoices"
+                >
+                  <Search className={`w-4 h-4 mr-2 ${previewMutation.isPending ? "animate-spin" : ""}`} />
+                  {previewMutation.isPending ? "Scanning..." : "Preview Invoices"}
                 </Button>
               </div>
               <div className="flex items-center gap-2">
@@ -538,11 +639,123 @@ export default function QuickBooksSync() {
                   Only import EKOS invoices (invoice numbers starting with "E")
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Leave dates empty to import all invoices updated since the last sync. Duplicate invoices are automatically skipped.
-              </p>
             </CardContent>
           </Card>
+
+          {previewData && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle>Preview Results</CardTitle>
+                    <CardDescription>
+                      {previewData.summary.total} invoices found. Review the list below and select which to import.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => importMutation.mutate()}
+                    disabled={importMutation.isPending || selectedIds.size === 0}
+                    data-testid="button-import-selected"
+                  >
+                    <FileText className={`w-4 h-4 mr-2 ${importMutation.isPending ? "animate-spin" : ""}`} />
+                    {importMutation.isPending ? "Importing..." : `Import ${selectedIds.size} Selected`}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-3 flex-wrap text-sm">
+                  <Badge variant="outline" className="gap-1">
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    {previewData.summary.ready} Ready
+                  </Badge>
+                  {previewData.summary.duplicateDetected > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <Copy className="w-3 h-3 text-amber-500" />
+                      {previewData.summary.duplicateDetected} Duplicates
+                    </Badge>
+                  )}
+                  {previewData.summary.alreadyImported > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <ShieldCheck className="w-3 h-3 text-blue-500" />
+                      {previewData.summary.alreadyImported} Already Imported
+                    </Badge>
+                  )}
+                  {previewData.summary.unmappedCustomer > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <Users className="w-3 h-3 text-destructive" />
+                      {previewData.summary.unmappedCustomer} Unmapped Customer
+                    </Badge>
+                  )}
+                  {previewData.summary.unmappedItems > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <Package className="w-3 h-3 text-destructive" />
+                      {previewData.summary.unmappedItems} Unmapped Items
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {previewData.invoices.map(inv => {
+                    const isSelectable = inv.status === "ready" || inv.status === "duplicate_detected";
+                    const isSelected = selectedIds.has(inv.qbInvoiceId);
+
+                    return (
+                      <div
+                        key={inv.qbInvoiceId}
+                        className={`flex items-start gap-3 p-3 rounded-md border text-sm ${
+                          inv.status === "ready" ? "border-green-500/20 bg-green-500/5" :
+                          inv.status === "duplicate_detected" ? "border-amber-500/20 bg-amber-500/5" :
+                          inv.status === "already_imported" ? "border-blue-500/20 bg-blue-500/5" :
+                          "border-destructive/20 bg-destructive/5"
+                        }`}
+                        data-testid={`preview-invoice-${inv.docNumber || inv.qbInvoiceId}`}
+                      >
+                        {isSelectable && (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleInvoiceSelection(inv.qbInvoiceId)}
+                            className="mt-0.5"
+                            data-testid={`checkbox-invoice-${inv.docNumber}`}
+                          />
+                        )}
+                        <div className="flex-shrink-0 mt-0.5">
+                          {statusIcon(inv.status)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">#{inv.docNumber || inv.qbInvoiceId}</span>
+                            <span className="text-muted-foreground">{inv.customerName}</span>
+                            <span className="text-muted-foreground">{inv.date}</span>
+                            <span className="font-medium">${inv.total.toFixed(2)}</span>
+                            <Badge variant="secondary" className="text-xs">{inv.lineCount} items</Badge>
+                          </div>
+                          <div className="mt-1">
+                            <Badge variant={inv.status === "ready" ? "outline" : "secondary"} className="text-xs">
+                              {statusLabel(inv.status)}
+                            </Badge>
+                          </div>
+                          {inv.duplicateReason && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                              {inv.duplicateReason}
+                            </p>
+                          )}
+                          {inv.itemIssues.length > 0 && (
+                            <p className="text-xs text-destructive mt-1">
+                              {inv.itemIssues.join("; ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {previewData.invoices.length === 0 && (
+                  <p className="text-center py-6 text-muted-foreground">No invoices found for the selected date range and filters.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
