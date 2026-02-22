@@ -16,11 +16,12 @@ const QB_API_BASE_PROD = "https://quickbooks.api.intuit.com";
 const QB_SCOPES = "com.intuit.quickbooks.accounting";
 
 function getRedirectUri() {
+  if (process.env.QB_REDIRECT_URI) {
+    return process.env.QB_REDIRECT_URI;
+  }
   const base = process.env.REPLIT_DEV_DOMAIN
     ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : process.env.REPL_SLUG
-      ? `https://${process.env.REPL_SLUG}.replit.app`
-      : "http://localhost:5000";
+    : "http://localhost:5000";
   return `${base}/api/quickbooks/callback`;
 }
 
