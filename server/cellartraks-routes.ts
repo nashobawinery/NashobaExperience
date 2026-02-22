@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { db } from "./db";
 import { eq, and, isNotNull, sql, ilike, or } from "drizzle-orm";
 import {
@@ -409,6 +410,56 @@ router.delete('/api/cellartraks/federal-tax-rates/:id', requireAuth, async (req:
   } catch (error) {
     console.error("Error deleting federal tax rate:", error);
     res.status(500).json({ error: "Failed to delete federal tax rate" });
+  }
+});
+
+router.post('/api/cellartraks/federal-tax-rates/select-classification', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const selectSchema = z.object({
+      beverageType: z.enum(['beer', 'wine', 'spirits']),
+      producerType: z.string().min(1),
+    });
+    const parsed = selectSchema.parse(req.body);
+
+    const matchingRates = await db.select({ id: cellartraksFederalTaxRates.id })
+      .from(cellartraksFederalTaxRates)
+      .where(and(
+        eq(cellartraksFederalTaxRates.beverageType, parsed.beverageType),
+        eq(cellartraksFederalTaxRates.producerType, parsed.producerType)
+      ));
+
+    if (matchingRates.length === 0) {
+      return res.status(400).json({ error: `No rates found for producer type '${parsed.producerType}' under '${parsed.beverageType}'` });
+    }
+
+    await db
+      .update(cellartraksFederalTaxRates)
+      .set({ isSelectedForOperation: false, updatedAt: new Date() })
+      .where(eq(cellartraksFederalTaxRates.beverageType, parsed.beverageType));
+
+    await db
+      .update(cellartraksFederalTaxRates)
+      .set({ isSelectedForOperation: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(cellartraksFederalTaxRates.beverageType, parsed.beverageType),
+          eq(cellartraksFederalTaxRates.producerType, parsed.producerType)
+        )
+      );
+
+    const rates = await db
+      .select()
+      .from(cellartraksFederalTaxRates)
+      .where(eq(cellartraksFederalTaxRates.beverageType, parsed.beverageType))
+      .orderBy(cellartraksFederalTaxRates.sortOrder);
+
+    res.json(rates);
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: "Invalid data", details: error.errors });
+    }
+    console.error("Error selecting classification:", error);
+    res.status(500).json({ error: "Failed to select classification" });
   }
 });
 
