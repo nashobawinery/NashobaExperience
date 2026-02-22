@@ -1164,6 +1164,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/staff-dashboard',
       status: 'active',
       sortOrder: 17
+    },
+    {
+      moduleKey: 'cellartraks',
+      moduleName: 'CellarTraks',
+      description: 'Comprehensive production management platform for Winery, Distillery, and Brewery operations with compliance reporting',
+      icon: 'Grape',
+      color: '',
+      routePrefix: '/cellartraks',
+      status: 'active',
+      sortOrder: 7
     }
   ];
 
