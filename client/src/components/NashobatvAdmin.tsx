@@ -140,8 +140,14 @@ function SlidesManager() {
     location: "",
   });
 
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+
   const { data: slides, isLoading } = useQuery<Slide[]>({
     queryKey: ["/api/nashobatv/slides"],
+  });
+
+  const { data: galleryPhotos = [] } = useQuery<Photo[]>({
+    queryKey: ["/api/nashobatv/photos"],
   });
 
   const createMutation = useMutation({
@@ -302,8 +308,77 @@ function SlidesManager() {
               <Textarea value={formData.bodyText} onChange={(e) => setFormData({ ...formData, bodyText: e.target.value })} rows={3} data-testid="input-slide-body" />
             </div>
             <div className="space-y-2">
-              <Label>Background Image URL</Label>
-              <Input value={formData.backgroundImageUrl} onChange={(e) => setFormData({ ...formData, backgroundImageUrl: e.target.value })} data-testid="input-slide-bg-url" />
+              <Label>Background Image</Label>
+              {formData.backgroundImageUrl ? (
+                <div className="relative rounded-md overflow-visible border">
+                  <img
+                    src={formData.backgroundImageUrl}
+                    alt="Selected background"
+                    className="w-full h-32 object-cover rounded-md"
+                    data-testid="img-slide-bg-preview"
+                  />
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-1 right-1 h-6 w-6"
+                    onClick={() => setFormData({ ...formData, backgroundImageUrl: "" })}
+                    data-testid="button-clear-slide-bg"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowGalleryPicker(!showGalleryPicker)}
+                  data-testid="button-pick-from-gallery"
+                >
+                  <Image className="h-4 w-4 mr-1" /> Pick from Gallery
+                </Button>
+              </div>
+              {showGalleryPicker && (
+                <div className="border rounded-md p-2 space-y-2 max-h-48 overflow-y-auto">
+                  {galleryPhotos.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {galleryPhotos.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`relative rounded-md overflow-visible border-2 cursor-pointer ${formData.backgroundImageUrl === p.imageUrl ? "border-primary" : "border-transparent"}`}
+                          onClick={() => {
+                            setFormData({ ...formData, backgroundImageUrl: p.imageUrl });
+                            setShowGalleryPicker(false);
+                          }}
+                          data-testid={`gallery-pick-${p.id}`}
+                        >
+                          <img
+                            src={p.imageUrl}
+                            alt={p.caption || "Gallery photo"}
+                            className="w-full h-16 object-cover rounded-md"
+                          />
+                          {formData.backgroundImageUrl === p.imageUrl && (
+                            <div className="absolute inset-0 bg-primary/20 flex items-center justify-center rounded-md">
+                              <CheckCircle2 className="h-5 w-5 text-primary" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-2">No gallery photos yet. Add some in the Photos tab.</p>
+                  )}
+                </div>
+              )}
+              <Input
+                value={formData.backgroundImageUrl}
+                onChange={(e) => setFormData({ ...formData, backgroundImageUrl: e.target.value })}
+                placeholder="Or paste an image URL..."
+                className="text-xs"
+                data-testid="input-slide-bg-url"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
