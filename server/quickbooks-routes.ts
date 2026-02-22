@@ -117,11 +117,20 @@ router.get("/api/quickbooks/callback", async (req: Request, res: Response) => {
 
   try {
     const redirectUri = getRedirectUri();
+    const clientId = process.env.QUICKBOOKS_CLIENT_ID;
+    const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
+    console.log("[QB OAuth] Token exchange attempt:", {
+      redirectUri,
+      clientIdLength: clientId?.length || 0,
+      clientIdPrefix: clientId?.substring(0, 8) || "MISSING",
+      secretLength: clientSecret?.length || 0,
+      hasSecret: !!clientSecret,
+    });
     const response = await axios.post(
       QB_TOKEN_URL,
       new URLSearchParams({ grant_type: "authorization_code", code: code as string, redirect_uri: redirectUri }),
       {
-        auth: { username: process.env.QUICKBOOKS_CLIENT_ID!, password: process.env.QUICKBOOKS_CLIENT_SECRET! },
+        auth: { username: clientId!, password: clientSecret! },
         headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       }
     );
