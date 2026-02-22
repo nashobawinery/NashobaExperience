@@ -342,7 +342,11 @@ router.delete("/api/nashobatv/announcements/:id", requireAuth, async (req: Reque
 router.get("/api/nashobatv/photos", requireAuth, async (_req: Request, res: Response) => {
   try {
     const photos = await db.select().from(nashobatvPhotos).orderBy(asc(nashobatvPhotos.sortOrder));
-    res.json(photos);
+    const proxied = photos.map(p => ({
+      ...p,
+      imageUrl: photoProxyUrl(p.id, p.imageUrl),
+    }));
+    res.json(proxied);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch photos" });
   }
