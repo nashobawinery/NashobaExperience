@@ -955,6 +955,52 @@ router.get("/api/quickbooks/sync/history", async (_req: Request, res: Response) 
   }
 });
 
+// ==================== Quick Add B2B Customer from QB ====================
+
+router.post("/api/quickbooks/customers/quick-add", async (req: Request, res: Response) => {
+  try {
+    const { qbCustomerMapId, accountName, customerType } = req.body;
+    if (!accountName || !accountName.trim()) {
+      return res.status(400).json({ error: "Account name is required" });
+    }
+
+    const allNumbers = await db.select({ customerNumber: b2bCustomers.customerNumber }).from(b2bCustomers);
+    let maxNum = 0;
+    for (const c of allNumbers) {
+      const match = c.customerNumber?.match(/^NV(\d+)$/);
+      if (match) maxNum = Math.max(maxNum, parseInt(match[1]));
+    }
+    const customerNumber = `NV${String(maxNum + 1).padStart(5, '0')}`;
+
+    const [newCustomer] = await db.insert(b2bCustomers).values({
+      accountName: accountName.trim(),
+      customerType: customerType || null,
+      customerNumber,
+      primaryContactName: accountName.trim(),
+      emailAddress: `${customerNumber.toLowerCase()}@placeholder.com`,
+      phoneNumber: "000-000-0000",
+      accountStatus: "active",
+      notes: "Quick-added from QuickBooks EKOS sync. Please update contact details.",
+    }).returning();
+
+    if (qbCustomerMapId) {
+      await db.update(qbCustomerMap).set({
+        b2bCustomerId: newCustomer.id,
+        isAutoMatched: false,
+        updatedAt: new Date(),
+      }).where(eq(qbCustomerMap.id, qbCustomerMapId));
+    }
+
+    res.json({
+      success: true,
+      customer: { id: newCustomer.id, accountName: newCustomer.accountName, customerNumber: newCustomer.customerNumber },
+    });
+  } catch (error: any) {
+    console.error("Quick add customer error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== B2B Customers List (for mapping dropdown) ====================
 
 router.get("/api/quickbooks/b2b-customers", async (_req: Request, res: Response) => {

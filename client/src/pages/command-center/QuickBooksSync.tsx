@@ -11,8 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Link2, Link2Off, RefreshCw, Users, Package, FileText, AlertTriangle,
   CheckCircle, XCircle, Clock, ArrowRight, Eye, EyeOff, Filter, Search,
-  ShieldCheck, Copy, CircleSlash, HelpCircle, DollarSign, CreditCard
+  ShieldCheck, Copy, CircleSlash, HelpCircle, DollarSign, CreditCard,
+  UserPlus, Ban
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface QbStatus {
   connected: boolean;
@@ -145,6 +148,11 @@ export default function QuickBooksSync() {
   const [pmtEndDate, setPmtEndDate] = useState("");
   const [paymentPreview, setPaymentPreview] = useState<PaymentPreviewResult | null>(null);
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<Set<string>>(new Set());
+  const [showIgnored, setShowIgnored] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddType, setQuickAddType] = useState<string>("other");
+  const [quickAddMapId, setQuickAddMapId] = useState<number | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -281,6 +289,20 @@ export default function QuickBooksSync() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/customers"] });
     },
+  });
+
+  const quickAddCustomerMutation = useMutation({
+    mutationFn: async ({ qbCustomerMapId, accountName, customerType }: { qbCustomerMapId: number; accountName: string; customerType: string }) => {
+      const res = await apiRequest("POST", "/api/quickbooks/customers/quick-add", { qbCustomerMapId, accountName, customerType });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/b2b-customers"] });
+      setQuickAddOpen(false);
+      toast({ title: "Customer Created", description: `${data.customer.accountName} (${data.customer.customerNumber}) created and mapped.` });
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
   });
 
   const updateItemMapping = useMutation({
@@ -565,7 +587,7 @@ export default function QuickBooksSync() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <CardTitle>Customer Mappings</CardTitle>
-                <CardDescription>Only customers from EKOS invoices (starting with "E") are pulled from QuickBooks. Map them to your B2B wholesale accounts below.</CardDescription>
+                <CardDescription>Only customers from EKOS invoices (starting with "E") are pulled from QuickBooks. Map them to B2B accounts, ignore ones you don't need, or quick-add new ones.</CardDescription>
               </div>
               <Button onClick={() => syncCustomersMutation.mutate()} disabled={syncCustomersMutation.isPending} data-testid="button-sync-customers">
                 <RefreshCw className={`w-4 h-4 mr-2 ${syncCustomersMutation.isPending ? "animate-spin" : ""}`} />
@@ -580,55 +602,167 @@ export default function QuickBooksSync() {
                 <p>No customers synced yet. Click "Pull Customers from QB" to get started.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {customerMappings.map(mapping => (
-                  <div
-                    key={mapping.id}
-                    className={`flex items-center gap-3 p-3 rounded-md border text-sm ${
-                      mapping.isIgnored ? "opacity-50" : mapping.b2bCustomerId ? "border-green-500/20 bg-green-500/5" : "border-destructive/20 bg-destructive/5"
-                    }`}
-                    data-testid={`customer-mapping-${mapping.id}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{mapping.qbCustomerName}</p>
-                      <p className="text-xs text-muted-foreground">QB ID: {mapping.qbCustomerId}</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    <div className="w-64 flex-shrink-0">
-                      <Select
-                        value={mapping.b2bCustomerId || "unmatched"}
-                        onValueChange={(val) => updateCustomerMapping.mutate({ id: mapping.id, b2bCustomerId: val === "unmatched" ? null : val })}
-                      >
-                        <SelectTrigger data-testid={`select-customer-${mapping.id}`}>
-                          <SelectValue placeholder="Select B2B Customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unmatched">-- Not Mapped --</SelectItem>
-                          {b2bCustomers?.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.accountName} ({c.customerNumber})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => toggleCustomerIgnore.mutate({ id: mapping.id, isIgnored: !mapping.isIgnored })}
-                      title={mapping.isIgnored ? "Show" : "Ignore"}
-                      data-testid={`button-ignore-customer-${mapping.id}`}
+              <>
+                <div className="flex items-center gap-4 mb-4 flex-wrap">
+                  {(() => {
+                    const mapped = customerMappings.filter(m => !m.isIgnored && m.b2bCustomerId).length;
+                    const unmapped = customerMappings.filter(m => !m.isIgnored && !m.b2bCustomerId).length;
+                    const ignored = customerMappings.filter(m => m.isIgnored).length;
+                    return (
+                      <>
+                        <Badge variant="secondary" data-testid="badge-mapped-count">
+                          <CheckCircle className="w-3 h-3 mr-1" /> {mapped} Mapped
+                        </Badge>
+                        {unmapped > 0 && (
+                          <Badge variant="destructive" data-testid="badge-unmapped-count">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> {unmapped} Need Mapping
+                          </Badge>
+                        )}
+                        {ignored > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowIgnored(!showIgnored)}
+                            data-testid="button-toggle-ignored"
+                          >
+                            {showIgnored ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
+                            {ignored} Ignored {showIgnored ? "(showing)" : "(hidden)"}
+                          </Button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="space-y-2">
+                  {customerMappings
+                    .filter(m => showIgnored || !m.isIgnored)
+                    .map(mapping => (
+                    <div
+                      key={mapping.id}
+                      className={`flex items-center gap-3 p-3 rounded-md border text-sm ${
+                        mapping.isIgnored ? "opacity-40 border-muted" : mapping.b2bCustomerId ? "border-green-500/20 bg-green-500/5" : "border-destructive/20 bg-destructive/5"
+                      }`}
+                      data-testid={`customer-mapping-${mapping.id}`}
                     >
-                      {mapping.isIgnored ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </Button>
-                    {mapping.isAutoMatched && (
-                      <Badge variant="secondary" className="text-xs">Auto</Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{mapping.qbCustomerName}</p>
+                          {mapping.isIgnored && <Badge variant="outline" className="text-xs">Ignored</Badge>}
+                          {mapping.isAutoMatched && !mapping.isIgnored && (
+                            <Badge variant="secondary" className="text-xs">Auto-matched</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">QB ID: {mapping.qbCustomerId}</p>
+                      </div>
+                      {!mapping.isIgnored && (
+                        <>
+                          <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <div className="w-56 flex-shrink-0">
+                            <Select
+                              value={mapping.b2bCustomerId || "unmatched"}
+                              onValueChange={(val) => updateCustomerMapping.mutate({ id: mapping.id, b2bCustomerId: val === "unmatched" ? null : val })}
+                            >
+                              <SelectTrigger data-testid={`select-customer-${mapping.id}`}>
+                                <SelectValue placeholder="Select B2B Customer" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unmatched">-- Not Mapped --</SelectItem>
+                                {b2bCustomers?.map(c => (
+                                  <SelectItem key={c.id} value={c.id}>{c.accountName} ({c.customerNumber})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {!mapping.b2bCustomerId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setQuickAddName(mapping.qbCustomerName);
+                                setQuickAddType("other");
+                                setQuickAddMapId(mapping.id);
+                                setQuickAddOpen(true);
+                              }}
+                              title="Create new B2B customer from this QB customer"
+                              data-testid={`button-quick-add-${mapping.id}`}
+                            >
+                              <UserPlus className="w-4 h-4 mr-1" /> Add New
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant={mapping.isIgnored ? "secondary" : "ghost"}
+                        onClick={() => toggleCustomerIgnore.mutate({ id: mapping.id, isIgnored: !mapping.isIgnored })}
+                        title={mapping.isIgnored ? "Un-ignore this customer" : "Ignore this customer (won't block imports)"}
+                        data-testid={`button-ignore-customer-${mapping.id}`}
+                      >
+                        {mapping.isIgnored ? (
+                          <><Eye className="w-4 h-4 mr-1" /> Restore</>
+                        ) : (
+                          <><Ban className="w-4 h-4 mr-1" /> Ignore</>
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Quick Add B2B Customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="quickAddName">Account Name</Label>
+              <Input
+                id="quickAddName"
+                value={quickAddName}
+                onChange={(e) => setQuickAddName(e.target.value)}
+                data-testid="input-quick-add-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="quickAddType">Customer Type</Label>
+              <Select value={quickAddType} onValueChange={setQuickAddType}>
+                <SelectTrigger data-testid="select-quick-add-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retail_liquor">Retail Liquor Store</SelectItem>
+                  <SelectItem value="restaurant">Restaurant</SelectItem>
+                  <SelectItem value="distributor">Distributor</SelectItem>
+                  <SelectItem value="private_club">Private Club</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A customer number will be auto-generated. You can update contact details, address, and other info later in the B2B admin.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuickAddOpen(false)} data-testid="button-quick-add-cancel">Cancel</Button>
+            <Button
+              onClick={() => {
+                if (quickAddMapId && quickAddName.trim()) {
+                  quickAddCustomerMutation.mutate({ qbCustomerMapId: quickAddMapId, accountName: quickAddName, customerType: quickAddType });
+                }
+              }}
+              disabled={quickAddCustomerMutation.isPending || !quickAddName.trim()}
+              data-testid="button-quick-add-save"
+            >
+              {quickAddCustomerMutation.isPending ? "Creating..." : "Create & Map"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {activeTab === "items" && status?.connected && (
         <Card>
