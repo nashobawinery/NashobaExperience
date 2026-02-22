@@ -228,7 +228,7 @@ export default function QuickBooksSync() {
         endDate: endDate || undefined,
         docNumberPrefix: ekosOnly ? "E" : "",
       });
-      return res as unknown as PreviewResult;
+      return await res.json() as PreviewResult;
     },
     onSuccess: (data: PreviewResult) => {
       setPreviewData(data);
@@ -296,7 +296,7 @@ export default function QuickBooksSync() {
         startDate: pmtStartDate || undefined,
         endDate: pmtEndDate || undefined,
       });
-      return res as unknown as PaymentPreviewResult;
+      return await res.json() as PaymentPreviewResult;
     },
     onSuccess: (data: PaymentPreviewResult) => {
       setPaymentPreview(data);
