@@ -1,11 +1,18 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
-import { eq, and, isNotNull, sql } from "drizzle-orm";
+import { eq, and, isNotNull, sql, ilike, or } from "drizzle-orm";
 import {
   cellartraksProductClassifications,
   cellartraksStateTaxClasses,
   cellartraksFederalTaxRates,
   products,
+  toastProductMap,
+  shopifyProductMap,
+  qbItemMap,
+  toastMenuItems,
+  toastMenus,
+  toastMenuGroups,
+  shopifyProductCache,
   insertCellartraksProductClassificationSchema,
   insertCellartraksStateTaxClassSchema,
   insertCellartraksFederalTaxRateSchema,
@@ -478,6 +485,242 @@ router.post('/api/cellartraks/federal-tax-rates/seed', requireAuth, async (req: 
   } catch (error) {
     console.error("Error seeding federal tax rates:", error);
     res.status(500).json({ error: "Failed to seed federal tax rates" });
+  }
+});
+
+// ===================== Product Channel Mapping Routes =====================
+
+router.get('/api/cellartraks/product-channel-mapping/toast', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const mappings = await db.select().from(toastProductMap);
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category, bottleSize: products.bottleSize }).from(products).where(eq(products.isArchived, false));
+    res.json({ mappings, products: prodList });
+  } catch (error: any) {
+    console.error("Error fetching Toast product mappings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/api/cellartraks/product-channel-mapping/toast/sync', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const items = await db.select({
+      itemGuid: toastMenuItems.itemGuid,
+      itemName: toastMenuItems.name,
+      menuGuid: toastMenuItems.menuGuid,
+      menuGroupGuid: toastMenuItems.groupGuid,
+      restaurantGuid: toastMenuItems.restaurantGuid,
+    }).from(toastMenuItems);
+
+    const menuList = await db.select({ menuGuid: toastMenus.menuGuid, name: toastMenus.name, restaurantGuid: toastMenus.restaurantGuid }).from(toastMenus);
+    const groupList = await db.select({ groupGuid: toastMenuGroups.groupGuid, name: toastMenuGroups.name }).from(toastMenuGroups);
+    const menuMap = new Map(menuList.map(m => [m.menuGuid, m.name]));
+    const groupMap = new Map(groupList.map(g => [g.groupGuid, g.name]));
+
+    const restaurantNames: Record<string, string> = {};
+    for (const m of menuList) {
+      if (!restaurantNames[m.restaurantGuid]) {
+        const menus = menuList.filter(x => x.restaurantGuid === m.restaurantGuid);
+        restaurantNames[m.restaurantGuid] = `Restaurant (${menus.length} menus)`;
+      }
+    }
+
+    const existingMaps = await db.select().from(toastProductMap);
+    const existingGuids = new Set(existingMaps.map(m => m.itemGuid));
+
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category }).from(products).where(eq(products.isArchived, false));
+
+    let added = 0;
+    let autoMatched = 0;
+    for (const item of items) {
+      if (existingGuids.has(item.itemGuid)) continue;
+
+      let matchedProductId: string | null = null;
+      let isAutoMatched = false;
+
+      const itemNameNorm = item.itemName.toLowerCase().trim();
+      for (const p of prodList) {
+        const prodNameNorm = p.name.toLowerCase().trim();
+        if (itemNameNorm === prodNameNorm || itemNameNorm.startsWith(prodNameNorm + " ") || itemNameNorm.includes(prodNameNorm)) {
+          matchedProductId = p.id;
+          isAutoMatched = true;
+          autoMatched++;
+          break;
+        }
+      }
+
+      await db.insert(toastProductMap).values({
+        itemGuid: item.itemGuid,
+        itemName: item.itemName,
+        menuGuid: item.menuGuid || null,
+        menuName: item.menuGuid ? menuMap.get(item.menuGuid) || null : null,
+        menuGroupGuid: item.menuGroupGuid || null,
+        menuGroupName: item.menuGroupGuid ? groupMap.get(item.menuGroupGuid) || null : null,
+        restaurantGuid: item.restaurantGuid || null,
+        restaurantName: restaurantNames[item.restaurantGuid || ""] || null,
+        productId: matchedProductId,
+        isAutoMatched,
+      });
+      added++;
+    }
+
+    res.json({ total: items.length, added, skipped: items.length - added, autoMatched });
+  } catch (error: any) {
+    console.error("Error syncing Toast product mappings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/api/cellartraks/product-channel-mapping/toast/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { productId, isIgnored } = req.body;
+    const updates: any = { updatedAt: new Date() };
+    if (productId !== undefined) {
+      updates.productId = productId || null;
+      updates.isAutoMatched = false;
+    }
+    if (isIgnored !== undefined) updates.isIgnored = isIgnored;
+
+    const [updated] = await db.update(toastProductMap)
+      .set(updates)
+      .where(eq(toastProductMap.id, parseInt(req.params.id)))
+      .returning();
+    res.json(updated);
+  } catch (error: any) {
+    console.error("Error updating Toast product mapping:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/api/cellartraks/product-channel-mapping/shopify', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const mappings = await db.select().from(shopifyProductMap);
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category, bottleSize: products.bottleSize }).from(products).where(eq(products.isArchived, false));
+    res.json({ mappings, products: prodList });
+  } catch (error: any) {
+    console.error("Error fetching Shopify product mappings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/api/cellartraks/product-channel-mapping/shopify/sync', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const cachedProducts = await db.select().from(shopifyProductCache);
+    const existingMaps = await db.select().from(shopifyProductMap);
+    const existingIds = new Set(existingMaps.map(m => m.shopifyProductId));
+
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category }).from(products).where(eq(products.isArchived, false));
+
+    let added = 0;
+    let autoMatched = 0;
+    for (const sp of cachedProducts) {
+      if (existingIds.has(sp.productId)) continue;
+
+      let matchedProductId: string | null = null;
+      let isAutoMatched = false;
+
+      if (sp.title) {
+        const titleNorm = sp.title.toLowerCase().trim();
+        for (const p of prodList) {
+          const prodNameNorm = p.name.toLowerCase().trim();
+          if (titleNorm === prodNameNorm || titleNorm.startsWith(prodNameNorm + " ") || titleNorm.includes(prodNameNorm)) {
+            matchedProductId = p.id;
+            isAutoMatched = true;
+            autoMatched++;
+            break;
+          }
+        }
+      }
+
+      await db.insert(shopifyProductMap).values({
+        shopifyProductId: sp.productId,
+        shopifyTitle: sp.title || `Shopify Product ${sp.productId}`,
+        shopifyProductType: sp.productType || null,
+        shopifyVendor: sp.vendor || null,
+        productId: matchedProductId,
+        isAutoMatched,
+      });
+      added++;
+    }
+
+    res.json({ total: cachedProducts.length, added, skipped: cachedProducts.length - added, autoMatched });
+  } catch (error: any) {
+    console.error("Error syncing Shopify product mappings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/api/cellartraks/product-channel-mapping/shopify/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { productId, isIgnored } = req.body;
+    const updates: any = { updatedAt: new Date() };
+    if (productId !== undefined) {
+      updates.productId = productId || null;
+      updates.isAutoMatched = false;
+    }
+    if (isIgnored !== undefined) updates.isIgnored = isIgnored;
+
+    const [updated] = await db.update(shopifyProductMap)
+      .set(updates)
+      .where(eq(shopifyProductMap.id, parseInt(req.params.id)))
+      .returning();
+    res.json(updated);
+  } catch (error: any) {
+    console.error("Error updating Shopify product mapping:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/api/cellartraks/product-channel-mapping/wholesale', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const mappings = await db.select().from(qbItemMap);
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category, bottleSize: products.bottleSize }).from(products).where(eq(products.isArchived, false));
+    res.json({ mappings, products: prodList });
+  } catch (error: any) {
+    console.error("Error fetching wholesale product mappings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/api/cellartraks/product-channel-mapping/summary', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const [toastMappings, shopifyMappings, wholesaleMappings] = await Promise.all([
+      db.select().from(toastProductMap),
+      db.select().from(shopifyProductMap),
+      db.select().from(qbItemMap),
+    ]);
+
+    const prodList = await db.select({ id: products.id, name: products.name, category: products.category, bottleSize: products.bottleSize }).from(products).where(eq(products.isArchived, false));
+
+    const mappedProductIds = new Set<string>();
+    for (const m of toastMappings) if (m.productId) mappedProductIds.add(m.productId);
+    for (const m of shopifyMappings) if (m.productId) mappedProductIds.add(m.productId);
+    for (const m of wholesaleMappings) if (m.productId) mappedProductIds.add(m.productId);
+
+    res.json({
+      toast: {
+        total: toastMappings.filter(m => !m.isIgnored).length,
+        mapped: toastMappings.filter(m => m.productId && !m.isIgnored).length,
+        unmapped: toastMappings.filter(m => !m.productId && !m.isIgnored).length,
+        ignored: toastMappings.filter(m => m.isIgnored).length,
+      },
+      shopify: {
+        total: shopifyMappings.filter(m => !m.isIgnored).length,
+        mapped: shopifyMappings.filter(m => m.productId && !m.isIgnored).length,
+        unmapped: shopifyMappings.filter(m => !m.productId && !m.isIgnored).length,
+        ignored: shopifyMappings.filter(m => m.isIgnored).length,
+      },
+      wholesale: {
+        total: wholesaleMappings.filter(m => !m.isIgnored).length,
+        mapped: wholesaleMappings.filter(m => m.productId && !m.isIgnored).length,
+        unmapped: wholesaleMappings.filter(m => !m.productId && !m.isIgnored).length,
+        ignored: wholesaleMappings.filter(m => m.isIgnored).length,
+      },
+      productsWithMappings: mappedProductIds.size,
+      totalProducts: prodList.length,
+    });
+  } catch (error: any) {
+    console.error("Error fetching product channel mapping summary:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

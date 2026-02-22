@@ -5942,3 +5942,48 @@ export type QbItemMap = typeof qbItemMap.$inferSelect;
 export type QbSyncLog = typeof qbSyncLog.$inferSelect;
 export type QbInvoiceMap = typeof qbInvoiceMap.$inferSelect;
 export type QbPaymentMap = typeof qbPaymentMap.$inferSelect;
+
+export const toastProductMap = pgTable("toast_product_map", {
+  id: serial("id").primaryKey(),
+  itemGuid: varchar("item_guid", { length: 100 }).notNull(),
+  itemName: varchar("item_name", { length: 500 }).notNull(),
+  menuGuid: varchar("menu_guid", { length: 100 }),
+  menuName: varchar("menu_name", { length: 255 }),
+  menuGroupGuid: varchar("menu_group_guid", { length: 100 }),
+  menuGroupName: varchar("menu_group_name", { length: 255 }),
+  restaurantGuid: varchar("restaurant_guid", { length: 100 }),
+  restaurantName: varchar("restaurant_name", { length: 255 }),
+  productId: varchar("product_id").references(() => products.id),
+  isAutoMatched: boolean("is_auto_matched").notNull().default(false),
+  isIgnored: boolean("is_ignored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_toast_product_map_item").on(table.itemGuid),
+  index("idx_toast_product_map_product").on(table.productId),
+  index("idx_toast_product_map_restaurant").on(table.restaurantGuid),
+]);
+
+export const shopifyProductMap = pgTable("shopify_product_map", {
+  id: serial("id").primaryKey(),
+  shopifyProductId: varchar("shopify_product_id", { length: 64 }).notNull(),
+  shopifyTitle: varchar("shopify_title", { length: 500 }).notNull(),
+  shopifyProductType: varchar("shopify_product_type", { length: 255 }),
+  shopifyVendor: varchar("shopify_vendor", { length: 255 }),
+  productId: varchar("product_id").references(() => products.id),
+  isAutoMatched: boolean("is_auto_matched").notNull().default(false),
+  isIgnored: boolean("is_ignored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_shopify_product_map_shopify").on(table.shopifyProductId),
+  index("idx_shopify_product_map_product").on(table.productId),
+]);
+
+export const insertToastProductMapSchema = createInsertSchema(toastProductMap).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertToastProductMap = z.infer<typeof insertToastProductMapSchema>;
+export type ToastProductMap = typeof toastProductMap.$inferSelect;
+
+export const insertShopifyProductMapSchema = createInsertSchema(shopifyProductMap).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertShopifyProductMap = z.infer<typeof insertShopifyProductMapSchema>;
+export type ShopifyProductMap = typeof shopifyProductMap.$inferSelect;
