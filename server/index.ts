@@ -1,4 +1,5 @@
 import reactivationRoutes from "./reactivation/routes";
+import meetingNotesRoutes from "./meeting-notes-routes";
 import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import path from "path";
@@ -63,6 +64,8 @@ app.use(express.static(path.join(process.cwd(), 'public')));
   if (process.env.REACTIVATION_ENABLED === "true") {
     app.use("/api/reactivation", reactivationRoutes);
   }
+
+  app.use(meetingNotesRoutes);
 
   const server = await registerRoutes(app);
 

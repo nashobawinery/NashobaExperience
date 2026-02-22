@@ -5988,3 +5988,22 @@ export type ToastProductMap = typeof toastProductMap.$inferSelect;
 export const insertShopifyProductMapSchema = createInsertSchema(shopifyProductMap).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertShopifyProductMap = z.infer<typeof insertShopifyProductMapSchema>;
 export type ShopifyProductMap = typeof shopifyProductMap.$inferSelect;
+
+export const meetingNotes = pgTable("meeting_notes", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  date: varchar("date", { length: 10 }).notNull(),
+  duration: integer("duration"),
+  transcript: text("transcript"),
+  summary: text("summary"),
+  actionItems: text("action_items"),
+  attendees: text("attendees"),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertMeetingNoteSchema = createInsertSchema(meetingNotes).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMeetingNote = z.infer<typeof insertMeetingNoteSchema>;
+export type MeetingNote = typeof meetingNotes.$inferSelect;
