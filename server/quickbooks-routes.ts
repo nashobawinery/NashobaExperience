@@ -573,8 +573,13 @@ router.post("/api/quickbooks/sync/preview", async (req: Request, res: Response) 
 
     res.json({ summary, invoices: analyzed });
   } catch (error: any) {
-    console.error("QB preview error:", error.response?.data || error.message);
-    res.status(500).json({ error: error.message });
+    console.error("QB preview error:", JSON.stringify(error.response?.data || error.message));
+    console.error("QB preview error details:", {
+      status: error.response?.status,
+      apiBase: getApiBase(),
+      qbEnv: process.env.QB_ENVIRONMENT,
+    });
+    res.status(500).json({ error: error.response?.data?.Fault?.Error?.[0]?.Detail || error.message });
   }
 });
 
