@@ -786,13 +786,14 @@ export async function syncToastRevenueDetailToDb(businessDate: string): Promise<
 
   if (existingIds.size > 0) {
     const idsArray = Array.from(existingIds);
+    const keepIds = sql.join(idsArray.map(id => sql`${id}`), sql`, `);
     await db.execute(sql`
       DELETE FROM toast_void_explanations WHERE void_detail_id IN (
-        SELECT id FROM toast_void_discount_details WHERE date = ${businessDate} AND id != ALL(${idsArray}::int[])
+        SELECT id FROM toast_void_discount_details WHERE date = ${businessDate} AND id NOT IN (${keepIds})
       )
     `);
     await db.execute(sql`
-      DELETE FROM toast_void_discount_details WHERE date = ${businessDate} AND id != ALL(${idsArray}::int[])
+      DELETE FROM toast_void_discount_details WHERE date = ${businessDate} AND id NOT IN (${keepIds})
     `);
   } else if (detail.voidDiscountDetails.length === 0) {
     await db.execute(sql`

@@ -38,7 +38,7 @@ import revenueDetailRouter from "./revenue-detail-routes";
 import abccRouter from "./abcc-routes";
 import nashobatvRouter from "./nashobatv-routes";
 import quickbooksRouter from "./quickbooks-routes";
-import { fetchDailyRevenue } from "./reactivation/toast-api";
+import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
 import { initComplianceReminders, sendComplianceReminders } from "./complianceReminders";
@@ -18751,6 +18751,11 @@ Generate a professional response:`;
                   console.error(`[RCC] Toast API auto-sync failed for ${dayEntry.date}:`, apiErr);
                 }
               }
+              try {
+                await syncToastRevenueDetailToDb(dayEntry.date);
+              } catch (detailErr) {
+                console.error(`[RCC] Toast detail sync failed for ${dayEntry.date}:`, detailErr);
+              }
             }
           } catch (err) {
             console.error('[RCC] Failed to auto-sync Toast revenue:', err);
@@ -19041,6 +19046,12 @@ Generate a professional response:`;
 
           await storage.recordRccToastHistoricalRevenue(dateStr, revenue.netSales.toFixed(2));
 
+          try {
+            await syncToastRevenueDetailToDb(dateStr);
+          } catch (detailErr: any) {
+            console.error(`[RCC Toast Sync] Detail sync error for ${dateStr}:`, detailErr.message);
+          }
+
           results.push({ date: dateStr, netSales: revenue.netSales, orderCount: revenue.orderCount, synced: true });
           console.log(`[RCC Toast Sync] ${dateStr}: $${revenue.netSales.toFixed(2)} (${revenue.orderCount} orders)`);
         } catch (err: any) {
@@ -19102,11 +19113,21 @@ Generate a professional response:`;
 
       await storage.recordRccToastHistoricalRevenue(date, revenue.netSales.toFixed(2));
 
+      let detailResult = null;
+      try {
+        detailResult = await syncToastRevenueDetailToDb(date);
+      } catch (detailErr: any) {
+        console.error(`[RCC Toast Sync] Detail sync error for ${date}:`, detailErr.message);
+      }
+
       res.json({
         date,
         netSales: revenue.netSales,
         orderCount: revenue.orderCount,
         locationBreakdown: revenue.locationBreakdown,
+        discounts: detailResult?.totalDiscounts || 0,
+        voids: detailResult?.totalVoidAmount || 0,
+        voidCount: detailResult?.totalVoidCount || 0,
       });
     } catch (error: any) {
       console.error('Error syncing Toast revenue for date:', error);
