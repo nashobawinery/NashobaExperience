@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Wine, Calendar, Clock, Utensils, Star, Camera, Bell, Sun, Cloud, CloudRain, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft } from "lucide-react";
+import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -99,6 +99,21 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
+const GOLD = "#C9A050";
+const GOLD_LIGHT = "#D4AF61";
+const WINE_DARK = "#2C1810";
+const WINE_MID = "#4A1E2A";
+
+function Divider({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      <div className="h-px flex-1" style={{ background: `linear-gradient(to right, transparent, ${GOLD}40, transparent)` }} />
+      <Grape className="w-4 h-4" style={{ color: GOLD }} />
+      <div className="h-px flex-1" style={{ background: `linear-gradient(to right, transparent, ${GOLD}40, transparent)` }} />
+    </div>
+  );
+}
+
 function WelcomeSlide() {
   const now = new Date();
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -106,19 +121,28 @@ function WelcomeSlide() {
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-16" data-testid="slide-welcome">
-      <div className="mb-8">
-        <Grape className="w-24 h-24 text-amber-400 mx-auto mb-6" />
+      <div className="mb-6">
+        <img
+          src="https://nashobawinery.com/wp-content/uploads/2023/04/nashoba-winery-logo-rev1-1.png"
+          alt="Nashoba Valley Winery"
+          className="h-28 object-contain mx-auto"
+        />
       </div>
-      <h1 className="text-7xl font-bold text-white mb-4 tracking-tight">
-        Welcome to Nashoba Valley
+      <Divider className="w-96 mb-8" />
+      <h1 className="text-6xl font-light tracking-wide mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+        Welcome to <span className="font-semibold">Nashoba Valley</span>
       </h1>
-      <p className="text-3xl text-white/80 mb-8 font-light">
-        Winery &middot; Brewery &middot; Distillery &middot; Restaurant
+      <p className="text-2xl tracking-widest uppercase mb-10 font-light" style={{ color: GOLD_LIGHT, letterSpacing: "0.25em" }}>
+        Winery &middot; Distillery &middot; Brewery &middot; Restaurant
       </p>
-      <div className="flex items-center gap-6 text-2xl text-white/70">
-        <Clock className="w-8 h-8" />
+      <p className="text-xl max-w-3xl leading-relaxed mb-10 italic" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
+        Award-winning farm committed to producing premium, handcrafted wines and spirits
+      </p>
+      <Divider className="w-64 mb-8" />
+      <div className="flex items-center gap-6 text-xl" style={{ color: "#F5F0E8" }}>
+        <Clock className="w-6 h-6" style={{ color: GOLD }} />
         <span>{timeStr}</span>
-        <span className="text-white/30">|</span>
+        <span style={{ color: `${GOLD}40` }}>|</span>
         <span>{dateStr}</span>
       </div>
     </div>
@@ -129,20 +153,23 @@ function EventsTodaySlide({ events }: { events: Event[] }) {
   if (events.length === 0) return null;
   return (
     <div className="flex flex-col h-full px-16 py-12" data-testid="slide-events-today">
-      <div className="flex items-center gap-4 mb-10">
-        <Calendar className="w-12 h-12 text-amber-400" />
-        <h2 className="text-5xl font-bold text-white">Today's Events</h2>
+      <div className="flex items-center gap-4 mb-3">
+        <Calendar className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Today's Events
+        </h2>
       </div>
-      <div className="flex-1 grid grid-cols-1 gap-6 overflow-hidden">
+      <Divider className="mb-8" />
+      <div className="flex-1 grid grid-cols-1 gap-5 overflow-hidden">
         {events.slice(0, 4).map((event) => (
-          <div key={event.id} className="flex items-start gap-6 bg-white/5 rounded-lg p-6 border border-white/10">
+          <div key={event.id} className="flex items-start gap-6 rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
             {event.imageUrl && (
               <img src={event.imageUrl} alt={event.title} className="w-28 h-28 object-cover rounded-lg flex-shrink-0" />
             )}
             <div className="flex-1">
-              <h3 className="text-3xl font-semibold text-white mb-2">{event.title}</h3>
-              {event.description && <p className="text-xl text-white/70 line-clamp-2">{event.description}</p>}
-              <div className="flex items-center gap-4 mt-3 text-lg text-amber-300/80">
+              <h3 className="text-3xl font-semibold mb-2" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{event.title}</h3>
+              {event.description && <p className="text-xl" style={{ color: "#F5F0E8AA" }}>{event.description}</p>}
+              <div className="flex items-center gap-4 mt-3 text-lg" style={{ color: GOLD_LIGHT }}>
                 {(event.startTime || event.endTime) && (
                   <span className="flex items-center gap-2">
                     <Clock className="w-5 h-5" />
@@ -168,26 +195,29 @@ function UpcomingEventsSlide({ events }: { events: Event[] }) {
   if (events.length === 0) return null;
   return (
     <div className="flex flex-col h-full px-16 py-12" data-testid="slide-upcoming-events">
-      <div className="flex items-center gap-4 mb-10">
-        <Star className="w-12 h-12 text-amber-400" />
-        <h2 className="text-5xl font-bold text-white">Upcoming Events</h2>
+      <div className="flex items-center gap-4 mb-3">
+        <Star className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Upcoming Events
+        </h2>
       </div>
-      <div className="flex-1 grid grid-cols-2 gap-6 overflow-hidden">
+      <Divider className="mb-8" />
+      <div className="flex-1 grid grid-cols-2 gap-5 overflow-hidden">
         {events.slice(0, 6).map((event) => (
-          <div key={event.id} className="flex items-start gap-4 bg-white/5 rounded-lg p-5 border border-white/10">
-            <div className="flex-shrink-0 bg-amber-400/20 rounded-lg p-3 text-center min-w-[80px]">
-              <p className="text-sm text-amber-300 uppercase font-medium">
+          <div key={event.id} className="flex items-start gap-4 rounded-lg p-5" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
+            <div className="flex-shrink-0 rounded-lg p-3 text-center min-w-[80px]" style={{ background: `${GOLD}12` }}>
+              <p className="text-sm uppercase font-medium" style={{ color: GOLD_LIGHT }}>
                 {new Date(event.eventDate + "T12:00:00").toLocaleDateString("en-US", { month: "short" })}
               </p>
-              <p className="text-3xl font-bold text-white">
+              <p className="text-3xl font-bold" style={{ color: "#F5F0E8" }}>
                 {new Date(event.eventDate + "T12:00:00").getDate()}
               </p>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-2xl font-semibold text-white mb-1 truncate">{event.title}</h3>
-              {event.description && <p className="text-lg text-white/60 line-clamp-2">{event.description}</p>}
+              <h3 className="text-2xl font-semibold mb-1 truncate" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{event.title}</h3>
+              {event.description && <p className="text-lg line-clamp-2" style={{ color: "#F5F0E880" }}>{event.description}</p>}
               {event.startTime && (
-                <p className="text-base text-amber-300/70 mt-2">
+                <p className="text-base mt-2" style={{ color: `${GOLD_LIGHT}AA` }}>
                   {formatTime(event.startTime)}
                 </p>
               )}
@@ -209,23 +239,28 @@ function WineListSlide({ wines }: { wines: ProductItem[] }) {
 
   return (
     <div className="flex flex-col h-full px-16 py-12" data-testid="slide-wine-list">
-      <div className="flex items-center gap-4 mb-10">
-        <Wine className="w-12 h-12 text-amber-400" />
-        <h2 className="text-5xl font-bold text-white">Our Wines</h2>
+      <div className="flex items-center gap-4 mb-3">
+        <Wine className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Our Wines
+        </h2>
       </div>
+      <Divider className="mb-8" />
       <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
         {categories.slice(0, 4).map((cat) => (
           <div key={cat}>
-            <h3 className="text-2xl font-semibold text-amber-300 mb-4 border-b border-amber-400/30 pb-2">{categoryLabel(cat)}</h3>
+            <h3 className="text-2xl font-semibold mb-4 pb-2 flex items-center gap-2" style={{ color: GOLD_LIGHT, borderBottom: `1px solid ${GOLD}30`, fontFamily: "Georgia, serif" }}>
+              {categoryLabel(cat)}
+            </h3>
             <div className="space-y-3">
               {wineOnly.filter((w) => w.category === cat).slice(0, 5).map((wine) => (
                 <div key={wine.id} className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xl text-white truncate">{wine.name}</p>
-                    {wine.alcoholContent && <p className="text-sm text-white/40">{wine.alcoholContent}% ABV</p>}
+                    <p className="text-xl truncate" style={{ color: "#F5F0E8" }}>{wine.name}</p>
+                    {wine.alcoholContent && <p className="text-sm" style={{ color: "#F5F0E850" }}>{wine.alcoholContent}% ABV</p>}
                   </div>
                   {wine.price && (
-                    <p className="text-xl text-amber-300 font-medium ml-4">${parseFloat(wine.price).toFixed(2)}</p>
+                    <p className="text-xl font-medium ml-4" style={{ color: GOLD }}>${parseFloat(wine.price).toFixed(2)}</p>
                   )}
                 </div>
               ))}
@@ -253,16 +288,19 @@ function BeverageListSlide({ wines }: { wines: ProductItem[] }) {
 
   return (
     <div className="flex flex-col h-full px-16 py-12" data-testid="slide-beverage-list">
-      <div className="flex items-center gap-4 mb-10">
-        <Beer className="w-12 h-12 text-amber-400" />
-        <h2 className="text-5xl font-bold text-white">Craft Beverages</h2>
+      <div className="flex items-center gap-4 mb-3">
+        <Beer className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Craft Beverages
+        </h2>
       </div>
+      <Divider className="mb-8" />
       <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
         {categories.map((cat) => {
           const Icon = icons[cat || ""] || GlassWater;
           return (
             <div key={cat}>
-              <h3 className="text-2xl font-semibold text-amber-300 mb-4 border-b border-amber-400/30 pb-2 flex items-center gap-2">
+              <h3 className="text-2xl font-semibold mb-4 pb-2 flex items-center gap-2" style={{ color: GOLD_LIGHT, borderBottom: `1px solid ${GOLD}30`, fontFamily: "Georgia, serif" }}>
                 <Icon className="w-6 h-6" />
                 {categoryLabel(cat)}
               </h3>
@@ -270,10 +308,10 @@ function BeverageListSlide({ wines }: { wines: ProductItem[] }) {
                 {beverages.filter((w) => w.category === cat).slice(0, 6).map((bev) => (
                   <div key={bev.id} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xl text-white truncate">{bev.name}</p>
+                      <p className="text-xl truncate" style={{ color: "#F5F0E8" }}>{bev.name}</p>
                     </div>
                     {bev.price && (
-                      <p className="text-xl text-amber-300 font-medium ml-4">${parseFloat(bev.price).toFixed(2)}</p>
+                      <p className="text-xl font-medium ml-4" style={{ color: GOLD }}>${parseFloat(bev.price).toFixed(2)}</p>
                     )}
                   </div>
                 ))}
@@ -290,11 +328,12 @@ function AnnouncementSlide({ announcements }: { announcements: Announcement[] })
   if (announcements.length === 0) return null;
   return (
     <div className="flex flex-col items-center justify-center h-full px-20 text-center" data-testid="slide-announcement">
-      <Bell className="w-16 h-16 text-amber-400 mb-8" />
+      <Bell className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+      <Divider className="w-64 mb-8" />
       {announcements.slice(0, 3).map((a) => (
         <div key={a.id} className="mb-8">
-          <h2 className="text-5xl font-bold text-white mb-4">{a.title}</h2>
-          <p className="text-2xl text-white/80 max-w-4xl leading-relaxed">{a.body}</p>
+          <h2 className="text-5xl font-light mb-4" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{a.title}</h2>
+          <p className="text-2xl max-w-4xl leading-relaxed" style={{ color: "#F5F0E8AA" }}>{a.body}</p>
         </div>
       ))}
     </div>
@@ -322,16 +361,23 @@ function PhotoGallerySlide({ photos }: { photos: Photo[] }) {
         alt={photo.caption || "Gallery photo"}
         className="w-full h-full object-cover"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(44, 24, 16, 0.85) 0%, rgba(44, 24, 16, 0.3) 30%, transparent 60%)" }} />
       <div className="absolute bottom-0 left-0 right-0 px-16 pb-12">
         <div className="flex items-center gap-4 mb-4">
-          <Camera className="w-8 h-8 text-amber-400" />
-          <span className="text-xl text-white/70 uppercase tracking-wider">Photo Gallery</span>
+          <Camera className="w-7 h-7" style={{ color: GOLD }} />
+          <span className="text-lg uppercase tracking-widest" style={{ color: "#F5F0E8AA", letterSpacing: "0.2em" }}>Photo Gallery</span>
         </div>
-        {photo.caption && <p className="text-3xl text-white font-light">{photo.caption}</p>}
+        {photo.caption && <p className="text-3xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{photo.caption}</p>}
         <div className="flex gap-2 mt-6">
           {photos.map((_, i) => (
-            <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentIndex ? "w-8 bg-amber-400" : "w-3 bg-white/30"}`} />
+            <div
+              key={i}
+              className="h-1.5 rounded-full transition-all duration-300"
+              style={{
+                width: i === currentIndex ? "2rem" : "0.5rem",
+                background: i === currentIndex ? GOLD : "rgba(245, 240, 232, 0.25)",
+              }}
+            />
           ))}
         </div>
       </div>
@@ -343,15 +389,16 @@ function DailySpecialsSlide({ specials }: { specials: DailySpecial[] }) {
   if (specials.length === 0) return null;
   return (
     <div className="flex flex-col items-center justify-center h-full px-16" data-testid="slide-daily-specials">
-      <Sparkles className="w-16 h-16 text-amber-400 mb-8" />
-      <h2 className="text-5xl font-bold text-white mb-10">Today's Specials</h2>
-      <div className="grid grid-cols-1 gap-6 w-full max-w-4xl">
+      <Sparkles className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+      <h2 className="text-5xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>Today's Specials</h2>
+      <Divider className="w-64 mb-10" />
+      <div className="grid grid-cols-1 gap-5 w-full max-w-4xl">
         {specials.slice(0, 4).map((s) => (
-          <div key={s.id} className="bg-white/5 rounded-xl p-6 border border-white/10 text-center">
-            <h3 className="text-3xl font-semibold text-amber-300 mb-2">{s.title}</h3>
-            {s.description && <p className="text-xl text-white/70">{s.description}</p>}
+          <div key={s.id} className="rounded-lg p-6 text-center" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
+            <h3 className="text-3xl font-semibold mb-2" style={{ color: GOLD_LIGHT, fontFamily: "Georgia, serif" }}>{s.title}</h3>
+            {s.description && <p className="text-xl" style={{ color: "#F5F0E8AA" }}>{s.description}</p>}
             {(s.happyHourStart || s.happyHourEnd) && (
-              <p className="text-lg text-amber-300/70 mt-3">
+              <p className="text-lg mt-3" style={{ color: `${GOLD}AA` }}>
                 Happy Hour: {formatTime(s.happyHourStart)} - {formatTime(s.happyHourEnd)}
               </p>
             )}
@@ -368,15 +415,15 @@ function CustomSlide({ slide }: { slide: Slide }) {
       {slide.backgroundImageUrl && (
         <>
           <img src={slide.backgroundImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/50" />
+          <div className="absolute inset-0" style={{ background: "rgba(44, 24, 16, 0.65)" }} />
         </>
       )}
       <div className="relative z-10">
-        <h2 className="text-6xl font-bold text-white mb-4">{slide.title}</h2>
-        {slide.subtitle && <p className="text-3xl text-white/80 mb-6">{slide.subtitle}</p>}
-        {slide.bodyText && <p className="text-2xl text-white/70 max-w-4xl leading-relaxed">{slide.bodyText}</p>}
+        <h2 className="text-6xl font-light mb-4" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{slide.title}</h2>
+        {slide.subtitle && <p className="text-3xl mb-6" style={{ color: GOLD_LIGHT }}>{slide.subtitle}</p>}
+        {slide.bodyText && <p className="text-2xl max-w-4xl leading-relaxed" style={{ color: "#F5F0E8AA" }}>{slide.bodyText}</p>}
         {slide.bodyHtml && (
-          <div className="text-2xl text-white/70 max-w-4xl leading-relaxed" dangerouslySetInnerHTML={{ __html: slide.bodyHtml }} />
+          <div className="text-2xl max-w-4xl leading-relaxed" style={{ color: "#F5F0E8AA" }} dangerouslySetInnerHTML={{ __html: slide.bodyHtml }} />
         )}
       </div>
     </div>
@@ -386,26 +433,29 @@ function CustomSlide({ slide }: { slide: Slide }) {
 function WineClubSlide() {
   return (
     <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-wine-club">
-      <Grape className="w-20 h-20 text-amber-400 mb-8" />
-      <h2 className="text-6xl font-bold text-white mb-6">Join Our Wine Club</h2>
-      <p className="text-2xl text-white/80 max-w-3xl mb-8 leading-relaxed">
-        Exclusive access to limited releases, member discounts, and special events throughout the year
+      <Grape className="w-16 h-16 mb-6" style={{ color: GOLD }} />
+      <h2 className="text-6xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+        Join Our <span className="font-semibold">Loyalty Program</span>
+      </h2>
+      <Divider className="w-64 mb-6" />
+      <p className="text-2xl max-w-3xl mb-10 leading-relaxed" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
+        Start earning delicious rewards with every visit. Unlock exclusive discounts, early event access, and members-only tastings.
       </p>
-      <div className="grid grid-cols-3 gap-8 mt-4">
-        <div className="bg-white/5 rounded-xl p-6 border border-amber-400/20">
-          <Wine className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-          <p className="text-xl text-white font-medium">Quarterly Shipments</p>
-          <p className="text-white/50 mt-1">Curated selections</p>
+      <div className="grid grid-cols-3 gap-8 mt-2">
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Wine className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Earn Points</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>On every purchase</p>
         </div>
-        <div className="bg-white/5 rounded-xl p-6 border border-amber-400/20">
-          <Star className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-          <p className="text-xl text-white font-medium">Member Discounts</p>
-          <p className="text-white/50 mt-1">Save on every visit</p>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Star className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Member Discounts</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Save on every visit</p>
         </div>
-        <div className="bg-white/5 rounded-xl p-6 border border-amber-400/20">
-          <Calendar className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-          <p className="text-xl text-white font-medium">Private Events</p>
-          <p className="text-white/50 mt-1">Members-only tastings</p>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Calendar className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Exclusive Events</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Members-only tastings</p>
         </div>
       </div>
     </div>
@@ -568,13 +618,32 @@ export default function NashobatvDisplay() {
 
   return (
     <div
-      className="fixed inset-0 bg-gradient-to-br from-[#1a0e2e] via-[#0d1117] to-[#1a0e2e] overflow-hidden"
-      style={{ cursor: showControls ? "default" : "none" }}
+      className="fixed inset-0 overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, ${WINE_DARK} 0%, #1A0F0A 25%, #0F0A07 50%, #1A100C 75%, ${WINE_MID}40 100%)`,
+        cursor: showControls ? "default" : "none",
+      }}
       onMouseMove={handleMouseMove}
       onTouchStart={handleMouseMove}
       data-testid="nashobatv-display"
     >
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMC41IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9zdmc+')] opacity-50" />
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5 L35 15 L30 25 L25 15 Z' fill='none' stroke='%23C9A050' stroke-width='0.5' opacity='0.4'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(ellipse 120% 60% at 50% 0%, ${GOLD}06 0%, transparent 50%),
+            radial-gradient(ellipse 80% 40% at 0% 100%, ${WINE_MID}20 0%, transparent 50%),
+            radial-gradient(ellipse 80% 40% at 100% 100%, ${WINE_MID}15 0%, transparent 50%)
+          `,
+        }}
+      />
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -584,6 +653,7 @@ export default function NashobatvDisplay() {
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.8, ease: "easeInOut" }}
           className="absolute inset-0"
+          style={{ bottom: "3.5rem" }}
         >
           {renderSlide()}
         </motion.div>
@@ -591,34 +661,67 @@ export default function NashobatvDisplay() {
 
       <button
         onClick={() => goToSlide("prev")}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-white/70 hover:bg-black/60 hover:text-white transition-all duration-300"
-        style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? "auto" : "none" }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full transition-all duration-300"
+        style={{
+          opacity: showControls ? 1 : 0,
+          pointerEvents: showControls ? "auto" : "none",
+          background: `${WINE_DARK}CC`,
+          border: `1px solid ${GOLD}30`,
+          color: "#F5F0E8AA",
+        }}
         data-testid="button-slide-prev"
       >
         <ChevronLeft className="w-8 h-8" />
       </button>
       <button
         onClick={() => goToSlide("next")}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-white/70 hover:bg-black/60 hover:text-white transition-all duration-300"
-        style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? "auto" : "none" }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-50 w-14 h-14 flex items-center justify-center rounded-full transition-all duration-300"
+        style={{
+          opacity: showControls ? 1 : 0,
+          pointerEvents: showControls ? "auto" : "none",
+          background: `${WINE_DARK}CC`,
+          border: `1px solid ${GOLD}30`,
+          color: "#F5F0E8AA",
+        }}
         data-testid="button-slide-next"
       >
         <ChevronRight className="w-8 h-8" />
       </button>
 
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
+      <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-2 z-20">
         {slideOrder.map((_, i) => (
           <div
             key={i}
-            className={`h-1.5 rounded-full transition-all duration-500 ${
-              i === currentSlideIndex ? "w-8 bg-amber-400" : "w-2 bg-white/20"
-            }`}
+            className="h-1 rounded-full transition-all duration-500"
+            style={{
+              width: i === currentSlideIndex ? "2rem" : "0.5rem",
+              background: i === currentSlideIndex ? GOLD : "rgba(245, 240, 232, 0.15)",
+            }}
           />
         ))}
       </div>
 
-      <div className="absolute top-6 right-8 text-white/30 text-sm font-mono" data-testid="text-display-time">
-        {time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+      <div
+        className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-8"
+        style={{
+          height: "3rem",
+          background: `linear-gradient(to right, ${WINE_DARK}, #1A0F0A, ${WINE_DARK})`,
+          borderTop: `1px solid ${GOLD}15`,
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <img
+            src="https://nashobawinery.com/wp-content/uploads/2023/04/nashoba-winery-logo-rev1-1.png"
+            alt="Nashoba Valley"
+            className="h-5 object-contain opacity-60"
+          />
+        </div>
+        <p className="text-xs tracking-widest uppercase" style={{ color: "#F5F0E840", letterSpacing: "0.15em" }}>
+          100 Wattaquadock Hill Road, Bolton, MA 01740
+        </p>
+        <p className="text-xs font-mono" style={{ color: "#F5F0E830" }}>
+          {time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+        </p>
       </div>
     </div>
   );
