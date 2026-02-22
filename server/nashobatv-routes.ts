@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { eq, and, sql, asc, desc } from "drizzle-orm";
-import { randomUUID } from "crypto";
 import {
   nashobatvSlides,
   nashobatvEvents,
@@ -11,7 +10,6 @@ import {
   nashobatvDailySpecials,
   products,
 } from "@shared/schema";
-import { ObjectStorageService } from "./objectStorage";
 
 const router = Router();
 

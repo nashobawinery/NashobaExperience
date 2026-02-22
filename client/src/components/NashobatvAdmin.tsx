@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   Monitor,
   Plus,
@@ -29,6 +30,11 @@ import {
   Image,
   Clock,
   MapPin,
+  Upload,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 interface Slide {
@@ -647,17 +653,41 @@ function AnnouncementsManager() {
   );
 }
 
+interface UploadingFile {
+  file: File;
+  id: string;
+  status: "pending" | "uploading" | "done" | "error";
+  progress: number;
+  publicUrl?: string;
+  previewUrl?: string;
+  error?: string;
+}
+
 function PhotosManager() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [formData, setFormData] = useState({ imageUrl: "", caption: "", category: "", sortOrder: 0, isDisplayed: true });
+  const [urlFormData, setUrlFormData] = useState({ imageUrl: "", caption: "", isDisplayed: true });
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  const [isDragOverDialog, setIsDragOverDialog] = useState(false);
+  const [isDragOverEmpty, setIsDragOverEmpty] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      uploadingFiles.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+    };
+  }, []);
 
   const { data: photos, isLoading } = useQuery<Photo[]>({ queryKey: ["/api/nashobatv/photos"] });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/photos", data); return res.json(); },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] }); setIsDialogOpen(false); toast({ title: "Photo added" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] }); },
   });
 
   const updateMutation = useMutation({
@@ -670,23 +700,135 @@ function PhotosManager() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] }); toast({ title: "Photo removed" }); },
   });
 
-  const openCreate = () => {
-    setEditingPhoto(null);
-    setFormData({ imageUrl: "", caption: "", category: "", sortOrder: 0, isDisplayed: true });
-    setIsDialogOpen(true);
-  };
-
   const openEdit = (p: Photo) => {
     setEditingPhoto(p);
     setFormData({ imageUrl: p.imageUrl, caption: p.caption || "", category: p.category || "", sortOrder: p.sortOrder, isDisplayed: p.isDisplayed });
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleEditSubmit = () => {
     const payload = { ...formData, caption: formData.caption || null, category: formData.category || null };
     if (editingPhoto) { updateMutation.mutate({ id: editingPhoto.id, data: payload }); }
-    else { createMutation.mutate(payload); }
   };
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      toast({ title: "No images selected", description: "Please select image files (JPG, PNG, etc.)", variant: "destructive" });
+      return;
+    }
+    const newEntries: UploadingFile[] = imageFiles.map(f => ({
+      file: f,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      status: "pending" as const,
+      progress: 0,
+      previewUrl: URL.createObjectURL(f),
+    }));
+    setUploadingFiles(prev => [...prev, ...newEntries]);
+    if (!isUploadOpen) setIsUploadOpen(true);
+  }, [toast, isUploadOpen]);
+
+  const removeFile = (id: string) => {
+    setUploadingFiles(prev => {
+      const removing = prev.find(f => f.id === id);
+      if (removing?.previewUrl) URL.revokeObjectURL(removing.previewUrl);
+      return prev.filter(f => f.id !== id);
+    });
+  };
+
+  const cleanupPreviews = useCallback(() => {
+    setUploadingFiles(prev => {
+      prev.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+      return [];
+    });
+  }, []);
+
+  const uploadSingleFile = async (entry: UploadingFile): Promise<string> => {
+    setUploadingFiles(prev => prev.map(f => f.id === entry.id ? { ...f, status: "uploading" as const, progress: 10 } : f));
+
+    const response = await apiRequest("POST", "/api/admin/object-storage/upload", {
+      filename: entry.file.name,
+      folder: "nashobatv-photos",
+    });
+    const uploadData = await response.json();
+
+    setUploadingFiles(prev => prev.map(f => f.id === entry.id ? { ...f, progress: 40 } : f));
+
+    const uploadResponse = await fetch(uploadData.signedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": entry.file.type },
+      body: entry.file,
+    });
+
+    if (!uploadResponse.ok) throw new Error("Upload failed");
+
+    setUploadingFiles(prev => prev.map(f => f.id === entry.id ? { ...f, progress: 80 } : f));
+
+    return uploadData.publicUrl;
+  };
+
+  const handleUploadAll = async () => {
+    const pendingFiles = uploadingFiles.filter(f => f.status === "pending");
+    if (pendingFiles.length === 0) return;
+
+    setIsUploading(true);
+    let successCount = 0;
+    const currentPhotoCount = photos?.length || 0;
+
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const entry = pendingFiles[i];
+      try {
+        const publicUrl = await uploadSingleFile(entry);
+
+        await createMutation.mutateAsync({
+          imageUrl: publicUrl,
+          caption: null,
+          category: null,
+          sortOrder: currentPhotoCount + i,
+          isDisplayed: true,
+        });
+
+        setUploadingFiles(prev => prev.map(f => f.id === entry.id ? { ...f, status: "done" as const, progress: 100, publicUrl } : f));
+        successCount++;
+      } catch (error) {
+        setUploadingFiles(prev => prev.map(f => f.id === entry.id ? { ...f, status: "error" as const, error: "Upload failed", progress: 0 } : f));
+      }
+    }
+
+    setIsUploading(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] });
+
+    if (successCount > 0) {
+      toast({ title: `${successCount} photo${successCount > 1 ? "s" : ""} uploaded` });
+    }
+  };
+
+  const handleDragOverDialog = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOverDialog(true); }, []);
+  const handleDragLeaveDialog = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOverDialog(false); }, []);
+  const handleDropDialog = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOverDialog(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
+  const handleDragOverEmpty = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOverEmpty(true); }, []);
+  const handleDragLeaveEmpty = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOverEmpty(false); }, []);
+  const handleDropEmpty = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOverEmpty(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  }, [addFiles]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(e.target.files);
+      e.target.value = "";
+    }
+  };
+
+  const pendingCount = uploadingFiles.filter(f => f.status === "pending").length;
+  const doneCount = uploadingFiles.filter(f => f.status === "done").length;
+  const allDone = uploadingFiles.length > 0 && uploadingFiles.every(f => f.status === "done" || f.status === "error");
 
   if (isLoading) return <Skeleton className="h-48 w-full" />;
 
@@ -694,13 +836,28 @@ function PhotosManager() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-lg font-semibold">Gallery Photos</h3>
-        <Button onClick={openCreate} data-testid="button-add-photo"><Plus className="w-4 h-4 mr-2" />Add Photo</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => { setUrlFormData({ imageUrl: "", caption: "", isDisplayed: true }); setIsUrlDialogOpen(true); }} data-testid="button-add-photo-url">
+            <Plus className="w-4 h-4 mr-2" />Add by URL
+          </Button>
+          <Button onClick={() => { setUploadingFiles([]); setIsUploadOpen(true); }} data-testid="button-upload-photos">
+            <Upload className="w-4 h-4 mr-2" />Upload Photos
+          </Button>
+        </div>
       </div>
 
       {(!photos || photos.length === 0) ? (
-        <Card className="p-8 text-center text-muted-foreground">
+        <Card
+          className={`p-8 text-center text-muted-foreground border-2 border-dashed cursor-pointer transition-colors ${isDragOverEmpty ? "border-primary bg-primary/5" : ""}`}
+          onDragOver={handleDragOverEmpty}
+          onDragLeave={handleDragLeaveEmpty}
+          onDrop={handleDropEmpty}
+          onClick={() => { setUploadingFiles([]); setIsUploadOpen(true); }}
+          data-testid="drop-zone-empty"
+        >
           <Camera className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No gallery photos yet.</p>
+          <p className="font-medium">No gallery photos yet</p>
+          <p className="text-sm mt-1">Drag and drop images here, or click to upload</p>
         </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -729,11 +886,94 @@ function PhotosManager() {
         </div>
       )}
 
+      <Dialog open={isUploadOpen} onOpenChange={(open) => { if (!isUploading) setIsUploadOpen(open); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Photos</DialogTitle>
+            <DialogDescription>Select multiple images to add to the gallery. You can drag and drop files or browse to select them.</DialogDescription>
+          </DialogHeader>
+
+          <div
+            className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors ${isDragOverDialog ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`}
+            onDragOver={handleDragOverDialog}
+            onDragLeave={handleDragLeaveDialog}
+            onDrop={handleDropDialog}
+            onClick={() => fileInputRef.current?.click()}
+            data-testid="drop-zone-dialog"
+          >
+            <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="font-medium">Drag and drop images here</p>
+            <p className="text-sm text-muted-foreground mt-1">or click to browse files</p>
+            <p className="text-xs text-muted-foreground mt-2">Supports JPG, PNG, WebP</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+              data-testid="input-file-upload"
+            />
+          </div>
+
+          {uploadingFiles.length > 0 && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{uploadingFiles.length} file{uploadingFiles.length > 1 ? "s" : ""} selected{doneCount > 0 ? ` (${doneCount} uploaded)` : ""}</span>
+                {!isUploading && pendingCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={cleanupPreviews} data-testid="button-clear-files">Clear all</Button>
+                )}
+              </div>
+              {uploadingFiles.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
+                  <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-muted">
+                    {entry.previewUrl && <img src={entry.previewUrl} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{entry.file.name}</p>
+                    <p className="text-xs text-muted-foreground">{(entry.file.size / 1024 / 1024).toFixed(1)} MB</p>
+                    {entry.status === "uploading" && <Progress value={entry.progress} className="h-1 mt-1" />}
+                    {entry.status === "error" && <p className="text-xs text-destructive mt-1">{entry.error}</p>}
+                  </div>
+                  <div className="flex-shrink-0">
+                    {entry.status === "pending" && !isUploading && (
+                      <Button size="icon" variant="ghost" onClick={() => removeFile(entry.id)} data-testid={`button-remove-file-${entry.id}`}><X className="w-4 h-4" /></Button>
+                    )}
+                    {entry.status === "uploading" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                    {entry.status === "done" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                    {entry.status === "error" && <AlertCircle className="w-4 h-4 text-destructive" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { if (!isUploading) setIsUploadOpen(false); }} disabled={isUploading}>
+              {allDone ? "Close" : "Cancel"}
+            </Button>
+            {pendingCount > 0 && (
+              <Button onClick={handleUploadAll} disabled={isUploading} data-testid="button-start-upload">
+                {isUploading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" />Upload {pendingCount} Photo{pendingCount > 1 ? "s" : ""}</>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editingPhoto ? "Edit Photo" : "Add Photo"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Photo</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Image URL</Label><Input value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} data-testid="input-photo-url" /></div>
+            {editingPhoto && (
+              <div className="aspect-video relative rounded-md overflow-hidden bg-muted">
+                <img src={formData.imageUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
             <div className="space-y-2"><Label>Caption</Label><Input value={formData.caption} onChange={(e) => setFormData({ ...formData, caption: e.target.value })} data-testid="input-photo-caption" /></div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Category</Label><Input value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} /></div>
@@ -743,7 +983,41 @@ function PhotosManager() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={!formData.imageUrl || createMutation.isPending || updateMutation.isPending} data-testid="button-save-photo">{editingPhoto ? "Update" : "Create"}</Button>
+            <Button onClick={handleEditSubmit} disabled={updateMutation.isPending} data-testid="button-save-photo">{updateMutation.isPending ? "Saving..." : "Update"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Photo by URL</DialogTitle>
+            <DialogDescription>Paste an image URL to add it to the gallery.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Image URL</Label><Input value={urlFormData.imageUrl} onChange={(e) => setUrlFormData({ ...urlFormData, imageUrl: e.target.value })} placeholder="https://..." data-testid="input-photo-url" /></div>
+            {urlFormData.imageUrl && (
+              <div className="aspect-video relative rounded-md overflow-hidden bg-muted">
+                <img src={urlFormData.imageUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+            )}
+            <div className="space-y-2"><Label>Caption</Label><Input value={urlFormData.caption} onChange={(e) => setUrlFormData({ ...urlFormData, caption: e.target.value })} data-testid="input-url-photo-caption" /></div>
+            <div className="flex items-center gap-2"><Switch checked={urlFormData.isDisplayed} onCheckedChange={(v) => setUrlFormData({ ...urlFormData, isDisplayed: v })} data-testid="switch-url-photo-displayed" /><Label>Show on Display</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUrlDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                createMutation.mutate(
+                  { imageUrl: urlFormData.imageUrl, caption: urlFormData.caption || null, category: null, sortOrder: photos?.length || 0, isDisplayed: urlFormData.isDisplayed },
+                  { onSuccess: () => { setIsUrlDialogOpen(false); toast({ title: "Photo added" }); } }
+                );
+              }}
+              disabled={!urlFormData.imageUrl || createMutation.isPending}
+              data-testid="button-save-url-photo"
+            >
+              {createMutation.isPending ? "Adding..." : "Add Photo"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
