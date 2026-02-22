@@ -1243,6 +1243,7 @@ function Router() {
         <Route path="/unsubscribe" component={UnsubscribeRoute} />
         <Route path="/future-concepts" component={FutureConceptsRoute} />
         <Route path="/enhancement-requests" component={EnhancementRequestsRoute} />
+        <Route path="/operations/:rest*" component={OperationsDashboardRoute} />
         <Route path="/operations" component={OperationsDashboardRoute} />
         <Route path="/company-info" component={CompanyInfoRoute} />
         <Route path="/lms" component={LmsLearnerRoute} />
