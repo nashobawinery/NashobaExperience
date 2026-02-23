@@ -38,6 +38,9 @@ interface Event {
   location: string | null;
   category: string | null;
   imageUrl: string | null;
+  price: string | null;
+  shopifyUrl: string | null;
+  isFeatured: boolean;
 }
 
 interface Announcement {
@@ -197,6 +200,7 @@ function EventsTodaySlide({ events }: { events: Event[] }) {
 
 function UpcomingEventsSlide({ events }: { events: Event[] }) {
   if (events.length === 0) return null;
+  const next4 = events.slice(0, 4);
   return (
     <div className="flex flex-col h-full px-16 py-12" data-testid="slide-upcoming-events">
       <div className="flex items-center gap-4 mb-3">
@@ -207,22 +211,43 @@ function UpcomingEventsSlide({ events }: { events: Event[] }) {
       </div>
       <Divider className="mb-8" />
       <div className="flex-1 grid grid-cols-2 gap-5 overflow-hidden">
-        {events.slice(0, 6).map((event) => (
-          <div key={event.id} className="flex items-start gap-4 rounded-lg p-5" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
-            <div className="flex-shrink-0 rounded-lg p-3 text-center min-w-[80px]" style={{ background: `${GOLD}12` }}>
-              <p className="text-sm uppercase font-medium" style={{ color: GOLD_LIGHT }}>
-                {new Date(event.eventDate + "T12:00:00").toLocaleDateString("en-US", { month: "short" })}
-              </p>
-              <p className="text-3xl font-bold" style={{ color: "#F5F0E8" }}>
-                {new Date(event.eventDate + "T12:00:00").getDate()}
-              </p>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-2xl font-semibold mb-1 truncate" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{event.title}</h3>
-              {event.description && <p className="text-lg line-clamp-2" style={{ color: "#F5F0E880" }}>{event.description}</p>}
-              {event.startTime && (
-                <p className="text-base mt-2" style={{ color: `${GOLD_LIGHT}AA` }}>
-                  {formatTime(event.startTime)}
+        {next4.map((event) => (
+          <div key={event.id} className="flex flex-col rounded-lg overflow-hidden" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
+            {event.imageUrl && (
+              <img src={event.imageUrl} alt={event.title} className="w-full h-36 object-cover" />
+            )}
+            <div className="flex-1 p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-shrink-0 rounded-lg px-3 py-2 text-center min-w-[64px]" style={{ background: `${GOLD}12` }}>
+                  <p className="text-xs uppercase font-medium" style={{ color: GOLD_LIGHT }}>
+                    {new Date(event.eventDate + "T12:00:00").toLocaleDateString("en-US", { month: "short" })}
+                  </p>
+                  <p className="text-2xl font-bold" style={{ color: "#F5F0E8" }}>
+                    {new Date(event.eventDate + "T12:00:00").getDate()}
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-2xl font-semibold truncate" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{event.title}</h3>
+                  <div className="flex items-center gap-3 mt-1 text-base" style={{ color: GOLD_LIGHT }}>
+                    {event.startTime && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {formatTime(event.startTime)}{event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+                      </span>
+                    )}
+                    {event.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        {event.location}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {event.description && <p className="text-lg line-clamp-2 mt-2" style={{ color: "#F5F0E880" }}>{event.description}</p>}
+              {event.price && (
+                <p className="text-lg font-medium mt-2" style={{ color: GOLD }}>
+                  {event.price}
                 </p>
               )}
             </div>

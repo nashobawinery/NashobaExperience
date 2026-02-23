@@ -12,6 +12,7 @@ import {
   products,
   triviaQuestions,
   nashobatvHistoricalFacts,
+  mediaSpecialEvents,
 } from "@shared/schema";
 import { objectStorageClient } from "./objectStorage";
 
@@ -217,17 +218,15 @@ router.get("/api/public/display/slides", async (_req: Request, res: Response) =>
 
 router.get("/api/public/display/events/today", async (_req: Request, res: Response) => {
   try {
-    const channel = await getDefaultChannel();
     const today = new Date().toISOString().split("T")[0];
     const events = await db
       .select()
-      .from(nashobatvEvents)
+      .from(mediaSpecialEvents)
       .where(and(
-        eq(nashobatvEvents.isActive, true),
-        eq(nashobatvEvents.eventDate, today),
-        eq(nashobatvEvents.channelId, channel.id)
+        eq(mediaSpecialEvents.isActive, true),
+        eq(mediaSpecialEvents.eventDate, today)
       ))
-      .orderBy(asc(nashobatvEvents.startTime));
+      .orderBy(asc(mediaSpecialEvents.startTime));
     res.json(events);
   } catch (error) {
     console.error("Error fetching today's events:", error);
@@ -237,18 +236,16 @@ router.get("/api/public/display/events/today", async (_req: Request, res: Respon
 
 router.get("/api/public/display/events/upcoming", async (_req: Request, res: Response) => {
   try {
-    const channel = await getDefaultChannel();
     const today = new Date().toISOString().split("T")[0];
     const events = await db
       .select()
-      .from(nashobatvEvents)
+      .from(mediaSpecialEvents)
       .where(and(
-        eq(nashobatvEvents.isActive, true),
-        sql`${nashobatvEvents.eventDate} >= ${today}`,
-        eq(nashobatvEvents.channelId, channel.id)
+        eq(mediaSpecialEvents.isActive, true),
+        sql`${mediaSpecialEvents.eventDate} > ${today}`
       ))
-      .orderBy(asc(nashobatvEvents.eventDate), asc(nashobatvEvents.startTime));
-    const limited = events.slice(0, 10);
+      .orderBy(asc(mediaSpecialEvents.eventDate), asc(mediaSpecialEvents.startTime));
+    const limited = events.slice(0, 4);
     res.json(limited);
   } catch (error) {
     console.error("Error fetching upcoming events:", error);
@@ -489,13 +486,12 @@ router.get("/api/public/display/:slug/events/today", async (req: Request, res: R
     const today = new Date().toISOString().split("T")[0];
     const events = await db
       .select()
-      .from(nashobatvEvents)
+      .from(mediaSpecialEvents)
       .where(and(
-        eq(nashobatvEvents.isActive, true),
-        eq(nashobatvEvents.eventDate, today),
-        eq(nashobatvEvents.channelId, channel.id)
+        eq(mediaSpecialEvents.isActive, true),
+        eq(mediaSpecialEvents.eventDate, today)
       ))
-      .orderBy(asc(nashobatvEvents.startTime));
+      .orderBy(asc(mediaSpecialEvents.startTime));
     res.json(events);
   } catch (error) {
     console.error("Error fetching today's events:", error);
@@ -510,14 +506,13 @@ router.get("/api/public/display/:slug/events/upcoming", async (req: Request, res
     const today = new Date().toISOString().split("T")[0];
     const events = await db
       .select()
-      .from(nashobatvEvents)
+      .from(mediaSpecialEvents)
       .where(and(
-        eq(nashobatvEvents.isActive, true),
-        sql`${nashobatvEvents.eventDate} >= ${today}`,
-        eq(nashobatvEvents.channelId, channel.id)
+        eq(mediaSpecialEvents.isActive, true),
+        sql`${mediaSpecialEvents.eventDate} > ${today}`
       ))
-      .orderBy(asc(nashobatvEvents.eventDate), asc(nashobatvEvents.startTime));
-    const limited = events.slice(0, 10);
+      .orderBy(asc(mediaSpecialEvents.eventDate), asc(mediaSpecialEvents.startTime));
+    const limited = events.slice(0, 4);
     res.json(limited);
   } catch (error) {
     console.error("Error fetching upcoming events:", error);
