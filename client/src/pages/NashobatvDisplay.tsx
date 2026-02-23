@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle, Landmark } from "lucide-react";
@@ -666,13 +666,15 @@ const CATEGORY_ICONS: Record<string, { icon: typeof Wine; label: string }> = {
   farm: { icon: Leaf, label: "The Farm" },
 };
 
-function HistorySlide({ facts }: { facts: HistoricalFactData[] | undefined }) {
-  const [currentFact, setCurrentFact] = useState<HistoricalFactData | null>(null);
-
-  useEffect(() => {
-    if (!facts || facts.length === 0) return;
-    setCurrentFact(facts[Math.floor(Math.random() * facts.length)]);
-  }, [facts]);
+function HistorySlide({ facts, forcedFactId }: { facts: HistoricalFactData[] | undefined; forcedFactId?: number }) {
+  const currentFact = useMemo(() => {
+    if (!facts || facts.length === 0) return null;
+    if (forcedFactId !== undefined) {
+      const found = facts.find(f => f.id === forcedFactId);
+      if (found) return found;
+    }
+    return facts[Math.floor(Math.random() * facts.length)];
+  }, [facts, forcedFactId]);
 
   if (!currentFact || !facts || facts.length === 0) {
     return (
@@ -769,29 +771,25 @@ function HistorySlide({ facts }: { facts: HistoricalFactData[] | undefined }) {
 function TriviaSlide({ questions, selectedQuestionId }: { questions: TriviaQuestionData[] | undefined; selectedQuestionId?: string }) {
   const [revealed, setRevealed] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selectedQuestion, setSelectedQuestion] = useState<TriviaQuestionData | null>(null);
+
+  const currentQuestion = useMemo(() => {
+    if (!questions || questions.length === 0) return null;
+    if (selectedQuestionId) {
+      const found = questions.find((q) => q.id === selectedQuestionId);
+      if (found) return found;
+    }
+    return questions[Math.floor(Math.random() * questions.length)];
+  }, [questions, selectedQuestionId]);
 
   useEffect(() => {
-    if (!questions || questions.length === 0) return;
     setRevealed(false);
-
-    if (selectedQuestionId && selectedQuestionId !== "auto") {
-      const found = questions.find((q) => q.id === selectedQuestionId);
-      setSelectedQuestion(found || questions[Math.floor(Math.random() * questions.length)]);
-    } else {
-      setSelectedQuestion(questions[Math.floor(Math.random() * questions.length)]);
-    }
-
     revealTimerRef.current = setTimeout(() => {
       setRevealed(true);
     }, 8000);
-
     return () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     };
-  }, [questions, selectedQuestionId]);
-
-  const currentQuestion = selectedQuestion;
+  }, [currentQuestion]);
 
   if (!currentQuestion || !questions || questions.length === 0) {
     return (
@@ -890,6 +888,9 @@ export default function NashobatvDisplay() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [slideOrder, setSlideOrder] = useState<{ type: string; duration: number; data?: any }[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recentTriviaRef = useRef<{ id: string; shownAt: number }[]>([]);
+  const recentHistoryRef = useRef<{ id: number; shownAt: number }[]>([]);
+  const DEDUP_COOLDOWN_MS = 15 * 60 * 1000;
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -1057,6 +1058,33 @@ export default function NashobatvDisplay() {
     return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
   }, []);
 
+  const pickDedupedTrivia = (questions: TriviaQuestionData[] | undefined, configuredId?: string): string | undefined => {
+    if (!questions || questions.length === 0) return undefined;
+    if (configuredId && configuredId !== "auto") return configuredId;
+
+    const now = Date.now();
+    recentTriviaRef.current = recentTriviaRef.current.filter(r => now - r.shownAt < DEDUP_COOLDOWN_MS);
+    const recentIds = new Set(recentTriviaRef.current.map(r => r.id));
+    const available = questions.filter(q => !recentIds.has(q.id));
+    const pool = available.length > 0 ? available : questions;
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    recentTriviaRef.current.push({ id: picked.id, shownAt: now });
+    return picked.id;
+  };
+
+  const pickDedupedHistory = (facts: HistoricalFactData[] | undefined): number | undefined => {
+    if (!facts || facts.length === 0) return undefined;
+
+    const now = Date.now();
+    recentHistoryRef.current = recentHistoryRef.current.filter(r => now - r.shownAt < DEDUP_COOLDOWN_MS);
+    const recentIds = new Set(recentHistoryRef.current.map(r => r.id));
+    const available = facts.filter(f => !recentIds.has(f.id));
+    const pool = available.length > 0 ? available : facts;
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    recentHistoryRef.current.push({ id: picked.id, shownAt: now });
+    return picked.id;
+  };
+
   const current = slideOrder[currentSlideIndex];
 
   const renderSlide = () => {
@@ -1074,9 +1102,13 @@ export default function NashobatvDisplay() {
       case "weather": return <WeatherSlide weather={weather} />;
       case "trivia": {
         const cfg = current.data as { selectedQuestionId?: string } | null;
-        return <TriviaSlide key={`trivia-${currentSlideIndex}-${Date.now()}`} questions={triviaQuestions} selectedQuestionId={cfg?.selectedQuestionId} />;
+        const pickedTriviaId = pickDedupedTrivia(triviaQuestions, cfg?.selectedQuestionId);
+        return <TriviaSlide key={`trivia-${currentSlideIndex}-${pickedTriviaId}`} questions={triviaQuestions} selectedQuestionId={pickedTriviaId} />;
       }
-      case "history": return <HistorySlide key={`history-${currentSlideIndex}-${Date.now()}`} facts={historicalFacts} />;
+      case "history": {
+        const pickedFactId = pickDedupedHistory(historicalFacts);
+        return <HistorySlide key={`history-${currentSlideIndex}-${pickedFactId}`} facts={historicalFacts} forcedFactId={pickedFactId} />;
+      }
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;
