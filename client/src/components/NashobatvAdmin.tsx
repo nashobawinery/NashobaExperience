@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Info,
 } from "lucide-react";
 
 interface Slide {
@@ -1383,6 +1384,45 @@ function DisplaySettingsManager() {
           </div>
         </SortableContext>
       </DndContext>
+
+      <Card className="p-5 mt-6">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="space-y-3">
+            <h4 className="font-semibold">How NashobaTV Works</h4>
+            <p className="text-sm text-muted-foreground">
+              NashobaTV is a full-screen digital signage system designed for venue TV screens. Open the display at <strong>/display</strong> on any TV browser.
+              The display automatically cycles through enabled slide types in the order shown above, pausing on each for its configured duration.
+            </p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>Slide Types & Content Sources:</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li><strong>Welcome Screen</strong> - Always available. Shows venue name and current time.</li>
+                <li><strong>Today's Events</strong> - Pulled from the <em>Events</em> tab. Only shows when events exist for today.</li>
+                <li><strong>Wine & Beverage List</strong> - Pulled from your product catalog. Splits into Wine and Craft Beverages slides automatically.</li>
+                <li><strong>Food Menu</strong> - Reserved for food menu display (enable when menu content is configured).</li>
+                <li><strong>Upcoming Events</strong> - Pulled from the <em>Events</em> tab. Shows future scheduled events.</li>
+                <li><strong>Photo Gallery</strong> - Pulled from the <em>Photos</em> tab. Only shows when photos have been uploaded.</li>
+                <li><strong>Announcements</strong> - Pulled from the <em>Announcements</em> tab. Only shows when active announcements exist.</li>
+                <li><strong>Weather</strong> - Displays current weather conditions for the venue area.</li>
+                <li><strong>Wine Club Promo</strong> - Always available. Promotes wine club membership.</li>
+                <li><strong>Daily Specials</strong> - Pulled from the <em>Specials</em> tab. Only shows when specials are active.</li>
+                <li><strong>Custom Slides</strong> - Pulled from the <em>Slides</em> tab. Create individual slides with custom title, text, and images. Each custom slide displays separately.</li>
+              </ul>
+            </div>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>Key Behaviors:</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Slides with no content are automatically skipped (e.g., Today's Events won't show if no events are scheduled).</li>
+                <li>Drag slide types to change the order they appear in the rotation.</li>
+                <li>Use the toggle to enable/disable any slide type without deleting its content.</li>
+                <li>Duration controls how many seconds each slide type is shown before advancing.</li>
+                <li>The display refreshes its content every 1-10 minutes depending on the data type, so changes appear automatically.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -26,10 +26,36 @@ function requireAuth(req: Request, res: Response, next: Function) {
   next();
 }
 
+const DEFAULT_DISPLAY_SETTINGS = [
+  { slideType: "welcome", isEnabled: true, duration: 15, sortOrder: 1 },
+  { slideType: "events_today", isEnabled: true, duration: 12, sortOrder: 2 },
+  { slideType: "wine_list", isEnabled: true, duration: 15, sortOrder: 3 },
+  { slideType: "food_menu", isEnabled: false, duration: 15, sortOrder: 4 },
+  { slideType: "upcoming_events", isEnabled: true, duration: 12, sortOrder: 5 },
+  { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 6 },
+  { slideType: "announcement", isEnabled: true, duration: 10, sortOrder: 7 },
+  { slideType: "weather", isEnabled: false, duration: 8, sortOrder: 8 },
+  { slideType: "wine_club", isEnabled: true, duration: 12, sortOrder: 9 },
+  { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 10 },
+  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 11 },
+];
+
+async function ensureDisplaySettingsExist(): Promise<void> {
+  const existing = await db.select().from(nashobatvDisplaySettings);
+  if (existing.length === 0) {
+    console.log("[NashobaTV] Initializing default display settings...");
+    for (const setting of DEFAULT_DISPLAY_SETTINGS) {
+      await db.insert(nashobatvDisplaySettings).values(setting).onConflictDoNothing();
+    }
+    console.log("[NashobaTV] Default display settings created");
+  }
+}
+
 // ====== PUBLIC ENDPOINTS (no auth - for display page) ======
 
 router.get("/api/public/display/settings", async (_req: Request, res: Response) => {
   try {
+    await ensureDisplaySettingsExist();
     const settings = await db
       .select()
       .from(nashobatvDisplaySettings)
@@ -427,6 +453,7 @@ router.delete("/api/nashobatv/specials/:id", requireAuth, async (req: Request, r
 // --- Display Settings ---
 router.get("/api/nashobatv/display-settings", requireAuth, async (_req: Request, res: Response) => {
   try {
+    await ensureDisplaySettingsExist();
     const settings = await db.select().from(nashobatvDisplaySettings).orderBy(asc(nashobatvDisplaySettings.sortOrder));
     res.json(settings);
   } catch (error) {
