@@ -979,6 +979,53 @@ router.get("/api/nashobatv/display-settings", requireAuth, async (req: Request, 
   }
 });
 
+router.get("/api/nashobatv/historical-facts", requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const facts = await db.select().from(nashobatvHistoricalFacts).orderBy(asc(nashobatvHistoricalFacts.year));
+    res.json(facts);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch historical facts" });
+  }
+});
+
+router.post("/api/nashobatv/historical-facts", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { fact, year, month, day, category, isActive } = req.body;
+    const [created] = await db.insert(nashobatvHistoricalFacts).values({
+      fact,
+      year: year || null,
+      month: month || null,
+      day: day || null,
+      category: category || "winery",
+      isActive: isActive !== false,
+    }).returning();
+    res.json(created);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create historical fact" });
+  }
+});
+
+router.put("/api/nashobatv/historical-facts/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const [updated] = await db.update(nashobatvHistoricalFacts)
+      .set(req.body)
+      .where(eq(nashobatvHistoricalFacts.id, parseInt(req.params.id)))
+      .returning();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update historical fact" });
+  }
+});
+
+router.delete("/api/nashobatv/historical-facts/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    await db.delete(nashobatvHistoricalFacts).where(eq(nashobatvHistoricalFacts.id, parseInt(req.params.id)));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete historical fact" });
+  }
+});
+
 router.put("/api/nashobatv/display-settings/bulk", requireAuth, async (req: Request, res: Response) => {
   try {
     const { settings } = req.body;

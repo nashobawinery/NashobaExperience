@@ -103,6 +103,26 @@ interface DailySpecial {
   isActive: boolean;
 }
 
+interface HistoricalFact {
+  id: number;
+  fact: string;
+  year: number | null;
+  month: number | null;
+  day: number | null;
+  category: string;
+  isActive: boolean;
+}
+
+const FACT_CATEGORIES = [
+  { value: "winery", label: "Winery" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "distillery", label: "Distillery" },
+  { value: "brewery", label: "Brewery" },
+  { value: "farm", label: "Farm" },
+];
+
+const MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 interface DisplaySetting {
   id: number;
   slideType: string;
@@ -141,7 +161,7 @@ const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
   wine_club: "Auto-generated wine club membership promotion.",
   daily_specials: "Pulls from the Specials tab. Only shows when active specials exist.",
   trivia: "Pulls from the Tasting Experience trivia bank.",
-  history: "Historical facts about the winery, restaurant, distillery, brewery, and farm.",
+  history: "Pulls from the History tab. Facts about the winery, restaurant, distillery, brewery, and farm.",
   custom: "Your own slides created in the Slides tab.",
 };
 
@@ -1259,6 +1279,172 @@ function SpecialsManager({ channelId }: { channelId: number }) {
   );
 }
 
+function HistoricalFactsManager() {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<HistoricalFact | null>(null);
+  const [formData, setFormData] = useState({ fact: "", year: "", month: "", day: "", category: "winery", isActive: true });
+
+  const { data: facts, isLoading } = useQuery<HistoricalFact[]>({
+    queryKey: ["/api/nashobatv/historical-facts"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/historical-facts", data); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/historical-facts"] }); setIsDialogOpen(false); toast({ title: "Fact added" }); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => { const res = await apiRequest("PUT", `/api/nashobatv/historical-facts/${id}`, data); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/historical-facts"] }); setIsDialogOpen(false); toast({ title: "Fact updated" }); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/nashobatv/historical-facts/${id}`); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/historical-facts"] }); toast({ title: "Fact deleted" }); },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => { const res = await apiRequest("PUT", `/api/nashobatv/historical-facts/${id}`, { isActive }); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/historical-facts"] }); },
+  });
+
+  const openCreate = () => {
+    setEditingItem(null);
+    setFormData({ fact: "", year: "", month: "", day: "", category: "winery", isActive: true });
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (f: HistoricalFact) => {
+    setEditingItem(f);
+    setFormData({
+      fact: f.fact,
+      year: f.year?.toString() || "",
+      month: f.month?.toString() || "",
+      day: f.day?.toString() || "",
+      category: f.category,
+      isActive: f.isActive,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    const payload = {
+      fact: formData.fact,
+      year: formData.year ? parseInt(formData.year) : null,
+      month: formData.month ? parseInt(formData.month) : null,
+      day: formData.day ? parseInt(formData.day) : null,
+      category: formData.category,
+      isActive: formData.isActive,
+    };
+    if (editingItem) { updateMutation.mutate({ id: editingItem.id, data: payload }); }
+    else { createMutation.mutate(payload); }
+  };
+
+  const formatDate = (f: HistoricalFact) => {
+    const parts: string[] = [];
+    if (f.year) parts.push(f.year.toString());
+    if (f.month && f.month >= 1 && f.month <= 12) {
+      const monthDay = MONTH_NAMES[f.month] + (f.day ? ` ${f.day}` : "");
+      parts.unshift(monthDay);
+    }
+    return parts.join(", ") || "No date";
+  };
+
+  if (isLoading) return <Skeleton className="h-48 w-full" />;
+
+  const activeCount = facts?.filter(f => f.isActive).length || 0;
+  const totalCount = facts?.length || 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3 className="text-lg font-semibold">Historical Facts</h3>
+          <p className="text-sm text-muted-foreground">{activeCount} of {totalCount} facts active. These appear on the "Did You Know?" slide.</p>
+        </div>
+        <Button onClick={openCreate} data-testid="button-add-fact"><Plus className="w-4 h-4 mr-2" />Add Fact</Button>
+      </div>
+
+      {(!facts || facts.length === 0) ? (
+        <Card className="p-8 text-center text-muted-foreground">
+          <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No historical facts yet. Add some to display on the "Did You Know?" slide.</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {facts.map((f) => (
+            <Card key={f.id} className={`p-4 ${!f.isActive ? "opacity-60" : ""}`}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">{f.fact}</p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <Badge variant="outline">{FACT_CATEGORIES.find(c => c.value === f.category)?.label || f.category}</Badge>
+                    <span className="text-xs text-muted-foreground">{formatDate(f)}</span>
+                    {!f.isActive && <Badge variant="secondary">Inactive</Badge>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Switch
+                    checked={f.isActive}
+                    onCheckedChange={(v) => toggleActiveMutation.mutate({ id: f.id, isActive: v })}
+                    data-testid={`switch-fact-active-${f.id}`}
+                  />
+                  <Button size="icon" variant="ghost" onClick={() => openEdit(f)} data-testid={`button-edit-fact-${f.id}`}><Edit className="w-4 h-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(f.id)} data-testid={`button-delete-fact-${f.id}`}><Trash2 className="w-4 h-4" /></Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editingItem ? "Edit Historical Fact" : "Add Historical Fact"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Fact</Label>
+              <Textarea value={formData.fact} onChange={(e) => setFormData({ ...formData, fact: e.target.value })} rows={3} placeholder="e.g., Nashoba Valley Winery was founded by Jack Partridge..." data-testid="input-fact-text" />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                <SelectTrigger data-testid="select-fact-category"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FACT_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Year</Label>
+                <Input type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: e.target.value })} placeholder="e.g., 1978" data-testid="input-fact-year" />
+              </div>
+              <div className="space-y-2">
+                <Label>Month (1-12)</Label>
+                <Input type="number" min={1} max={12} value={formData.month} onChange={(e) => setFormData({ ...formData, month: e.target.value })} placeholder="Optional" data-testid="input-fact-month" />
+              </div>
+              <div className="space-y-2">
+                <Label>Day (1-31)</Label>
+                <Input type="number" min={1} max={31} value={formData.day} onChange={(e) => setFormData({ ...formData, day: e.target.value })} placeholder="Optional" data-testid="input-fact-day" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Month and day are optional. Facts with dates matching the current date are prioritized on the display.</p>
+            <div className="flex items-center gap-2"><Switch checked={formData.isActive} onCheckedChange={(v) => setFormData({ ...formData, isActive: v })} data-testid="switch-fact-active" /><Label>Active</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={!formData.fact || createMutation.isPending || updateMutation.isPending} data-testid="button-save-fact">{editingItem ? "Update" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function SortableSettingCard({ setting, onUpdate, isPending }: {
   setting: DisplaySetting;
   onUpdate: (id: number, data: any) => void;
@@ -1580,7 +1766,7 @@ export default function NashobatvAdmin({ channelId, channelSlug }: { channelId: 
 
   return (
     <Tabs value={subTab} onValueChange={setSubTab}>
-      <TabsList className="grid w-full grid-cols-6 h-auto">
+      <TabsList className="grid w-full grid-cols-7 h-auto">
         <TabsTrigger value="settings" data-testid="tab-tv-settings" className="flex items-center justify-center gap-2">
           <Settings className="w-4 h-4" />
           <span>Settings</span>
@@ -1605,6 +1791,10 @@ export default function NashobatvAdmin({ channelId, channelSlug }: { channelId: 
           <Sparkles className="w-4 h-4" />
           <span>Specials</span>
         </TabsTrigger>
+        <TabsTrigger value="history" data-testid="tab-tv-history" className="flex items-center justify-center gap-2">
+          <Clock className="w-4 h-4" />
+          <span>History</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="settings"><DisplaySettingsManager channelId={channelId} channelSlug={channelSlug} /></TabsContent>
@@ -1613,6 +1803,7 @@ export default function NashobatvAdmin({ channelId, channelSlug }: { channelId: 
       <TabsContent value="announcements"><AnnouncementsManager channelId={channelId} /></TabsContent>
       <TabsContent value="photos"><PhotosManager channelId={channelId} /></TabsContent>
       <TabsContent value="specials"><SpecialsManager channelId={channelId} /></TabsContent>
+      <TabsContent value="history"><HistoricalFactsManager /></TabsContent>
     </Tabs>
   );
 }
