@@ -129,6 +129,22 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   custom: "Custom Slides",
 };
 
+const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
+  welcome: "Auto-generated welcome message for Nashoba Valley.",
+  events_today: "Pulls from the Events tab. Only shows when today has events.",
+  wine_list: "Pulls from the product catalog (wines & beverages).",
+  food_menu: "Displays farm-to-table dining highlights.",
+  upcoming_events: "Pulls from the Events tab. Only shows when future events exist.",
+  photo_gallery: "Pulls from the Photos tab. Only shows when photos exist.",
+  announcement: "Pulls from the Announcements tab. Only shows when active announcements exist.",
+  weather: "Live weather from Open-Meteo API for Bolton, MA.",
+  wine_club: "Auto-generated wine club membership promotion.",
+  daily_specials: "Pulls from the Specials tab. Only shows when active specials exist.",
+  trivia: "Pulls from the Tasting Experience trivia bank.",
+  history: "Historical facts about the winery, restaurant, distillery, brewery, and farm.",
+  custom: "Your own slides created in the Slides tab.",
+};
+
 function SlidesManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [editingSlide, setEditingSlide] = useState<Slide | null>(null);
@@ -1285,7 +1301,7 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
                   {setting.isEnabled ? "On" : "Off"}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Position {setting.sortOrder}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{SLIDE_TYPE_DESCRIPTIONS[setting.slideType] || ""}</p>
             </div>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
