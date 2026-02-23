@@ -57,8 +57,8 @@ export default function AdminEventRegistration() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-event-registration-title">Event Registration</h1>
-        <p className="text-muted-foreground">Manage staff access codes, view booked events, and generate embed codes</p>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-event-registration-title">Private Event Registration</h1>
+        <p className="text-muted-foreground">Manage staff access codes, view booked private events, and generate embed codes</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1059,7 +1059,7 @@ function DocumentationPanel() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Event Registration System Documentation
+            Private Event Registration System Documentation
           </CardTitle>
           <CardDescription>Complete guide to how the private event registration system works</CardDescription>
         </CardHeader>
@@ -1069,18 +1069,18 @@ function DocumentationPanel() {
             <section>
               <h3 className="text-lg font-semibold border-b pb-2 mb-3">System Overview</h3>
               <p className="text-muted-foreground mb-3">
-                The Event Registration system allows staff members to book private events at Nashoba Valley, blocking specific locations for specific dates. It consists of several integrated components that work together: a staff-facing online booking portal, an admin backend for management, an embeddable calendar widget for the public website, and automated email notifications.
+                The Private Event Registration system allows staff members to book private events at Nashoba Valley, blocking specific locations for specific dates. It consists of several integrated components that work together: a staff-facing online booking portal, an admin backend for management, an embeddable calendar widget for the public website, and automated email notifications.
               </p>
               <h4 className="font-semibold mt-4 mb-2">Where to Find Everything</h4>
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li><strong>Admin Backend:</strong> Located inside the <strong>Reservations</strong> module in the platform sidebar, under the tab called <strong>"Event Registration"</strong>. This is the page you are on right now.</li>
+                <li><strong>Admin Backend:</strong> Located inside the <strong>Reservations</strong> module in the platform sidebar, under the tab called <strong>"Private Event Registration"</strong>. This is the page you are on right now.</li>
                 <li><strong>Staff Portal:</strong> A separate page at <span className="font-mono text-xs">/event-registration</span> where staff log in with their 4-digit code to book and edit events.</li>
                 <li><strong>Public Calendar:</strong> An embeddable widget showing blocked dates, designed for the Nashoba Valley WordPress website.</li>
               </ul>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold border-b pb-2 mb-3">1. Staff Portal (Online Event Registration)</h3>
+              <h3 className="text-lg font-semibold border-b pb-2 mb-3">1. Staff Portal (Online Private Event Registration)</h3>
               <p className="text-muted-foreground mb-3">
                 The staff portal is a web-based booking tool accessible at:
               </p>
@@ -1121,7 +1121,7 @@ function DocumentationPanel() {
             <section>
               <h3 className="text-lg font-semibold border-b pb-2 mb-3">2. Admin Backend (This Page)</h3>
               <p className="text-muted-foreground mb-3">
-                The admin backend is located in the platform under <strong>Reservations &rarr; Event Registration</strong> tab. This is the page you are currently viewing. It provides full management capabilities across five tabs:
+                The admin backend is located in the platform under <strong>Reservations &rarr; Private Event Registration</strong> tab. This is the page you are currently viewing. It provides full management capabilities across five tabs:
               </p>
 
               <h4 className="font-semibold mt-4 mb-2">Staff Tab</h4>

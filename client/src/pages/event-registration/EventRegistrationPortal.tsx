@@ -95,7 +95,7 @@ function LoginScreen({ code, setCode, onLogin, isLoading }: {
           <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
             <KeyRound className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-xl">Event Registration</CardTitle>
+          <CardTitle className="text-xl">Private Event Registration</CardTitle>
           <CardDescription>Enter your 4-digit access code to book private events</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -270,7 +270,7 @@ function BookingScreen({ staffCode, staffName, onLogout }: {
       <div className="border-b">
         <div className="max-w-2xl mx-auto flex items-center justify-between p-4 gap-4 flex-wrap">
           <div>
-            <h1 className="text-lg font-semibold" data-testid="text-portal-title">Event Registration</h1>
+            <h1 className="text-lg font-semibold" data-testid="text-portal-title">Private Event Registration</h1>
             <p className="text-sm text-muted-foreground">Logged in as <span className="font-medium">{staffName}</span></p>
           </div>
           <Button variant="outline" size="sm" onClick={onLogout} data-testid="button-logout">

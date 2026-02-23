@@ -37,6 +37,8 @@ import growthStudioRouter from "./growth-studio-routes";
 import revenueDetailRouter from "./revenue-detail-routes";
 import abccRouter from "./abcc-routes";
 import nashobatvRouter from "./nashobatv-routes";
+import mediaMusicRouter from "./media-music-routes";
+import mediaEventsRouter from "./media-events-routes";
 import quickbooksRouter from "./quickbooks-routes";
 import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
@@ -145,6 +147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(enhancementRouter);
   app.use(cellartraksRouter);
   app.use(nashobatvRouter);
+  app.use(mediaMusicRouter);
+  app.use(mediaEventsRouter);
   app.use(quickbooksRouter);
 
   // AI-powered feature search endpoint
@@ -168,6 +172,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       { name: "Tasting Admin", path: "/admin", description: "Manage products, media, slideshows, trivia, surveys, and tasting room settings", keywords: "tasting admin products media slideshow trivia survey" },
       { name: "Media Center", path: "/media-center", description: "Multi-channel digital signage management with NashobaTV channels for different venues - slides, events, announcements, photos, specials", keywords: "media center tv display signage channels nashobatv digital slides events announcements photos specials" },
       { name: "NashobaTV Display", path: "/display", description: "Full-screen TV display with auto-rotating slides for venue screens - supports multiple channels", keywords: "tv display screen signage nashobatv public channel" },
+      { name: "Live Music", path: "/music", description: "Public live music calendar with upcoming performances, musician profiles, and musician submission form with PRO licensing policy", keywords: "music live musicians performances concerts calendar booking submission ASCAP BMI PRO licensing" },
+      { name: "Special Events", path: "/events", description: "Public special events calendar with tickets, workshops, cooking demos, and seasonal events with Shopify ticket links", keywords: "events special tickets workshops cooking demos seasonal calendar public shopify" },
       { name: "B2B Wholesale Admin", path: "/b2b/admin", description: "Wholesale customer management, orders, pricing tiers, and sales rep assignments", keywords: "wholesale b2b customers orders pricing tiers sales reps business accounts" },
       { name: "B2B Commissions", path: "/b2b/commissions", description: "Sales rep commission tracking and management for wholesale orders", keywords: "commissions sales rep wholesale payments earnings" },
       { name: "B2B Product Catalog", path: "/b2b/catalog", description: "Wholesale product catalog for B2B customers to browse and order", keywords: "wholesale catalog products ordering b2b" },
@@ -197,8 +203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       { name: "Reservation Experiences", path: "/reservations/admin/experiences", description: "Manage dining experiences and packages available for booking", keywords: "experiences packages dining reservations manage" },
       { name: "Reservation Locations", path: "/reservations/admin/locations", description: "Manage venue locations and seating areas for reservations", keywords: "locations venues seating areas tables reservations" },
       { name: "Private Events Admin", path: "/reservations/admin/private-events", description: "Manage private event bookings and inquiries", keywords: "private events parties bookings venue rental functions catering" },
-      { name: "Event Registration Admin", path: "/reservations/admin/event-registration", description: "Manage public event registration, ticketing, and attendee tracking", keywords: "events registration tickets attendees public events manage admin" },
-      { name: "Event Registration Portal", path: "/event-registration", description: "Public-facing event registration and ticket purchase portal", keywords: "events registration tickets public portal sign up" },
+      { name: "Private Event Registration Admin", path: "/reservations/admin/event-registration", description: "Manage private event registration, staff codes, and attendee tracking", keywords: "private events registration tickets attendees manage admin" },
+      { name: "Private Event Registration Portal", path: "/event-registration", description: "Staff-facing private event registration and booking portal", keywords: "private events registration booking staff portal" },
       { name: "Event Calendar", path: "/event-calendar", description: "Public event calendar showing upcoming events", keywords: "events calendar upcoming schedule public" },
       { name: "Special Dates", path: "/reservations/admin/special-dates", description: "Manage special dates that affect reservation availability", keywords: "special dates holidays blackout availability reservations" },
       { name: "Holiday Management", path: "/reservations/admin/holidays", description: "Configure holiday schedules for reservation system", keywords: "holidays schedule closures reservations" },

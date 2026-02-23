@@ -6040,3 +6040,92 @@ export const meetingNotes = pgTable("meeting_notes", {
 export const insertMeetingNoteSchema = createInsertSchema(meetingNotes).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertMeetingNote = z.infer<typeof insertMeetingNoteSchema>;
 export type MeetingNote = typeof meetingNotes.$inferSelect;
+
+// ==================== Media Center — Live Music & Special Events ====================
+
+export const mediaMusicians = pgTable("media_musicians", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  genre: varchar("genre", { length: 100 }),
+  bio: text("bio"),
+  imageUrl: text("image_url"),
+  websiteUrl: text("website_url"),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  isApproved: boolean("is_approved").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mediaMusicEvents = pgTable("media_music_events", {
+  id: serial("id").primaryKey(),
+  musicianId: integer("musician_id").references(() => mediaMusicians.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  eventDate: varchar("event_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 10 }).notNull(),
+  endTime: varchar("end_time", { length: 10 }),
+  location: varchar("location", { length: 255 }),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mediaMusicianSubmissionStatusEnum = pgEnum("media_musician_submission_status", [
+  "pending", "approved", "declined"
+]);
+
+export const mediaMusicianSubmissions = pgTable("media_musician_submissions", {
+  id: serial("id").primaryKey(),
+  musicianName: varchar("musician_name", { length: 255 }).notNull(),
+  genre: varchar("genre", { length: 100 }),
+  bio: text("bio"),
+  websiteUrl: text("website_url"),
+  contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  message: text("message"),
+  songList: text("song_list").notNull(),
+  proAcknowledged: boolean("pro_acknowledged").notNull().default(false),
+  status: mediaMusicianSubmissionStatusEnum("status").notNull().default("pending"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const mediaSpecialEventCategoryEnum = pgEnum("media_special_event_category", [
+  "workshop", "cooking-demo", "seasonal", "other"
+]);
+
+export const mediaSpecialEvents = pgTable("media_special_events", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  eventDate: varchar("event_date", { length: 10 }).notNull(),
+  startTime: varchar("start_time", { length: 10 }).notNull(),
+  endTime: varchar("end_time", { length: 10 }),
+  location: varchar("location", { length: 255 }),
+  imageUrl: text("image_url"),
+  price: varchar("price", { length: 50 }),
+  shopifyUrl: text("shopify_url"),
+  category: mediaSpecialEventCategoryEnum("category").notNull().default("other"),
+  isActive: boolean("is_active").notNull().default(true),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMusicianSchema = createInsertSchema(mediaMusicians).omit({ id: true, createdAt: true });
+export type InsertMusician = z.infer<typeof insertMusicianSchema>;
+export type Musician = typeof mediaMusicians.$inferSelect;
+
+export const insertMusicEventSchema = createInsertSchema(mediaMusicEvents).omit({ id: true, createdAt: true });
+export type InsertMusicEvent = z.infer<typeof insertMusicEventSchema>;
+export type MusicEvent = typeof mediaMusicEvents.$inferSelect;
+
+export const insertMusicianSubmissionSchema = createInsertSchema(mediaMusicianSubmissions).omit({ id: true, createdAt: true, reviewedAt: true });
+export type InsertMusicianSubmission = z.infer<typeof insertMusicianSubmissionSchema>;
+export type MusicianSubmission = typeof mediaMusicianSubmissions.$inferSelect;
+
+export const insertSpecialEventSchema = createInsertSchema(mediaSpecialEvents).omit({ id: true, createdAt: true });
+export type InsertSpecialEvent = z.infer<typeof insertSpecialEventSchema>;
+export type SpecialEvent = typeof mediaSpecialEvents.$inferSelect;

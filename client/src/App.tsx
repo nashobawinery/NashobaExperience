@@ -101,8 +101,14 @@ const CellarTraks = lazy(() => import("@/pages/cellartraks/CellarTraks"));
 // Lazy load NashobaTV display
 const NashobatvDisplay = lazy(() => import("@/pages/NashobatvDisplay"));
 
+// Lazy load public pages
+const SpecialEventsPublic = lazy(() => import("@/pages/SpecialEventsPublic"));
+
 // Lazy load Media Center module
 const MediaCenter = lazy(() => import("@/pages/MediaCenter"));
+
+// Lazy load Music Calendar public page
+const MusicCalendar = lazy(() => import("@/pages/MusicCalendar"));
 
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
@@ -599,6 +605,14 @@ function MediaCenterRoute() {
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
   return <Suspense fallback={<PageLoader />}><MediaCenter /></Suspense>;
+}
+
+function MusicCalendarRoute() {
+  return <Suspense fallback={<PageLoader />}><MusicCalendar /></Suspense>;
+}
+
+function SpecialEventsPublicRoute() {
+  return <Suspense fallback={<PageLoader />}><SpecialEventsPublic /></Suspense>;
 }
 
 function ToastConnectRoute() {
@@ -1248,7 +1262,9 @@ function Router() {
         <Route path="/boomerang/admin" component={BoomerangDashboardRoute} />
         <Route path="/command-center" component={CommandCenterRoute} />
         <Route path="/cellartraks" component={CellarTraksRoute} />
+        <Route path="/music" component={MusicCalendarRoute} />
         <Route path="/media-center" component={MediaCenterRoute} />
+        <Route path="/events" component={SpecialEventsPublicRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />

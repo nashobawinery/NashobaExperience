@@ -4,6 +4,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NashobatvAdmin from "@/components/NashobatvAdmin";
 import ToastMenuPrinter from "@/components/ToastMenuPrinter";
+import MusicManager from "@/components/MusicManager";
+import SpecialEventsManager from "@/components/SpecialEventsManager";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +30,8 @@ import {
   Copy,
   Check,
   Printer,
+  CalendarDays,
+  Music,
 } from "lucide-react";
 
 interface Channel {
@@ -50,7 +54,7 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer">("nashobatv");
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events">("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -200,7 +204,7 @@ export default function MediaCenter() {
             Media Center
           </h1>
           <p className="text-muted-foreground mt-1">
-            Digital signage, displays, and menu printing tools.
+            Digital signage, live music, special events, and menu printing tools.
           </p>
         </div>
         {activeSection === "nashobatv" && (
@@ -243,10 +247,36 @@ export default function MediaCenter() {
           <Printer className="w-4 h-4" />
           Menu Printer
         </Button>
+        <Button
+          variant={activeSection === "live-music" ? "default" : "ghost"}
+          onClick={() => setActiveSection("live-music")}
+          className="flex items-center gap-2"
+          data-testid="button-section-live-music"
+        >
+          <Music className="w-4 h-4" />
+          Live Music
+        </Button>
+        <Button
+          variant={activeSection === "special-events" ? "default" : "ghost"}
+          onClick={() => setActiveSection("special-events")}
+          className="flex items-center gap-2"
+          data-testid="button-section-special-events"
+        >
+          <CalendarDays className="w-4 h-4" />
+          Special Events
+        </Button>
       </div>
+
+      {activeSection === "live-music" && (
+        <MusicManager />
+      )}
 
       {activeSection === "menu-printer" && (
         <ToastMenuPrinter testIdPrefix="mc" />
+      )}
+
+      {activeSection === "special-events" && (
+        <SpecialEventsManager />
       )}
 
       {activeSection === "nashobatv" && ((!channels || channels.length === 0) ? (

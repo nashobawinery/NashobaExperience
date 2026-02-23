@@ -35,7 +35,7 @@ const menuItems = [
     icon: CalendarOff,
   },
   {
-    title: "Event Registration",
+    title: "Private Event Registration",
     url: "/reservations/admin/event-registration",
     icon: CalendarPlus,
   },
