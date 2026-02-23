@@ -210,31 +210,24 @@ function MusiciansPanel() {
           </Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {musicians.map(m => (
             <Card key={m.id} className="overflow-visible" data-testid={`card-musician-${m.id}`}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {m.imageUrl ? (
-                      <img src={m.imageUrl} alt={m.name} className="w-12 h-12 rounded-md object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                        <Music className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <h3 className="font-semibold truncate" data-testid={`text-musician-name-${m.id}`}>{m.name}</h3>
-                      {m.genre && <p className="text-sm text-muted-foreground">{m.genre}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(m)} data-testid={`button-edit-musician-${m.id}`}>
+              {m.imageUrl ? (
+                <div className="aspect-video w-full overflow-hidden rounded-t-md relative">
+                  <img
+                    src={m.imageUrl}
+                    alt={m.name}
+                    className="w-full h-full object-cover"
+                    data-testid={`img-musician-${m.id}`}
+                  />
+                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <Button size="icon" variant="secondary" onClick={() => openEdit(m)} data-testid={`button-edit-musician-${m.id}`}>
                       <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
                       size="icon"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => {
                         if (confirm(`Delete "${m.name}"?`)) deleteMutation.mutate(m.id);
                       }}
@@ -244,6 +237,37 @@ function MusiciansPanel() {
                     </Button>
                   </div>
                 </div>
+              ) : (
+                <div className="aspect-video w-full overflow-hidden rounded-t-md bg-muted flex items-center justify-center relative">
+                  <Music className="w-16 h-16 text-muted-foreground" />
+                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <Button size="icon" variant="secondary" onClick={() => openEdit(m)} data-testid={`button-edit-musician-${m.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      onClick={() => {
+                        if (confirm(`Delete "${m.name}"?`)) deleteMutation.mutate(m.id);
+                      }}
+                      data-testid={`button-delete-musician-${m.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <h3 className="font-semibold text-base" data-testid={`text-musician-name-${m.id}`}>{m.name}</h3>
+                  {m.genre && (
+                    <Badge variant="secondary">{m.genre}</Badge>
+                  )}
+                </div>
+
+                {m.bio && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{m.bio}</p>
+                )}
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={m.isActive ? "default" : "secondary"}>
@@ -254,23 +278,39 @@ function MusiciansPanel() {
                   </Badge>
                 </div>
 
+                <div className="space-y-1.5 text-sm text-muted-foreground">
+                  {m.contactEmail && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 shrink-0" />
+                      <span>{m.contactEmail}</span>
+                    </div>
+                  )}
+                  {m.contactPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 shrink-0" />
+                      <span>{m.contactPhone}</span>
+                    </div>
+                  )}
+                </div>
+
                 {m.websiteUrl && (
-                  <a
-                    href={m.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm flex items-center gap-1 text-muted-foreground"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    asChild
                     data-testid={`link-musician-website-${m.id}`}
                   >
-                    <Globe className="w-3 h-3" /> Website
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-
-                {m.contactEmail && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Mail className="w-3 h-3" /> {m.contactEmail}
-                  </p>
+                    <a
+                      href={m.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Globe className="h-4 w-4 mr-2" />
+                      Visit Website
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </a>
+                  </Button>
                 )}
               </CardContent>
             </Card>
