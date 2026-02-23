@@ -31,9 +31,11 @@ import {
   ExternalLink,
   Link,
   Copy,
+  Printer,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
+import EventFlyerPrinter, { type FlyerEvent } from "./EventFlyerPrinter";
 
 function formatTime12(time24: string | null | undefined): string {
   if (!time24) return "";
