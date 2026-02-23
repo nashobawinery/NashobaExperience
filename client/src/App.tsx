@@ -101,6 +101,9 @@ const CellarTraks = lazy(() => import("@/pages/cellartraks/CellarTraks"));
 // Lazy load NashobaTV display
 const NashobatvDisplay = lazy(() => import("@/pages/NashobatvDisplay"));
 
+// Lazy load Media Center module
+const MediaCenter = lazy(() => import("@/pages/MediaCenter"));
+
 // Lazy load Reservations module - Customer facing
 const ResyLanding = lazy(() => import("@/pages/reservations/landing"));
 const ResyBooking = lazy(() => import("@/pages/reservations/booking"));
@@ -589,6 +592,13 @@ function CellarTraksRoute() {
   if (isLoading) return <PageLoader />;
   if (!isAdmin) return <Redirect to="/" />;
   return <Suspense fallback={<PageLoader />}><CellarTraks /></Suspense>;
+}
+
+function MediaCenterRoute() {
+  const { isLoading, isAdmin } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Suspense fallback={<PageLoader />}><MediaCenter /></Suspense>;
 }
 
 function ToastConnectRoute() {
@@ -1197,6 +1207,7 @@ function Router() {
       <Switch>
         <Route path="/" component={AdminHubRoute} />
         <Route path="/tasting" component={GuestApp} />
+        <Route path="/display/:slug">{() => <Suspense fallback={<PageLoader />}><NashobatvDisplay /></Suspense>}</Route>
         <Route path="/display">{() => <Suspense fallback={<PageLoader />}><NashobatvDisplay /></Suspense>}</Route>
         <Route path="/daily-report/:code" component={PublicDailyReportRoute} />
         <Route path="/daily-report" component={PublicDailyReportRoute} />
@@ -1237,6 +1248,7 @@ function Router() {
         <Route path="/boomerang/admin" component={BoomerangDashboardRoute} />
         <Route path="/command-center" component={CommandCenterRoute} />
         <Route path="/cellartraks" component={CellarTraksRoute} />
+        <Route path="/media-center" component={MediaCenterRoute} />
         <Route path="/toast-connect" component={ToastConnectRoute} />
         <Route path="/apple-game" component={AppleGameComingSoonRoute} />
         <Route path="/reset-password" component={ResetPasswordRoute} />

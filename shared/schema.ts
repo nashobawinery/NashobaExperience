@@ -5741,7 +5741,19 @@ export const insertCellartraksStateTaxClassSchema = createInsertSchema(cellartra
 export type InsertCellartraksStateTaxClass = z.infer<typeof insertCellartraksStateTaxClassSchema>;
 export type CellartraksStateTaxClass = typeof cellartraksStateTaxClasses.$inferSelect;
 
-// ====== NashobaTV Digital Signage ======
+// ==================== NashobaTV / Media Center ====================
+
+export const nashobatvChannels = pgTable("nashobatv_channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  channelType: text("channel_type").notNull().default("tv_display"),
+  location: text("location"),
+  isActive: boolean("is_active").notNull().default(true),
+  isEmbeddable: boolean("is_embeddable").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export const nashobatvSlideTypeEnum = pgEnum("nashobatv_slide_type", [
   "welcome", "events_today", "wine_list", "food_menu", "upcoming_events",
@@ -5750,6 +5762,7 @@ export const nashobatvSlideTypeEnum = pgEnum("nashobatv_slide_type", [
 
 export const nashobatvSlides = pgTable("nashobatv_slides", {
   id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
   slideType: nashobatvSlideTypeEnum("slide_type").notNull(),
   title: text("title").notNull(),
   subtitle: text("subtitle"),
@@ -5769,6 +5782,7 @@ export const nashobatvSlides = pgTable("nashobatv_slides", {
 
 export const nashobatvEvents = pgTable("nashobatv_events", {
   id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   eventDate: text("event_date").notNull(),
@@ -5786,6 +5800,7 @@ export const nashobatvEvents = pgTable("nashobatv_events", {
 
 export const nashobatvAnnouncements = pgTable("nashobatv_announcements", {
   id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   body: text("body").notNull(),
   priority: integer("priority").notNull().default(0),
@@ -5798,6 +5813,7 @@ export const nashobatvAnnouncements = pgTable("nashobatv_announcements", {
 
 export const nashobatvPhotos = pgTable("nashobatv_photos", {
   id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
   imageUrl: text("image_url").notNull(),
   mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
   caption: text("caption"),
@@ -5809,7 +5825,8 @@ export const nashobatvPhotos = pgTable("nashobatv_photos", {
 
 export const nashobatvDisplaySettings = pgTable("nashobatv_display_settings", {
   id: serial("id").primaryKey(),
-  slideType: text("slide_type").notNull().unique(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
+  slideType: text("slide_type").notNull(),
   isEnabled: boolean("is_enabled").notNull().default(true),
   duration: integer("duration").notNull().default(12),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -5818,6 +5835,7 @@ export const nashobatvDisplaySettings = pgTable("nashobatv_display_settings", {
 
 export const nashobatvDailySpecials = pgTable("nashobatv_daily_specials", {
   id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => nashobatvChannels.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   validDate: text("valid_date"),
@@ -5826,6 +5844,10 @@ export const nashobatvDailySpecials = pgTable("nashobatv_daily_specials", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const insertNashobatvChannelSchema = createInsertSchema(nashobatvChannels).omit({ id: true, createdAt: true });
+export type InsertNashobatvChannel = z.infer<typeof insertNashobatvChannelSchema>;
+export type NashobatvChannel = typeof nashobatvChannels.$inferSelect;
 
 export const insertNashobatvSlideSchema = createInsertSchema(nashobatvSlides).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertNashobatvSlide = z.infer<typeof insertNashobatvSlideSchema>;

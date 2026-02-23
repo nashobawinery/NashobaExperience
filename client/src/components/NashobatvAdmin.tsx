@@ -126,7 +126,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   custom: "Custom Slides",
 };
 
-function SlidesManager() {
+function SlidesManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [editingSlide, setEditingSlide] = useState<Slide | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -147,16 +147,26 @@ function SlidesManager() {
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
 
   const { data: slides, isLoading } = useQuery<Slide[]>({
-    queryKey: ["/api/nashobatv/slides"],
+    queryKey: ["/api/nashobatv/slides", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/slides?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
   });
 
   const { data: galleryPhotos = [] } = useQuery<Photo[]>({
-    queryKey: ["/api/nashobatv/photos"],
+    queryKey: ["/api/nashobatv/photos", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/photos?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/nashobatv/slides", data);
+      const res = await apiRequest("POST", "/api/nashobatv/slides", { ...data, channelId });
       return res.json();
     },
     onSuccess: () => {
@@ -421,7 +431,7 @@ function SlidesManager() {
   );
 }
 
-function EventsManager() {
+function EventsManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -438,12 +448,17 @@ function EventsManager() {
   });
 
   const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/nashobatv/events"],
+    queryKey: ["/api/nashobatv/events", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/events?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/nashobatv/events", data);
+      const res = await apiRequest("POST", "/api/nashobatv/events", { ...data, channelId });
       return res.json();
     },
     onSuccess: () => {
@@ -629,16 +644,23 @@ function EventsManager() {
   );
 }
 
-function AnnouncementsManager() {
+function AnnouncementsManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [editingItem, setEditingItem] = useState<Announcement | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ title: "", body: "", priority: 0, startDate: "", endDate: "", isActive: true });
 
-  const { data: announcements, isLoading } = useQuery<Announcement[]>({ queryKey: ["/api/nashobatv/announcements"] });
+  const { data: announcements, isLoading } = useQuery<Announcement[]>({
+    queryKey: ["/api/nashobatv/announcements", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/announcements?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/announcements", data); return res.json(); },
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/announcements", { ...data, channelId }); return res.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/announcements"] }); setIsDialogOpen(false); toast({ title: "Announcement created" }); },
   });
 
@@ -742,7 +764,7 @@ interface UploadingFile {
   error?: string;
 }
 
-function PhotosManager() {
+function PhotosManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -762,10 +784,17 @@ function PhotosManager() {
     };
   }, []);
 
-  const { data: photos, isLoading } = useQuery<Photo[]>({ queryKey: ["/api/nashobatv/photos"] });
+  const { data: photos, isLoading } = useQuery<Photo[]>({
+    queryKey: ["/api/nashobatv/photos", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/photos?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/photos", data); return res.json(); },
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/photos", { ...data, channelId }); return res.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] }); },
   });
 
@@ -1104,16 +1133,23 @@ function PhotosManager() {
   );
 }
 
-function SpecialsManager() {
+function SpecialsManager({ channelId }: { channelId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DailySpecial | null>(null);
   const [formData, setFormData] = useState({ title: "", description: "", validDate: "", happyHourStart: "", happyHourEnd: "", isActive: true });
 
-  const { data: specials, isLoading } = useQuery<DailySpecial[]>({ queryKey: ["/api/nashobatv/specials"] });
+  const { data: specials, isLoading } = useQuery<DailySpecial[]>({
+    queryKey: ["/api/nashobatv/specials", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/specials?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/specials", data); return res.json(); },
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/nashobatv/specials", { ...data, channelId }); return res.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/specials"] }); setIsDialogOpen(false); toast({ title: "Special created" }); },
   });
 
@@ -1268,10 +1304,24 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
   );
 }
 
-function DisplaySettingsManager() {
+function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number; channelSlug: string }) {
   const { toast } = useToast();
-  const { data: settings, isLoading: settingsLoading } = useQuery<DisplaySetting[]>({ queryKey: ["/api/nashobatv/display-settings"] });
-  const { data: slides } = useQuery<Slide[]>({ queryKey: ["/api/nashobatv/slides"] });
+  const { data: settings, isLoading: settingsLoading } = useQuery<DisplaySetting[]>({
+    queryKey: ["/api/nashobatv/display-settings", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/display-settings?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
+  const { data: slides } = useQuery<Slide[]>({
+    queryKey: ["/api/nashobatv/slides", channelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nashobatv/slides?channelId=${channelId}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
+  });
   const [localOrder, setLocalOrder] = useState<DisplaySetting[] | null>(null);
 
   const sensors = useSensors(
@@ -1355,7 +1405,7 @@ function DisplaySettingsManager() {
             Drag to reorder, toggle on/off, and set duration for each slide type. {enabledCount} of {sortedSettings.length} slide types enabled.
           </p>
         </div>
-        <Button variant="outline" onClick={() => window.open("/display", "_blank")} data-testid="button-preview-display">
+        <Button variant="outline" onClick={() => window.open(`/display/${channelSlug}`, "_blank")} data-testid="button-preview-display">
           <Eye className="w-4 h-4 mr-2" />
           Preview Display
           <ExternalLink className="w-3 h-3 ml-1" />
@@ -1427,63 +1477,44 @@ function DisplaySettingsManager() {
   );
 }
 
-export default function NashobatvAdmin() {
+export default function NashobatvAdmin({ channelId, channelSlug }: { channelId: number; channelSlug: string }) {
   const [subTab, setSubTab] = useState("settings");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-3">
-            <Monitor className="w-7 h-7" />
-            NashobaTV Digital Signage
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Manage the content displayed on TV screens throughout the venue.
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => window.open("/display", "_blank")} data-testid="button-open-display">
-          <Eye className="w-4 h-4 mr-2" />
-          Open TV Display
-          <ExternalLink className="w-3 h-3 ml-1" />
-        </Button>
-      </div>
+    <Tabs value={subTab} onValueChange={setSubTab}>
+      <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsTrigger value="settings" data-testid="tab-tv-settings" className="flex items-center justify-center gap-2">
+          <Settings className="w-4 h-4" />
+          <span>Settings</span>
+        </TabsTrigger>
+        <TabsTrigger value="slides" data-testid="tab-tv-slides" className="flex items-center justify-center gap-2">
+          <Image className="w-4 h-4" />
+          <span>Slides</span>
+        </TabsTrigger>
+        <TabsTrigger value="events" data-testid="tab-tv-events" className="flex items-center justify-center gap-2">
+          <Calendar className="w-4 h-4" />
+          <span>Events</span>
+        </TabsTrigger>
+        <TabsTrigger value="announcements" data-testid="tab-tv-announcements" className="flex items-center justify-center gap-2">
+          <Bell className="w-4 h-4" />
+          <span>Announcements</span>
+        </TabsTrigger>
+        <TabsTrigger value="photos" data-testid="tab-tv-photos" className="flex items-center justify-center gap-2">
+          <Camera className="w-4 h-4" />
+          <span>Photos</span>
+        </TabsTrigger>
+        <TabsTrigger value="specials" data-testid="tab-tv-specials" className="flex items-center justify-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          <span>Specials</span>
+        </TabsTrigger>
+      </TabsList>
 
-      <Tabs value={subTab} onValueChange={setSubTab}>
-        <TabsList className="grid w-full grid-cols-6 h-auto">
-          <TabsTrigger value="settings" data-testid="tab-tv-settings" className="flex items-center justify-center gap-2">
-            <Settings className="w-4 h-4" />
-            <span>Settings</span>
-          </TabsTrigger>
-          <TabsTrigger value="slides" data-testid="tab-tv-slides" className="flex items-center justify-center gap-2">
-            <Image className="w-4 h-4" />
-            <span>Slides</span>
-          </TabsTrigger>
-          <TabsTrigger value="events" data-testid="tab-tv-events" className="flex items-center justify-center gap-2">
-            <Calendar className="w-4 h-4" />
-            <span>Events</span>
-          </TabsTrigger>
-          <TabsTrigger value="announcements" data-testid="tab-tv-announcements" className="flex items-center justify-center gap-2">
-            <Bell className="w-4 h-4" />
-            <span>Announcements</span>
-          </TabsTrigger>
-          <TabsTrigger value="photos" data-testid="tab-tv-photos" className="flex items-center justify-center gap-2">
-            <Camera className="w-4 h-4" />
-            <span>Photos</span>
-          </TabsTrigger>
-          <TabsTrigger value="specials" data-testid="tab-tv-specials" className="flex items-center justify-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            <span>Specials</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="settings"><DisplaySettingsManager /></TabsContent>
-        <TabsContent value="slides"><SlidesManager /></TabsContent>
-        <TabsContent value="events"><EventsManager /></TabsContent>
-        <TabsContent value="announcements"><AnnouncementsManager /></TabsContent>
-        <TabsContent value="photos"><PhotosManager /></TabsContent>
-        <TabsContent value="specials"><SpecialsManager /></TabsContent>
-      </Tabs>
-    </div>
+      <TabsContent value="settings"><DisplaySettingsManager channelId={channelId} channelSlug={channelSlug} /></TabsContent>
+      <TabsContent value="slides"><SlidesManager channelId={channelId} /></TabsContent>
+      <TabsContent value="events"><EventsManager channelId={channelId} /></TabsContent>
+      <TabsContent value="announcements"><AnnouncementsManager channelId={channelId} /></TabsContent>
+      <TabsContent value="photos"><PhotosManager channelId={channelId} /></TabsContent>
+      <TabsContent value="specials"><SpecialsManager channelId={channelId} /></TabsContent>
+    </Tabs>
   );
 }

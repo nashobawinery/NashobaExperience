@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRoute } from "wouter";
 import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -463,6 +464,13 @@ function WineClubSlide() {
 }
 
 export default function NashobatvDisplay() {
+  const [, routeParams] = useRoute("/display/:slug");
+  const slug = routeParams?.slug || "";
+  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const embedMode = searchParams.get("embed") === "1";
+
+  const apiBase = slug ? `/api/public/display/${slug}` : "/api/public/display";
+
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [slideOrder, setSlideOrder] = useState<{ type: string; duration: number; data?: any }[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -474,42 +482,50 @@ export default function NashobatvDisplay() {
   }, []);
 
   const { data: settings } = useQuery<DisplaySettings[]>({
-    queryKey: ["/api/public/display/settings"],
+    queryKey: [apiBase, "settings"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/settings`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 60000,
   });
 
   const { data: slides } = useQuery<Slide[]>({
-    queryKey: ["/api/public/display/slides"],
+    queryKey: [apiBase, "slides"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/slides`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 60000,
   });
 
   const { data: todayEvents } = useQuery<Event[]>({
-    queryKey: ["/api/public/display/events/today"],
+    queryKey: [apiBase, "events/today"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/events/today`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 300000,
   });
 
   const { data: upcomingEvents } = useQuery<Event[]>({
-    queryKey: ["/api/public/display/events/upcoming"],
+    queryKey: [apiBase, "events/upcoming"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/events/upcoming`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 300000,
   });
 
   const { data: wines } = useQuery<ProductItem[]>({
-    queryKey: ["/api/public/display/wines"],
+    queryKey: [apiBase, "wines"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/wines`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 600000,
   });
 
   const { data: announcements } = useQuery<Announcement[]>({
-    queryKey: ["/api/public/display/announcements"],
+    queryKey: [apiBase, "announcements"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/announcements`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 120000,
   });
 
   const { data: photos } = useQuery<Photo[]>({
-    queryKey: ["/api/public/display/photos"],
+    queryKey: [apiBase, "photos"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/photos`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 300000,
   });
 
   const { data: specials } = useQuery<DailySpecial[]>({
-    queryKey: ["/api/public/display/specials"],
+    queryKey: [apiBase, "specials"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/specials`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 300000,
   });
 

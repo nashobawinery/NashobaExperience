@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db } from "./db";
 import { eq, and, sql, asc, desc } from "drizzle-orm";
 import {
+  nashobatvChannels,
   nashobatvSlides,
   nashobatvEvents,
   nashobatvAnnouncements,
@@ -40,148 +41,99 @@ const DEFAULT_DISPLAY_SETTINGS = [
   { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 11 },
 ];
 
-async function ensureDisplaySettingsExist(): Promise<void> {
-  const existing = await db.select().from(nashobatvDisplaySettings);
+async function ensureDefaultChannel(): Promise<typeof nashobatvChannels.$inferSelect> {
+  const existing = await db.select().from(nashobatvChannels).limit(1);
+  if (existing.length > 0) return existing[0];
+  const [channel] = await db.insert(nashobatvChannels).values({
+    name: "Tasting Room",
+    slug: "tasting-room",
+    channelType: "tv_display",
+    location: "Tasting Room",
+    isEmbeddable: true,
+  }).returning();
+  console.log("[NashobaTV] Created default channel: Tasting Room");
+  return channel;
+}
+
+async function ensureDisplaySettingsExist(channelId: number): Promise<void> {
+  const existing = await db
+    .select()
+    .from(nashobatvDisplaySettings)
+    .where(eq(nashobatvDisplaySettings.channelId, channelId));
   if (existing.length === 0) {
-    console.log("[NashobaTV] Initializing default display settings...");
+    console.log(`[NashobaTV] Initializing default display settings for channel ${channelId}...`);
     for (const setting of DEFAULT_DISPLAY_SETTINGS) {
-      await db.insert(nashobatvDisplaySettings).values(setting).onConflictDoNothing();
+      await db.insert(nashobatvDisplaySettings).values({ ...setting, channelId }).onConflictDoNothing();
     }
     console.log("[NashobaTV] Default display settings created");
   }
 }
 
+async function getChannelBySlug(slug: string) {
+  const [channel] = await db
+    .select()
+    .from(nashobatvChannels)
+    .where(eq(nashobatvChannels.slug, slug));
+  return channel || null;
+}
+
+async function getDefaultChannel() {
+  const [channel] = await db
+    .select()
+    .from(nashobatvChannels)
+    .where(eq(nashobatvChannels.isActive, true))
+    .orderBy(asc(nashobatvChannels.id))
+    .limit(1);
+  if (channel) return channel;
+  return ensureDefaultChannel();
+}
+
+// ====== CHANNEL CRUD (Admin) ======
+
+router.get("/api/nashobatv/channels", requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const channels = await db.select().from(nashobatvChannels).orderBy(asc(nashobatvChannels.name));
+    res.json(channels);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch channels" });
+  }
+});
+
+router.post("/api/nashobatv/channels", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const [channel] = await db.insert(nashobatvChannels).values(req.body).returning();
+    res.json(channel);
+  } catch (error) {
+    console.error("Error creating channel:", error);
+    res.status(500).json({ error: "Failed to create channel" });
+  }
+});
+
+router.put("/api/nashobatv/channels/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const [channel] = await db
+      .update(nashobatvChannels)
+      .set(req.body)
+      .where(eq(nashobatvChannels.id, parseInt(req.params.id)))
+      .returning();
+    res.json(channel);
+  } catch (error) {
+    console.error("Error updating channel:", error);
+    res.status(500).json({ error: "Failed to update channel" });
+  }
+});
+
+router.delete("/api/nashobatv/channels/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    await db.delete(nashobatvChannels).where(eq(nashobatvChannels.id, parseInt(req.params.id)));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete channel" });
+  }
+});
+
 // ====== PUBLIC ENDPOINTS (no auth - for display page) ======
-
-router.get("/api/public/display/settings", async (_req: Request, res: Response) => {
-  try {
-    await ensureDisplaySettingsExist();
-    const settings = await db
-      .select()
-      .from(nashobatvDisplaySettings)
-      .orderBy(asc(nashobatvDisplaySettings.sortOrder));
-    res.json(settings);
-  } catch (error) {
-    console.error("Error fetching display settings:", error);
-    res.status(500).json({ error: "Failed to fetch display settings" });
-  }
-});
-
-router.get("/api/public/display/slides", async (_req: Request, res: Response) => {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const slides = await db
-      .select()
-      .from(nashobatvSlides)
-      .where(eq(nashobatvSlides.isActive, true))
-      .orderBy(asc(nashobatvSlides.sortOrder));
-
-    const filtered = slides.filter((s) => {
-      if (s.startDate && s.startDate > today) return false;
-      if (s.endDate && s.endDate < today) return false;
-      return true;
-    });
-    res.json(filtered);
-  } catch (error) {
-    console.error("Error fetching display slides:", error);
-    res.status(500).json({ error: "Failed to fetch slides" });
-  }
-});
-
-router.get("/api/public/display/events/today", async (_req: Request, res: Response) => {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const events = await db
-      .select()
-      .from(nashobatvEvents)
-      .where(and(eq(nashobatvEvents.isActive, true), eq(nashobatvEvents.eventDate, today)))
-      .orderBy(asc(nashobatvEvents.startTime));
-    res.json(events);
-  } catch (error) {
-    console.error("Error fetching today's events:", error);
-    res.status(500).json({ error: "Failed to fetch events" });
-  }
-});
-
-router.get("/api/public/display/events/upcoming", async (_req: Request, res: Response) => {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const events = await db
-      .select()
-      .from(nashobatvEvents)
-      .where(and(eq(nashobatvEvents.isActive, true), sql`${nashobatvEvents.eventDate} >= ${today}`))
-      .orderBy(asc(nashobatvEvents.eventDate), asc(nashobatvEvents.startTime));
-    const limited = events.slice(0, 10);
-    res.json(limited);
-  } catch (error) {
-    console.error("Error fetching upcoming events:", error);
-    res.status(500).json({ error: "Failed to fetch events" });
-  }
-});
-
-router.get("/api/public/display/wines", async (_req: Request, res: Response) => {
-  try {
-    const wines = await db
-      .select({
-        id: products.id,
-        name: products.name,
-        description: products.description,
-        category: products.category,
-        price: products.price,
-        alcoholContent: products.alcoholContent,
-        imageUrl: products.imageUrl,
-      })
-      .from(products)
-      .where(and(
-        eq(products.isArchived, false),
-        sql`${products.category} IN ('wine', 'canned_wine', 'cider', 'beer', 'spirits', 'canned_cocktail')`
-      ))
-      .orderBy(products.category, products.name);
-    res.json(wines);
-  } catch (error) {
-    console.error("Error fetching wines:", error);
-    res.status(500).json({ error: "Failed to fetch wines" });
-  }
-});
-
-router.get("/api/public/display/announcements", async (_req: Request, res: Response) => {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const announcements = await db
-      .select()
-      .from(nashobatvAnnouncements)
-      .where(eq(nashobatvAnnouncements.isActive, true))
-      .orderBy(desc(nashobatvAnnouncements.priority));
-
-    const filtered = announcements.filter((a) => {
-      if (a.startDate && a.startDate > today) return false;
-      if (a.endDate && a.endDate < today) return false;
-      return true;
-    });
-    res.json(filtered);
-  } catch (error) {
-    console.error("Error fetching announcements:", error);
-    res.status(500).json({ error: "Failed to fetch announcements" });
-  }
-});
-
-router.get("/api/public/display/photos", async (_req: Request, res: Response) => {
-  try {
-    const photos = await db
-      .select()
-      .from(nashobatvPhotos)
-      .where(eq(nashobatvPhotos.isDisplayed, true))
-      .orderBy(asc(nashobatvPhotos.sortOrder));
-    const mapped = photos.map((p) => ({
-      ...p,
-      imageUrl: photoProxyUrl(p.id, p.imageUrl),
-    }));
-    res.json(mapped);
-  } catch (error) {
-    console.error("Error fetching photos:", error);
-    res.status(500).json({ error: "Failed to fetch photos" });
-  }
-});
+// Order: 1) photo-file (specific), 2) legacy routes (no slug), 3) slug-based routes
 
 router.get("/api/public/display/photo-file/:photoId", async (req: Request, res: Response) => {
   try {
@@ -220,14 +172,327 @@ router.get("/api/public/display/photo-file/:photoId", async (req: Request, res: 
   }
 });
 
+// --- Legacy public endpoints (no slug - use default channel) ---
+
+router.get("/api/public/display/settings", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    await ensureDisplaySettingsExist(channel.id);
+    const settings = await db
+      .select()
+      .from(nashobatvDisplaySettings)
+      .where(eq(nashobatvDisplaySettings.channelId, channel.id))
+      .orderBy(asc(nashobatvDisplaySettings.sortOrder));
+    res.json(settings);
+  } catch (error) {
+    console.error("Error fetching display settings:", error);
+    res.status(500).json({ error: "Failed to fetch display settings" });
+  }
+});
+
+router.get("/api/public/display/slides", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    const today = new Date().toISOString().split("T")[0];
+    const slides = await db
+      .select()
+      .from(nashobatvSlides)
+      .where(and(eq(nashobatvSlides.isActive, true), eq(nashobatvSlides.channelId, channel.id)))
+      .orderBy(asc(nashobatvSlides.sortOrder));
+    const filtered = slides.filter((s) => {
+      if (s.startDate && s.startDate > today) return false;
+      if (s.endDate && s.endDate < today) return false;
+      return true;
+    });
+    res.json(filtered);
+  } catch (error) {
+    console.error("Error fetching display slides:", error);
+    res.status(500).json({ error: "Failed to fetch slides" });
+  }
+});
+
+router.get("/api/public/display/events/today", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select()
+      .from(nashobatvEvents)
+      .where(and(
+        eq(nashobatvEvents.isActive, true),
+        eq(nashobatvEvents.eventDate, today),
+        eq(nashobatvEvents.channelId, channel.id)
+      ))
+      .orderBy(asc(nashobatvEvents.startTime));
+    res.json(events);
+  } catch (error) {
+    console.error("Error fetching today's events:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+router.get("/api/public/display/events/upcoming", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select()
+      .from(nashobatvEvents)
+      .where(and(
+        eq(nashobatvEvents.isActive, true),
+        sql`${nashobatvEvents.eventDate} >= ${today}`,
+        eq(nashobatvEvents.channelId, channel.id)
+      ))
+      .orderBy(asc(nashobatvEvents.eventDate), asc(nashobatvEvents.startTime));
+    const limited = events.slice(0, 10);
+    res.json(limited);
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+router.get("/api/public/display/wines", async (_req: Request, res: Response) => {
+  try {
+    const wines = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        description: products.description,
+        category: products.category,
+        price: products.price,
+        alcoholContent: products.alcoholContent,
+        imageUrl: products.imageUrl,
+      })
+      .from(products)
+      .where(and(
+        eq(products.isArchived, false),
+        sql`${products.category} IN ('wine', 'canned_wine', 'cider', 'beer', 'spirits', 'canned_cocktail')`
+      ))
+      .orderBy(products.category, products.name);
+    res.json(wines);
+  } catch (error) {
+    console.error("Error fetching wines:", error);
+    res.status(500).json({ error: "Failed to fetch wines" });
+  }
+});
+
+router.get("/api/public/display/announcements", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    const today = new Date().toISOString().split("T")[0];
+    const announcements = await db
+      .select()
+      .from(nashobatvAnnouncements)
+      .where(and(eq(nashobatvAnnouncements.isActive, true), eq(nashobatvAnnouncements.channelId, channel.id)))
+      .orderBy(desc(nashobatvAnnouncements.priority));
+    const filtered = announcements.filter((a) => {
+      if (a.startDate && a.startDate > today) return false;
+      if (a.endDate && a.endDate < today) return false;
+      return true;
+    });
+    res.json(filtered);
+  } catch (error) {
+    console.error("Error fetching announcements:", error);
+    res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+router.get("/api/public/display/photos", async (_req: Request, res: Response) => {
+  try {
+    const channel = await getDefaultChannel();
+    const photos = await db
+      .select()
+      .from(nashobatvPhotos)
+      .where(and(eq(nashobatvPhotos.isDisplayed, true), eq(nashobatvPhotos.channelId, channel.id)))
+      .orderBy(asc(nashobatvPhotos.sortOrder));
+    const mapped = photos.map((p) => ({
+      ...p,
+      imageUrl: photoProxyUrl(p.id, p.imageUrl),
+    }));
+    res.json(mapped);
+  } catch (error) {
+    console.error("Error fetching photos:", error);
+    res.status(500).json({ error: "Failed to fetch photos" });
+  }
+});
+
 router.get("/api/public/display/specials", async (_req: Request, res: Response) => {
   try {
+    const channel = await getDefaultChannel();
     const today = new Date().toISOString().split("T")[0];
     const specials = await db
       .select()
       .from(nashobatvDailySpecials)
-      .where(eq(nashobatvDailySpecials.isActive, true));
+      .where(and(eq(nashobatvDailySpecials.isActive, true), eq(nashobatvDailySpecials.channelId, channel.id)));
+    const filtered = specials.filter((s) => !s.validDate || s.validDate === today);
+    res.json(filtered);
+  } catch (error) {
+    console.error("Error fetching specials:", error);
+    res.status(500).json({ error: "Failed to fetch specials" });
+  }
+});
 
+// --- Slug-based public endpoints ---
+
+router.get("/api/public/display/:slug/settings", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    await ensureDisplaySettingsExist(channel.id);
+    const settings = await db
+      .select()
+      .from(nashobatvDisplaySettings)
+      .where(eq(nashobatvDisplaySettings.channelId, channel.id))
+      .orderBy(asc(nashobatvDisplaySettings.sortOrder));
+    res.json(settings);
+  } catch (error) {
+    console.error("Error fetching display settings:", error);
+    res.status(500).json({ error: "Failed to fetch display settings" });
+  }
+});
+
+router.get("/api/public/display/:slug/slides", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const slides = await db
+      .select()
+      .from(nashobatvSlides)
+      .where(and(eq(nashobatvSlides.isActive, true), eq(nashobatvSlides.channelId, channel.id)))
+      .orderBy(asc(nashobatvSlides.sortOrder));
+    const filtered = slides.filter((s) => {
+      if (s.startDate && s.startDate > today) return false;
+      if (s.endDate && s.endDate < today) return false;
+      return true;
+    });
+    res.json(filtered);
+  } catch (error) {
+    console.error("Error fetching display slides:", error);
+    res.status(500).json({ error: "Failed to fetch slides" });
+  }
+});
+
+router.get("/api/public/display/:slug/events/today", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select()
+      .from(nashobatvEvents)
+      .where(and(
+        eq(nashobatvEvents.isActive, true),
+        eq(nashobatvEvents.eventDate, today),
+        eq(nashobatvEvents.channelId, channel.id)
+      ))
+      .orderBy(asc(nashobatvEvents.startTime));
+    res.json(events);
+  } catch (error) {
+    console.error("Error fetching today's events:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+router.get("/api/public/display/:slug/events/upcoming", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select()
+      .from(nashobatvEvents)
+      .where(and(
+        eq(nashobatvEvents.isActive, true),
+        sql`${nashobatvEvents.eventDate} >= ${today}`,
+        eq(nashobatvEvents.channelId, channel.id)
+      ))
+      .orderBy(asc(nashobatvEvents.eventDate), asc(nashobatvEvents.startTime));
+    const limited = events.slice(0, 10);
+    res.json(limited);
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+    res.status(500).json({ error: "Failed to fetch events" });
+  }
+});
+
+router.get("/api/public/display/:slug/wines", async (_req: Request, res: Response) => {
+  try {
+    const wines = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        description: products.description,
+        category: products.category,
+        price: products.price,
+        alcoholContent: products.alcoholContent,
+        imageUrl: products.imageUrl,
+      })
+      .from(products)
+      .where(and(
+        eq(products.isArchived, false),
+        sql`${products.category} IN ('wine', 'canned_wine', 'cider', 'beer', 'spirits', 'canned_cocktail')`
+      ))
+      .orderBy(products.category, products.name);
+    res.json(wines);
+  } catch (error) {
+    console.error("Error fetching wines:", error);
+    res.status(500).json({ error: "Failed to fetch wines" });
+  }
+});
+
+router.get("/api/public/display/:slug/announcements", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const announcements = await db
+      .select()
+      .from(nashobatvAnnouncements)
+      .where(and(eq(nashobatvAnnouncements.isActive, true), eq(nashobatvAnnouncements.channelId, channel.id)))
+      .orderBy(desc(nashobatvAnnouncements.priority));
+    const filtered = announcements.filter((a) => {
+      if (a.startDate && a.startDate > today) return false;
+      if (a.endDate && a.endDate < today) return false;
+      return true;
+    });
+    res.json(filtered);
+  } catch (error) {
+    console.error("Error fetching announcements:", error);
+    res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+router.get("/api/public/display/:slug/photos", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const photos = await db
+      .select()
+      .from(nashobatvPhotos)
+      .where(and(eq(nashobatvPhotos.isDisplayed, true), eq(nashobatvPhotos.channelId, channel.id)))
+      .orderBy(asc(nashobatvPhotos.sortOrder));
+    const mapped = photos.map((p) => ({
+      ...p,
+      imageUrl: photoProxyUrl(p.id, p.imageUrl),
+    }));
+    res.json(mapped);
+  } catch (error) {
+    console.error("Error fetching photos:", error);
+    res.status(500).json({ error: "Failed to fetch photos" });
+  }
+});
+
+router.get("/api/public/display/:slug/specials", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const specials = await db
+      .select()
+      .from(nashobatvDailySpecials)
+      .where(and(eq(nashobatvDailySpecials.isActive, true), eq(nashobatvDailySpecials.channelId, channel.id)));
     const filtered = specials.filter((s) => !s.validDate || s.validDate === today);
     res.json(filtered);
   } catch (error) {
@@ -239,9 +504,17 @@ router.get("/api/public/display/specials", async (_req: Request, res: Response) 
 // ====== ADMIN ENDPOINTS ======
 
 // --- Slides CRUD ---
-router.get("/api/nashobatv/slides", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/slides", requireAuth, async (req: Request, res: Response) => {
   try {
-    const slides = await db.select().from(nashobatvSlides).orderBy(asc(nashobatvSlides.sortOrder));
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    let query = db.select().from(nashobatvSlides).orderBy(asc(nashobatvSlides.sortOrder));
+    if (channelId) {
+      const slides = await db.select().from(nashobatvSlides)
+        .where(eq(nashobatvSlides.channelId, channelId))
+        .orderBy(asc(nashobatvSlides.sortOrder));
+      return res.json(slides);
+    }
+    const slides = await query;
     res.json(slides);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch slides" });
@@ -282,8 +555,15 @@ router.delete("/api/nashobatv/slides/:id", requireAuth, async (req: Request, res
 });
 
 // --- Events CRUD ---
-router.get("/api/nashobatv/events", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/events", requireAuth, async (req: Request, res: Response) => {
   try {
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    if (channelId) {
+      const events = await db.select().from(nashobatvEvents)
+        .where(eq(nashobatvEvents.channelId, channelId))
+        .orderBy(desc(nashobatvEvents.eventDate));
+      return res.json(events);
+    }
     const events = await db.select().from(nashobatvEvents).orderBy(desc(nashobatvEvents.eventDate));
     res.json(events);
   } catch (error) {
@@ -324,8 +604,15 @@ router.delete("/api/nashobatv/events/:id", requireAuth, async (req: Request, res
 });
 
 // --- Announcements CRUD ---
-router.get("/api/nashobatv/announcements", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/announcements", requireAuth, async (req: Request, res: Response) => {
   try {
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    if (channelId) {
+      const announcements = await db.select().from(nashobatvAnnouncements)
+        .where(eq(nashobatvAnnouncements.channelId, channelId))
+        .orderBy(desc(nashobatvAnnouncements.priority));
+      return res.json(announcements);
+    }
     const announcements = await db.select().from(nashobatvAnnouncements).orderBy(desc(nashobatvAnnouncements.priority));
     res.json(announcements);
   } catch (error) {
@@ -365,13 +652,18 @@ router.delete("/api/nashobatv/announcements/:id", requireAuth, async (req: Reque
 });
 
 // --- Photos CRUD ---
-router.get("/api/nashobatv/photos", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/photos", requireAuth, async (req: Request, res: Response) => {
   try {
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    if (channelId) {
+      const photos = await db.select().from(nashobatvPhotos)
+        .where(eq(nashobatvPhotos.channelId, channelId))
+        .orderBy(asc(nashobatvPhotos.sortOrder));
+      const proxied = photos.map(p => ({ ...p, imageUrl: photoProxyUrl(p.id, p.imageUrl) }));
+      return res.json(proxied);
+    }
     const photos = await db.select().from(nashobatvPhotos).orderBy(asc(nashobatvPhotos.sortOrder));
-    const proxied = photos.map(p => ({
-      ...p,
-      imageUrl: photoProxyUrl(p.id, p.imageUrl),
-    }));
+    const proxied = photos.map(p => ({ ...p, imageUrl: photoProxyUrl(p.id, p.imageUrl) }));
     res.json(proxied);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch photos" });
@@ -410,8 +702,15 @@ router.delete("/api/nashobatv/photos/:id", requireAuth, async (req: Request, res
 });
 
 // --- Daily Specials CRUD ---
-router.get("/api/nashobatv/specials", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/specials", requireAuth, async (req: Request, res: Response) => {
   try {
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    if (channelId) {
+      const specials = await db.select().from(nashobatvDailySpecials)
+        .where(eq(nashobatvDailySpecials.channelId, channelId))
+        .orderBy(desc(nashobatvDailySpecials.createdAt));
+      return res.json(specials);
+    }
     const specials = await db.select().from(nashobatvDailySpecials).orderBy(desc(nashobatvDailySpecials.createdAt));
     res.json(specials);
   } catch (error) {
@@ -451,9 +750,16 @@ router.delete("/api/nashobatv/specials/:id", requireAuth, async (req: Request, r
 });
 
 // --- Display Settings ---
-router.get("/api/nashobatv/display-settings", requireAuth, async (_req: Request, res: Response) => {
+router.get("/api/nashobatv/display-settings", requireAuth, async (req: Request, res: Response) => {
   try {
-    await ensureDisplaySettingsExist();
+    const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : null;
+    if (channelId) {
+      await ensureDisplaySettingsExist(channelId);
+      const settings = await db.select().from(nashobatvDisplaySettings)
+        .where(eq(nashobatvDisplaySettings.channelId, channelId))
+        .orderBy(asc(nashobatvDisplaySettings.sortOrder));
+      return res.json(settings);
+    }
     const settings = await db.select().from(nashobatvDisplaySettings).orderBy(asc(nashobatvDisplaySettings.sortOrder));
     res.json(settings);
   } catch (error) {
