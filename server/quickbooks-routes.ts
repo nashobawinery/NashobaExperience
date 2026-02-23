@@ -355,8 +355,62 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
     const conn = await getActiveConnection();
     if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
 
-    const result = await qbApiRequest(conn, "/query?query=" + encodeURIComponent("SELECT * FROM Item WHERE Type IN ('Inventory', 'NonInventory', 'Service') MAXRESULTS 1000"));
-    const qbItems = result?.QueryResponse?.Item || [];
+    const invoiceItemIds = new Set<string>();
+    let startPosition = 1;
+    const batchSize = 500;
+
+    while (true) {
+      const invQuery = `SELECT * FROM Invoice WHERE TxnDate >= '2024-01-01' STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`;
+      const invResult = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(invQuery));
+      let invoices = invResult?.QueryResponse?.Invoice || [];
+
+      if (invoices.length === 0) break;
+
+      invoices = invoices.filter((inv: any) => (inv.DocNumber || "").startsWith("E"));
+
+      for (const inv of invoices) {
+        const lines = inv.Line || [];
+        for (const line of lines) {
+          const itemRef = line.SalesItemLineDetail?.ItemRef?.value;
+          if (itemRef) {
+            invoiceItemIds.add(String(itemRef));
+          }
+        }
+      }
+
+      if (invResult?.QueryResponse?.Invoice?.length < batchSize) break;
+      startPosition += batchSize;
+    }
+
+    if (invoiceItemIds.size === 0) {
+      return res.json({ total: 0, newMapped: 0, alreadyMapped: 0, message: "No items found on E-prefix invoices" });
+    }
+
+    console.log(`[QB Item Sync] Found ${invoiceItemIds.size} unique items across E-invoices`);
+
+    const itemIdArray = Array.from(invoiceItemIds);
+    const qbItems: any[] = [];
+    const idBatchSize = 50;
+    for (let i = 0; i < itemIdArray.length; i += idBatchSize) {
+      const batch = itemIdArray.slice(i, i + idBatchSize);
+      const idList = batch.map(id => `'${id}'`).join(",");
+      const itemQuery = `SELECT * FROM Item WHERE Id IN (${idList})`;
+      const itemResult = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(itemQuery));
+      const items = itemResult?.QueryResponse?.Item || [];
+      qbItems.push(...items);
+    }
+
+    console.log(`[QB Item Sync] Fetched ${qbItems.length} items from QuickBooks`);
+
+    const invoiceItemIdStrings = Array.from(invoiceItemIds);
+    const staleItems = await db.select().from(qbItemMap);
+    const staleIds = staleItems
+      .filter(m => !invoiceItemIdStrings.includes(m.qbItemId) && !m.productId)
+      .map(m => m.id);
+    if (staleIds.length > 0) {
+      await db.delete(qbItemMap).where(inArray(qbItemMap.id, staleIds));
+      console.log(`[QB Item Sync] Removed ${staleIds.length} stale items not found on invoices`);
+    }
 
     const existingProducts = await db.select().from(products);
     const existingMaps = await db.select().from(qbItemMap);
