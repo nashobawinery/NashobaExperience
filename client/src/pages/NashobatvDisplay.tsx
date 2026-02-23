@@ -57,35 +57,12 @@ interface Photo {
   category: string | null;
 }
 
-interface ProductItem {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  price: string | null;
-  alcoholContent: string | null;
-  imageUrl: string | null;
-}
-
 interface DailySpecial {
   id: number;
   title: string;
   description: string | null;
   happyHourStart: string | null;
   happyHourEnd: string | null;
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  wine: "Wine",
-  spirits: "Spirits",
-  beer: "Beer",
-  cider: "Cider",
-  canned_cocktail: "Canned Cocktails",
-  canned_wine: "Canned Wine",
-};
-
-function categoryLabel(cat: string | null): string {
-  return CATEGORY_LABELS[cat || ""] || cat || "Other";
 }
 
 function formatTime(time: string | null): string {
@@ -258,101 +235,6 @@ function UpcomingEventsSlide({ events }: { events: Event[] }) {
   );
 }
 
-function WineListSlide({ wines }: { wines: ProductItem[] }) {
-  const wineOnly = wines.filter((w) =>
-    ["wine", "canned_wine"].includes(w.category || "")
-  );
-  if (wineOnly.length === 0) return null;
-
-  const categories = Array.from(new Set(wineOnly.map((w) => w.category)));
-
-  return (
-    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-wine-list">
-      <div className="flex items-center gap-4 mb-3">
-        <Wine className="w-10 h-10" style={{ color: GOLD }} />
-        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
-          Our Wines
-        </h2>
-      </div>
-      <Divider className="mb-8" />
-      <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
-        {categories.slice(0, 4).map((cat) => (
-          <div key={cat}>
-            <h3 className="text-2xl font-semibold mb-4 pb-2 flex items-center gap-2" style={{ color: GOLD_LIGHT, borderBottom: `1px solid ${GOLD}30`, fontFamily: "Georgia, serif" }}>
-              {categoryLabel(cat)}
-            </h3>
-            <div className="space-y-3">
-              {wineOnly.filter((w) => w.category === cat).slice(0, 5).map((wine) => (
-                <div key={wine.id} className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xl truncate" style={{ color: "#F5F0E8" }}>{wine.name}</p>
-                    {wine.alcoholContent && <p className="text-sm" style={{ color: "#F5F0E850" }}>{wine.alcoholContent}% ABV</p>}
-                  </div>
-                  {wine.price && (
-                    <p className="text-xl font-medium ml-4" style={{ color: GOLD }}>${parseFloat(wine.price).toFixed(2)}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function BeverageListSlide({ wines }: { wines: ProductItem[] }) {
-  const beverages = wines.filter((w) =>
-    ["cider", "spirits", "beer", "canned_cocktail"].includes(w.category || "")
-  );
-  if (beverages.length === 0) return null;
-
-  const categories = Array.from(new Set(beverages.map((w) => w.category)));
-  const icons: Record<string, typeof Wine> = {
-    beer: Beer,
-    spirits: GlassWater,
-    cider: Grape,
-    canned_cocktail: GlassWater,
-  };
-
-  return (
-    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-beverage-list">
-      <div className="flex items-center gap-4 mb-3">
-        <Beer className="w-10 h-10" style={{ color: GOLD }} />
-        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
-          Craft Beverages
-        </h2>
-      </div>
-      <Divider className="mb-8" />
-      <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
-        {categories.map((cat) => {
-          const Icon = icons[cat || ""] || GlassWater;
-          return (
-            <div key={cat}>
-              <h3 className="text-2xl font-semibold mb-4 pb-2 flex items-center gap-2" style={{ color: GOLD_LIGHT, borderBottom: `1px solid ${GOLD}30`, fontFamily: "Georgia, serif" }}>
-                <Icon className="w-6 h-6" />
-                {categoryLabel(cat)}
-              </h3>
-              <div className="space-y-3">
-                {beverages.filter((w) => w.category === cat).slice(0, 6).map((bev) => (
-                  <div key={bev.id} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xl truncate" style={{ color: "#F5F0E8" }}>{bev.name}</p>
-                    </div>
-                    {bev.price && (
-                      <p className="text-xl font-medium ml-4" style={{ color: GOLD }}>${parseFloat(bev.price).toFixed(2)}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function AnnouncementSlide({ announcements }: { announcements: Announcement[] }) {
   if (announcements.length === 0) return null;
   return (
@@ -454,38 +336,6 @@ function CustomSlide({ slide }: { slide: Slide }) {
         {slide.bodyHtml && (
           <div className="text-2xl max-w-4xl leading-relaxed" style={{ color: "#F5F0E8AA" }} dangerouslySetInnerHTML={{ __html: slide.bodyHtml }} />
         )}
-      </div>
-    </div>
-  );
-}
-
-function FoodMenuSlide() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-food-menu">
-      <UtensilsCrossed className="w-14 h-14 mb-6" style={{ color: GOLD }} />
-      <h2 className="text-6xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, 'Times New Roman', serif" }}>
-        Farm-to-Table <span className="font-semibold">Dining</span>
-      </h2>
-      <Divider className="w-64 mb-6" />
-      <p className="text-2xl max-w-3xl mb-10 leading-relaxed" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
-        Enjoy seasonal dishes crafted from locally sourced ingredients, perfectly paired with our award-winning wines and craft beverages.
-      </p>
-      <div className="grid grid-cols-3 gap-8 mt-2">
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <Leaf className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Seasonal Menu</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>Fresh, local ingredients</p>
-        </div>
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <Wine className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Wine Pairings</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>Expert recommendations</p>
-        </div>
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <Star className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Private Events</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>Book your celebration</p>
-        </div>
       </div>
     </div>
   );
@@ -947,12 +797,6 @@ export default function NashobatvDisplay() {
     refetchInterval: 300000,
   });
 
-  const { data: wines } = useQuery<ProductItem[]>({
-    queryKey: [apiBase, "wines"],
-    queryFn: async () => { const r = await fetch(`${apiBase}/wines`); if (!r.ok) throw new Error("Failed"); return r.json(); },
-    refetchInterval: 600000,
-  });
-
   const { data: announcements } = useQuery<Announcement[]>({
     queryKey: [apiBase, "announcements"],
     queryFn: async () => { const r = await fetch(`${apiBase}/announcements`); if (!r.ok) throw new Error("Failed"); return r.json(); },
@@ -1003,20 +847,12 @@ export default function NashobatvDisplay() {
         order.push({ type: "welcome", duration: dur, data: welcomeConfig });
       } else if (t === "events_today" && todayEvents && todayEvents.length > 0) {
         order.push({ type: "events_today", duration: dur });
-      } else if (t === "wine_list" && wines && wines.filter((w) => ["wine", "canned_wine"].includes(w.category || "")).length > 0) {
-        order.push({ type: "wine_list", duration: dur });
-        const hasBeverages = wines.filter((w) => ["cider", "spirits", "beer", "canned_cocktail"].includes(w.category || "")).length > 0;
-        if (hasBeverages) {
-          order.push({ type: "beverage_list", duration: dur });
-        }
       } else if (t === "upcoming_events" && upcomingEvents && upcomingEvents.length > 0) {
         order.push({ type: "upcoming_events", duration: dur });
       } else if (t === "photo_gallery" && photos && photos.length > 0) {
         order.push({ type: "photo_gallery", duration: dur });
       } else if (t === "announcement" && announcements && announcements.length > 0) {
         order.push({ type: "announcement", duration: dur });
-      } else if (t === "food_menu") {
-        order.push({ type: "food_menu", duration: dur });
       } else if (t === "weather") {
         order.push({ type: "weather", duration: dur });
       } else if (t === "wine_club") {
@@ -1040,7 +876,7 @@ export default function NashobatvDisplay() {
     }
 
     setSlideOrder(order);
-  }, [settings, todayEvents, upcomingEvents, wines, announcements, photos, specials, slides, triviaQuestions, historicalFacts]);
+  }, [settings, todayEvents, upcomingEvents, announcements, photos, specials, slides, triviaQuestions, historicalFacts]);
 
   useEffect(() => {
     buildSlideOrder();
@@ -1118,12 +954,9 @@ export default function NashobatvDisplay() {
       case "welcome": return <WelcomeSlide customMessage={(current.data as any)?.customMessage} />;
       case "events_today": return <EventsTodaySlide events={todayEvents || []} />;
       case "upcoming_events": return <UpcomingEventsSlide events={upcomingEvents || []} />;
-      case "wine_list": return <WineListSlide wines={wines || []} />;
-      case "beverage_list": return <BeverageListSlide wines={wines || []} />;
       case "announcement": return <AnnouncementSlide announcements={announcements || []} />;
       case "photo_gallery": return <PhotoGallerySlide photos={photos || []} />;
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
-      case "food_menu": return <FoodMenuSlide />;
       case "weather": return <WeatherSlide weather={weather} />;
       case "trivia": {
         const cfg = current.data as { selectedQuestionId?: string } | null;

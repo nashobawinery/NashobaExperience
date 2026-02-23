@@ -33,17 +33,15 @@ function requireAuth(req: Request, res: Response, next: Function) {
 const DEFAULT_DISPLAY_SETTINGS = [
   { slideType: "welcome", isEnabled: true, duration: 15, sortOrder: 1 },
   { slideType: "events_today", isEnabled: true, duration: 12, sortOrder: 2 },
-  { slideType: "wine_list", isEnabled: true, duration: 15, sortOrder: 3 },
-  { slideType: "food_menu", isEnabled: false, duration: 15, sortOrder: 4 },
-  { slideType: "upcoming_events", isEnabled: true, duration: 12, sortOrder: 5 },
-  { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 6 },
-  { slideType: "announcement", isEnabled: true, duration: 10, sortOrder: 7 },
-  { slideType: "weather", isEnabled: false, duration: 8, sortOrder: 8 },
-  { slideType: "wine_club", isEnabled: true, duration: 12, sortOrder: 9 },
-  { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 10 },
-  { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 11 },
-  { slideType: "history", isEnabled: true, duration: 15, sortOrder: 12 },
-  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 13 },
+  { slideType: "upcoming_events", isEnabled: true, duration: 12, sortOrder: 3 },
+  { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 4 },
+  { slideType: "announcement", isEnabled: true, duration: 10, sortOrder: 5 },
+  { slideType: "weather", isEnabled: false, duration: 8, sortOrder: 6 },
+  { slideType: "wine_club", isEnabled: true, duration: 12, sortOrder: 7 },
+  { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 8 },
+  { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 9 },
+  { slideType: "history", isEnabled: true, duration: 15, sortOrder: 10 },
+  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 11 },
 ];
 
 async function ensureDefaultChannel(): Promise<typeof nashobatvChannels.$inferSelect> {

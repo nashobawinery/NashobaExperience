@@ -136,8 +136,6 @@ interface DisplaySetting {
 const SLIDE_TYPE_LABELS: Record<string, string> = {
   welcome: "Welcome Screen",
   events_today: "Today's Events",
-  wine_list: "Wine & Beverage List",
-  food_menu: "Food Menu",
   upcoming_events: "Upcoming Events",
   photo_gallery: "Photo Gallery",
   announcement: "Announcements",
@@ -151,10 +149,8 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
 
 const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
   welcome: "Welcome screen with logo, time, and customizable message below.",
-  events_today: "Pulls from the Events tab. Only shows when today has events.",
-  wine_list: "Pulls from the product catalog (wines & beverages).",
-  food_menu: "Displays farm-to-table dining highlights.",
-  upcoming_events: "Pulls from the Events tab. Only shows when future events exist.",
+  events_today: "Pulls from Special Events. Only shows when today has events.",
+  upcoming_events: "Pulls from Special Events. Shows the next 4 upcoming events.",
   photo_gallery: "Pulls from the Photos tab. Only shows when photos exist.",
   announcement: "Pulls from the Announcements tab. Only shows when active announcements exist.",
   weather: "Live weather from Open-Meteo API for Bolton, MA.",
