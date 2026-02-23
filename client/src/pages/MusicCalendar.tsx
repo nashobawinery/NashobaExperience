@@ -22,6 +22,9 @@ import {
   Search,
   Loader2,
   Calendar,
+  Code,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface MusicCalendarEvent {
@@ -84,6 +87,8 @@ export default function MusicCalendar() {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [formData, setFormData] = useState({
     musicianName: "",
     genre: "",
@@ -173,6 +178,48 @@ export default function MusicCalendar() {
             </Button>
           </div>
         </header>
+      )}
+
+      {!isEmbed && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant={showEmbed ? "default" : "outline"}
+              onClick={() => setShowEmbed(!showEmbed)}
+              data-testid="button-toggle-embed"
+            >
+              <Code className="h-4 w-4 mr-2" />
+              Embed on Your Website
+            </Button>
+          </div>
+          {showEmbed && (
+            <Card className="mt-3">
+              <CardContent className="pt-4 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Copy the code below and paste it into your website HTML to embed the Live Music calendar.
+                </p>
+                <div className="relative">
+                  <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all" data-testid="text-embed-code">
+{`<iframe src="${window.location.origin}/music?embed=1" width="100%" height="800" frameborder="0" style="border:none;"></iframe>`}
+                  </pre>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="absolute top-2 right-2"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="${window.location.origin}/music?embed=1" width="100%" height="800" frameborder="0" style="border:none;"></iframe>`);
+                      setCopiedEmbed(true);
+                      setTimeout(() => setCopiedEmbed(false), 2000);
+                    }}
+                    data-testid="button-copy-embed"
+                  >
+                    {copiedEmbed ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       <div className="max-w-6xl mx-auto px-4 py-8">
