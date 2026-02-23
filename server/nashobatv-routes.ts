@@ -979,6 +979,26 @@ router.get("/api/nashobatv/display-settings", requireAuth, async (req: Request, 
   }
 });
 
+router.put("/api/nashobatv/display-settings/bulk", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { settings } = req.body;
+    const results = [];
+    for (const s of settings) {
+      const updateData: any = { sortOrder: s.sortOrder, isEnabled: s.isEnabled, duration: s.duration };
+      if (s.configData !== undefined) updateData.configData = s.configData;
+      const [updated] = await db
+        .update(nashobatvDisplaySettings)
+        .set(updateData)
+        .where(eq(nashobatvDisplaySettings.id, s.id))
+        .returning();
+      results.push(updated);
+    }
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update display settings" });
+  }
+});
+
 router.put("/api/nashobatv/display-settings/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const [setting] = await db
@@ -989,24 +1009,6 @@ router.put("/api/nashobatv/display-settings/:id", requireAuth, async (req: Reque
     res.json(setting);
   } catch (error) {
     res.status(500).json({ error: "Failed to update display setting" });
-  }
-});
-
-router.put("/api/nashobatv/display-settings/bulk", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const { settings } = req.body;
-    const results = [];
-    for (const s of settings) {
-      const [updated] = await db
-        .update(nashobatvDisplaySettings)
-        .set({ isEnabled: s.isEnabled, duration: s.duration, sortOrder: s.sortOrder, configData: s.configData })
-        .where(eq(nashobatvDisplaySettings.id, s.id))
-        .returning();
-      results.push(updated);
-    }
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update display settings" });
   }
 });
 
