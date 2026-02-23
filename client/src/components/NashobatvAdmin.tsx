@@ -1311,28 +1311,32 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
           </div>
         </div>
 
-        {setting.slideType === "trivia" && setting.isEnabled && (
-          <div className="mt-3 pt-3 border-t flex items-center gap-3 flex-wrap">
-            <Label className="text-xs text-muted-foreground whitespace-nowrap">Question</Label>
-            <Select
-              value={selectedQuestionId}
-              onValueChange={(v) => onUpdate(setting.id, { configData: { selectedQuestionId: v } })}
-            >
-              <SelectTrigger className="w-64" data-testid="select-trivia-question">
-                <SelectValue placeholder="Auto (Random)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Auto (Random each time)</SelectItem>
-                {triviaQuestions?.map((q) => (
-                  <SelectItem key={q.id} value={q.id}>
-                    {q.question.length > 60 ? q.question.slice(0, 60) + "..." : q.question}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedQuestionId === "auto" && (
-              <p className="text-xs text-muted-foreground">Randomly picks a different question each time this slide appears</p>
-            )}
+        {setting.slideType === "trivia" && (
+          <div className="mt-3 pt-3 border-t space-y-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Label className="text-sm font-medium whitespace-nowrap">Question Selection</Label>
+              <Select
+                value={selectedQuestionId}
+                onValueChange={(v) => onUpdate(setting.id, { configData: { selectedQuestionId: v } })}
+              >
+                <SelectTrigger className="w-72" data-testid="select-trivia-question">
+                  <SelectValue placeholder="Auto (Random)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (Random each time)</SelectItem>
+                  {triviaQuestions?.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>
+                      {q.question.length > 60 ? q.question.slice(0, 60) + "..." : q.question}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {selectedQuestionId === "auto"
+                ? "A different random question is shown each time this slide appears in the rotation."
+                : "This specific question will be shown every time the trivia slide appears."}
+            </p>
           </div>
         )}
       </Card>
