@@ -777,6 +777,10 @@ export default function NashobatvDisplay() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triviaIndexRef = useRef(0);
   const historyIndexRef = useRef(0);
+  const currentTriviaIdRef = useRef<string | undefined>(undefined);
+  const currentHistoryIdRef = useRef<number | undefined>(undefined);
+  const lastTriviaSlideIndexRef = useRef<number>(-1);
+  const lastHistorySlideIndexRef = useRef<number>(-1);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -935,22 +939,28 @@ export default function NashobatvDisplay() {
     return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
   }, []);
 
-  const getNextTriviaId = (questions: TriviaQuestionData[] | undefined, configuredId?: string): string | undefined => {
-    if (!questions || questions.length === 0) return undefined;
-    if (configuredId && configuredId !== "auto") return configuredId;
-    const idx = triviaIndexRef.current % questions.length;
-    triviaIndexRef.current = idx + 1;
-    return questions[idx].id;
-  };
-
-  const getNextHistoryId = (facts: HistoricalFactData[] | undefined): number | undefined => {
-    if (!facts || facts.length === 0) return undefined;
-    const idx = historyIndexRef.current % facts.length;
-    historyIndexRef.current = idx + 1;
-    return facts[idx].id;
-  };
-
   const current = slideOrder[currentSlideIndex];
+
+  if (current?.type === "trivia" && currentSlideIndex !== lastTriviaSlideIndexRef.current) {
+    lastTriviaSlideIndexRef.current = currentSlideIndex;
+    const cfg = current.data as { selectedQuestionId?: string } | null;
+    if (cfg?.selectedQuestionId && cfg.selectedQuestionId !== "auto") {
+      currentTriviaIdRef.current = cfg.selectedQuestionId;
+    } else if (triviaQuestions && triviaQuestions.length > 0) {
+      const idx = triviaIndexRef.current % triviaQuestions.length;
+      currentTriviaIdRef.current = triviaQuestions[idx].id;
+      triviaIndexRef.current = idx + 1;
+    }
+  }
+
+  if (current?.type === "history" && currentSlideIndex !== lastHistorySlideIndexRef.current) {
+    lastHistorySlideIndexRef.current = currentSlideIndex;
+    if (historicalFacts && historicalFacts.length > 0) {
+      const idx = historyIndexRef.current % historicalFacts.length;
+      currentHistoryIdRef.current = historicalFacts[idx].id;
+      historyIndexRef.current = idx + 1;
+    }
+  }
 
   const renderSlide = () => {
     if (!current) return <WelcomeSlide />;
@@ -962,15 +972,10 @@ export default function NashobatvDisplay() {
       case "photo_gallery": return <PhotoGallerySlide photos={photos || []} galleryName={(current.data as any)?.galleryName} />;
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
       case "weather": return <WeatherSlide weather={weather} />;
-      case "trivia": {
-        const cfg = current.data as { selectedQuestionId?: string } | null;
-        const pickedTriviaId = getNextTriviaId(triviaQuestions, cfg?.selectedQuestionId);
-        return <TriviaSlide key={`trivia-${currentSlideIndex}`} questions={triviaQuestions} selectedQuestionId={pickedTriviaId} />;
-      }
-      case "history": {
-        const pickedFactId = getNextHistoryId(historicalFacts);
-        return <HistorySlide key={`history-${currentSlideIndex}`} facts={historicalFacts} forcedFactId={pickedFactId} />;
-      }
+      case "trivia":
+        return <TriviaSlide key={`trivia-${currentSlideIndex}`} questions={triviaQuestions} selectedQuestionId={currentTriviaIdRef.current} />;
+      case "history":
+        return <HistorySlide key={`history-${currentSlideIndex}`} facts={historicalFacts} forcedFactId={currentHistoryIdRef.current} />;
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;
