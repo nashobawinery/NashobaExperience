@@ -34,7 +34,9 @@ import {
   CalendarDays,
   Music,
   Tag,
+  ArrowLeft,
 } from "lucide-react";
+import { Link } from "wouter";
 
 interface Channel {
   id: number;
@@ -200,14 +202,21 @@ export default function MediaCenter() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3" data-testid="text-media-center-title">
-            <Monitor className="w-7 h-7" />
-            Media Center
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Digital signage, live music, special events, printing tools, and shelf talkers.
-          </p>
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="icon" data-testid="button-back-hub">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-3" data-testid="text-media-center-title">
+              <Monitor className="w-7 h-7" />
+              Media Center
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Digital signage, live music, special events, printing tools, and shelf talkers.
+            </p>
+          </div>
         </div>
         {activeSection === "nashobatv" && (
           <div className="flex items-center gap-2 flex-wrap">
