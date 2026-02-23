@@ -1052,4 +1052,27 @@ router.put("/api/nashobatv/display-settings/:id", requireAuth, async (req: Reque
   }
 });
 
+router.post("/api/nashobatv/display-settings", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const [setting] = await db
+      .insert(nashobatvDisplaySettings)
+      .values(req.body)
+      .returning();
+    res.json(setting);
+  } catch (error) {
+    console.error("Error creating display setting:", error);
+    res.status(500).json({ error: "Failed to create display setting" });
+  }
+});
+
+router.delete("/api/nashobatv/display-settings/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    await db.delete(nashobatvDisplaySettings).where(eq(nashobatvDisplaySettings.id, parseInt(req.params.id)));
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting display setting:", error);
+    res.status(500).json({ error: "Failed to delete display setting" });
+  }
+});
+
 export default router;

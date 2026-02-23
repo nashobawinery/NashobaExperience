@@ -89,6 +89,7 @@ interface Photo {
   mediaLibraryId: string | null;
   caption: string | null;
   category: string | null;
+  galleryName: string;
   sortOrder: number;
   isDisplayed: boolean;
 }
@@ -138,6 +139,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   events_today: "Today's Events",
   upcoming_events: "Upcoming Events",
   photo_gallery: "Photo Gallery",
+  photo_gallery_named: "Photo Gallery",
   announcement: "Announcements",
   weather: "Weather",
   wine_club: "Wine Club Promo",
@@ -151,7 +153,8 @@ const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
   welcome: "Welcome screen with logo, time, and customizable message below.",
   events_today: "Pulls from Special Events. Only shows when today has events.",
   upcoming_events: "Pulls from Special Events. Shows the next 4 upcoming events.",
-  photo_gallery: "Pulls from the Photos tab. Only shows when photos exist.",
+  photo_gallery: "Shows photos from a specific gallery. Configure the gallery below.",
+  photo_gallery_named: "Shows photos from a specific gallery. Configure the gallery below.",
   announcement: "Pulls from the Announcements tab. Only shows when active announcements exist.",
   weather: "Live weather from Open-Meteo API for Bolton, MA.",
   wine_club: "Auto-generated wine club membership promotion.",
@@ -803,8 +806,11 @@ function PhotosManager({ channelId }: { channelId: number }) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
-  const [formData, setFormData] = useState({ imageUrl: "", caption: "", category: "", sortOrder: 0, isDisplayed: true });
-  const [urlFormData, setUrlFormData] = useState({ imageUrl: "", caption: "", isDisplayed: true });
+  const [formData, setFormData] = useState({ imageUrl: "", caption: "", category: "", galleryName: "Default", sortOrder: 0, isDisplayed: true });
+  const [urlFormData, setUrlFormData] = useState({ imageUrl: "", caption: "", galleryName: "Default", isDisplayed: true });
+  const [selectedGallery, setSelectedGallery] = useState<string>("all");
+  const [newGalleryName, setNewGalleryName] = useState("");
+  const [isNewGalleryDialogOpen, setIsNewGalleryDialogOpen] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isDragOverDialog, setIsDragOverDialog] = useState(false);
   const [isDragOverEmpty, setIsDragOverEmpty] = useState(false);
@@ -841,9 +847,21 @@ function PhotosManager({ channelId }: { channelId: number }) {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/photos"] }); toast({ title: "Photo removed" }); },
   });
 
+  const galleryNames = useMemo(() => {
+    if (!photos) return ["Default"];
+    const names = Array.from(new Set(photos.map(p => p.galleryName || "Default")));
+    return names.length > 0 ? names.sort() : ["Default"];
+  }, [photos]);
+
+  const filteredPhotos = useMemo(() => {
+    if (!photos) return [];
+    if (selectedGallery === "all") return photos;
+    return photos.filter(p => (p.galleryName || "Default") === selectedGallery);
+  }, [photos, selectedGallery]);
+
   const openEdit = (p: Photo) => {
     setEditingPhoto(p);
-    setFormData({ imageUrl: p.imageUrl, caption: p.caption || "", category: p.category || "", sortOrder: p.sortOrder, isDisplayed: p.isDisplayed });
+    setFormData({ imageUrl: p.imageUrl, caption: p.caption || "", category: p.category || "", galleryName: p.galleryName || "Default", sortOrder: p.sortOrder, isDisplayed: p.isDisplayed });
     setIsDialogOpen(true);
   };
 
@@ -925,6 +943,7 @@ function PhotosManager({ channelId }: { channelId: number }) {
           imageUrl: publicUrl,
           caption: null,
           category: null,
+          galleryName: selectedGallery !== "all" ? selectedGallery : "Default",
           sortOrder: currentPhotoCount + i,
           isDisplayed: true,
         });
@@ -976,9 +995,12 @@ function PhotosManager({ channelId }: { channelId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-lg font-semibold">Gallery Photos</h3>
+        <h3 className="text-lg font-semibold">Photo Galleries</h3>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => { setUrlFormData({ imageUrl: "", caption: "", isDisplayed: true }); setIsUrlDialogOpen(true); }} data-testid="button-add-photo-url">
+          <Button variant="outline" onClick={() => { setNewGalleryName(""); setIsNewGalleryDialogOpen(true); }} data-testid="button-new-gallery">
+            <Plus className="w-4 h-4 mr-2" />New Gallery
+          </Button>
+          <Button variant="outline" onClick={() => { setUrlFormData({ imageUrl: "", caption: "", galleryName: selectedGallery !== "all" ? selectedGallery : "Default", isDisplayed: true }); setIsUrlDialogOpen(true); }} data-testid="button-add-photo-url">
             <Plus className="w-4 h-4 mr-2" />Add by URL
           </Button>
           <Button onClick={() => { setUploadingFiles([]); setIsUploadOpen(true); }} data-testid="button-upload-photos">
@@ -987,7 +1009,32 @@ function PhotosManager({ channelId }: { channelId: number }) {
         </div>
       </div>
 
-      {(!photos || photos.length === 0) ? (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant={selectedGallery === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setSelectedGallery("all")}
+          data-testid="button-gallery-all"
+        >
+          All ({photos?.length || 0})
+        </Button>
+        {galleryNames.map(name => {
+          const count = photos?.filter(p => (p.galleryName || "Default") === name).length || 0;
+          return (
+            <Button
+              key={name}
+              variant={selectedGallery === name ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedGallery(name)}
+              data-testid={`button-gallery-${name}`}
+            >
+              {name} ({count})
+            </Button>
+          );
+        })}
+      </div>
+
+      {filteredPhotos.length === 0 ? (
         <Card
           className={`p-8 text-center text-muted-foreground border-2 border-dashed cursor-pointer transition-colors ${isDragOverEmpty ? "border-primary bg-primary/5" : ""}`}
           onDragOver={handleDragOverEmpty}
@@ -1002,7 +1049,7 @@ function PhotosManager({ channelId }: { channelId: number }) {
         </Card>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {photos.map((p) => (
+          {filteredPhotos.map((p) => (
             <Card key={p.id} className="overflow-visible">
               <div className="aspect-video relative">
                 <img src={p.imageUrl} alt={p.caption || "Gallery"} className="w-full h-full object-cover rounded-t-md" />
@@ -1014,9 +1061,12 @@ function PhotosManager({ channelId }: { channelId: number }) {
               </div>
               <div className="p-3">
                 {p.caption && <p className="text-sm truncate">{p.caption}</p>}
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-muted-foreground">Order: {p.sortOrder}</span>
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between mt-2 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className="text-xs truncate">{p.galleryName || "Default"}</Badge>
+                    <span className="text-xs text-muted-foreground">#{p.sortOrder}</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <Button size="icon" variant="ghost" onClick={() => openEdit(p)} data-testid={`button-edit-photo-${p.id}`}><Edit className="w-4 h-4" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(p.id)} data-testid={`button-delete-photo-${p.id}`}><Trash2 className="w-4 h-4" /></Button>
                   </div>
@@ -1117,7 +1167,17 @@ function PhotosManager({ channelId }: { channelId: number }) {
             )}
             <div className="space-y-2"><Label>Caption</Label><Input value={formData.caption} onChange={(e) => setFormData({ ...formData, caption: e.target.value })} data-testid="input-photo-caption" /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Category</Label><Input value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} /></div>
+              <div className="space-y-2">
+                <Label>Gallery</Label>
+                <Select value={formData.galleryName} onValueChange={(v) => setFormData({ ...formData, galleryName: v })}>
+                  <SelectTrigger data-testid="select-photo-gallery"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {galleryNames.map(name => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Sort Order</Label><Input type="number" value={formData.sortOrder} onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })} /></div>
             </div>
             <div className="flex items-center gap-2"><Switch checked={formData.isDisplayed} onCheckedChange={(v) => setFormData({ ...formData, isDisplayed: v })} data-testid="switch-photo-displayed" /><Label>Show on Display</Label></div>
@@ -1143,6 +1203,17 @@ function PhotosManager({ channelId }: { channelId: number }) {
               </div>
             )}
             <div className="space-y-2"><Label>Caption</Label><Input value={urlFormData.caption} onChange={(e) => setUrlFormData({ ...urlFormData, caption: e.target.value })} data-testid="input-url-photo-caption" /></div>
+            <div className="space-y-2">
+              <Label>Gallery</Label>
+              <Select value={urlFormData.galleryName} onValueChange={(v) => setUrlFormData({ ...urlFormData, galleryName: v })}>
+                <SelectTrigger data-testid="select-url-photo-gallery"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {galleryNames.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2"><Switch checked={urlFormData.isDisplayed} onCheckedChange={(v) => setUrlFormData({ ...urlFormData, isDisplayed: v })} data-testid="switch-url-photo-displayed" /><Label>Show on Display</Label></div>
           </div>
           <DialogFooter>
@@ -1150,7 +1221,7 @@ function PhotosManager({ channelId }: { channelId: number }) {
             <Button
               onClick={() => {
                 createMutation.mutate(
-                  { imageUrl: urlFormData.imageUrl, caption: urlFormData.caption || null, category: null, sortOrder: photos?.length || 0, isDisplayed: urlFormData.isDisplayed },
+                  { imageUrl: urlFormData.imageUrl, caption: urlFormData.caption || null, category: null, galleryName: urlFormData.galleryName, sortOrder: photos?.length || 0, isDisplayed: urlFormData.isDisplayed },
                   { onSuccess: () => { setIsUrlDialogOpen(false); toast({ title: "Photo added" }); } }
                 );
               }}
@@ -1158,6 +1229,40 @@ function PhotosManager({ channelId }: { channelId: number }) {
               data-testid="button-save-url-photo"
             >
               {createMutation.isPending ? "Adding..." : "Add Photo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNewGalleryDialogOpen} onOpenChange={setIsNewGalleryDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Create New Gallery</DialogTitle>
+            <DialogDescription>Give your gallery a name. Photos assigned to this gallery will appear together as a single slide in the display loop.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Gallery Name</Label>
+            <Input
+              value={newGalleryName}
+              onChange={(e) => setNewGalleryName(e.target.value)}
+              placeholder="e.g. Vineyard, Restaurant, Events..."
+              data-testid="input-new-gallery-name"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewGalleryDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (newGalleryName.trim()) {
+                  setSelectedGallery(newGalleryName.trim());
+                  setIsNewGalleryDialogOpen(false);
+                  toast({ title: `Gallery "${newGalleryName.trim()}" created. Upload photos to populate it.` });
+                }
+              }}
+              disabled={!newGalleryName.trim() || galleryNames.includes(newGalleryName.trim())}
+              data-testid="button-create-gallery"
+            >
+              Create Gallery
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1445,9 +1550,10 @@ function HistoricalFactsManager() {
   );
 }
 
-function SortableSettingCard({ setting, onUpdate, isPending }: {
+function SortableSettingCard({ setting, onUpdate, onDelete, isPending }: {
   setting: DisplaySetting;
   onUpdate: (id: number, data: any) => void;
+  onDelete?: (id: number) => void;
   isPending: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: setting.id });
@@ -1458,14 +1564,25 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
     zIndex: isDragging ? 50 : undefined,
   };
 
+  const isPhotoGallery = setting.slideType === "photo_gallery";
   const { data: triviaQuestions } = useQuery<{ id: string; question: string }[]>({
     queryKey: ["/api/public/display/trivia"],
     enabled: setting.slideType === "trivia",
   });
+  const { data: allPhotos } = useQuery<Photo[]>({
+    queryKey: ["/api/nashobatv/photos"],
+    enabled: isPhotoGallery,
+  });
+
+  const availableGalleries = useMemo(() => {
+    if (!allPhotos) return ["Default"];
+    return Array.from(new Set(allPhotos.map(p => p.galleryName || "Default"))).sort();
+  }, [allPhotos]);
 
   const configData = (setting.configData as Record<string, any> | null) || {};
   const selectedQuestionId = configData.selectedQuestionId || "auto";
   const welcomeMessage = configData.customMessage || "";
+  const galleryName = configData.galleryName || "Default";
   const [localWelcomeMsg, setLocalWelcomeMsg] = useState(welcomeMessage);
 
   useEffect(() => {
@@ -1492,7 +1609,10 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-medium">{SLIDE_TYPE_LABELS[setting.slideType] || setting.slideType}</p>
+                <p className="font-medium">
+                {SLIDE_TYPE_LABELS[setting.slideType] || setting.slideType}
+                {isPhotoGallery && galleryName && <span className="text-muted-foreground font-normal"> — {galleryName}</span>}
+              </p>
                 <Badge variant={setting.isEnabled ? "default" : "secondary"}>
                   {setting.isEnabled ? "On" : "Off"}
                 </Badge>
@@ -1581,6 +1701,52 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
             </div>
           </div>
         )}
+
+        {isPhotoGallery && (
+          <div className="mt-3 pt-3 border-t">
+            <div className="bg-muted/50 rounded-md p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">Gallery</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Choose which photo gallery this slide shows. Photos cycle sequentially during the slide duration.
+                  </p>
+                </div>
+                {onDelete && (
+                  <Button size="sm" variant="ghost" onClick={() => onDelete(setting.id)} className="text-destructive flex-shrink-0" data-testid={`button-delete-gallery-slide-${setting.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={galleryName}
+                onValueChange={(v) => onUpdate(setting.id, { configData: { ...configData, galleryName: v } })}
+              >
+                <SelectTrigger className="w-full" data-testid={`select-gallery-${setting.id}`}>
+                  <SelectValue placeholder="Default" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableGalleries.map((g) => {
+                    const count = allPhotos?.filter(p => (p.galleryName || "Default") === g && p.isDisplayed).length || 0;
+                    return (
+                      <SelectItem key={g} value={g}>{g} ({count} photo{count !== 1 ? "s" : ""})</SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {(() => {
+                const photoCount = allPhotos?.filter(p => (p.galleryName || "Default") === galleryName && p.isDisplayed).length || 0;
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    {photoCount > 0
+                      ? `Showing ${photoCount} photo${photoCount !== 1 ? "s" : ""} from "${galleryName}" gallery.`
+                      : `No displayable photos in "${galleryName}" gallery. Add photos in the Photos tab.`}
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1647,6 +1813,37 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
     },
   });
 
+  const addGalleryMutation = useMutation({
+    mutationFn: async () => {
+      const maxOrder = sortedSettings.length > 0 ? Math.max(...sortedSettings.map(s => s.sortOrder)) : 0;
+      const res = await apiRequest("POST", "/api/nashobatv/display-settings", {
+        channelId,
+        slideType: "photo_gallery",
+        isEnabled: true,
+        duration: 10,
+        sortOrder: maxOrder + 1,
+        configData: { galleryName: "Default" },
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setLocalOrder(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/display-settings"] });
+      toast({ title: "Photo Gallery slide added" });
+    },
+  });
+
+  const deleteSettingMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/nashobatv/display-settings/${id}`);
+    },
+    onSuccess: () => {
+      setLocalOrder(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/display-settings"] });
+      toast({ title: "Slide removed" });
+    },
+  });
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id || !sortedSettings.length) return;
@@ -1687,11 +1884,17 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
             All built-in slide types are listed below. Toggle each on/off, set duration, drag to reorder, and configure options (like trivia question selection). {enabledCount} of {sortedSettings.length} enabled.
           </p>
         </div>
-        <Button variant="outline" onClick={() => window.open(`/display/${channelSlug}`, "_blank")} data-testid="button-preview-display">
-          <Eye className="w-4 h-4 mr-2" />
-          Preview Display
-          <ExternalLink className="w-3 h-3 ml-1" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => addGalleryMutation.mutate()} disabled={addGalleryMutation.isPending} data-testid="button-add-photo-gallery">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Photo Gallery
+          </Button>
+          <Button variant="outline" onClick={() => window.open(`/display/${channelSlug}`, "_blank")} data-testid="button-preview-display">
+            <Eye className="w-4 h-4 mr-2" />
+            Preview Display
+            <ExternalLink className="w-3 h-3 ml-1" />
+          </Button>
+        </div>
       </div>
 
       {customSlideCount > 0 && (
@@ -1710,6 +1913,7 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
                 key={s.id}
                 setting={s}
                 onUpdate={handleUpdate}
+                onDelete={s.slideType === "photo_gallery" ? (id) => deleteSettingMutation.mutate(id) : undefined}
                 isPending={updateMutation.isPending}
               />
             ))}

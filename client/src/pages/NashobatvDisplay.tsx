@@ -55,6 +55,7 @@ interface Photo {
   imageUrl: string;
   caption: string | null;
   category: string | null;
+  galleryName: string;
 }
 
 interface DailySpecial {
@@ -251,19 +252,28 @@ function AnnouncementSlide({ announcements }: { announcements: Announcement[] })
   );
 }
 
-function PhotoGallerySlide({ photos }: { photos: Photo[] }) {
+function PhotoGallerySlide({ photos, galleryName }: { photos: Photo[]; galleryName?: string }) {
+  const galleryPhotos = useMemo(() => {
+    if (!galleryName || galleryName === "all") return photos;
+    return photos.filter(p => (p.galleryName || "Default") === galleryName);
+  }, [photos, galleryName]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    if (photos.length <= 1) return;
+    setCurrentIndex(0);
+  }, [galleryName]);
+
+  useEffect(() => {
+    if (galleryPhotos.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentIndex((i) => (i + 1) % photos.length);
+      setCurrentIndex((i) => (i + 1) % galleryPhotos.length);
     }, 4000);
     return () => clearInterval(interval);
-  }, [photos.length]);
+  }, [galleryPhotos.length]);
 
-  if (photos.length === 0) return null;
-  const photo = photos[currentIndex];
+  if (galleryPhotos.length === 0) return null;
+  const photo = galleryPhotos[currentIndex];
 
   return (
     <div className="relative h-full w-full" data-testid="slide-photo-gallery">
@@ -276,11 +286,13 @@ function PhotoGallerySlide({ photos }: { photos: Photo[] }) {
       <div className="absolute bottom-0 left-0 right-0 px-16 pb-12">
         <div className="flex items-center gap-4 mb-4">
           <Camera className="w-7 h-7" style={{ color: GOLD }} />
-          <span className="text-lg uppercase tracking-widest" style={{ color: "#F5F0E8AA", letterSpacing: "0.2em" }}>Photo Gallery</span>
+          <span className="text-lg uppercase tracking-widest" style={{ color: "#F5F0E8AA", letterSpacing: "0.2em" }}>
+            {galleryName && galleryName !== "Default" ? galleryName : "Photo Gallery"}
+          </span>
         </div>
         {photo.caption && <p className="text-3xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>{photo.caption}</p>}
         <div className="flex gap-2 mt-6">
-          {photos.map((_, i) => (
+          {galleryPhotos.map((_, i) => (
             <div
               key={i}
               className="h-1.5 rounded-full transition-all duration-300"
@@ -850,7 +862,12 @@ export default function NashobatvDisplay() {
       } else if (t === "upcoming_events" && upcomingEvents && upcomingEvents.length > 0) {
         order.push({ type: "upcoming_events", duration: dur });
       } else if (t === "photo_gallery" && photos && photos.length > 0) {
-        order.push({ type: "photo_gallery", duration: dur });
+        const galleryConfig = setting.configData as { galleryName?: string } | null;
+        const gName = galleryConfig?.galleryName || "Default";
+        const galleryPhotos = photos.filter(p => (p.galleryName || "Default") === gName);
+        if (galleryPhotos.length > 0) {
+          order.push({ type: "photo_gallery", duration: dur, data: { galleryName: gName } });
+        }
       } else if (t === "announcement" && announcements && announcements.length > 0) {
         order.push({ type: "announcement", duration: dur });
       } else if (t === "weather") {
@@ -955,7 +972,7 @@ export default function NashobatvDisplay() {
       case "events_today": return <EventsTodaySlide events={todayEvents || []} />;
       case "upcoming_events": return <UpcomingEventsSlide events={upcomingEvents || []} />;
       case "announcement": return <AnnouncementSlide announcements={announcements || []} />;
-      case "photo_gallery": return <PhotoGallerySlide photos={photos || []} />;
+      case "photo_gallery": return <PhotoGallerySlide photos={photos || []} galleryName={(current.data as any)?.galleryName} />;
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
       case "weather": return <WeatherSlide weather={weather} />;
       case "trivia": {

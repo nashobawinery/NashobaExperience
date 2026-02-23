@@ -5818,6 +5818,7 @@ export const nashobatvPhotos = pgTable("nashobatv_photos", {
   mediaLibraryId: varchar("media_library_id").references(() => mediaLibrary.id, { onDelete: "set null" }),
   caption: text("caption"),
   category: text("category"),
+  galleryName: text("gallery_name").notNull().default("Default"),
   sortOrder: integer("sort_order").notNull().default(0),
   isDisplayed: boolean("is_displayed").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
