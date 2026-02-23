@@ -253,7 +253,7 @@ export default function MusicCalendar() {
                         <img
                           src={event.imageUrl || event.musicianImageUrl || ""}
                           alt={event.musicianName || event.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover object-top"
                           data-testid={`img-event-${event.id}`}
                         />
                       </div>
