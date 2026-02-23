@@ -463,57 +463,144 @@ function FoodMenuSlide() {
   );
 }
 
-function WeatherSlide() {
+interface WeatherData {
+  current: {
+    temp: number;
+    humidity: number;
+    condition: string;
+    windSpeed: number;
+  } | null;
+  forecast: {
+    date: string;
+    high: number;
+    low: number;
+    condition: string;
+    precipitation: number;
+    sunrise: string;
+    sunset: string;
+  }[];
+  location: string;
+}
+
+function getWeatherIcon(condition: string) {
+  switch (condition) {
+    case "Clear": return Sun;
+    case "Partly Cloudy": return Cloud;
+    case "Rain":
+    case "Drizzle": return CloudRain;
+    case "Snow": return Snowflake;
+    case "Thunderstorm": return CloudRain;
+    case "Foggy": return Cloud;
+    default: return Sun;
+  }
+}
+
+function formatForecastDay(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (dateStr === today.toISOString().split("T")[0]) return "Today";
+  if (dateStr === tomorrow.toISOString().split("T")[0]) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function formatTimeAmPm(time: string): string {
+  if (!time) return "";
+  const [h, m] = time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function WeatherSlide({ weather }: { weather: WeatherData | undefined }) {
   const now = new Date();
   const month = now.getMonth();
-  const isWinter = month === 11 || month === 0 || month === 1;
-  const isSpring = month >= 2 && month <= 4;
-  const isSummer = month >= 5 && month <= 7;
-  const isFall = month >= 8 && month <= 10;
+  const seasonName = (month === 11 || month <= 1) ? "Winter" : month <= 4 ? "Spring" : month <= 7 ? "Summer" : "Autumn";
 
-  const seasonName = isWinter ? "Winter" : isSpring ? "Spring" : isSummer ? "Summer" : "Autumn";
-  const SeasonIcon = isWinter ? Snowflake : isSpring ? Sun : isSummer ? Sun : Leaf;
-  const seasonDesc = isWinter
-    ? "Warm up with our fireside tastings and hearty seasonal dishes."
-    : isSpring
-    ? "Blossoms are blooming across our orchards. The perfect time for a tasting on the patio."
-    : isSummer
-    ? "Enjoy long evenings on our grounds with live music and outdoor dining."
-    : "Experience the stunning fall foliage while savoring our harvest-season wines.";
-  const seasonActivity = isWinter
-    ? "Fireside Tastings"
-    : isSpring
-    ? "Orchard Walks"
-    : isSummer
-    ? "Outdoor Events"
-    : "Apple Picking";
+  if (!weather?.current) {
+    const SeasonIcon = (month === 11 || month <= 1) ? Snowflake : month <= 4 ? Sun : month <= 7 ? Sun : Leaf;
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-weather">
+        <SeasonIcon className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          {seasonName} at <span className="font-semibold">Nashoba Valley</span>
+        </h2>
+        <Divider className="w-64 mb-6" />
+        <p className="text-2xl" style={{ color: "#F5F0E8AA" }}>Bolton, Massachusetts</p>
+      </div>
+    );
+  }
+
+  const CurrentIcon = getWeatherIcon(weather.current.condition);
+  const today = weather.forecast[0];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-weather">
-      <SeasonIcon className="w-14 h-14 mb-6" style={{ color: GOLD }} />
-      <h2 className="text-6xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, 'Times New Roman', serif" }}>
-        {seasonName} at <span className="font-semibold">Nashoba Valley</span>
-      </h2>
-      <Divider className="w-64 mb-6" />
-      <p className="text-2xl max-w-3xl mb-10 leading-relaxed italic" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
-        {seasonDesc}
-      </p>
-      <div className="grid grid-cols-3 gap-8 mt-2">
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <SeasonIcon className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>{seasonActivity}</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>Now available</p>
+    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-weather">
+      <div className="flex items-center gap-4 mb-3">
+        <CurrentIcon className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Today's Weather
+        </h2>
+        <span className="ml-auto text-xl" style={{ color: "#F5F0E880" }}>
+          {weather.location}
+        </span>
+      </div>
+      <Divider className="mb-8" />
+
+      <div className="flex-1 flex flex-col items-center justify-center gap-8">
+        <div className="flex items-center gap-10">
+          <CurrentIcon className="w-28 h-28" style={{ color: GOLD }} />
+          <div className="text-left">
+            <p className="text-9xl font-light leading-none" style={{ color: "#F5F0E8" }}>
+              {weather.current.temp}<span className="text-5xl align-top" style={{ color: GOLD }}>°F</span>
+            </p>
+            <p className="text-3xl mt-2" style={{ color: GOLD_LIGHT }}>{weather.current.condition}</p>
+          </div>
         </div>
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <Wine className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Seasonal Tastings</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>Curated selections</p>
+
+        <div className="flex items-center gap-10 mt-2">
+          {today && (
+            <>
+              <div className="flex items-center gap-3 text-xl" style={{ color: "#F5F0E8AA" }}>
+                <span style={{ color: "#EF4444AA" }}>H: {today.high}°</span>
+                <span style={{ color: `${GOLD}40` }}>|</span>
+                <span style={{ color: "#60A5FAAA" }}>L: {today.low}°</span>
+              </div>
+              <div className="flex items-center gap-3 text-xl" style={{ color: "#F5F0E8AA" }}>
+                <span>Humidity: {weather.current.humidity}%</span>
+                <span style={{ color: `${GOLD}40` }}>|</span>
+                <span>Wind: {weather.current.windSpeed} mph</span>
+              </div>
+            </>
+          )}
         </div>
-        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
-          <MapPin className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
-          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>52 Acres</p>
-          <p className="mt-1" style={{ color: "#F5F0E860" }}>To explore</p>
-        </div>
+
+        {today && (today.sunrise || today.sunset) && (
+          <div className="flex items-center gap-6 text-lg" style={{ color: "#F5F0E870" }}>
+            {today.sunrise && <span>Sunrise: {formatTimeAmPm(today.sunrise)}</span>}
+            {today.sunrise && today.sunset && <span style={{ color: `${GOLD}30` }}>|</span>}
+            {today.sunset && <span>Sunset: {formatTimeAmPm(today.sunset)}</span>}
+          </div>
+        )}
+
+        {weather.forecast.length > 1 && (
+          <div className="grid grid-cols-3 gap-6 mt-4 w-full max-w-3xl">
+            {weather.forecast.map((day) => {
+              const DayIcon = getWeatherIcon(day.condition);
+              return (
+                <div key={day.date} className="rounded-lg p-5 text-center" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
+                  <p className="text-lg font-medium mb-2" style={{ color: GOLD_LIGHT }}>{formatForecastDay(day.date)}</p>
+                  <DayIcon className="w-10 h-10 mx-auto mb-2" style={{ color: GOLD }} />
+                  <p className="text-sm mb-1" style={{ color: "#F5F0E8AA" }}>{day.condition}</p>
+                  <div className="flex items-center justify-center gap-3 text-lg">
+                    <span style={{ color: "#EF4444AA" }}>{day.high}°</span>
+                    <span style={{ color: "#60A5FAAA" }}>{day.low}°</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -615,6 +702,12 @@ export default function NashobatvDisplay() {
     queryKey: [apiBase, "specials"],
     queryFn: async () => { const r = await fetch(`${apiBase}/specials`); if (!r.ok) throw new Error("Failed"); return r.json(); },
     refetchInterval: 300000,
+  });
+
+  const { data: weather } = useQuery<WeatherData>({
+    queryKey: [apiBase, "weather"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/weather`); if (!r.ok) throw new Error("Failed"); return r.json(); },
+    refetchInterval: 1800000,
   });
 
   const buildSlideOrder = useCallback(() => {
@@ -719,7 +812,7 @@ export default function NashobatvDisplay() {
       case "photo_gallery": return <PhotoGallerySlide photos={photos || []} />;
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
       case "food_menu": return <FoodMenuSlide />;
-      case "weather": return <WeatherSlide />;
+      case "weather": return <WeatherSlide weather={weather} />;
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;

@@ -333,6 +333,51 @@ router.get("/api/public/display/specials", async (_req: Request, res: Response) 
   }
 });
 
+router.get("/api/public/display/weather", async (_req: Request, res: Response) => {
+  try {
+    const lat = 42.4334;
+    const lon = -71.6068;
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,sunrise,sunset&timezone=America/New_York&forecast_days=3`;
+    const response = await fetch(weatherUrl);
+    if (!response.ok) return res.status(502).json({ error: "Weather service unavailable" });
+    const data = await response.json();
+
+    const celsiusToFahrenheit = (c: number) => Math.round((c * 9 / 5) + 32);
+    const getCondition = (code: number): string => {
+      if (code === 0) return "Clear";
+      if (code <= 3) return "Partly Cloudy";
+      if (code <= 49) return "Foggy";
+      if (code <= 59) return "Drizzle";
+      if (code <= 69) return "Rain";
+      if (code <= 79) return "Snow";
+      if (code <= 99) return "Thunderstorm";
+      return "Unknown";
+    };
+
+    const current = data.current ? {
+      temp: celsiusToFahrenheit(data.current.temperature_2m),
+      humidity: Math.round(data.current.relative_humidity_2m),
+      condition: getCondition(data.current.weather_code),
+      windSpeed: Math.round(data.current.wind_speed_10m * 0.621371),
+    } : null;
+
+    const forecast = data.daily?.time?.map((date: string, i: number) => ({
+      date,
+      high: celsiusToFahrenheit(data.daily.temperature_2m_max[i]),
+      low: celsiusToFahrenheit(data.daily.temperature_2m_min[i]),
+      condition: getCondition(data.daily.weather_code[i]),
+      precipitation: data.daily.precipitation_sum[i] || 0,
+      sunrise: data.daily.sunrise?.[i]?.split("T")[1]?.slice(0, 5) || "",
+      sunset: data.daily.sunset?.[i]?.split("T")[1]?.slice(0, 5) || "",
+    })) || [];
+
+    res.json({ current, forecast, location: "Bolton, MA" });
+  } catch (error) {
+    console.error("Error fetching weather for display:", error);
+    res.status(500).json({ error: "Failed to fetch weather" });
+  }
+});
+
 // --- Slug-based public endpoints ---
 
 router.get("/api/public/display/:slug/settings", async (req: Request, res: Response) => {
@@ -498,6 +543,51 @@ router.get("/api/public/display/:slug/specials", async (req: Request, res: Respo
   } catch (error) {
     console.error("Error fetching specials:", error);
     res.status(500).json({ error: "Failed to fetch specials" });
+  }
+});
+
+router.get("/api/public/display/:slug/weather", async (_req: Request, res: Response) => {
+  try {
+    const lat = 42.4334;
+    const lon = -71.6068;
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,sunrise,sunset&timezone=America/New_York&forecast_days=3`;
+    const response = await fetch(weatherUrl);
+    if (!response.ok) return res.status(502).json({ error: "Weather service unavailable" });
+    const data = await response.json();
+
+    const celsiusToFahrenheit = (c: number) => Math.round((c * 9 / 5) + 32);
+    const getCondition = (code: number): string => {
+      if (code === 0) return "Clear";
+      if (code <= 3) return "Partly Cloudy";
+      if (code <= 49) return "Foggy";
+      if (code <= 59) return "Drizzle";
+      if (code <= 69) return "Rain";
+      if (code <= 79) return "Snow";
+      if (code <= 99) return "Thunderstorm";
+      return "Unknown";
+    };
+
+    const current = data.current ? {
+      temp: celsiusToFahrenheit(data.current.temperature_2m),
+      humidity: Math.round(data.current.relative_humidity_2m),
+      condition: getCondition(data.current.weather_code),
+      windSpeed: Math.round(data.current.wind_speed_10m * 0.621371),
+    } : null;
+
+    const forecast = data.daily?.time?.map((date: string, i: number) => ({
+      date,
+      high: celsiusToFahrenheit(data.daily.temperature_2m_max[i]),
+      low: celsiusToFahrenheit(data.daily.temperature_2m_min[i]),
+      condition: getCondition(data.daily.weather_code[i]),
+      precipitation: data.daily.precipitation_sum[i] || 0,
+      sunrise: data.daily.sunrise?.[i]?.split("T")[1]?.slice(0, 5) || "",
+      sunset: data.daily.sunset?.[i]?.split("T")[1]?.slice(0, 5) || "",
+    })) || [];
+
+    res.json({ current, forecast, location: "Bolton, MA" });
+  } catch (error) {
+    console.error("Error fetching weather for display:", error);
+    res.status(500).json({ error: "Failed to fetch weather" });
   }
 });
 
