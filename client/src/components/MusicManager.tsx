@@ -546,25 +546,33 @@ function SchedulePanel() {
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Event title" data-testid="input-event-title" />
-            </div>
-            <div className="space-y-2">
-              <Label>Musician</Label>
+              <Label>Musician *</Label>
               <Select
                 value={form.musicianId ? String(form.musicianId) : "none"}
-                onValueChange={v => setForm(p => ({ ...p, musicianId: v === "none" ? null : parseInt(v) }))}
+                onValueChange={v => {
+                  const mid = v === "none" ? null : parseInt(v);
+                  const musician = mid ? (musicians || []).find(m => m.id === mid) : null;
+                  setForm(p => ({
+                    ...p,
+                    musicianId: mid,
+                    title: musician ? `${musician.name} Live` : p.title,
+                  }));
+                }}
               >
                 <SelectTrigger data-testid="select-event-musician">
-                  <SelectValue placeholder="Select musician" />
+                  <SelectValue placeholder="Select Approved Musician" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No musician</SelectItem>
-                  {(musicians || []).map(m => (
-                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                  <SelectItem value="none">Select Approved Musician</SelectItem>
+                  {(musicians || []).filter(m => m.isApproved).map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name}{m.genre ? ` (${m.genre})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Event title" data-testid="input-event-title" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
