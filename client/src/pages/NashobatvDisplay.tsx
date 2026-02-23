@@ -775,9 +775,8 @@ export default function NashobatvDisplay() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [slideOrder, setSlideOrder] = useState<{ type: string; duration: number; data?: any }[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const recentTriviaRef = useRef<{ id: string; shownAt: number }[]>([]);
-  const recentHistoryRef = useRef<{ id: number; shownAt: number }[]>([]);
-  const DEDUP_COOLDOWN_MS = 15 * 60 * 1000;
+  const triviaIndexRef = useRef(0);
+  const historyIndexRef = useRef(0);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -936,31 +935,19 @@ export default function NashobatvDisplay() {
     return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
   }, []);
 
-  const pickDedupedTrivia = (questions: TriviaQuestionData[] | undefined, configuredId?: string): string | undefined => {
+  const getNextTriviaId = (questions: TriviaQuestionData[] | undefined, configuredId?: string): string | undefined => {
     if (!questions || questions.length === 0) return undefined;
     if (configuredId && configuredId !== "auto") return configuredId;
-
-    const now = Date.now();
-    recentTriviaRef.current = recentTriviaRef.current.filter(r => now - r.shownAt < DEDUP_COOLDOWN_MS);
-    const recentIds = new Set(recentTriviaRef.current.map(r => r.id));
-    const available = questions.filter(q => !recentIds.has(q.id));
-    const pool = available.length > 0 ? available : questions;
-    const picked = pool[Math.floor(Math.random() * pool.length)];
-    recentTriviaRef.current.push({ id: picked.id, shownAt: now });
-    return picked.id;
+    const idx = triviaIndexRef.current % questions.length;
+    triviaIndexRef.current = idx + 1;
+    return questions[idx].id;
   };
 
-  const pickDedupedHistory = (facts: HistoricalFactData[] | undefined): number | undefined => {
+  const getNextHistoryId = (facts: HistoricalFactData[] | undefined): number | undefined => {
     if (!facts || facts.length === 0) return undefined;
-
-    const now = Date.now();
-    recentHistoryRef.current = recentHistoryRef.current.filter(r => now - r.shownAt < DEDUP_COOLDOWN_MS);
-    const recentIds = new Set(recentHistoryRef.current.map(r => r.id));
-    const available = facts.filter(f => !recentIds.has(f.id));
-    const pool = available.length > 0 ? available : facts;
-    const picked = pool[Math.floor(Math.random() * pool.length)];
-    recentHistoryRef.current.push({ id: picked.id, shownAt: now });
-    return picked.id;
+    const idx = historyIndexRef.current % facts.length;
+    historyIndexRef.current = idx + 1;
+    return facts[idx].id;
   };
 
   const current = slideOrder[currentSlideIndex];
@@ -977,12 +964,12 @@ export default function NashobatvDisplay() {
       case "weather": return <WeatherSlide weather={weather} />;
       case "trivia": {
         const cfg = current.data as { selectedQuestionId?: string } | null;
-        const pickedTriviaId = pickDedupedTrivia(triviaQuestions, cfg?.selectedQuestionId);
-        return <TriviaSlide key={`trivia-${currentSlideIndex}-${pickedTriviaId}`} questions={triviaQuestions} selectedQuestionId={pickedTriviaId} />;
+        const pickedTriviaId = getNextTriviaId(triviaQuestions, cfg?.selectedQuestionId);
+        return <TriviaSlide key={`trivia-${currentSlideIndex}`} questions={triviaQuestions} selectedQuestionId={pickedTriviaId} />;
       }
       case "history": {
-        const pickedFactId = pickDedupedHistory(historicalFacts);
-        return <HistorySlide key={`history-${currentSlideIndex}-${pickedFactId}`} facts={historicalFacts} forcedFactId={pickedFactId} />;
+        const pickedFactId = getNextHistoryId(historicalFacts);
+        return <HistorySlide key={`history-${currentSlideIndex}`} facts={historicalFacts} forcedFactId={pickedFactId} />;
       }
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
