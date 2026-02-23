@@ -811,6 +811,7 @@ function PhotosManager({ channelId }: { channelId: number }) {
   const [selectedGallery, setSelectedGallery] = useState<string>("all");
   const [newGalleryName, setNewGalleryName] = useState("");
   const [isNewGalleryDialogOpen, setIsNewGalleryDialogOpen] = useState(false);
+  const [createdGalleries, setCreatedGalleries] = useState<string[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isDragOverDialog, setIsDragOverDialog] = useState(false);
   const [isDragOverEmpty, setIsDragOverEmpty] = useState(false);
@@ -848,10 +849,10 @@ function PhotosManager({ channelId }: { channelId: number }) {
   });
 
   const galleryNames = useMemo(() => {
-    if (!photos) return ["Default"];
-    const names = Array.from(new Set(photos.map(p => p.galleryName || "Default")));
-    return names.length > 0 ? names.sort() : ["Default"];
-  }, [photos]);
+    const fromPhotos = photos ? photos.map(p => p.galleryName || "Default") : [];
+    const all = Array.from(new Set([...fromPhotos, ...createdGalleries]));
+    return all.length > 0 ? all.sort() : ["Default"];
+  }, [photos, createdGalleries]);
 
   const filteredPhotos = useMemo(() => {
     if (!photos) return [];
@@ -1254,9 +1255,12 @@ function PhotosManager({ channelId }: { channelId: number }) {
             <Button
               onClick={() => {
                 if (newGalleryName.trim()) {
-                  setSelectedGallery(newGalleryName.trim());
+                  const name = newGalleryName.trim();
+                  setCreatedGalleries(prev => prev.includes(name) ? prev : [...prev, name]);
+                  setSelectedGallery(name);
+                  setNewGalleryName("");
                   setIsNewGalleryDialogOpen(false);
-                  toast({ title: `Gallery "${newGalleryName.trim()}" created. Upload photos to populate it.` });
+                  toast({ title: `Gallery "${name}" created. Upload photos to populate it.` });
                 }
               }}
               disabled={!newGalleryName.trim() || galleryNames.includes(newGalleryName.trim())}
