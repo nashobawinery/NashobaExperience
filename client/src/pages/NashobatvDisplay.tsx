@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft } from "lucide-react";
+import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -431,6 +431,94 @@ function CustomSlide({ slide }: { slide: Slide }) {
   );
 }
 
+function FoodMenuSlide() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-food-menu">
+      <UtensilsCrossed className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+      <h2 className="text-6xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+        Farm-to-Table <span className="font-semibold">Dining</span>
+      </h2>
+      <Divider className="w-64 mb-6" />
+      <p className="text-2xl max-w-3xl mb-10 leading-relaxed" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
+        Enjoy seasonal dishes crafted from locally sourced ingredients, perfectly paired with our award-winning wines and craft beverages.
+      </p>
+      <div className="grid grid-cols-3 gap-8 mt-2">
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Leaf className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Seasonal Menu</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Fresh, local ingredients</p>
+        </div>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Wine className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Wine Pairings</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Expert recommendations</p>
+        </div>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Star className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Private Events</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Book your celebration</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeatherSlide() {
+  const now = new Date();
+  const month = now.getMonth();
+  const isWinter = month === 11 || month === 0 || month === 1;
+  const isSpring = month >= 2 && month <= 4;
+  const isSummer = month >= 5 && month <= 7;
+  const isFall = month >= 8 && month <= 10;
+
+  const seasonName = isWinter ? "Winter" : isSpring ? "Spring" : isSummer ? "Summer" : "Autumn";
+  const SeasonIcon = isWinter ? Snowflake : isSpring ? Sun : isSummer ? Sun : Leaf;
+  const seasonDesc = isWinter
+    ? "Warm up with our fireside tastings and hearty seasonal dishes."
+    : isSpring
+    ? "Blossoms are blooming across our orchards. The perfect time for a tasting on the patio."
+    : isSummer
+    ? "Enjoy long evenings on our grounds with live music and outdoor dining."
+    : "Experience the stunning fall foliage while savoring our harvest-season wines.";
+  const seasonActivity = isWinter
+    ? "Fireside Tastings"
+    : isSpring
+    ? "Orchard Walks"
+    : isSummer
+    ? "Outdoor Events"
+    : "Apple Picking";
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-weather">
+      <SeasonIcon className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+      <h2 className="text-6xl font-light mb-3" style={{ color: "#F5F0E8", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+        {seasonName} at <span className="font-semibold">Nashoba Valley</span>
+      </h2>
+      <Divider className="w-64 mb-6" />
+      <p className="text-2xl max-w-3xl mb-10 leading-relaxed italic" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
+        {seasonDesc}
+      </p>
+      <div className="grid grid-cols-3 gap-8 mt-2">
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <SeasonIcon className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>{seasonActivity}</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Now available</p>
+        </div>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <Wine className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>Seasonal Tastings</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>Curated selections</p>
+        </div>
+        <div className="rounded-lg p-6" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}20` }}>
+          <MapPin className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
+          <p className="text-xl font-medium" style={{ color: "#F5F0E8" }}>52 Acres</p>
+          <p className="mt-1" style={{ color: "#F5F0E860" }}>To explore</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WineClubSlide() {
   return (
     <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-wine-club">
@@ -554,6 +642,10 @@ export default function NashobatvDisplay() {
         order.push({ type: "photo_gallery", duration: dur });
       } else if (t === "announcement" && announcements && announcements.length > 0) {
         order.push({ type: "announcement", duration: dur });
+      } else if (t === "food_menu") {
+        order.push({ type: "food_menu", duration: dur });
+      } else if (t === "weather") {
+        order.push({ type: "weather", duration: dur });
       } else if (t === "wine_club") {
         order.push({ type: "wine_club", duration: dur });
       } else if (t === "daily_specials" && specials && specials.length > 0) {
@@ -626,6 +718,8 @@ export default function NashobatvDisplay() {
       case "announcement": return <AnnouncementSlide announcements={announcements || []} />;
       case "photo_gallery": return <PhotoGallerySlide photos={photos || []} />;
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
+      case "food_menu": return <FoodMenuSlide />;
+      case "weather": return <WeatherSlide />;
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;
