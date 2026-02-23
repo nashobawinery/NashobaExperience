@@ -490,10 +490,10 @@ function SchedulePanel() {
                           <div className="min-w-0">
                             <h4 className="font-semibold truncate" data-testid={`text-event-title-${ev.id}`}>{ev.title}</h4>
                             {musician && (
-                              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <span className="text-sm text-muted-foreground flex items-center gap-1">
                                 <Music className="w-3 h-3" /> {musician.name}
                                 {musician.genre && <Badge variant="outline" className="ml-1">{musician.genre}</Badge>}
-                              </p>
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">

@@ -373,28 +373,33 @@ export default function MusicCalendar() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <Button variant="outline" asChild data-testid="button-search-ascap">
-                    <a href="https://www.ascap.com/repertory" target="_blank" rel="noopener noreferrer">
-                      <Search className="h-4 w-4 mr-2" />
-                      Search ASCAP
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                  </Button>
-                  <Button variant="outline" asChild data-testid="button-search-bmi">
-                    <a href="https://repertoire.bmi.com/" target="_blank" rel="noopener noreferrer">
-                      <Search className="h-4 w-4 mr-2" />
-                      Search BMI
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                  </Button>
-                  <Button variant="outline" asChild data-testid="button-search-sesac">
-                    <a href="https://www.sesac.com/repertory/" target="_blank" rel="noopener noreferrer">
-                      <Search className="h-4 w-4 mr-2" />
-                      Search SESAC
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                  </Button>
+                <div className="space-y-3 pt-2">
+                  <div className="flex flex-wrap gap-3">
+                    <Button variant="outline" asChild data-testid="button-search-ascap">
+                      <a href="https://www.ascap.com/repertory" target="_blank" rel="noopener noreferrer">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Search ASCAP (Allowed)
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </Button>
+                    <Button variant="outline" asChild data-testid="button-search-bmi">
+                      <a href="https://repertoire.bmi.com/" target="_blank" rel="noopener noreferrer">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Search BMI (Allowed)
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </Button>
+                    <Button variant="destructive" asChild data-testid="button-search-sesac">
+                      <a href="https://www.sesac.com/repertory/" target="_blank" rel="noopener noreferrer">
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Search SESAC (NOT Allowed)
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </Button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Use the SESAC search to check if any of your songs are SESAC-only. If they are, those songs cannot be performed at our venue.
+                  </span>
                 </div>
               </CardContent>
             </Card>
