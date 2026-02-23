@@ -1437,6 +1437,97 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
     }
   });
 
+  // ============ MEDIA DATA SYNC TO PRODUCTION ============
+  app.post("/api/admin/sync-media-to-prod", isAdmin, async (req, res) => {
+    try {
+      const { prodDatabaseUrl, dryRun } = req.body;
+      if (!prodDatabaseUrl) {
+        return res.status(400).json({ message: "Production database URL is required" });
+      }
+
+      const { Pool } = await import('@neondatabase/serverless');
+      const prodPool = new Pool({ connectionString: prodDatabaseUrl, connectionTimeoutMillis: 10000 });
+      const prodClient = await prodPool.connect();
+
+      const results: { table: string; inserted: number; skipped: number; errors: string[] }[] = [];
+
+      try {
+        const devMusicians = await db.execute(sql`SELECT * FROM media_musicians ORDER BY id`);
+        let musicianInserted = 0, musicianSkipped = 0;
+        const musicianErrors: string[] = [];
+        const musicianIdMap = new Map<number, number>();
+
+        for (const m of devMusicians.rows as any[]) {
+          const existing = await prodClient.query(`SELECT id FROM media_musicians WHERE name = $1`, [m.name]);
+          if (existing.rows.length > 0) {
+            musicianIdMap.set(m.id, existing.rows[0].id);
+            musicianSkipped++;
+            continue;
+          }
+          if (!dryRun) {
+            const result = await prodClient.query(
+              `INSERT INTO media_musicians (name, genre, bio, image_url, website_url, contact_email, contact_phone, is_approved, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+              [m.name, m.genre, m.bio, m.image_url, m.website_url, m.contact_email, m.contact_phone, m.is_approved, m.is_active]
+            );
+            musicianIdMap.set(m.id, result.rows[0].id);
+          }
+          musicianInserted++;
+        }
+        results.push({ table: 'media_musicians', inserted: musicianInserted, skipped: musicianSkipped, errors: musicianErrors });
+
+        const devMusicEvents = await db.execute(sql`SELECT * FROM media_music_events ORDER BY id`);
+        let eventInserted = 0, eventSkipped = 0;
+        const eventErrors: string[] = [];
+
+        for (const e of devMusicEvents.rows as any[]) {
+          const existing = await prodClient.query(
+            `SELECT id FROM media_music_events WHERE title = $1 AND event_date = $2`,
+            [e.title, e.event_date]
+          );
+          if (existing.rows.length > 0) { eventSkipped++; continue; }
+          const prodMusicianId = e.musician_id ? musicianIdMap.get(e.musician_id) || null : null;
+          if (!dryRun) {
+            await prodClient.query(
+              `INSERT INTO media_music_events (musician_id, title, event_date, start_time, end_time, location, description, image_url, is_active, is_featured) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [prodMusicianId, e.title, e.event_date, e.start_time, e.end_time, e.location, e.description, e.image_url, e.is_active, e.is_featured]
+            );
+          }
+          eventInserted++;
+        }
+        results.push({ table: 'media_music_events', inserted: eventInserted, skipped: eventSkipped, errors: eventErrors });
+
+        const devSpecialEvents = await db.execute(sql`SELECT * FROM media_special_events ORDER BY id`);
+        let specialInserted = 0, specialSkipped = 0;
+        const specialErrors: string[] = [];
+
+        for (const s of devSpecialEvents.rows as any[]) {
+          const existing = await prodClient.query(
+            `SELECT id FROM media_special_events WHERE title = $1 AND event_date = $2`,
+            [s.title, s.event_date]
+          );
+          if (existing.rows.length > 0) { specialSkipped++; continue; }
+          if (!dryRun) {
+            await prodClient.query(
+              `INSERT INTO media_special_events (title, description, event_date, start_time, end_time, location, image_url, price, shopify_url, category, is_active, is_featured) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+              [s.title, s.description, s.event_date, s.start_time, s.end_time, s.location, s.image_url, s.price, s.shopify_url, s.category, s.is_active, s.is_featured]
+            );
+          }
+          specialInserted++;
+        }
+        results.push({ table: 'media_special_events', inserted: specialInserted, skipped: specialSkipped, errors: specialErrors });
+
+      } finally {
+        prodClient.release();
+        await prodPool.end();
+      }
+
+      res.json({ success: true, dryRun: !!dryRun, results });
+    } catch (error: any) {
+      console.error("Error syncing media to production:", error);
+      res.status(500).json({ message: error.message || "Media sync failed" });
+    }
+  });
+
   // ============ BIDIRECTIONAL SYNC API ============
   
   // Test connection to production database

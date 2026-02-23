@@ -57,7 +57,8 @@ import {
   Calendar,
   BookOpen,
   Table,
-  Workflow
+  Workflow,
+  Music
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -404,6 +405,114 @@ function SchemaPushCard({ prodDbUrl }: { prodDbUrl?: string }) {
               )}
             </AlertDescription>
           </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MediaSyncCard({ prodDbUrl }: { prodDbUrl?: string }) {
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isDryRun, setIsDryRun] = useState(false);
+  const [result, setResult] = useState<{
+    success: boolean;
+    dryRun: boolean;
+    results: { table: string; inserted: number; skipped: number; errors: string[] }[];
+  } | null>(null);
+
+  const handleSync = async (dryRun: boolean) => {
+    if (!prodDbUrl) {
+      toast({ title: "Not Connected", description: "Connect to production database first.", variant: "destructive" });
+      return;
+    }
+    dryRun ? setIsDryRun(true) : setIsSyncing(true);
+    setResult(null);
+    try {
+      const response = await apiRequest('POST', '/api/admin/sync-media-to-prod', { prodDatabaseUrl: prodDbUrl, dryRun });
+      const data = await response.json();
+      setResult(data);
+      const totalInserted = data.results.reduce((s: number, r: any) => s + r.inserted, 0);
+      const totalSkipped = data.results.reduce((s: number, r: any) => s + r.skipped, 0);
+      toast({
+        title: dryRun ? "Dry Run Complete" : "Media Sync Complete",
+        description: `${totalInserted} records to sync, ${totalSkipped} already exist.`,
+      });
+    } catch (error: any) {
+      toast({ title: "Sync Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+      setIsDryRun(false);
+    }
+  };
+
+  return (
+    <Card className="border-primary/50">
+      <CardHeader className="py-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Music className="h-4 w-4" />
+          Sync Music & Events to Production
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Push musicians, music schedule, and special events data from development to production.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="py-3 pt-0 space-y-3">
+        <Alert variant="default" className="py-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Syncs 3 tables: musicians, music events, and special events. 
+            Existing records (matched by name + date) are skipped. Musician IDs are remapped automatically.
+          </AlertDescription>
+        </Alert>
+        
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => handleSync(true)} 
+            disabled={isDryRun || isSyncing || !prodDbUrl}
+            variant="outline"
+            className="flex-1"
+            data-testid="button-media-sync-preview"
+          >
+            {isDryRun ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking...</>
+            ) : (
+              <><Eye className="h-4 w-4 mr-2" /> Preview</>
+            )}
+          </Button>
+          <Button 
+            onClick={() => handleSync(false)} 
+            disabled={isDryRun || isSyncing || !prodDbUrl}
+            className="flex-1"
+            data-testid="button-media-sync-apply"
+          >
+            {isSyncing ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Syncing...</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" /> Sync Now</>
+            )}
+          </Button>
+        </div>
+
+        {result && (
+          <div className="space-y-2">
+            <Alert variant={result.success ? "default" : "destructive"} className="py-2">
+              {result.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              <AlertDescription className="text-xs">
+                {result.dryRun ? "Preview (no changes made)" : "Sync completed"}
+              </AlertDescription>
+            </Alert>
+            {result.results.map((r) => (
+              <div key={r.table} className="text-xs flex items-center justify-between border rounded-md px-3 py-2">
+                <span className="font-medium">{r.table}</span>
+                <span className="text-muted-foreground">
+                  {r.inserted > 0 && <span className="text-green-600 mr-2">{r.inserted} to insert</span>}
+                  {r.skipped > 0 && <span>{r.skipped} exist</span>}
+                  {r.inserted === 0 && r.skipped === 0 && "empty"}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -1678,6 +1787,9 @@ export default function DatabaseSync() {
 
           {/* Schema Push Section */}
           <SchemaPushCard prodDbUrl={prodDbUrl} />
+
+          {/* Media Data Sync Section */}
+          <MediaSyncCard prodDbUrl={prodDbUrl} />
 
           {!isConnected ? (
             <Card>
