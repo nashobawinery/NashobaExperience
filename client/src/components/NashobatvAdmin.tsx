@@ -130,7 +130,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
 };
 
 const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
-  welcome: "Auto-generated welcome message for Nashoba Valley.",
+  welcome: "Welcome screen with logo, time, and customizable message below.",
   events_today: "Pulls from the Events tab. Only shows when today has events.",
   wine_list: "Pulls from the product catalog (wines & beverages).",
   food_menu: "Displays farm-to-table dining highlights.",
@@ -1277,8 +1277,18 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
     enabled: setting.slideType === "trivia",
   });
 
-  const triviaConfig = (setting.configData as { selectedQuestionId?: string } | null) || {};
-  const selectedQuestionId = triviaConfig.selectedQuestionId || "auto";
+  const configData = (setting.configData as Record<string, any> | null) || {};
+  const selectedQuestionId = configData.selectedQuestionId || "auto";
+  const welcomeMessage = configData.customMessage || "";
+  const [localWelcomeMsg, setLocalWelcomeMsg] = useState(welcomeMessage);
+
+  useEffect(() => {
+    setLocalWelcomeMsg(welcomeMessage);
+  }, [welcomeMessage]);
+
+  const saveWelcomeMessage = useCallback((msg: string) => {
+    onUpdate(setting.id, { configData: { ...configData, customMessage: msg || undefined } });
+  }, [setting.id, configData, onUpdate]);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -1325,6 +1335,33 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
           </div>
         </div>
 
+        {setting.slideType === "welcome" && (
+          <div className="mt-3 pt-3 border-t">
+            <div className="bg-muted/50 rounded-md p-3 space-y-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold">Custom Message</Label>
+                <p className="text-xs text-muted-foreground">
+                  Replace the default tagline with your own message. Leave empty to use the default.
+                </p>
+              </div>
+              <Textarea
+                value={localWelcomeMsg}
+                onChange={(e) => setLocalWelcomeMsg(e.target.value)}
+                onBlur={() => saveWelcomeMessage(localWelcomeMsg)}
+                placeholder="Award-winning farm committed to producing premium, handcrafted wines and spirits"
+                rows={2}
+                className="text-sm"
+                data-testid="input-welcome-custom-message"
+              />
+              <p className="text-xs text-muted-foreground">
+                {localWelcomeMsg
+                  ? "Custom message set — this will appear on the Welcome Screen."
+                  : "Using default message. Type something above to customize it."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {setting.slideType === "trivia" && (
           <div className="mt-3 pt-3 border-t">
             <div className="bg-muted/50 rounded-md p-3 space-y-3">
@@ -1336,7 +1373,7 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
               </div>
               <Select
                 value={selectedQuestionId}
-                onValueChange={(v) => onUpdate(setting.id, { configData: { selectedQuestionId: v } })}
+                onValueChange={(v) => onUpdate(setting.id, { configData: { ...configData, selectedQuestionId: v } })}
               >
                 <SelectTrigger className="w-full" data-testid="select-trivia-question">
                   <SelectValue placeholder="Auto (Random)" />

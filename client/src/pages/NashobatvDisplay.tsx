@@ -116,10 +116,12 @@ function Divider({ className = "" }: { className?: string }) {
   );
 }
 
-function WelcomeSlide() {
+function WelcomeSlide({ customMessage }: { customMessage?: string }) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  const tagline = customMessage || "Award-winning farm committed to producing premium, handcrafted wines and spirits";
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-16" data-testid="slide-welcome">
@@ -138,7 +140,7 @@ function WelcomeSlide() {
         Winery &middot; Distillery &middot; Brewery &middot; Restaurant
       </p>
       <p className="text-xl max-w-3xl leading-relaxed mb-10 italic" style={{ color: "#F5F0E8AA", fontFamily: "Georgia, serif" }}>
-        Award-winning farm committed to producing premium, handcrafted wines and spirits
+        {tagline}
       </p>
       <Divider className="w-64 mb-8" />
       <div className="flex items-center gap-6 text-xl" style={{ color: "#F5F0E8" }}>
@@ -971,7 +973,8 @@ export default function NashobatvDisplay() {
       const dur = setting.duration;
 
       if (t === "welcome") {
-        order.push({ type: "welcome", duration: dur });
+        const welcomeConfig = setting.configData as { customMessage?: string } | null;
+        order.push({ type: "welcome", duration: dur, data: welcomeConfig });
       } else if (t === "events_today" && todayEvents && todayEvents.length > 0) {
         order.push({ type: "events_today", duration: dur });
       } else if (t === "wine_list" && wines && wines.filter((w) => ["wine", "canned_wine"].includes(w.category || "")).length > 0) {
@@ -1059,7 +1062,7 @@ export default function NashobatvDisplay() {
   const renderSlide = () => {
     if (!current) return <WelcomeSlide />;
     switch (current.type) {
-      case "welcome": return <WelcomeSlide />;
+      case "welcome": return <WelcomeSlide customMessage={(current.data as any)?.customMessage} />;
       case "events_today": return <EventsTodaySlide events={todayEvents || []} />;
       case "upcoming_events": return <UpcomingEventsSlide events={upcomingEvents || []} />;
       case "wine_list": return <WineListSlide wines={wines || []} />;
