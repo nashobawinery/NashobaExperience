@@ -6,7 +6,6 @@ import NashobatvAdmin from "@/components/NashobatvAdmin";
 import ToastMenuPrinter from "@/components/ToastMenuPrinter";
 import MusicManager from "@/components/MusicManager";
 import SpecialEventsManager from "@/components/SpecialEventsManager";
-import EventFlyerPrinter from "@/components/EventFlyerPrinter";
 import ShelfTalkerPrinter from "@/components/ShelfTalkerPrinter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,6 @@ import {
   CalendarDays,
   Music,
   Tag,
-  FileText,
 } from "lucide-react";
 
 interface Channel {
@@ -58,8 +56,7 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "flyer-printer" | "shelf-talkers">("nashobatv");
-  const [flyerMode, setFlyerMode] = useState<"music" | "events">("music");
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "shelf-talkers">("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -271,15 +268,6 @@ export default function MediaCenter() {
           Special Events
         </Button>
         <Button
-          variant={activeSection === "flyer-printer" ? "default" : "ghost"}
-          onClick={() => setActiveSection("flyer-printer")}
-          className="flex items-center gap-2"
-          data-testid="button-section-flyer-printer"
-        >
-          <FileText className="w-4 h-4" />
-          Flyer Printer
-        </Button>
-        <Button
           variant={activeSection === "shelf-talkers" ? "default" : "ghost"}
           onClick={() => setActiveSection("shelf-talkers")}
           className="flex items-center gap-2"
@@ -300,34 +288,6 @@ export default function MediaCenter() {
 
       {activeSection === "special-events" && (
         <SpecialEventsManager />
-      )}
-
-      {activeSection === "flyer-printer" && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 border-b pb-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFlyerMode("music")}
-              className={flyerMode === "music" ? "toggle-elevate toggle-elevated" : ""}
-              data-testid="button-flyer-music"
-            >
-              <Music className="w-4 h-4 mr-1" />
-              Music Lineup
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFlyerMode("events")}
-              className={flyerMode === "events" ? "toggle-elevate toggle-elevated" : ""}
-              data-testid="button-flyer-events"
-            >
-              <CalendarDays className="w-4 h-4 mr-1" />
-              Events
-            </Button>
-          </div>
-          <EventFlyerPrinter mode={flyerMode} />
-        </div>
       )}
 
       {activeSection === "shelf-talkers" && (

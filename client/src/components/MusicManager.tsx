@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
-import EventFlyerPrinter, { type FlyerEvent } from "./EventFlyerPrinter";
+import EventFlyerPrinter from "./EventFlyerPrinter";
 
 function formatTime12(time24: string | null | undefined): string {
   if (!time24) return "";
@@ -52,7 +52,7 @@ export default function MusicManager() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-3xl">
           <TabsTrigger value="musicians" className="flex items-center gap-2" data-testid="tab-musicians">
             <Users className="h-4 w-4" /> Musicians
           </TabsTrigger>
@@ -61,6 +61,9 @@ export default function MusicManager() {
           </TabsTrigger>
           <TabsTrigger value="submissions" className="flex items-center gap-2" data-testid="tab-submissions">
             <FileText className="h-4 w-4" /> Submissions
+          </TabsTrigger>
+          <TabsTrigger value="flyer" className="flex items-center gap-2" data-testid="tab-music-flyer">
+            <Printer className="h-4 w-4" /> Flyer Printer
           </TabsTrigger>
           <TabsTrigger value="links" className="flex items-center gap-2" data-testid="tab-links">
             <Link className="h-4 w-4" /> Links
@@ -77,6 +80,10 @@ export default function MusicManager() {
 
         <TabsContent value="submissions" className="mt-6">
           <SubmissionsPanel />
+        </TabsContent>
+
+        <TabsContent value="flyer" className="mt-6">
+          <EventFlyerPrinter mode="music" />
         </TabsContent>
 
         <TabsContent value="links" className="mt-6">

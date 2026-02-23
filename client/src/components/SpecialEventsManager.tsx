@@ -26,8 +26,10 @@ import {
   ListFilter,
   CalendarDays,
   Image,
+  Printer,
 } from "lucide-react";
 import type { SpecialEvent } from "@shared/schema";
+import EventFlyerPrinter from "./EventFlyerPrinter";
 
 const CATEGORY_LABELS: Record<string, string> = {
   workshop: "Workshop",
@@ -231,6 +233,9 @@ export default function SpecialEventsManager() {
             <TabsTrigger value="calendar" className="flex items-center gap-2" data-testid="tab-special-events-calendar">
               <Calendar className="h-4 w-4" /> Calendar
             </TabsTrigger>
+            <TabsTrigger value="flyer" className="flex items-center gap-2" data-testid="tab-events-flyer">
+              <Printer className="h-4 w-4" /> Flyer Printer
+            </TabsTrigger>
           </TabsList>
 
           {activeTab === "events" && (
@@ -370,6 +375,10 @@ export default function SpecialEventsManager() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="flyer" className="mt-6">
+          <EventFlyerPrinter mode="events" />
         </TabsContent>
       </Tabs>
 
