@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NashobatvAdmin from "@/components/NashobatvAdmin";
+import ToastMenuPrinter from "@/components/ToastMenuPrinter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import {
   Code,
   Copy,
   Check,
+  Printer,
 } from "lucide-react";
 
 interface Channel {
@@ -48,6 +50,7 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer">("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -197,29 +200,56 @@ export default function MediaCenter() {
             Media Center
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage NashobaTV channels and digital signage across all venues.
+            Digital signage, displays, and menu printing tools.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {selectedChannel && (
-            <Button
-              variant="outline"
-              onClick={() => window.open(`/display/${selectedChannel.slug}`, "_blank")}
-              data-testid="button-open-display"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              Open Display
-              <ExternalLink className="w-3 h-3 ml-1" />
+        {activeSection === "nashobatv" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {selectedChannel && (
+              <Button
+                variant="outline"
+                onClick={() => window.open(`/display/${selectedChannel.slug}`, "_blank")}
+                data-testid="button-open-display"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Open Display
+                <ExternalLink className="w-3 h-3 ml-1" />
+              </Button>
+            )}
+            <Button onClick={openCreate} data-testid="button-create-channel">
+              <Plus className="w-4 h-4 mr-2" />
+              New Channel
             </Button>
-          )}
-          <Button onClick={openCreate} data-testid="button-create-channel">
-            <Plus className="w-4 h-4 mr-2" />
-            New Channel
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {(!channels || channels.length === 0) ? (
+      <div className="flex items-center gap-2 border-b pb-1">
+        <Button
+          variant={activeSection === "nashobatv" ? "default" : "ghost"}
+          onClick={() => setActiveSection("nashobatv")}
+          className="flex items-center gap-2"
+          data-testid="button-section-nashobatv"
+        >
+          <Tv className="w-4 h-4" />
+          NashobaTV
+        </Button>
+        <Button
+          variant={activeSection === "menu-printer" ? "default" : "ghost"}
+          onClick={() => setActiveSection("menu-printer")}
+          className="flex items-center gap-2"
+          data-testid="button-section-menu-printer"
+        >
+          <Printer className="w-4 h-4" />
+          Menu Printer
+        </Button>
+      </div>
+
+      {activeSection === "menu-printer" && (
+        <ToastMenuPrinter testIdPrefix="mc" />
+      )}
+
+      {activeSection === "nashobatv" && ((!channels || channels.length === 0) ? (
         <Card className="p-8 text-center">
           <Tv className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No Channels Yet</h3>
@@ -311,7 +341,8 @@ export default function MediaCenter() {
             <NashobatvAdmin channelId={selectedChannel.id} channelSlug={selectedChannel.slug} />
           )}
         </>
-      )}
+      ))}
+
 
       <Dialog open={showCreateDialog || !!editChannel} onOpenChange={(v) => { if (!v) { setShowCreateDialog(false); setEditChannel(null); resetForm(); } }}>
         <DialogContent>
