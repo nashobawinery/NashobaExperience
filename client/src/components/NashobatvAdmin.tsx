@@ -248,7 +248,10 @@ function SlidesManager({ channelId }: { channelId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-lg font-semibold">Custom Slides</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Custom Slides</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Create your own slides with custom text and images. To enable/disable built-in slides (trivia, weather, history, etc.), use the Settings tab.</p>
+        </div>
         <Button onClick={openCreate} data-testid="button-add-slide">
           <Plus className="w-4 h-4 mr-2" />
           Add Slide
@@ -1437,7 +1440,7 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
         <div>
           <h3 className="text-lg font-semibold">Display Settings</h3>
           <p className="text-sm text-muted-foreground">
-            Drag to reorder, toggle on/off, and set duration for each slide type. {enabledCount} of {sortedSettings.length} slide types enabled.
+            All built-in slide types are listed below. Toggle each on/off, set duration, drag to reorder, and configure options (like trivia question selection). {enabledCount} of {sortedSettings.length} enabled.
           </p>
         </div>
         <Button variant="outline" onClick={() => window.open(`/display/${channelSlug}`, "_blank")} data-testid="button-preview-display">
