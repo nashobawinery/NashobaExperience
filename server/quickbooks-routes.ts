@@ -413,7 +413,7 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
     }
 
     const packagingPatterns = [
-      /packaged$/i,
+      /\bpackage[d]?$/i,
       /^packaging\b/i,
       /\bpackaging$/i,
       /^shipping\b/i,
