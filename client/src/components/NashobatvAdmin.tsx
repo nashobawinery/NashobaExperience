@@ -228,6 +228,7 @@ function SlidesManager({ channelId }: { channelId: number }) {
   const handleSubmit = () => {
     const payload = {
       ...formData,
+      slideType: "custom",
       subtitle: formData.subtitle || null,
       bodyText: formData.bodyText || null,
       backgroundImageUrl: formData.backgroundImageUrl || null,
@@ -301,16 +302,10 @@ function SlidesManager({ channelId }: { channelId: number }) {
             <DialogDescription>Configure the slide content and display settings.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
+            <input type="hidden" value="custom" />
+            <div className="space-y-1">
               <Label>Slide Type</Label>
-              <Select value={formData.slideType} onValueChange={(v) => setFormData({ ...formData, slideType: v })}>
-                <SelectTrigger data-testid="select-slide-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SLIDE_TYPE_LABELS).map(([val, label]) => (
-                    <SelectItem key={val} value={val}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-sm text-muted-foreground">Custom Slide</p>
             </div>
             <div className="space-y-2">
               <Label>Title</Label>
