@@ -1539,6 +1539,7 @@ function DailyRevenueRow({
   isSyncingShopify: boolean;
   isSyncingWholesale: boolean;
 }) {
+  const { toast } = useToast();
   const [toastRev, setToastRev] = useState(entry?.toastRevenue || "");
   const [shopifyRev, setShopifyRev] = useState(entry?.shopifyRevenue || "");
   const [otherRev, setOtherRev] = useState(entry?.otherRevenue || "");
@@ -1590,6 +1591,22 @@ function DailyRevenueRow({
   const sortedDiscountGroups = Object.entries(discountsByName).sort(
     ([, a], [, b]) => b.total - a.total
   );
+
+  const syncDetailMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/revenue-detail/sync-detail", { date: day.date, source: "toast" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/revenue-detail/voids-discounts", day.date] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rcc/daily-revenue"] });
+      toast({ title: "Detail synced", description: `Discount & void details refreshed for ${day.date}` });
+    },
+    onError: () => {
+      toast({ title: "Sync failed", description: "Could not fetch discount details from Toast", variant: "destructive" });
+    },
+  });
+
   const hd = new Holidays('US');
   const holidays = hd.isHoliday(new Date(day.date + 'T12:00:00'));
   const holidayName = Array.isArray(holidays) ? holidays.map(h => h.name).join(', ') : null;
@@ -1793,7 +1810,18 @@ function DailyRevenueRow({
                             </div>
                           </div>
                         )) : (
-                          <p className="text-[11px] text-muted-foreground pl-2">No discount details available</p>
+                          <div className="flex items-center gap-2 pl-2 flex-wrap">
+                            <p className="text-[11px] text-muted-foreground">No discount details available</p>
+                            <button
+                              className="text-[11px] text-primary hover-elevate px-1.5 py-0.5 rounded-md flex items-center gap-1"
+                              onClick={() => syncDetailMutation.mutate()}
+                              disabled={syncDetailMutation.isPending}
+                              data-testid={`button-sync-discount-detail-${day.date}`}
+                            >
+                              <RefreshCw className={`h-3 w-3 ${syncDetailMutation.isPending ? 'animate-spin' : ''}`} />
+                              {syncDetailMutation.isPending ? "Syncing..." : "Sync from Toast"}
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1846,7 +1874,18 @@ function DailyRevenueRow({
                             )}
                           </div>
                         )) : (
-                          <p className="text-[11px] text-muted-foreground pl-2">No void details available</p>
+                          <div className="flex items-center gap-2 pl-2 flex-wrap">
+                            <p className="text-[11px] text-muted-foreground">No void details available</p>
+                            <button
+                              className="text-[11px] text-primary hover-elevate px-1.5 py-0.5 rounded-md flex items-center gap-1"
+                              onClick={() => syncDetailMutation.mutate()}
+                              disabled={syncDetailMutation.isPending}
+                              data-testid={`button-sync-void-detail-${day.date}`}
+                            >
+                              <RefreshCw className={`h-3 w-3 ${syncDetailMutation.isPending ? 'animate-spin' : ''}`} />
+                              {syncDetailMutation.isPending ? "Syncing..." : "Sync from Toast"}
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
