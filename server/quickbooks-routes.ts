@@ -412,13 +412,47 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
       console.log(`[QB Item Sync] Removed ${staleIds.length} stale items not found on invoices`);
     }
 
+    const packagingPatterns = [
+      /packaged$/i,
+      /^packaging\b/i,
+      /\bpackaging$/i,
+      /^shipping\b/i,
+      /^freight\b/i,
+      /^delivery\s*(fee|charge)?$/i,
+    ];
+    function isPackagingItem(name: string): boolean {
+      return packagingPatterns.some(p => p.test(name.trim()));
+    }
+
     const existingProducts = await db.select().from(products);
     const existingMaps = await db.select().from(qbItemMap);
 
     let newMapped = 0;
+    let autoIgnored = 0;
     for (const qbItem of qbItems) {
       const existing = existingMaps.find(m => m.qbItemId === String(qbItem.Id));
-      if (existing) continue;
+      if (existing) {
+        if (!existing.isIgnored && isPackagingItem(existing.qbItemName) && !existing.productId) {
+          await db.update(qbItemMap).set({ isIgnored: true }).where(eq(qbItemMap.id, existing.id));
+          autoIgnored++;
+        }
+        continue;
+      }
+
+      const itemName = qbItem.Name || qbItem.FullyQualifiedName || "Unknown";
+      const shouldIgnore = isPackagingItem(itemName);
+
+      if (shouldIgnore) {
+        await db.insert(qbItemMap).values({
+          qbItemId: String(qbItem.Id),
+          qbItemName: itemName,
+          productId: null,
+          isAutoMatched: false,
+          isIgnored: true,
+        });
+        autoIgnored++;
+        continue;
+      }
 
       const skuMatch = qbItem.Sku ? existingProducts.find(p => p.sku && p.sku.toLowerCase() === qbItem.Sku.toLowerCase()) : null;
       const nameMatch = !skuMatch ? existingProducts.find(p =>
@@ -428,14 +462,18 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
 
       await db.insert(qbItemMap).values({
         qbItemId: String(qbItem.Id),
-        qbItemName: qbItem.Name || qbItem.FullyQualifiedName || "Unknown",
+        qbItemName: itemName,
         productId: match?.id || null,
         isAutoMatched: !!match,
       });
       if (match) newMapped++;
     }
 
-    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length });
+    if (autoIgnored > 0) {
+      console.log(`[QB Item Sync] Auto-ignored ${autoIgnored} packaging/category items`);
+    }
+
+    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length, autoIgnored });
   } catch (error: any) {
     console.error("QB item sync error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });
