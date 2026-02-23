@@ -1935,8 +1935,6 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li><strong>Welcome Screen</strong> - Always available. Shows venue name and current time.</li>
                 <li><strong>Today's Events</strong> - Pulled from the <em>Events</em> tab. Only shows when events exist for today.</li>
-                <li><strong>Wine & Beverage List</strong> - Pulled from your product catalog. Splits into Wine and Craft Beverages slides automatically.</li>
-                <li><strong>Food Menu</strong> - Reserved for food menu display (enable when menu content is configured).</li>
                 <li><strong>Upcoming Events</strong> - Pulled from the <em>Events</em> tab. Shows future scheduled events.</li>
                 <li><strong>Photo Gallery</strong> - Pulled from the <em>Photos</em> tab. Only shows when photos have been uploaded.</li>
                 <li><strong>Announcements</strong> - Pulled from the <em>Announcements</em> tab. Only shows when active announcements exist.</li>
