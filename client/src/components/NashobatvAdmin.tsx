@@ -1,4 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1202,9 +1205,88 @@ function SpecialsManager() {
   );
 }
 
+function SortableSettingCard({ setting, onUpdate, isPending }: {
+  setting: DisplaySetting;
+  onUpdate: (id: number, data: any) => void;
+  isPending: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: setting.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={`p-4 ${isDragging ? "shadow-lg" : ""}`}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <button
+              type="button"
+              className="cursor-grab active:cursor-grabbing p-1 rounded hover-elevate touch-none"
+              {...attributes}
+              {...listeners}
+              data-testid={`drag-handle-${setting.slideType}`}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-medium">{SLIDE_TYPE_LABELS[setting.slideType] || setting.slideType}</p>
+                <Badge variant={setting.isEnabled ? "default" : "secondary"}>
+                  {setting.isEnabled ? "On" : "Off"}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Position {setting.sortOrder}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Duration (s)</Label>
+              <Input
+                type="number"
+                min={3}
+                max={120}
+                value={setting.duration}
+                onChange={(e) => onUpdate(setting.id, { duration: parseInt(e.target.value) || 12 })}
+                className="w-20"
+                data-testid={`input-setting-duration-${setting.slideType}`}
+              />
+            </div>
+            <Switch
+              checked={setting.isEnabled}
+              onCheckedChange={(v) => onUpdate(setting.id, { isEnabled: v })}
+              data-testid={`switch-setting-${setting.slideType}`}
+            />
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function DisplaySettingsManager() {
   const { toast } = useToast();
-  const { data: settings, isLoading } = useQuery<DisplaySetting[]>({ queryKey: ["/api/nashobatv/display-settings"] });
+  const { data: settings, isLoading: settingsLoading } = useQuery<DisplaySetting[]>({ queryKey: ["/api/nashobatv/display-settings"] });
+  const { data: slides } = useQuery<Slide[]>({ queryKey: ["/api/nashobatv/slides"] });
+  const [localOrder, setLocalOrder] = useState<DisplaySetting[] | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const sortedSettings = useMemo(() => {
+    if (localOrder) return localOrder;
+    if (!settings) return [];
+    return [...settings].sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [settings, localOrder]);
+
+  const customSlideCount = useMemo(() => {
+    return slides?.filter(s => s.isActive && s.slideType === "custom").length || 0;
+  }, [slides]);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -1213,18 +1295,64 @@ function DisplaySettingsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/display-settings"] });
-      toast({ title: "Settings updated" });
     },
   });
 
-  if (isLoading) return <Skeleton className="h-48 w-full" />;
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (updatedSettings: { id: number; sortOrder: number; isEnabled: boolean; duration: number }[]) => {
+      const res = await apiRequest("PUT", "/api/nashobatv/display-settings/bulk", { settings: updatedSettings });
+      return res.json();
+    },
+    onSuccess: () => {
+      setLocalOrder(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/display-settings"] });
+      toast({ title: "Display order updated" });
+    },
+    onError: () => {
+      setLocalOrder(null);
+      toast({ title: "Failed to update order", variant: "destructive" });
+    },
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !sortedSettings.length) return;
+
+    const oldIndex = sortedSettings.findIndex(s => s.id === active.id);
+    const newIndex = sortedSettings.findIndex(s => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sortedSettings, oldIndex, newIndex).map((s, i) => ({
+      ...s,
+      sortOrder: i + 1,
+    }));
+    setLocalOrder(reordered);
+
+    const updates = reordered.map((s) => ({
+      id: s.id,
+      sortOrder: s.sortOrder,
+      isEnabled: s.isEnabled,
+      duration: s.duration,
+    }));
+    bulkUpdateMutation.mutate(updates);
+  };
+
+  const handleUpdate = (id: number, data: any) => {
+    updateMutation.mutate({ id, data });
+  };
+
+  if (settingsLoading) return <Skeleton className="h-48 w-full" />;
+
+  const enabledCount = sortedSettings.filter(s => s.isEnabled).length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="text-lg font-semibold">Display Settings</h3>
-          <p className="text-sm text-muted-foreground">Control which slides appear and their duration on the TV display.</p>
+          <p className="text-sm text-muted-foreground">
+            Drag to reorder, toggle on/off, and set duration for each slide type. {enabledCount} of {sortedSettings.length} slide types enabled.
+          </p>
         </div>
         <Button variant="outline" onClick={() => window.open("/display", "_blank")} data-testid="button-preview-display">
           <Eye className="w-4 h-4 mr-2" />
@@ -1233,40 +1361,28 @@ function DisplaySettingsManager() {
         </Button>
       </div>
 
-      <div className="space-y-3">
-        {settings?.map((s) => (
-          <Card key={s.id} className="p-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium">{SLIDE_TYPE_LABELS[s.slideType] || s.slideType}</p>
-                  <p className="text-xs text-muted-foreground">Duration: {s.duration}s | Order: {s.sortOrder}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Duration</Label>
-                  <Input
-                    type="number"
-                    min={3}
-                    max={120}
-                    value={s.duration}
-                    onChange={(e) => updateMutation.mutate({ id: s.id, data: { duration: parseInt(e.target.value) || 12 } })}
-                    className="w-20"
-                    data-testid={`input-setting-duration-${s.slideType}`}
-                  />
-                </div>
-                <Switch
-                  checked={s.isEnabled}
-                  onCheckedChange={(v) => updateMutation.mutate({ id: s.id, data: { isEnabled: v } })}
-                  data-testid={`switch-setting-${s.slideType}`}
-                />
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {customSlideCount > 0 && (
+        <Card className="p-3 bg-muted/50">
+          <p className="text-sm text-muted-foreground">
+            <strong>{customSlideCount}</strong> custom slide{customSlideCount !== 1 ? "s" : ""} active. Enable "Custom Slides" below to show them on the display. Manage custom slide content in the Slides tab.
+          </p>
+        </Card>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={sortedSettings.map(s => s.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {sortedSettings.map((s) => (
+              <SortableSettingCard
+                key={s.id}
+                setting={s}
+                onUpdate={handleUpdate}
+                isPending={updateMutation.isPending}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
