@@ -1174,6 +1174,16 @@ export async function seedPlatformModules(): Promise<void> {
       routePrefix: '/cellartraks',
       status: 'active',
       sortOrder: 7
+    },
+    {
+      moduleKey: 'media_center',
+      moduleName: 'Media Center',
+      description: 'Digital signage, menu printing, live music scheduling, and special events management',
+      icon: 'Tv',
+      color: 'bg-purple-500',
+      routePrefix: '/media-center',
+      status: 'active',
+      sortOrder: 18
     }
   ];
 
