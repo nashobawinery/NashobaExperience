@@ -38,8 +38,8 @@ router.get("/api/media/flyer/embed", async (req, res) => {
         FROM media_music_events me
         LEFT JOIN media_musicians m ON me.musician_id = m.id
         WHERE me.is_active = true
-          AND me.event_date >= CURRENT_DATE
-          AND me.event_date <= CURRENT_DATE + ${daysAhead}
+          AND me.event_date::date >= CURRENT_DATE
+          AND me.event_date::date <= CURRENT_DATE + ${daysAhead}
         ORDER BY me.event_date ASC
       `);
       events = result.rows as any[];
@@ -50,8 +50,8 @@ router.get("/api/media/flyer/embed", async (req, res) => {
           location, image_url, price, shopify_url, category, is_featured
         FROM media_special_events
         WHERE is_active = true
-          AND event_date >= CURRENT_DATE
-          AND event_date <= CURRENT_DATE + ${daysAhead}
+          AND event_date::date >= CURRENT_DATE
+          AND event_date::date <= CURRENT_DATE + ${daysAhead}
         ORDER BY event_date ASC
       `);
       events = result.rows as any[];
@@ -301,9 +301,10 @@ router.get("/api/media/shelf-talker/embed", async (req, res) => {
     if (ids && ids !== "all") {
       const idList = ids.split(",").map(id => id.trim()).filter(Boolean);
       if (idList.length > 0) {
+        const pgArray = `{${idList.map(id => `"${id}"`).join(",")}}`;
         const result = await db.execute(sql`
           SELECT * FROM products
-          WHERE id = ANY(${idList}::text[])
+          WHERE id = ANY(${pgArray}::text[])
             AND available = true
             AND is_archived = false
           ORDER BY category, name
