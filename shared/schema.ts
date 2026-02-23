@@ -5831,6 +5831,17 @@ export const nashobatvDisplaySettings = pgTable("nashobatv_display_settings", {
   duration: integer("duration").notNull().default(12),
   sortOrder: integer("sort_order").notNull().default(0),
   backgroundImageUrl: text("background_image_url"),
+  configData: jsonb("config_data"),
+});
+
+export const nashobatvHistoricalFacts = pgTable("nashobatv_historical_facts", {
+  id: serial("id").primaryKey(),
+  fact: text("fact").notNull(),
+  year: integer("year"),
+  month: integer("month"),
+  day: integer("day"),
+  category: text("category").notNull().default("winery"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const nashobatvDailySpecials = pgTable("nashobatv_daily_specials", {

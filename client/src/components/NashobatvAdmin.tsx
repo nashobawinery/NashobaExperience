@@ -110,6 +110,7 @@ interface DisplaySetting {
   duration: number;
   sortOrder: number;
   backgroundImageUrl: string | null;
+  configData: any;
 }
 
 const SLIDE_TYPE_LABELS: Record<string, string> = {
@@ -124,6 +125,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   wine_club: "Wine Club Promo",
   daily_specials: "Daily Specials",
   trivia: "Trivia Questions",
+  history: "Did You Know?",
   custom: "Custom Slides",
 };
 
@@ -1256,6 +1258,14 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
     zIndex: isDragging ? 50 : undefined,
   };
 
+  const { data: triviaQuestions } = useQuery<{ id: string; question: string }[]>({
+    queryKey: ["/api/public/display/trivia"],
+    enabled: setting.slideType === "trivia",
+  });
+
+  const triviaConfig = (setting.configData as { selectedQuestionId?: string } | null) || {};
+  const selectedQuestionId = triviaConfig.selectedQuestionId || "auto";
+
   return (
     <div ref={setNodeRef} style={style}>
       <Card className={`p-4 ${isDragging ? "shadow-lg" : ""}`}>
@@ -1300,6 +1310,31 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
             />
           </div>
         </div>
+
+        {setting.slideType === "trivia" && setting.isEnabled && (
+          <div className="mt-3 pt-3 border-t flex items-center gap-3 flex-wrap">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">Question</Label>
+            <Select
+              value={selectedQuestionId}
+              onValueChange={(v) => onUpdate(setting.id, { configData: { selectedQuestionId: v } })}
+            >
+              <SelectTrigger className="w-64" data-testid="select-trivia-question">
+                <SelectValue placeholder="Auto (Random)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto (Random each time)</SelectItem>
+                {triviaQuestions?.map((q) => (
+                  <SelectItem key={q.id} value={q.id}>
+                    {q.question.length > 60 ? q.question.slice(0, 60) + "..." : q.question}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedQuestionId === "auto" && (
+              <p className="text-xs text-muted-foreground">Randomly picks a different question each time this slide appears</p>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1458,7 +1493,8 @@ function DisplaySettingsManager({ channelId, channelSlug }: { channelId: number;
                 <li><strong>Weather</strong> - Displays current weather conditions for the venue area.</li>
                 <li><strong>Wine Club Promo</strong> - Always available. Promotes wine club membership.</li>
                 <li><strong>Daily Specials</strong> - Pulled from the <em>Specials</em> tab. Only shows when specials are active.</li>
-                <li><strong>Trivia Questions</strong> - Pulled from the Tasting Experience trivia bank. Shows questions with multiple choice answers, then reveals the answer with explanation. Cycles through all active questions.</li>
+                <li><strong>Trivia Questions</strong> - Pulled from the Tasting Experience trivia bank. Shows one question per slide with multiple choice answers, then reveals the answer with explanation. Set to "Auto" for a random question each time, or pick a specific question to always show.</li>
+                <li><strong>Did You Know?</strong> - Historical facts about Nashoba Valley Winery, J's Restaurant, the distillery, the brewery, and the farm. Shows a random fact each time with the year and "X Years Ago" context. Only shows when historical facts exist.</li>
                 <li><strong>Custom Slides</strong> - Pulled from the <em>Slides</em> tab. Create individual slides with custom title, text, and images. Each custom slide displays separately.</li>
               </ul>
             </div>

@@ -11,6 +11,7 @@ import {
   nashobatvDailySpecials,
   products,
   triviaQuestions,
+  nashobatvHistoricalFacts,
 } from "@shared/schema";
 import { objectStorageClient } from "./objectStorage";
 
@@ -40,7 +41,8 @@ const DEFAULT_DISPLAY_SETTINGS = [
   { slideType: "wine_club", isEnabled: true, duration: 12, sortOrder: 9 },
   { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 10 },
   { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 11 },
-  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 12 },
+  { slideType: "history", isEnabled: true, duration: 15, sortOrder: 12 },
+  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 13 },
 ];
 
 async function ensureDefaultChannel(): Promise<typeof nashobatvChannels.$inferSelect> {
@@ -400,6 +402,45 @@ router.get("/api/public/display/trivia", async (_req: Request, res: Response) =>
   }
 });
 
+router.get("/api/public/display/history", async (_req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
+    const allFacts = await db
+      .select()
+      .from(nashobatvHistoricalFacts)
+      .where(eq(nashobatvHistoricalFacts.isActive, true));
+
+    const relevantFacts = allFacts.filter((f) => {
+      if (f.month === currentMonth && f.day === currentDay) return true;
+      if (f.month === currentMonth && !f.day) return true;
+      if (!f.month && !f.day) return true;
+      return false;
+    });
+
+    const sorted = relevantFacts.sort((a, b) => {
+      if (a.month === currentMonth && a.day === currentDay) return -1;
+      if (b.month === currentMonth && b.day === currentDay) return 1;
+      if (a.month === currentMonth && !a.day) return -1;
+      if (b.month === currentMonth && !b.day) return 1;
+      return Math.random() - 0.5;
+    });
+
+    res.json(sorted.map((f) => ({
+      id: f.id,
+      fact: f.fact,
+      year: f.year,
+      month: f.month,
+      day: f.day,
+      category: f.category,
+    })));
+  } catch (error) {
+    console.error("Error fetching historical facts:", error);
+    res.status(500).json({ error: "Failed to fetch historical facts" });
+  }
+});
+
 // --- Slug-based public endpoints ---
 
 router.get("/api/public/display/:slug/settings", async (req: Request, res: Response) => {
@@ -610,6 +651,45 @@ router.get("/api/public/display/:slug/weather", async (_req: Request, res: Respo
   } catch (error) {
     console.error("Error fetching weather for display:", error);
     res.status(500).json({ error: "Failed to fetch weather" });
+  }
+});
+
+router.get("/api/public/display/:slug/history", async (_req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
+    const allFacts = await db
+      .select()
+      .from(nashobatvHistoricalFacts)
+      .where(eq(nashobatvHistoricalFacts.isActive, true));
+
+    const relevantFacts = allFacts.filter((f) => {
+      if (f.month === currentMonth && f.day === currentDay) return true;
+      if (f.month === currentMonth && !f.day) return true;
+      if (!f.month && !f.day) return true;
+      return false;
+    });
+
+    const sorted = relevantFacts.sort((a, b) => {
+      if (a.month === currentMonth && a.day === currentDay) return -1;
+      if (b.month === currentMonth && b.day === currentDay) return 1;
+      if (a.month === currentMonth && !a.day) return -1;
+      if (b.month === currentMonth && !b.day) return 1;
+      return Math.random() - 0.5;
+    });
+
+    res.json(sorted.map((f) => ({
+      id: f.id,
+      fact: f.fact,
+      year: f.year,
+      month: f.month,
+      day: f.day,
+      category: f.category,
+    })));
+  } catch (error) {
+    console.error("Error fetching historical facts:", error);
+    res.status(500).json({ error: "Failed to fetch historical facts" });
   }
 });
 
@@ -919,7 +999,7 @@ router.put("/api/nashobatv/display-settings/bulk", requireAuth, async (req: Requ
     for (const s of settings) {
       const [updated] = await db
         .update(nashobatvDisplaySettings)
-        .set({ isEnabled: s.isEnabled, duration: s.duration, sortOrder: s.sortOrder })
+        .set({ isEnabled: s.isEnabled, duration: s.duration, sortOrder: s.sortOrder, configData: s.configData })
         .where(eq(nashobatvDisplaySettings.id, s.id))
         .returning();
       results.push(updated);

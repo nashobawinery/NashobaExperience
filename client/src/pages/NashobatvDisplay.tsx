@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle, Landmark } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -11,6 +11,7 @@ interface DisplaySettings {
   duration: number;
   sortOrder: number;
   backgroundImageUrl: string | null;
+  configData: any;
 }
 
 interface Slide {
@@ -646,30 +647,149 @@ interface TriviaQuestionData {
   explanation: string;
 }
 
-function TriviaSlide({ questions }: { questions: TriviaQuestionData[] | undefined }) {
-  const [questionIndex, setQuestionIndex] = useState(0);
+interface HistoricalFactData {
+  id: number;
+  fact: string;
+  year: number | null;
+  month: number | null;
+  day: number | null;
+  category: string;
+}
+
+const CATEGORY_ICONS: Record<string, { icon: typeof Wine; label: string }> = {
+  winery: { icon: Wine, label: "Winery" },
+  restaurant: { icon: UtensilsCrossed, label: "J's Restaurant" },
+  distillery: { icon: GlassWater, label: "Distillery" },
+  brewery: { icon: Beer, label: "Brewery" },
+  farm: { icon: Leaf, label: "The Farm" },
+};
+
+function HistorySlide({ facts }: { facts: HistoricalFactData[] | undefined }) {
+  const [currentFact, setCurrentFact] = useState<HistoricalFactData | null>(null);
+
+  useEffect(() => {
+    if (!facts || facts.length === 0) return;
+    setCurrentFact(facts[Math.floor(Math.random() * facts.length)]);
+  }, [facts]);
+
+  if (!currentFact || !facts || facts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-history">
+        <Landmark className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Our History
+        </h2>
+        <Divider className="w-64 mt-6" />
+      </div>
+    );
+  }
+
+  const catInfo = CATEGORY_ICONS[currentFact.category] || CATEGORY_ICONS.winery;
+  const CatIcon = catInfo.icon;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  const yearLabel = currentFact.year
+    ? currentYear - currentFact.year === 0
+      ? "This Year"
+      : `${currentYear - currentFact.year} Years Ago`
+    : null;
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const dateLabel = currentFact.month && currentFact.day
+    ? `${monthNames[currentFact.month - 1]} ${currentFact.day}`
+    : currentFact.month
+      ? monthNames[currentFact.month - 1]
+      : null;
+
+  return (
+    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-history">
+      <div className="flex items-center gap-4 mb-3">
+        <Landmark className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-4xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Did You Know?
+        </h2>
+      </div>
+      <Divider className="mb-8" />
+
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-5xl text-center"
+        >
+          {(yearLabel || dateLabel) && (
+            <div className="flex items-center justify-center gap-3 mb-8">
+              {currentFact.year && (
+                <span
+                  className="text-6xl font-bold"
+                  style={{ color: GOLD, fontFamily: "Georgia, serif" }}
+                >
+                  {currentFact.year}
+                </span>
+              )}
+              {yearLabel && (
+                <span
+                  className="text-2xl font-light px-4 py-1 rounded-full"
+                  style={{ color: GOLD_LIGHT, background: `${GOLD}15`, border: `1px solid ${GOLD}30` }}
+                >
+                  {yearLabel}
+                </span>
+              )}
+            </div>
+          )}
+
+          <p
+            className="text-4xl font-light leading-relaxed mb-10"
+            style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}
+          >
+            {currentFact.fact}
+          </p>
+
+          <div className="flex items-center justify-center gap-3">
+            <CatIcon className="w-6 h-6" style={{ color: `${GOLD}80` }} />
+            <span className="text-lg" style={{ color: `${GOLD}80` }}>{catInfo.label}</span>
+            {dateLabel && (
+              <>
+                <span style={{ color: `${GOLD}40` }}>|</span>
+                <Calendar className="w-5 h-5" style={{ color: `${GOLD}60` }} />
+                <span className="text-lg" style={{ color: `${GOLD}80` }}>{dateLabel}</span>
+              </>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function TriviaSlide({ questions, selectedQuestionId }: { questions: TriviaQuestionData[] | undefined; selectedQuestionId?: string }) {
   const [revealed, setRevealed] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const nextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const currentQuestion = questions?.[questionIndex % (questions?.length || 1)];
+  const [selectedQuestion, setSelectedQuestion] = useState<TriviaQuestionData | null>(null);
 
   useEffect(() => {
     if (!questions || questions.length === 0) return;
     setRevealed(false);
 
+    if (selectedQuestionId && selectedQuestionId !== "auto") {
+      const found = questions.find((q) => q.id === selectedQuestionId);
+      setSelectedQuestion(found || questions[Math.floor(Math.random() * questions.length)]);
+    } else {
+      setSelectedQuestion(questions[Math.floor(Math.random() * questions.length)]);
+    }
+
     revealTimerRef.current = setTimeout(() => {
       setRevealed(true);
-      nextTimerRef.current = setTimeout(() => {
-        setQuestionIndex((i) => (i + 1) % questions.length);
-      }, 5000);
     }, 8000);
 
     return () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-      if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
     };
-  }, [questionIndex, questions]);
+  }, [questions, selectedQuestionId]);
+
+  const currentQuestion = selectedQuestion;
 
   if (!currentQuestion || !questions || questions.length === 0) {
     return (
@@ -693,7 +813,7 @@ function TriviaSlide({ questions }: { questions: TriviaQuestionData[] | undefine
           Nashoba Valley Trivia
         </h2>
         <span className="ml-auto text-lg" style={{ color: "#F5F0E860" }}>
-          Question {(questionIndex % questions.length) + 1} of {questions.length}
+          {questions.length} questions
         </span>
       </div>
       <Divider className="mb-8" />
@@ -835,6 +955,12 @@ export default function NashobatvDisplay() {
     refetchInterval: 600000,
   });
 
+  const { data: historicalFacts } = useQuery<HistoricalFactData[]>({
+    queryKey: [apiBase, "history"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/history`); if (!r.ok) throw new Error("Failed"); return r.json(); },
+    refetchInterval: 3600000,
+  });
+
   const buildSlideOrder = useCallback(() => {
     if (!settings) return;
     const enabledSettings = settings.filter((s) => s.isEnabled).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -867,7 +993,10 @@ export default function NashobatvDisplay() {
       } else if (t === "wine_club") {
         order.push({ type: "wine_club", duration: dur });
       } else if (t === "trivia" && triviaQuestions && triviaQuestions.length > 0) {
-        order.push({ type: "trivia", duration: dur });
+        const triviaConfig = s.configData as { selectedQuestionId?: string } | null;
+        order.push({ type: "trivia", duration: dur, data: triviaConfig });
+      } else if (t === "history" && historicalFacts && historicalFacts.length > 0) {
+        order.push({ type: "history", duration: dur });
       } else if (t === "daily_specials" && specials && specials.length > 0) {
         order.push({ type: "daily_specials", duration: dur });
       } else if (t === "custom" && slides) {
@@ -882,7 +1011,7 @@ export default function NashobatvDisplay() {
     }
 
     setSlideOrder(order);
-  }, [settings, todayEvents, upcomingEvents, wines, announcements, photos, specials, slides, triviaQuestions]);
+  }, [settings, todayEvents, upcomingEvents, wines, announcements, photos, specials, slides, triviaQuestions, historicalFacts]);
 
   useEffect(() => {
     buildSlideOrder();
@@ -940,7 +1069,11 @@ export default function NashobatvDisplay() {
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
       case "food_menu": return <FoodMenuSlide />;
       case "weather": return <WeatherSlide weather={weather} />;
-      case "trivia": return <TriviaSlide questions={triviaQuestions} />;
+      case "trivia": {
+        const cfg = current.data as { selectedQuestionId?: string } | null;
+        return <TriviaSlide key={`trivia-${currentSlideIndex}-${Date.now()}`} questions={triviaQuestions} selectedQuestionId={cfg?.selectedQuestionId} />;
+      }
+      case "history": return <HistorySlide key={`history-${currentSlideIndex}-${Date.now()}`} facts={historicalFacts} />;
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;
