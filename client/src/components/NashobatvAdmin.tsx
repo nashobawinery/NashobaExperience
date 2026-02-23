@@ -161,7 +161,7 @@ const SLIDE_TYPE_DESCRIPTIONS: Record<string, string> = {
   wine_club: "Auto-generated wine club membership promotion.",
   daily_specials: "Pulls from the Specials tab. Only shows when active specials exist.",
   trivia: "Pulls from the Tasting Experience trivia bank.",
-  history: "Pulls from the History tab. Facts about the winery, restaurant, distillery, brewery, and farm.",
+  history: "Shows one selected fact at a time, randomly. Manage and select facts in the History tab.",
   custom: "Your own slides created in the Slides tab.",
 };
 
@@ -1361,7 +1361,9 @@ function HistoricalFactsManager() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="text-lg font-semibold">Historical Facts</h3>
-          <p className="text-sm text-muted-foreground">{activeCount} of {totalCount} facts active. These appear on the "Did You Know?" slide.</p>
+          <p className="text-sm text-muted-foreground">
+            {activeCount} of {totalCount} selected to show. Toggle facts on/off below — each selected fact is shown one at a time, randomly, on the "Did You Know?" slide. Turn the entire slide on or off in the Settings tab.
+          </p>
         </div>
         <Button onClick={openCreate} data-testid="button-add-fact"><Plus className="w-4 h-4 mr-2" />Add Fact</Button>
       </div>
@@ -1374,22 +1376,24 @@ function HistoricalFactsManager() {
       ) : (
         <div className="space-y-2">
           {facts.map((f) => (
-            <Card key={f.id} className={`p-4 ${!f.isActive ? "opacity-60" : ""}`}>
+            <Card key={f.id} className={`p-4 ${!f.isActive ? "opacity-50" : ""}`}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">{f.fact}</p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <Badge variant="outline">{FACT_CATEGORIES.find(c => c.value === f.category)?.label || f.category}</Badge>
-                    <span className="text-xs text-muted-foreground">{formatDate(f)}</span>
-                    {!f.isActive && <Badge variant="secondary">Inactive</Badge>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
                   <Switch
                     checked={f.isActive}
                     onCheckedChange={(v) => toggleActiveMutation.mutate({ id: f.id, isActive: v })}
+                    className="mt-0.5 shrink-0"
                     data-testid={`switch-fact-active-${f.id}`}
                   />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm">{f.fact}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <Badge variant="outline">{FACT_CATEGORIES.find(c => c.value === f.category)?.label || f.category}</Badge>
+                      <span className="text-xs text-muted-foreground">{formatDate(f)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
                   <Button size="icon" variant="ghost" onClick={() => openEdit(f)} data-testid={`button-edit-fact-${f.id}`}><Edit className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(f.id)} data-testid={`button-delete-fact-${f.id}`}><Trash2 className="w-4 h-4" /></Button>
                 </div>
