@@ -996,7 +996,7 @@ export default function NashobatvDisplay() {
       } else if (t === "wine_club") {
         order.push({ type: "wine_club", duration: dur });
       } else if (t === "trivia" && triviaQuestions && triviaQuestions.length > 0) {
-        const triviaConfig = s.configData as { selectedQuestionId?: string } | null;
+        const triviaConfig = setting.configData as { selectedQuestionId?: string } | null;
         order.push({ type: "trivia", duration: dur, data: triviaConfig });
       } else if (t === "history" && historicalFacts && historicalFacts.length > 0) {
         order.push({ type: "history", duration: dur });
