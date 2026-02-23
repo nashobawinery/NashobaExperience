@@ -1326,31 +1326,36 @@ function SortableSettingCard({ setting, onUpdate, isPending }: {
         </div>
 
         {setting.slideType === "trivia" && (
-          <div className="mt-3 pt-3 border-t space-y-2">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Label className="text-sm font-medium whitespace-nowrap">Question Selection</Label>
+          <div className="mt-3 pt-3 border-t">
+            <div className="bg-muted/50 rounded-md p-3 space-y-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold">Question Selection</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose whether to show a random question each time or always show a specific one.
+                </p>
+              </div>
               <Select
                 value={selectedQuestionId}
                 onValueChange={(v) => onUpdate(setting.id, { configData: { selectedQuestionId: v } })}
               >
-                <SelectTrigger className="w-72" data-testid="select-trivia-question">
+                <SelectTrigger className="w-full" data-testid="select-trivia-question">
                   <SelectValue placeholder="Auto (Random)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Auto (Random each time)</SelectItem>
                   {triviaQuestions?.map((q) => (
                     <SelectItem key={q.id} value={q.id}>
-                      {q.question.length > 60 ? q.question.slice(0, 60) + "..." : q.question}
+                      {q.question.length > 80 ? q.question.slice(0, 80) + "..." : q.question}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {selectedQuestionId === "auto"
+                  ? "Currently set to Auto — a different random question is shown each time this slide appears."
+                  : "Currently set to a specific question — this same question will show every time."}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {selectedQuestionId === "auto"
-                ? "A different random question is shown each time this slide appears in the rotation."
-                : "This specific question will be shown every time the trivia slide appears."}
-            </p>
           </div>
         )}
       </Card>
