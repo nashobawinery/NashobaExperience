@@ -10,6 +10,7 @@ import {
   nashobatvDisplaySettings,
   nashobatvDailySpecials,
   products,
+  triviaQuestions,
 } from "@shared/schema";
 import { objectStorageClient } from "./objectStorage";
 
@@ -38,7 +39,8 @@ const DEFAULT_DISPLAY_SETTINGS = [
   { slideType: "weather", isEnabled: false, duration: 8, sortOrder: 8 },
   { slideType: "wine_club", isEnabled: true, duration: 12, sortOrder: 9 },
   { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 10 },
-  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 11 },
+  { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 11 },
+  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 12 },
 ];
 
 async function ensureDefaultChannel(): Promise<typeof nashobatvChannels.$inferSelect> {
@@ -378,6 +380,26 @@ router.get("/api/public/display/weather", async (_req: Request, res: Response) =
   }
 });
 
+router.get("/api/public/display/trivia", async (_req: Request, res: Response) => {
+  try {
+    const questions = await db
+      .select()
+      .from(triviaQuestions)
+      .where(eq(triviaQuestions.isActive, true));
+    const shuffled = questions.sort(() => Math.random() - 0.5);
+    res.json(shuffled.map((q) => ({
+      id: q.id,
+      question: q.question,
+      answers: q.answers,
+      correctIndex: q.correctIndex,
+      explanation: q.explanation,
+    })));
+  } catch (error) {
+    console.error("Error fetching trivia for display:", error);
+    res.status(500).json({ error: "Failed to fetch trivia" });
+  }
+});
+
 // --- Slug-based public endpoints ---
 
 router.get("/api/public/display/:slug/settings", async (req: Request, res: Response) => {
@@ -588,6 +610,26 @@ router.get("/api/public/display/:slug/weather", async (_req: Request, res: Respo
   } catch (error) {
     console.error("Error fetching weather for display:", error);
     res.status(500).json({ error: "Failed to fetch weather" });
+  }
+});
+
+router.get("/api/public/display/:slug/trivia", async (_req: Request, res: Response) => {
+  try {
+    const questions = await db
+      .select()
+      .from(triviaQuestions)
+      .where(eq(triviaQuestions.isActive, true));
+    const shuffled = questions.sort(() => Math.random() - 0.5);
+    res.json(shuffled.map((q) => ({
+      id: q.id,
+      question: q.question,
+      answers: q.answers,
+      correctIndex: q.correctIndex,
+      explanation: q.explanation,
+    })));
+  } catch (error) {
+    console.error("Error fetching trivia for display:", error);
+    res.status(500).json({ error: "Failed to fetch trivia" });
   }
 });
 

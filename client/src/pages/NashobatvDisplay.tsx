@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf } from "lucide-react";
+import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -638,6 +638,125 @@ function WineClubSlide() {
   );
 }
 
+interface TriviaQuestionData {
+  id: string;
+  question: string;
+  answers: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+function TriviaSlide({ questions }: { questions: TriviaQuestionData[] | undefined }) {
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentQuestion = questions?.[questionIndex % (questions?.length || 1)];
+
+  useEffect(() => {
+    if (!questions || questions.length === 0) return;
+    setRevealed(false);
+
+    revealTimerRef.current = setTimeout(() => {
+      setRevealed(true);
+      nextTimerRef.current = setTimeout(() => {
+        setQuestionIndex((i) => (i + 1) % questions.length);
+      }, 5000);
+    }, 8000);
+
+    return () => {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+      if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
+    };
+  }, [questionIndex, questions]);
+
+  if (!currentQuestion || !questions || questions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-16 text-center" data-testid="slide-trivia">
+        <HelpCircle className="w-14 h-14 mb-6" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Wine &amp; Spirits Trivia
+        </h2>
+        <Divider className="w-64 mt-6" />
+      </div>
+    );
+  }
+
+  const letters = ["A", "B", "C", "D"];
+
+  return (
+    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-trivia">
+      <div className="flex items-center gap-4 mb-3">
+        <HelpCircle className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-4xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Nashoba Valley Trivia
+        </h2>
+        <span className="ml-auto text-lg" style={{ color: "#F5F0E860" }}>
+          Question {(questionIndex % questions.length) + 1} of {questions.length}
+        </span>
+      </div>
+      <Divider className="mb-8" />
+
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <p className="text-4xl font-light text-center max-w-5xl mb-12 leading-relaxed" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          {currentQuestion.question}
+        </p>
+
+        <div className="grid grid-cols-2 gap-5 w-full max-w-5xl">
+          {currentQuestion.answers.map((answer, i) => {
+            const isCorrect = i === currentQuestion.correctIndex;
+            const borderColor = revealed
+              ? isCorrect ? "#22C55E" : "#EF444480"
+              : `${GOLD}25`;
+            const bgColor = revealed
+              ? isCorrect ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.06)"
+              : "rgba(201, 160, 80, 0.06)";
+
+            return (
+              <div
+                key={i}
+                className="rounded-lg p-5 flex items-center gap-4 transition-all duration-700"
+                style={{ background: bgColor, border: `2px solid ${borderColor}` }}
+              >
+                <span
+                  className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-semibold"
+                  style={{
+                    background: revealed && isCorrect ? "rgba(34, 197, 94, 0.2)" : `${GOLD}15`,
+                    color: revealed && isCorrect ? "#22C55E" : GOLD_LIGHT,
+                  }}
+                >
+                  {letters[i]}
+                </span>
+                <p className="text-2xl flex-1" style={{ color: "#F5F0E8" }}>{answer}</p>
+                {revealed && isCorrect && <CheckCircle2 className="w-8 h-8 flex-shrink-0" style={{ color: "#22C55E" }} />}
+                {revealed && !isCorrect && <XCircle className="w-7 h-7 flex-shrink-0" style={{ color: "#EF444480" }} />}
+              </div>
+            );
+          })}
+        </div>
+
+        <AnimatePresence>
+          {revealed && currentQuestion.explanation && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mt-8 rounded-lg p-6 max-w-4xl text-center"
+              style={{ background: "rgba(34, 197, 94, 0.06)", border: `1px solid rgba(34, 197, 94, 0.2)` }}
+            >
+              <p className="text-xl leading-relaxed" style={{ color: "#F5F0E8CC" }}>
+                {currentQuestion.explanation}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 export default function NashobatvDisplay() {
   const [, routeParams] = useRoute("/display/:slug");
   const slug = routeParams?.slug || "";
@@ -710,6 +829,12 @@ export default function NashobatvDisplay() {
     refetchInterval: 1800000,
   });
 
+  const { data: triviaQuestions } = useQuery<TriviaQuestionData[]>({
+    queryKey: [apiBase, "trivia"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/trivia`); if (!r.ok) throw new Error("Failed"); return r.json(); },
+    refetchInterval: 600000,
+  });
+
   const buildSlideOrder = useCallback(() => {
     if (!settings) return;
     const enabledSettings = settings.filter((s) => s.isEnabled).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -741,6 +866,8 @@ export default function NashobatvDisplay() {
         order.push({ type: "weather", duration: dur });
       } else if (t === "wine_club") {
         order.push({ type: "wine_club", duration: dur });
+      } else if (t === "trivia" && triviaQuestions && triviaQuestions.length > 0) {
+        order.push({ type: "trivia", duration: dur });
       } else if (t === "daily_specials" && specials && specials.length > 0) {
         order.push({ type: "daily_specials", duration: dur });
       } else if (t === "custom" && slides) {
@@ -755,7 +882,7 @@ export default function NashobatvDisplay() {
     }
 
     setSlideOrder(order);
-  }, [settings, todayEvents, upcomingEvents, wines, announcements, photos, specials, slides]);
+  }, [settings, todayEvents, upcomingEvents, wines, announcements, photos, specials, slides, triviaQuestions]);
 
   useEffect(() => {
     buildSlideOrder();
@@ -813,6 +940,7 @@ export default function NashobatvDisplay() {
       case "daily_specials": return <DailySpecialsSlide specials={specials || []} />;
       case "food_menu": return <FoodMenuSlide />;
       case "weather": return <WeatherSlide weather={weather} />;
+      case "trivia": return <TriviaSlide questions={triviaQuestions} />;
       case "wine_club": return <WineClubSlide />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;

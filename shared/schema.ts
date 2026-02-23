@@ -5757,7 +5757,7 @@ export const nashobatvChannels = pgTable("nashobatv_channels", {
 
 export const nashobatvSlideTypeEnum = pgEnum("nashobatv_slide_type", [
   "welcome", "events_today", "wine_list", "food_menu", "upcoming_events",
-  "photo_gallery", "announcement", "weather", "wine_club", "daily_specials", "custom"
+  "photo_gallery", "announcement", "weather", "wine_club", "daily_specials", "trivia", "custom"
 ]);
 
 export const nashobatvSlides = pgTable("nashobatv_slides", {
