@@ -6,6 +6,8 @@ import NashobatvAdmin from "@/components/NashobatvAdmin";
 import ToastMenuPrinter from "@/components/ToastMenuPrinter";
 import MusicManager from "@/components/MusicManager";
 import SpecialEventsManager from "@/components/SpecialEventsManager";
+import EventFlyerPrinter from "@/components/EventFlyerPrinter";
+import ShelfTalkerPrinter from "@/components/ShelfTalkerPrinter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +34,8 @@ import {
   Printer,
   CalendarDays,
   Music,
+  Tag,
+  FileText,
 } from "lucide-react";
 
 interface Channel {
@@ -54,7 +58,8 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events">("nashobatv");
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "flyer-printer" | "shelf-talkers">("nashobatv");
+  const [flyerMode, setFlyerMode] = useState<"music" | "events">("music");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -204,7 +209,7 @@ export default function MediaCenter() {
             Media Center
           </h1>
           <p className="text-muted-foreground mt-1">
-            Digital signage, live music, special events, and menu printing tools.
+            Digital signage, live music, special events, printing tools, and shelf talkers.
           </p>
         </div>
         {activeSection === "nashobatv" && (
@@ -265,6 +270,24 @@ export default function MediaCenter() {
           <CalendarDays className="w-4 h-4" />
           Special Events
         </Button>
+        <Button
+          variant={activeSection === "flyer-printer" ? "default" : "ghost"}
+          onClick={() => setActiveSection("flyer-printer")}
+          className="flex items-center gap-2"
+          data-testid="button-section-flyer-printer"
+        >
+          <FileText className="w-4 h-4" />
+          Flyer Printer
+        </Button>
+        <Button
+          variant={activeSection === "shelf-talkers" ? "default" : "ghost"}
+          onClick={() => setActiveSection("shelf-talkers")}
+          className="flex items-center gap-2"
+          data-testid="button-section-shelf-talkers"
+        >
+          <Tag className="w-4 h-4" />
+          Shelf Talkers
+        </Button>
       </div>
 
       {activeSection === "live-music" && (
@@ -277,6 +300,38 @@ export default function MediaCenter() {
 
       {activeSection === "special-events" && (
         <SpecialEventsManager />
+      )}
+
+      {activeSection === "flyer-printer" && (
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 border-b pb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFlyerMode("music")}
+              className={flyerMode === "music" ? "toggle-elevate toggle-elevated" : ""}
+              data-testid="button-flyer-music"
+            >
+              <Music className="w-4 h-4 mr-1" />
+              Music Lineup
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFlyerMode("events")}
+              className={flyerMode === "events" ? "toggle-elevate toggle-elevated" : ""}
+              data-testid="button-flyer-events"
+            >
+              <CalendarDays className="w-4 h-4 mr-1" />
+              Events
+            </Button>
+          </div>
+          <EventFlyerPrinter mode={flyerMode} />
+        </div>
+      )}
+
+      {activeSection === "shelf-talkers" && (
+        <ShelfTalkerPrinter />
       )}
 
       {activeSection === "nashobatv" && ((!channels || channels.length === 0) ? (

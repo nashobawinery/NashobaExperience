@@ -40,6 +40,7 @@ import nashobatvRouter from "./nashobatv-routes";
 import mediaMusicRouter from "./media-music-routes";
 import mediaEventsRouter from "./media-events-routes";
 import quickbooksRouter from "./quickbooks-routes";
+import mediaFlyerRouter from "./media-flyer-routes";
 import { fetchDailyRevenue, syncToastRevenueDetailToDb } from "./reactivation/toast-api";
 import { syncShopifyRevenueToDb, isShopifyAvailable, ShopifyNotInstalledError } from "./shopify/shopify-api";
 import { initDepartmentCalendarReminders, sendDepartmentReminders } from "./departmentCalendarReminders";
@@ -149,6 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(nashobatvRouter);
   app.use(mediaMusicRouter);
   app.use(mediaEventsRouter);
+  app.use(mediaFlyerRouter);
   app.use(quickbooksRouter);
 
   // AI-powered feature search endpoint
