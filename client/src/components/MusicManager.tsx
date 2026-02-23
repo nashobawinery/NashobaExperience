@@ -29,6 +29,8 @@ import {
   XCircle,
   FileText,
   ExternalLink,
+  Link,
+  Copy,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { Musician, MusicEvent, MusicianSubmission } from "@shared/schema";
@@ -48,7 +50,7 @@ export default function MusicManager() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 w-full max-w-lg">
+        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
           <TabsTrigger value="musicians" className="flex items-center gap-2" data-testid="tab-musicians">
             <Users className="h-4 w-4" /> Musicians
           </TabsTrigger>
@@ -57,6 +59,9 @@ export default function MusicManager() {
           </TabsTrigger>
           <TabsTrigger value="submissions" className="flex items-center gap-2" data-testid="tab-submissions">
             <FileText className="h-4 w-4" /> Submissions
+          </TabsTrigger>
+          <TabsTrigger value="links" className="flex items-center gap-2" data-testid="tab-links">
+            <Link className="h-4 w-4" /> Links
           </TabsTrigger>
         </TabsList>
 
@@ -70,6 +75,10 @@ export default function MusicManager() {
 
         <TabsContent value="submissions" className="mt-6">
           <SubmissionsPanel />
+        </TabsContent>
+
+        <TabsContent value="links" className="mt-6">
+          <LinksPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -815,6 +824,114 @@ function SubmissionsPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function LinksPanel() {
+  const { toast } = useToast();
+  const baseUrl = window.location.origin;
+
+  const links = [
+    {
+      label: "Music Lineup Page",
+      description: "Public page showing upcoming live music performances with musician cards, photos, and details. Share this with customers or link from your website.",
+      url: `${baseUrl}/music`,
+      embedUrl: `${baseUrl}/music?embed=1`,
+    },
+    {
+      label: "Musician Submission Form",
+      description: "Public page where new musicians can apply to perform at your venue. Includes the PRO licensing policy notice and requires a song list. Share this link with musicians who want to book a gig.",
+      url: `${baseUrl}/music`,
+      embedUrl: `${baseUrl}/music?embed=1`,
+      anchor: "#submit",
+      note: "The submission form is at the bottom of the Music Lineup page.",
+    },
+  ];
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied!", description: `${label} copied to clipboard.` });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold">Public Links & Embed Codes</h3>
+        <span className="text-sm text-muted-foreground block">Share these links or embed them on your website using iframes.</span>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {links.map((link) => (
+          <Card key={link.label} className="overflow-visible">
+            <CardContent className="p-5 space-y-4">
+              <div>
+                <h4 className="font-semibold flex items-center gap-2" data-testid={`text-link-label-${link.label}`}>
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  {link.label}
+                </h4>
+                <span className="text-sm text-muted-foreground mt-1 block">{link.description}</span>
+                {link.note && (
+                  <span className="text-xs text-muted-foreground italic mt-1 block">{link.note}</span>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Direct Link</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={link.url}
+                      className="text-sm font-mono"
+                      data-testid={`input-direct-link-${link.label}`}
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => copyToClipboard(link.url, "Direct link")}
+                      data-testid={`button-copy-link-${link.label}`}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => window.open(link.url, "_blank")}
+                      data-testid={`button-open-link-${link.label}`}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Embed Code (iframe)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={`<iframe src="${link.embedUrl}" width="100%" height="800" frameborder="0" style="border:none;"></iframe>`}
+                      className="text-sm font-mono"
+                      data-testid={`input-embed-code-${link.label}`}
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => copyToClipboard(
+                        `<iframe src="${link.embedUrl}" width="100%" height="800" frameborder="0" style="border:none;"></iframe>`,
+                        "Embed code"
+                      )}
+                      data-testid={`button-copy-embed-${link.label}`}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
