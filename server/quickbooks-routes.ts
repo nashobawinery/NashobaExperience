@@ -413,7 +413,6 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
     }
 
     const packagingPatterns = [
-      /\bpackage[d]?$/i,
       /^packaging\b/i,
       /\bpackaging$/i,
       /^shipping\b/i,
@@ -421,7 +420,10 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
       /^delivery\s*(fee|charge)?$/i,
     ];
     const isPackagingItem = (name: string): boolean => {
-      return packagingPatterns.some(p => p.test(name.trim()));
+      const trimmed = name.trim();
+      if (/\s*-\s*packaged$/i.test(trimmed)) return false;
+      if (/\bpackage[d]?$/i.test(trimmed)) return true;
+      return packagingPatterns.some(p => p.test(trimmed));
     };
 
     const existingProducts = await db.select().from(products);
@@ -429,12 +431,16 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
 
     let newMapped = 0;
     let autoIgnored = 0;
+    let unIgnored = 0;
     for (const qbItem of qbItems) {
       const existing = existingMaps.find(m => m.qbItemId === String(qbItem.Id));
       if (existing) {
         if (!existing.isIgnored && isPackagingItem(existing.qbItemName) && !existing.productId) {
           await db.update(qbItemMap).set({ isIgnored: true }).where(eq(qbItemMap.id, existing.id));
           autoIgnored++;
+        } else if (existing.isIgnored && existing.isAutoMatched === false && !existing.productId && !isPackagingItem(existing.qbItemName)) {
+          await db.update(qbItemMap).set({ isIgnored: false }).where(eq(qbItemMap.id, existing.id));
+          unIgnored++;
         }
         continue;
       }
@@ -470,10 +476,13 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
     }
 
     if (autoIgnored > 0) {
-      console.log(`[QB Item Sync] Auto-ignored ${autoIgnored} packaging/category items`);
+      console.log(`[QB Item Sync] Auto-ignored ${autoIgnored} packaging/shipping items`);
+    }
+    if (unIgnored > 0) {
+      console.log(`[QB Item Sync] Un-ignored ${unIgnored} items (no longer matching packaging patterns)`);
     }
 
-    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length, autoIgnored });
+    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length, autoIgnored, unIgnored });
   } catch (error: any) {
     console.error("QB item sync error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });
