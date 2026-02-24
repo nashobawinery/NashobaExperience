@@ -550,33 +550,148 @@ router.post("/api/quickbooks/descriptions/sync", async (_req: Request, res: Resp
 
     const existingMaps = await db.select().from(qbDescriptionMap);
     const allProducts = await db.select().from(products);
+
+    const normalize = (s: string): string =>
+      s.toLowerCase()
+        .replace(/['']s\b/g, "")
+        .replace(/['']/g, "")
+        .replace(/[éèê]/g, "e")
+        .replace(/[àáâ]/g, "a")
+        .replace(/[ôó]/g, "o")
+        .replace(/[^a-z0-9]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const stripSuffixes = (s: string): string =>
+      s.replace(/\b(wine|hard\s*cider|hard\s*seltzer|lager|ipa|bottle)\s*$/i, "").trim();
+
+    const stripPrefixes = (s: string): string =>
+      s.replace(/^(nashoba|estate|farmhouse|local)\s+/i, "").trim();
+
+    const reorderStimulus = (s: string): string => {
+      const m = s.match(/^(\d+)[-\s]*year\s+stimulus\s+(whiskey|bourbon)/i);
+      if (m) return `stimulus ${m[1]} year ${m[2]}`;
+      return s;
+    };
+
+    const stripSize = (s: string): string =>
+      s.replace(/\s*[-–]\s*\d+\s*ml\s*$/i, "")
+        .replace(/\s+\d+\s*$/, "")
+        .replace(/\s+(bottle|can)\s*$/i, "")
+        .trim();
+
+    const levenshtein = (a: string, b: string): number => {
+      if (a.length === 0) return b.length;
+      if (b.length === 0) return a.length;
+      const matrix: number[][] = [];
+      for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+      for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+      for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+          const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+          matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+        }
+      }
+      return matrix[b.length][a.length];
+    };
+
+    const fuzzyMatch = (parsedName: string, productList: typeof allProducts): typeof allProducts[0] | undefined => {
+      const pn = normalize(parsedName);
+
+      const exact = productList.find(p => normalize(p.name) === pn);
+      if (exact) return exact;
+
+      const reordered = normalize(reorderStimulus(parsedName));
+      if (reordered !== pn) {
+        const m = productList.find(p => normalize(p.name) === reordered);
+        if (m) return m;
+      }
+
+      const stripped = normalize(stripSuffixes(stripSize(parsedName)));
+      const m2 = productList.find(p => normalize(stripSuffixes(stripSize(p.name))) === stripped);
+      if (m2) return m2;
+
+      const noPrefix = normalize(stripPrefixes(stripSuffixes(stripSize(parsedName))));
+      const m3 = productList.find(p => normalize(stripPrefixes(stripSuffixes(stripSize(p.name)))) === noPrefix);
+      if (m3) return m3;
+
+      const m4 = productList.find(p => {
+        const before = normalize(p.name.split(/\s*[-–]\s*/)[0]);
+        return before === pn || pn === before;
+      });
+      if (m4) return m4;
+
+      const m5 = productList.find(p =>
+        normalize(p.name).startsWith(pn + " ") || pn.startsWith(normalize(p.name) + " ")
+      );
+      if (m5) return m5;
+
+      const threshold = Math.max(1, Math.floor(pn.length * 0.2));
+      let bestMatch: typeof allProducts[0] | undefined;
+      let bestDist = Infinity;
+      for (const p of productList) {
+        const prodNorm = normalize(p.name);
+        const dist = levenshtein(pn, prodNorm);
+        if (dist <= threshold && dist < bestDist) {
+          bestDist = dist;
+          bestMatch = p;
+        }
+        const prodStripped = normalize(stripPrefixes(stripSuffixes(stripSize(p.name))));
+        const descStripped = normalize(stripPrefixes(stripSuffixes(stripSize(parsedName))));
+        if (prodStripped !== prodNorm || descStripped !== pn) {
+          const dist2 = levenshtein(descStripped, prodStripped);
+          if (dist2 <= threshold && dist2 < bestDist) {
+            bestDist = dist2;
+            bestMatch = p;
+          }
+        }
+      }
+      if (bestMatch) return bestMatch;
+
+      return undefined;
+    };
+
     let newMapped = 0;
     let newUnmapped = 0;
+    let reMatched = 0;
 
     for (const desc of descriptions) {
       const existing = existingMaps.find(m => m.description === desc);
-      if (existing) continue;
+      if (existing) {
+        if (!existing.productId && !existing.isIgnored) {
+          const match = fuzzyMatch(existing.parsedName || desc, allProducts);
+          if (match) {
+            await db.update(qbDescriptionMap)
+              .set({ productId: match.id, isAutoMatched: true })
+              .where(eq(qbDescriptionMap.id, existing.id));
+            reMatched++;
+          }
+        }
+        continue;
+      }
 
       const parsedName = parseProductNameFromDescription(desc);
-
-      const nameMatch = allProducts.find(p =>
-        p.name.toLowerCase().trim() === parsedName.toLowerCase().trim()
-      );
+      const match = fuzzyMatch(parsedName, allProducts);
 
       await db.insert(qbDescriptionMap).values({
         description: desc,
         parsedName,
-        productId: nameMatch?.id || null,
-        isAutoMatched: !!nameMatch,
+        productId: match?.id || null,
+        isAutoMatched: !!match,
       });
-      if (nameMatch) newMapped++;
+      if (match) newMapped++;
       else newUnmapped++;
+    }
+
+    if (reMatched > 0) {
+      console.log(`[QB Desc Sync] Re-matched ${reMatched} previously unmapped descriptions`);
     }
 
     res.json({
       total: descriptions.size,
       newMapped,
       newUnmapped,
+      reMatched,
       alreadyMapped: existingMaps.length,
     });
   } catch (error: any) {
