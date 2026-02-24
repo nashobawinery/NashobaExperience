@@ -622,30 +622,50 @@ async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, s
       const qbItemName = line.SalesItemLineDetail?.ItemRef?.name || "Unknown";
       const itemMap = itemMaps.find(m => m.qbItemId === qbItemId);
 
-      if (!itemMap?.productId) {
-        if (!itemMap?.isIgnored) {
-          hasUnmappedItems = true;
-          itemIssues.push(`"${qbItemName}" not mapped`);
-        }
-        continue;
-      }
-
-      const product = allProducts.find(p => p.id === itemMap.productId);
-      if (!product) continue;
-
       const qty = line.SalesItemLineDetail?.Qty || 1;
       const unitPrice = line.SalesItemLineDetail?.UnitPrice || 0;
       const lineTotal = line.Amount || (qty * unitPrice);
 
-      orderItems.push({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku || null,
-        quantity: qty,
-        unitPrice: String(unitPrice),
-        retailPrice: String(product.price),
-        lineTotal: String(lineTotal),
-      });
+      if (itemMap?.productId) {
+        const product = allProducts.find(p => p.id === itemMap.productId);
+        if (product) {
+          orderItems.push({
+            productId: product.id,
+            productName: product.name,
+            sku: product.sku || null,
+            quantity: qty,
+            unitPrice: String(unitPrice),
+            retailPrice: String(product.price),
+            lineTotal: String(lineTotal),
+          });
+        } else {
+          hasUnmappedItems = true;
+          itemIssues.push(`"${qbItemName}" mapped but product not found`);
+          orderItems.push({
+            productId: null,
+            productName: qbItemName,
+            sku: null,
+            quantity: qty,
+            unitPrice: String(unitPrice),
+            retailPrice: String(unitPrice),
+            lineTotal: String(lineTotal),
+          });
+        }
+      } else if (itemMap?.isIgnored) {
+        continue;
+      } else {
+        hasUnmappedItems = true;
+        itemIssues.push(`"${qbItemName}" not mapped`);
+        orderItems.push({
+          productId: null,
+          productName: qbItemName,
+          sku: null,
+          quantity: qty,
+          unitPrice: String(unitPrice),
+          retailPrice: String(unitPrice),
+          lineTotal: String(lineTotal),
+        });
+      }
     }
 
     if (hasUnmappedItems && status === "ready" && orderItems.length === 0) {

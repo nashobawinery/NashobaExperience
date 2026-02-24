@@ -654,7 +654,7 @@ export const b2bOrders = pgTable("b2b_orders", {
 export const b2bOrderItems = pgTable("b2b_order_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderId: varchar("order_id").notNull().references(() => b2bOrders.id, { onDelete: 'cascade' }),
-  productId: varchar("product_id").notNull().references(() => products.id),
+  productId: varchar("product_id").references(() => products.id),
   productName: text("product_name").notNull(),
   sku: text("sku"),
   quantity: integer("quantity").notNull(),
