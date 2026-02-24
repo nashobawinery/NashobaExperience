@@ -376,8 +376,8 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
 
   const cards = products.map((p) => {
     const imgHtml = show.image && p.image_url
-      ? `<div style="width:100%;height:35%;overflow:hidden;border-bottom:1px solid ${s.border};">
-           <img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" />
+      ? `<div style="width:60px;height:80px;flex-shrink:0;margin:8px auto 4px auto;">
+           <img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:contain;" />
          </div>`
       : "";
 
@@ -386,51 +386,51 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
       : "";
 
     const vintageHtml = p.vintage_year
-      ? `<div style="font-size:8pt;color:${s.accent};font-weight:600;margin-bottom:1px;">${escapeHtml(p.vintage_year)}</div>`
+      ? `<div style="font-size:10pt;color:${s.accent};font-weight:600;margin-bottom:1px;">${escapeHtml(p.vintage_year)}</div>`
       : "";
 
     const varietalHtml = show.varietal && p.varietal
-      ? `<div style="font-size:7pt;color:${s.secondary};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(p.varietal)}</div>`
+      ? `<div style="font-size:9pt;color:${s.secondary};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(p.varietal)}</div>`
       : "";
 
     const regionHtml = show.region && p.region
-      ? `<div style="font-size:7pt;color:${s.secondary};font-style:italic;">${escapeHtml(p.region)}</div>`
+      ? `<div style="font-size:9pt;color:${s.secondary};font-style:italic;">${escapeHtml(p.region)}</div>`
       : "";
 
     const ratingHtml = show.rating && p.rating
-      ? `<div style="font-size:10pt;font-weight:700;color:${s.accent};margin-top:2px;">${escapeHtml(String(p.rating))} POINTS</div>`
+      ? `<div style="font-size:11pt;font-weight:700;color:${s.accent};margin-top:2px;">${escapeHtml(String(p.rating))} POINTS</div>`
       : "";
 
     const priceHtml = show.price
-      ? `<div style="font-size:12pt;font-weight:700;color:${s.text};margin-top:3px;">$${Number(p.price).toFixed(2)}</div>`
+      ? `<div style="font-size:14pt;font-weight:700;color:${s.text};margin-top:3px;">$${Number(p.price).toFixed(2)}</div>`
       : "";
 
     const descHtml = show.description && p.description
-      ? `<div style="font-size:7pt;color:${s.secondary};line-height:1.3;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;">${escapeHtml(p.description)}</div>`
+      ? `<div style="font-size:9pt;color:${s.secondary};line-height:1.35;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;">${escapeHtml(p.description)}</div>`
       : "";
 
     const tastingHtml = show.tastingNotes && p.tasting_notes
-      ? `<div style="font-size:7pt;color:${s.secondary};line-height:1.3;margin-top:2px;font-style:italic;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(p.tasting_notes)}</div>`
+      ? `<div style="font-size:9pt;color:${s.secondary};line-height:1.35;margin-top:2px;font-style:italic;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(p.tasting_notes)}</div>`
       : "";
 
     const pairingsHtml = show.pairings && p.food_pairings
-      ? `<div style="font-size:6.5pt;color:${s.secondary};margin-top:2px;"><strong>Pairs with:</strong> ${escapeHtml(p.food_pairings)}</div>`
+      ? `<div style="font-size:8pt;color:${s.secondary};margin-top:2px;"><strong>Pairs with:</strong> ${escapeHtml(p.food_pairings)}</div>`
       : "";
 
     const awardsHtml = show.awards && p.awards
-      ? `<div style="font-size:6.5pt;color:${s.accent};margin-top:2px;font-weight:600;">${escapeHtml(p.awards)}</div>`
+      ? `<div style="font-size:8pt;color:${s.accent};margin-top:2px;font-weight:600;">${escapeHtml(p.awards)}</div>`
       : "";
 
     const alcoholHtml = show.alcohol && p.alcohol_content
-      ? `<span style="font-size:6.5pt;color:${s.secondary};">${escapeHtml(p.alcohol_content)} ABV</span>`
+      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.alcohol_content)} ABV</span>`
       : "";
 
     const bodyHtml = show.body && p.body && p.body !== "N/A"
-      ? `<span style="font-size:6.5pt;color:${s.secondary};">${escapeHtml(p.body)}</span>`
+      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.body)}</span>`
       : "";
 
     const sweetnessHtml = show.sweetness && p.sweetness && p.sweetness !== "N/A"
-      ? `<span style="font-size:6.5pt;color:${s.secondary};">${escapeHtml(p.sweetness)}</span>`
+      ? `<span style="font-size:8pt;color:${s.secondary};">${escapeHtml(p.sweetness)}</span>`
       : "";
 
     const detailParts = [bodyHtml, sweetnessHtml, alcoholHtml].filter(Boolean);
@@ -447,7 +447,7 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
         ${imgHtml}
         <div style="flex:1;padding:8px 10px;display:flex;flex-direction:column;">
           ${vintageHtml}
-          <div style="font-size:11pt;font-weight:700;color:${s.text};${s.headingStyle}line-height:1.15;">${escapeHtml(p.name)}</div>
+          <div style="font-size:13pt;font-weight:700;color:${s.text};${s.headingStyle}line-height:1.15;">${escapeHtml(p.name)}</div>
           ${varietalHtml}
           ${regionHtml}
           ${ratingHtml}
@@ -457,7 +457,7 @@ function renderShelfTalkerHtml(products: any[], opts: ShelfTalkerOptions): strin
           ${pairingsHtml}
           ${awardsHtml}
           ${detailLine}
-          <div style="margin-top:auto;padding-top:4px;border-top:1px solid ${s.border};font-size:6pt;color:${s.secondary};text-align:center;text-transform:uppercase;letter-spacing:1px;">
+          <div style="margin-top:auto;padding-top:4px;border-top:1px solid ${s.border};font-size:7pt;color:${s.secondary};text-align:center;text-transform:uppercase;letter-spacing:1px;">
             ${escapeHtml(categoryLabel)} · Nashoba Valley
           </div>
         </div>
