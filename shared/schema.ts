@@ -5885,6 +5885,10 @@ export const insertNashobatvDailySpecialSchema = createInsertSchema(nashobatvDai
 export type InsertNashobatvDailySpecial = z.infer<typeof insertNashobatvDailySpecialSchema>;
 export type NashobatvDailySpecial = typeof nashobatvDailySpecials.$inferSelect;
 
+export const insertNashobatvHistoricalFactSchema = createInsertSchema(nashobatvHistoricalFacts).omit({ id: true });
+export type InsertNashobatvHistoricalFact = z.infer<typeof insertNashobatvHistoricalFactSchema>;
+export type NashobatvHistoricalFact = typeof nashobatvHistoricalFacts.$inferSelect;
+
 // ==================== QuickBooks Integration ====================
 
 export const qbConnection = pgTable("qb_connection", {
