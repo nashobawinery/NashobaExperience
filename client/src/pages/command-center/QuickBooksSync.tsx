@@ -162,6 +162,7 @@ export default function QuickBooksSync() {
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddType, setQuickAddType] = useState<string>("other");
   const [quickAddMapId, setQuickAddMapId] = useState<number | null>(null);
+  const [descProductFilter, setDescProductFilter] = useState("");
   const [toastSearchOpen, setToastSearchOpen] = useState(false);
   const [toastSearchQuery, setToastSearchQuery] = useState("");
   const [toastSearchResults, setToastSearchResults] = useState<any[]>([]);
@@ -977,14 +978,25 @@ export default function QuickBooksSync() {
                     <div className="w-64 flex-shrink-0">
                       <Select
                         value={mapping.productId || "unmatched"}
-                        onValueChange={(val) => updateDescMapping.mutate({ id: mapping.id, productId: val === "unmatched" ? null : val })}
+                        onValueChange={(val) => { updateDescMapping.mutate({ id: mapping.id, productId: val === "unmatched" ? null : val }); setDescProductFilter(""); }}
+                        onOpenChange={() => setDescProductFilter("")}
                       >
                         <SelectTrigger data-testid={`select-desc-${mapping.id}`}>
                           <SelectValue placeholder="Select Product" />
                         </SelectTrigger>
                         <SelectContent>
+                          <div className="px-2 pb-2 sticky top-0 bg-popover">
+                            <Input
+                              placeholder="Search products..."
+                              value={descProductFilter}
+                              onChange={(e) => setDescProductFilter(e.target.value)}
+                              className="h-8 text-xs"
+                              onKeyDown={(e) => e.stopPropagation()}
+                              data-testid={`input-desc-product-filter-${mapping.id}`}
+                            />
+                          </div>
                           <SelectItem value="unmatched">-- Not Mapped --</SelectItem>
-                          {productOptions?.map(p => (
+                          {productOptions?.filter(p => !descProductFilter || p.name.toLowerCase().includes(descProductFilter.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(descProductFilter.toLowerCase()))).map(p => (
                             <SelectItem key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ""}</SelectItem>
                           ))}
                         </SelectContent>
