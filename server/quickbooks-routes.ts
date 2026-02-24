@@ -420,9 +420,9 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
       /^freight\b/i,
       /^delivery\s*(fee|charge)?$/i,
     ];
-    function isPackagingItem(name: string): boolean {
+    const isPackagingItem = (name: string): boolean => {
       return packagingPatterns.some(p => p.test(name.trim()));
-    }
+    };
 
     const existingProducts = await db.select().from(products);
     const existingMaps = await db.select().from(qbItemMap);
@@ -732,7 +732,8 @@ router.post("/api/quickbooks/sync/invoices", async (req: Request, res: Response)
         }
 
         if (inv.orderItems.length === 0) {
-          errors.push(`Invoice #${inv.docNumber}: No mapped line items`);
+          const unmappedNames = inv.itemIssues?.length > 0 ? ` (${inv.itemIssues.join(", ")})` : "";
+          errors.push(`Invoice #${inv.docNumber}: No mapped line items${unmappedNames}`);
           failed++;
           continue;
         }
