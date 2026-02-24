@@ -985,12 +985,13 @@ export default function QuickBooksSync() {
                           <SelectValue placeholder="Select Product" />
                         </SelectTrigger>
                         <SelectContent>
-                          <div className="px-2 pb-2 sticky top-0 bg-popover">
+                          <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
                             <Input
                               placeholder="Search products..."
                               value={descProductFilter}
                               onChange={(e) => setDescProductFilter(e.target.value)}
                               className="h-8 text-xs"
+                              autoFocus
                               onKeyDown={(e) => e.stopPropagation()}
                               data-testid={`input-desc-product-filter-${mapping.id}`}
                             />
