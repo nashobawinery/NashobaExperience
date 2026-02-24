@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
 import { db } from "./db";
-import { qbConnection, qbCustomerMap, qbItemMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, b2bOrders, b2bOrderItems, b2bCustomers, products } from "@shared/schema";
+import { qbConnection, qbCustomerMap, qbItemMap, qbDescriptionMap, qbSyncLog, qbInvoiceMap, qbPaymentMap, b2bOrders, b2bOrderItems, b2bCustomers, products } from "@shared/schema";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
 import { storage } from "./storage";
 import crypto from "crypto";
@@ -506,6 +506,111 @@ router.patch("/api/quickbooks/items/:id", async (req: Request, res: Response) =>
   }
 });
 
+// ==================== Description Map Routes ====================
+
+function parseProductNameFromDescription(desc: string): string {
+  const beforeParen = desc.split("(")[0].trim();
+  return beforeParen || desc.trim();
+}
+
+router.post("/api/quickbooks/descriptions/sync", async (_req: Request, res: Response) => {
+  try {
+    const conn = await getActiveConnection();
+    if (!conn) return res.status(400).json({ error: "QuickBooks not connected" });
+
+    const descriptions = new Set<string>();
+    let startPosition = 1;
+    const batchSize = 500;
+
+    while (true) {
+      const invQuery = `SELECT * FROM Invoice WHERE TxnDate >= '2024-01-01' STARTPOSITION ${startPosition} MAXRESULTS ${batchSize}`;
+      const invResult = await qbApiRequest(conn, "/query?query=" + encodeURIComponent(invQuery));
+      let invoices = invResult?.QueryResponse?.Invoice || [];
+      if (invoices.length === 0) break;
+
+      invoices = invoices.filter((inv: any) => (inv.DocNumber || "").startsWith("E"));
+
+      for (const inv of invoices) {
+        for (const line of (inv.Line || [])) {
+          if (line.DetailType === "SalesItemLineDetail" && line.Description) {
+            descriptions.add(line.Description.trim());
+          }
+        }
+      }
+
+      if (invResult?.QueryResponse?.Invoice?.length < batchSize) break;
+      startPosition += batchSize;
+    }
+
+    if (descriptions.size === 0) {
+      return res.json({ total: 0, newMapped: 0, alreadyMapped: 0 });
+    }
+
+    console.log(`[QB Desc Sync] Found ${descriptions.size} unique descriptions across E-invoices`);
+
+    const existingMaps = await db.select().from(qbDescriptionMap);
+    const allProducts = await db.select().from(products);
+    let newMapped = 0;
+    let newUnmapped = 0;
+
+    for (const desc of descriptions) {
+      const existing = existingMaps.find(m => m.description === desc);
+      if (existing) continue;
+
+      const parsedName = parseProductNameFromDescription(desc);
+
+      const nameMatch = allProducts.find(p =>
+        p.name.toLowerCase().trim() === parsedName.toLowerCase().trim()
+      );
+
+      await db.insert(qbDescriptionMap).values({
+        description: desc,
+        parsedName,
+        productId: nameMatch?.id || null,
+        isAutoMatched: !!nameMatch,
+      });
+      if (nameMatch) newMapped++;
+      else newUnmapped++;
+    }
+
+    res.json({
+      total: descriptions.size,
+      newMapped,
+      newUnmapped,
+      alreadyMapped: existingMaps.length,
+    });
+  } catch (error: any) {
+    console.error("QB description sync error:", error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/api/quickbooks/descriptions", async (_req: Request, res: Response) => {
+  try {
+    const maps = await db.select().from(qbDescriptionMap).orderBy(qbDescriptionMap.parsedName);
+    res.json(maps);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch("/api/quickbooks/descriptions/:id", async (req: Request, res: Response) => {
+  try {
+    const { productId, isIgnored } = req.body;
+    const updates: any = { updatedAt: new Date() };
+    if (productId !== undefined) {
+      updates.productId = productId || null;
+      updates.isAutoMatched = false;
+    }
+    if (isIgnored !== undefined) updates.isIgnored = isIgnored;
+
+    await db.update(qbDescriptionMap).set(updates).where(eq(qbDescriptionMap.id, parseInt(req.params.id)));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== Invoice Sync Routes ====================
 
 async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, startDate?: string, endDate?: string, docNumberPrefix?: string) {
@@ -535,6 +640,7 @@ async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, s
 
   const customerMaps = await db.select().from(qbCustomerMap);
   const itemMaps = await db.select().from(qbItemMap);
+  const descMaps = await db.select().from(qbDescriptionMap);
   const existingInvoiceMaps = await db.select().from(qbInvoiceMap);
   const allProducts = await db.select().from(products);
 
@@ -620,11 +726,16 @@ async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, s
     for (const line of lines) {
       const qbItemId = String(line.SalesItemLineDetail?.ItemRef?.value || "");
       const qbItemName = line.SalesItemLineDetail?.ItemRef?.name || "Unknown";
+      const lineDesc = (line.Description || "").trim();
       const itemMap = itemMaps.find(m => m.qbItemId === qbItemId);
 
       const qty = line.SalesItemLineDetail?.Qty || 1;
       const unitPrice = line.SalesItemLineDetail?.UnitPrice || 0;
       const lineTotal = line.Amount || (qty * unitPrice);
+
+      if (itemMap?.isIgnored) {
+        continue;
+      }
 
       if (itemMap?.productId) {
         const product = allProducts.find(p => p.id === itemMap.productId);
@@ -638,34 +749,44 @@ async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, s
             retailPrice: String(product.price),
             lineTotal: String(lineTotal),
           });
-        } else {
-          hasUnmappedItems = true;
-          itemIssues.push(`"${qbItemName}" mapped but product not found`);
-          orderItems.push({
-            productId: null,
-            productName: qbItemName,
-            sku: null,
-            quantity: qty,
-            unitPrice: String(unitPrice),
-            retailPrice: String(unitPrice),
-            lineTotal: String(lineTotal),
-          });
+          continue;
         }
-      } else if (itemMap?.isIgnored) {
-        continue;
-      } else {
-        hasUnmappedItems = true;
-        itemIssues.push(`"${qbItemName}" not mapped`);
-        orderItems.push({
-          productId: null,
-          productName: qbItemName,
-          sku: null,
-          quantity: qty,
-          unitPrice: String(unitPrice),
-          retailPrice: String(unitPrice),
-          lineTotal: String(lineTotal),
-        });
       }
+
+      if (lineDesc) {
+        const descMap = descMaps.find(m => m.description === lineDesc);
+        if (descMap?.productId) {
+          const product = allProducts.find(p => p.id === descMap.productId);
+          if (product) {
+            orderItems.push({
+              productId: product.id,
+              productName: product.name,
+              sku: product.sku || null,
+              quantity: qty,
+              unitPrice: String(unitPrice),
+              retailPrice: String(product.price),
+              lineTotal: String(lineTotal),
+            });
+            continue;
+          }
+        }
+        if (descMap?.isIgnored) {
+          continue;
+        }
+      }
+
+      hasUnmappedItems = true;
+      const displayName = lineDesc ? parseProductNameFromDescription(lineDesc) : qbItemName;
+      itemIssues.push(`"${displayName}" not mapped`);
+      orderItems.push({
+        productId: null,
+        productName: displayName,
+        sku: null,
+        quantity: qty,
+        unitPrice: String(unitPrice),
+        retailPrice: String(unitPrice),
+        lineTotal: String(lineTotal),
+      });
     }
 
     if (hasUnmappedItems && status === "ready" && orderItems.length === 0) {

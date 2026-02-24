@@ -62,6 +62,15 @@ interface ProductOption {
   category: string;
 }
 
+interface QbDescMapping {
+  id: number;
+  description: string;
+  parsedName: string | null;
+  productId: string | null;
+  isAutoMatched: boolean;
+  isIgnored: boolean;
+}
+
 interface SyncLog {
   id: number;
   syncType: string;
@@ -321,6 +330,39 @@ export default function QuickBooksSync() {
     },
   });
 
+  const { data: descMappings } = useQuery<QbDescMapping[]>({
+    queryKey: ["/api/quickbooks/descriptions"],
+    enabled: status?.connected === true,
+  });
+
+  const syncDescriptionsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/quickbooks/descriptions/sync");
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
+      toast({ title: "Descriptions Synced", description: `Found ${data.total} unique descriptions. ${data.newMapped} auto-matched, ${data.newUnmapped || 0} need mapping.` });
+    },
+    onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const updateDescMapping = useMutation({
+    mutationFn: ({ id, productId }: { id: number; productId: string | null }) =>
+      apiRequest("PATCH", `/api/quickbooks/descriptions/${id}`, { productId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
+    },
+  });
+
+  const toggleDescIgnore = useMutation({
+    mutationFn: ({ id, isIgnored }: { id: number; isIgnored: boolean }) =>
+      apiRequest("PATCH", `/api/quickbooks/descriptions/${id}`, { isIgnored }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
+    },
+  });
+
   const paymentPreviewMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/quickbooks/sync/payments/preview", {
@@ -399,6 +441,7 @@ export default function QuickBooksSync() {
 
   const unmappedCustomers = customerMappings?.filter(m => !m.b2bCustomerId && !m.isIgnored).length || 0;
   const unmappedItems = itemMappings?.filter(m => !m.productId && !m.isIgnored).length || 0;
+  const unmappedDescs = descMappings?.filter(m => !m.productId && !m.isIgnored).length || 0;
 
   const toggleInvoiceSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -465,8 +508,8 @@ export default function QuickBooksSync() {
             {tab.key === "customers" && unmappedCustomers > 0 && (
               <Badge variant="destructive" className="text-xs px-1.5 py-0">{unmappedCustomers}</Badge>
             )}
-            {tab.key === "items" && unmappedItems > 0 && (
-              <Badge variant="destructive" className="text-xs px-1.5 py-0">{unmappedItems}</Badge>
+            {tab.key === "items" && (unmappedItems + unmappedDescs) > 0 && (
+              <Badge variant="destructive" className="text-xs px-1.5 py-0">{unmappedItems + unmappedDescs}</Badge>
             )}
           </button>
         ))}
@@ -765,6 +808,7 @@ export default function QuickBooksSync() {
       </Dialog>
 
       {activeTab === "items" && status?.connected && (
+        <div className="space-y-6">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -835,6 +879,90 @@ export default function QuickBooksSync() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle>EKOS Description Mappings</CardTitle>
+                <CardDescription>
+                  Map invoice line descriptions (e.g. "Cabernet Sauvignon (Single - 750ml - Bottle)") to your products. This is how EKOS identifies specific products on invoices.
+                </CardDescription>
+              </div>
+              <Button onClick={() => syncDescriptionsMutation.mutate()} disabled={syncDescriptionsMutation.isPending} data-testid="button-sync-descriptions">
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncDescriptionsMutation.isPending ? "animate-spin" : ""}`} />
+                {syncDescriptionsMutation.isPending ? "Scanning..." : "Pull Descriptions from Invoices"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!descMappings || descMappings.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                <p>No descriptions found yet. Click "Pull Descriptions from Invoices" to scan EKOS invoices.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-4 mb-3 text-sm text-muted-foreground">
+                  <span>{descMappings.filter(m => m.productId).length} mapped</span>
+                  <span>{descMappings.filter(m => !m.productId && !m.isIgnored).length} unmapped</span>
+                  <span>{descMappings.filter(m => m.isIgnored).length} ignored</span>
+                </div>
+                {descMappings
+                  .filter(m => showIgnored || !m.isIgnored)
+                  .sort((a, b) => {
+                    if (!a.productId && !a.isIgnored && (b.productId || b.isIgnored)) return -1;
+                    if ((a.productId || a.isIgnored) && !b.productId && !b.isIgnored) return 1;
+                    return (a.parsedName || a.description).localeCompare(b.parsedName || b.description);
+                  })
+                  .map(mapping => (
+                  <div
+                    key={mapping.id}
+                    className={`flex items-center gap-3 p-3 rounded-md border text-sm ${
+                      mapping.isIgnored ? "opacity-50" : mapping.productId ? "border-green-500/20 bg-green-500/5" : "border-destructive/20 bg-destructive/5"
+                    }`}
+                    data-testid={`desc-mapping-${mapping.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{mapping.parsedName || mapping.description}</p>
+                      <p className="text-xs text-muted-foreground truncate">{mapping.description}</p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div className="w-64 flex-shrink-0">
+                      <Select
+                        value={mapping.productId || "unmatched"}
+                        onValueChange={(val) => updateDescMapping.mutate({ id: mapping.id, productId: val === "unmatched" ? null : val })}
+                      >
+                        <SelectTrigger data-testid={`select-desc-${mapping.id}`}>
+                          <SelectValue placeholder="Select Product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unmatched">-- Not Mapped --</SelectItem>
+                          {productOptions?.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ""}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => toggleDescIgnore.mutate({ id: mapping.id, isIgnored: !mapping.isIgnored })}
+                      title={mapping.isIgnored ? "Show" : "Ignore"}
+                      data-testid={`button-ignore-desc-${mapping.id}`}
+                    >
+                      {mapping.isIgnored ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    {mapping.isAutoMatched && (
+                      <Badge variant="secondary" className="text-xs">Auto</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
       )}
 
       {activeTab === "sync" && status?.connected && (

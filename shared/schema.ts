@@ -5975,9 +5975,23 @@ export const qbPaymentMap = pgTable("qb_payment_map", {
   index("idx_qb_payment_map_b2b_id").on(table.b2bOrderId),
 ]);
 
+export const qbDescriptionMap = pgTable("qb_description_map", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull().unique(),
+  parsedName: varchar("parsed_name"),
+  productId: varchar("product_id").references(() => products.id),
+  isAutoMatched: boolean("is_auto_matched").notNull().default(false),
+  isIgnored: boolean("is_ignored").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_qb_desc_map_product_id").on(table.productId),
+]);
+
 export type QbConnection = typeof qbConnection.$inferSelect;
 export type QbCustomerMap = typeof qbCustomerMap.$inferSelect;
 export type QbItemMap = typeof qbItemMap.$inferSelect;
+export type QbDescriptionMap = typeof qbDescriptionMap.$inferSelect;
 export type QbSyncLog = typeof qbSyncLog.$inferSelect;
 export type QbInvoiceMap = typeof qbInvoiceMap.$inferSelect;
 export type QbPaymentMap = typeof qbPaymentMap.$inferSelect;
