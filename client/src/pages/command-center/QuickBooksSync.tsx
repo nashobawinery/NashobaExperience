@@ -162,6 +162,13 @@ export default function QuickBooksSync() {
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddType, setQuickAddType] = useState<string>("other");
   const [quickAddMapId, setQuickAddMapId] = useState<number | null>(null);
+  const [toastSearchOpen, setToastSearchOpen] = useState(false);
+  const [toastSearchQuery, setToastSearchQuery] = useState("");
+  const [toastSearchResults, setToastSearchResults] = useState<any[]>([]);
+  const [toastSearchLoading, setToastSearchLoading] = useState(false);
+  const [toastResultCategories, setToastResultCategories] = useState<Record<number, string>>({});
+  const [toastSearchDescId, setToastSearchDescId] = useState<number | null>(null);
+  const [toastSearchDescName, setToastSearchDescName] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -361,6 +368,44 @@ export default function QuickBooksSync() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
     },
+  });
+
+  const searchToast = async (q: string) => {
+    if (q.length < 2) { setToastSearchResults([]); return; }
+    setToastSearchLoading(true);
+    try {
+      const res = await fetch(`/api/quickbooks/toast-search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setToastSearchResults(data);
+    } catch { setToastSearchResults([]); toast({ title: "Search Failed", description: "Could not search Toast items", variant: "destructive" }); }
+    setToastSearchLoading(false);
+  };
+
+  const openToastSearch = (descId: number, parsedName: string) => {
+    setToastSearchDescId(descId);
+    setToastSearchDescName(parsedName);
+    setToastSearchQuery(parsedName);
+    setToastSearchResults([]);
+    setToastResultCategories({});
+    setToastSearchOpen(true);
+    setTimeout(() => searchToast(parsedName), 100);
+  };
+
+  const toastImportMutation = useMutation({
+    mutationFn: async ({ toastName, toastPrice, category, descriptionMapId }: { toastName: string; toastPrice: number; category: string; descriptionMapId: number | null }) => {
+      const res = await apiRequest("POST", "/api/quickbooks/toast-import", { toastName, toastPrice, category, descriptionMapId });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/products-with-media"] });
+      toast({
+        title: data.created ? "Product Created & Mapped" : "Existing Product Mapped",
+        description: `"${data.product.name}" ${data.created ? "added to catalog and" : ""} mapped to description.`,
+      });
+      setToastSearchOpen(false);
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err.message, variant: "destructive" }),
   });
 
   const paymentPreviewMutation = useMutation({
@@ -944,6 +989,18 @@ export default function QuickBooksSync() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {!mapping.productId && !mapping.isIgnored && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openToastSearch(mapping.id, mapping.parsedName || mapping.description)}
+                        title="Search Toast POS for this product"
+                        data-testid={`button-toast-search-${mapping.id}`}
+                      >
+                        <Search className="w-3.5 h-3.5 mr-1.5" />
+                        Toast
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -964,6 +1021,69 @@ export default function QuickBooksSync() {
         </Card>
         </div>
       )}
+
+      {/* Toast Search & Import Dialog */}
+      <Dialog open={toastSearchOpen} onOpenChange={setToastSearchOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Search Toast POS</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
+            Searching for: <span className="font-medium text-foreground">{toastSearchDescName}</span>
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={toastSearchQuery}
+              onChange={(e) => setToastSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && searchToast(toastSearchQuery)}
+              placeholder="Search Toast menu items..."
+              data-testid="input-toast-search"
+            />
+            <Button onClick={() => searchToast(toastSearchQuery)} disabled={toastSearchLoading} data-testid="button-toast-search-go">
+              <Search className={`w-4 h-4 ${toastSearchLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {toastSearchResults.length === 0 && !toastSearchLoading && toastSearchQuery.length >= 2 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No Toast items found for "{toastSearchQuery}"</p>
+            )}
+            {toastSearchResults.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3 p-3 rounded-md border text-sm" data-testid={`toast-result-${idx}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} {item.type ? `(${item.type})` : ""}</p>
+                </div>
+                <Select value={toastResultCategories[idx] || "wine"} onValueChange={(val) => setToastResultCategories(prev => ({ ...prev, [idx]: val }))}>
+                  <SelectTrigger className="w-36" data-testid={`select-toast-category-${idx}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wine">Wine</SelectItem>
+                    <SelectItem value="spirits">Spirits</SelectItem>
+                    <SelectItem value="beer">Beer</SelectItem>
+                    <SelectItem value="canned_cocktail">Canned Cocktail</SelectItem>
+                    <SelectItem value="canned_wine">Canned Wine</SelectItem>
+                    <SelectItem value="cider">Cider</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  onClick={() => toastImportMutation.mutate({
+                    toastName: item.name,
+                    toastPrice: item.price,
+                    category: toastResultCategories[idx] || "wine",
+                    descriptionMapId: toastSearchDescId,
+                  })}
+                  disabled={toastImportMutation.isPending}
+                  data-testid={`button-toast-import-${idx}`}
+                >
+                  Import & Map
+                </Button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {activeTab === "sync" && status?.connected && (
         <div className="space-y-6">

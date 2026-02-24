@@ -726,6 +726,85 @@ router.patch("/api/quickbooks/descriptions/:id", async (req: Request, res: Respo
   }
 });
 
+// ==================== Toast Import for Unmapped Descriptions ====================
+
+router.get("/api/quickbooks/toast-search", async (req: Request, res: Response) => {
+  try {
+    const query = (req.query.q as string || "").trim().toLowerCase();
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    const allToastItems = await db.execute(sql`
+      SELECT DISTINCT ON (LOWER(name)) name, price, description, sku, type
+      FROM toast_menu_items
+      WHERE LOWER(name) ILIKE ${'%' + query + '%'}
+        AND price IS NOT NULL AND price > 0
+        AND (hidden IS NULL OR hidden = false)
+      ORDER BY LOWER(name), price DESC
+      LIMIT 20
+    `);
+
+    const results = (allToastItems.rows || []).map((item: any) => ({
+      name: item.name,
+      price: parseFloat(item.price) || 0,
+      description: item.description || null,
+      sku: item.sku || null,
+      type: item.type || null,
+    }));
+
+    res.json(results);
+  } catch (error: any) {
+    console.error("Toast search error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post("/api/quickbooks/toast-import", async (req: Request, res: Response) => {
+  try {
+    const { toastName, toastPrice, category, descriptionMapId } = req.body;
+
+    if (!toastName || !category) {
+      return res.status(400).json({ error: "Name and category are required" });
+    }
+
+    const validCategories = ["wine", "spirits", "beer", "canned_cocktail", "canned_wine", "cider"];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+
+    const existing = await db.select().from(products).where(eq(products.name, toastName));
+    if (existing.length > 0) {
+      if (descriptionMapId) {
+        await db.update(qbDescriptionMap)
+          .set({ productId: existing[0].id, isAutoMatched: false, updatedAt: new Date() })
+          .where(eq(qbDescriptionMap.id, descriptionMapId));
+      }
+      return res.json({ product: existing[0], created: false, mapped: !!descriptionMapId });
+    }
+
+    const [newProduct] = await db.insert(products).values({
+      id: crypto.randomUUID(),
+      name: toastName,
+      category,
+      price: String(toastPrice || 0),
+      description: `Imported from Toast POS`,
+      ignoreInventory: true,
+    }).returning();
+
+    if (descriptionMapId) {
+      await db.update(qbDescriptionMap)
+        .set({ productId: newProduct.id, isAutoMatched: false, updatedAt: new Date() })
+        .where(eq(qbDescriptionMap.id, descriptionMapId));
+    }
+
+    res.json({ product: newProduct, created: true, mapped: !!descriptionMapId });
+  } catch (error: any) {
+    console.error("Toast import error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== Invoice Sync Routes ====================
 
 async function fetchAndAnalyzeInvoices(conn: typeof qbConnection.$inferSelect, startDate?: string, endDate?: string, docNumberPrefix?: string) {
