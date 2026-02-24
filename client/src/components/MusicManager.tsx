@@ -891,10 +891,15 @@ function LinksPanel() {
     {
       label: "Musician Submission Form",
       description: "Public page where new musicians can apply to perform at your venue. Includes the PRO licensing policy notice and requires a song list. Share this link with musicians who want to book a gig.",
-      url: `${baseUrl}/music`,
-      embedUrl: `${baseUrl}/music?embed=1`,
-      anchor: "#submit",
+      url: `${baseUrl}/music#submit`,
+      embedUrl: `${baseUrl}/music?embed=1#submit`,
       note: "The submission form is at the bottom of the Music Lineup page.",
+    },
+    {
+      label: "Events Schedule",
+      description: "Public page showing upcoming special events with dates, details, and ticket links. Share this with customers or embed on your website.",
+      url: `${baseUrl}/events`,
+      embedUrl: `${baseUrl}/events?embed=1`,
     },
   ];
 
