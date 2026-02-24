@@ -310,10 +310,36 @@ export default function MediaCenter() {
           <p className="text-muted-foreground mb-4">
             Create your first channel to start managing digital signage content.
           </p>
-          <Button onClick={openCreate} data-testid="button-create-first-channel">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Channel
-          </Button>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Button onClick={openCreate} data-testid="button-create-first-channel">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Channel
+            </Button>
+            <Button
+              variant="outline"
+              data-testid="button-seed-tasting-room"
+              onClick={async () => {
+                try {
+                  const res = await apiRequest("POST", "/api/nashobatv/seed-initial-data");
+                  const data = await res.json();
+                  toast({
+                    title: "Tasting Room Created",
+                    description: `Channel seeded with ${data.displaySettings} display settings and ${data.historicalFacts} historical facts.`,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["/api/nashobatv/channels"] });
+                } catch (error: any) {
+                  toast({
+                    title: "Seed Failed",
+                    description: error.message || "Could not seed data",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <Tv className="w-4 h-4 mr-2" />
+              Seed Tasting Room
+            </Button>
+          </div>
         </Card>
       ) : (
         <>
