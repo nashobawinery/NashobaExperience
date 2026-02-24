@@ -163,7 +163,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     sheetName: 'Products',
     businessKey: ['sku', 'name'],
     schema: insertProductSchema,
-    exportFields: ['name', 'category', 'type', 'varietal', 'vintageYear', 'region', 'description', 'tastingNotes', 'foodPairings', 'servingTemp', 'alcoholContent', 'bottleSize', 'price', 'cost', 'wholesaleOverridePrice', 'sku', 'stockQuantity', 'lowStockThreshold', 'imageUrl', 'labelImageUrl', 'lifestyleImageUrl', 'characteristics', 'productionMethod', 'agingProcess', 'awards', 'rating', 'available', 'featured', 'newArrival', 'staffPick', 'wineOfMonth', 'tags', 'caseSize'],
+    exportFields: ['name', 'category', 'type', 'varietal', 'vintageYear', 'region', 'description', 'tastingNotes', 'foodPairings', 'servingTemp', 'alcoholContent', 'bottleSize', 'price', 'cost', 'wholesaleOverridePrice', 'sku', 'stockQuantity', 'lowStockThreshold', 'imageUrl', 'labelImageUrl', 'lifestyleImageUrl', 'characteristics', 'productionMethod', 'agingProcess', 'awards', 'rating', 'available', 'featured', 'newArrival', 'staffPick', 'wineOfMonth', 'showOnB2b', 'tags', 'caseSize'],
     dataType: 'reference',
     supportsBackup: true,
   },

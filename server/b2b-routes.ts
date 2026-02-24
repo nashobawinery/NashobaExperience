@@ -347,7 +347,7 @@ router.post('/api/b2b/request-access', async (req: Request, res: Response) => {
 // Public route: Get all products for pricing sheet
 router.get('/api/b2b/pricing/products', async (req: Request, res: Response) => {
   try {
-    const allProducts = await db.select().from(products).where(eq(products.available, true));
+    const allProducts = await db.select().from(products).where(and(eq(products.available, true), eq(products.showOnB2b, true)));
     res.json(allProducts);
   } catch (error) {
     console.error('Get products error:', error);
@@ -2200,7 +2200,7 @@ router.post('/api/b2b/admin/commission-tiers/calculate', requireB2bAdminOrSalesR
 // Product Pricing & Commission Report (admin)
 router.get('/api/b2b/admin/reports/product-pricing-commissions', requireB2bAdmin, async (req: Request, res: Response) => {
   try {
-    const allProducts = await db.select().from(products).where(eq(products.available, true)).orderBy(products.category, products.name);
+    const allProducts = await db.select().from(products).where(and(eq(products.available, true), eq(products.showOnB2b, true))).orderBy(products.category, products.name);
     const allPricingTiers = await db.select().from(tierPricing).where(eq(tierPricing.active, true)).orderBy(tierPricing.sortOrder);
     const allCommissionTiers = await db.select().from(b2bCommissionTiers).where(eq(b2bCommissionTiers.active, true)).orderBy(b2bCommissionTiers.sortOrder);
 
@@ -5557,7 +5557,7 @@ router.get('/api/b2b/admin/products', requireB2bAdminOrSalesRep, async (req: Req
       category: products.category,
       price: products.price,
       caseSize: products.caseSize,
-    }).from(products).where(eq(products.available, true));
+    }).from(products).where(and(eq(products.available, true), eq(products.showOnB2b, true)));
     res.json(allProducts);
   } catch (error) {
     console.error('Error fetching products:', error);

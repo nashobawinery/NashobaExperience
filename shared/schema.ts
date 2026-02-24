@@ -149,6 +149,7 @@ export const products = pgTable("products", {
   staffPick: boolean("staff_pick").notNull().default(false),
   wineOfMonth: boolean("wine_of_month").notNull().default(false),
   isDistributed: boolean("is_distributed").notNull().default(false),
+  showOnB2b: boolean("show_on_b2b").notNull().default(true),
   tags: text("tags").array(),
   caseSize: integer("case_size").notNull().default(12),
   isArchived: boolean("is_archived").notNull().default(false),

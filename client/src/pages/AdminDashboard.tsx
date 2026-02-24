@@ -2148,6 +2148,17 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
                   />
                   <Label htmlFor="edit-is-distributed" className="cursor-pointer">Distributed Product (Carolina Wine & Spirits)</Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-show-on-b2b"
+                    checked={editProductData.showOnB2b ?? true}
+                    onChange={(e) => setEditProductData({ ...editProductData, showOnB2b: e.target.checked })}
+                    className="w-4 h-4 rounded border-input"
+                    data-testid="checkbox-show-on-b2b"
+                  />
+                  <Label htmlFor="edit-show-on-b2b" className="cursor-pointer">Show on B2B Wholesale Platform</Label>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-tags">Tags (comma-separated)</Label>
