@@ -2408,6 +2408,15 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         resyTicketedEventTimeslots: [],
         resySpecialDates: [],
         resyOperatingHours: [],
+        // NashobaTV module
+        nashobatvChannels: [],
+        nashobatvSlides: [],
+        nashobatvEvents: [],
+        nashobatvAnnouncements: [],
+        nashobatvPhotos: [],
+        nashobatvDisplaySettings: [],
+        nashobatvHistoricalFacts: [],
+        nashobatvDailySpecials: [],
       };
 
       // Base app tables
