@@ -345,7 +345,23 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
   // Handler functions
   const handleAddProduct = () => {
-    toast({ title: "Add Product", description: "Product form would open here" });
+    setEditProductId("new");
+    setEditProductData({
+      name: "",
+      category: "wine",
+      description: "",
+      price: "0",
+      sku: "",
+      stock: 50,
+      inventoryTracking: "ignored",
+    });
+    setSelectedCharacteristics([]);
+    setMainImageMode('url');
+    setLabelImageMode('url');
+    setLifestyleImageMode('url');
+    setMainImageFilename('');
+    setLabelImageFilename('');
+    setLifestyleImageFilename('');
   };
 
   const handleEditProduct = (id: string) => {
@@ -380,8 +396,6 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
 
   const handleSaveProduct = async () => {
     if (editProductId && editProductData) {
-      // Join selected characteristics into comma-separated string
-      // Process tags: if it's a string, split by comma; if already array, keep as-is
       let processedTags: string[] | null = null;
       const tagsValue: any = editProductData.tags;
       if (tagsValue) {
@@ -402,26 +416,28 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       };
       
       try {
-        // Update the product first
-        await apiRequest('PATCH', `/api/products/${editProductId}`, updatedData);
-        
-        // Sync product_media entries based on mode selection
-        await Promise.all([
-          syncProductMediaEntry(editProductId, 'primary', mainImageMode === 'media' ? (editProductData.imageUrl || null) : null),
-          syncProductMediaEntry(editProductId, 'label', labelImageMode === 'media' ? (editProductData.labelImageUrl || null) : null),
-          syncProductMediaEntry(editProductId, 'lifestyle', lifestyleImageMode === 'media' ? (editProductData.lifestyleImageUrl || null) : null),
-        ]);
-        
-        // Invalidate queries and show success toast
-        queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
-        toast({ 
-          title: "Product Updated", 
-          description: "The product was successfully updated" 
-        });
+        if (editProductId === "new") {
+          if (!editProductData.name || !editProductData.category) {
+            toast({ title: "Error", description: "Name and category are required", variant: "destructive" });
+            return;
+          }
+          await apiRequest('POST', '/api/products', updatedData);
+          queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+          toast({ title: "Product Created", description: "The new product was successfully added" });
+        } else {
+          await apiRequest('PATCH', `/api/products/${editProductId}`, updatedData);
+          await Promise.all([
+            syncProductMediaEntry(editProductId, 'primary', mainImageMode === 'media' ? (editProductData.imageUrl || null) : null),
+            syncProductMediaEntry(editProductId, 'label', labelImageMode === 'media' ? (editProductData.labelImageUrl || null) : null),
+            syncProductMediaEntry(editProductId, 'lifestyle', lifestyleImageMode === 'media' ? (editProductData.lifestyleImageUrl || null) : null),
+          ]);
+          queryClient.invalidateQueries({ queryKey: ['/api/admin/products-with-media'] });
+          toast({ title: "Product Updated", description: "The product was successfully updated" });
+        }
       } catch (error) {
         toast({ 
           title: "Error", 
-          description: "Failed to update product",
+          description: editProductId === "new" ? "Failed to create product" : "Failed to update product",
           variant: "destructive"
         });
       }
@@ -1433,8 +1449,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
       <Dialog open={editProductId !== null} onOpenChange={(open) => !open && handleCancelProductEdit()}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>Update all product details</DialogDescription>
+            <DialogTitle>{editProductId === "new" ? "Add Product" : "Edit Product"}</DialogTitle>
+            <DialogDescription>{editProductId === "new" ? "Add a new product to your catalog" : "Update all product details"}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-6 py-4">
             {/* Basic Information */}
@@ -2152,8 +2168,8 @@ export default function AdminDashboard({ onBackToGuest }: AdminDashboardProps) {
             <Button variant="outline" onClick={handleCancelProductEdit}>
               Cancel
             </Button>
-            <Button onClick={handleSaveProduct}>
-              Save Changes
+            <Button onClick={handleSaveProduct} data-testid="button-save-product">
+              {editProductId === "new" ? "Create Product" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
