@@ -2553,6 +2553,37 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         data.resyOperatingHours = await db.select().from(resyOperatingHours);
       }
 
+      // NashobaTV tables
+      const {
+        nashobatvChannels, nashobatvSlides, nashobatvEvents, nashobatvAnnouncements,
+        nashobatvPhotos, nashobatvDisplaySettings, nashobatvHistoricalFacts, nashobatvDailySpecials
+      } = await import('@shared/schema');
+
+      if (tableSet.has('nashobatvChannels')) {
+        data.nashobatvChannels = await db.select().from(nashobatvChannels);
+      }
+      if (tableSet.has('nashobatvSlides')) {
+        data.nashobatvSlides = await db.select().from(nashobatvSlides);
+      }
+      if (tableSet.has('nashobatvEvents')) {
+        data.nashobatvEvents = await db.select().from(nashobatvEvents);
+      }
+      if (tableSet.has('nashobatvAnnouncements')) {
+        data.nashobatvAnnouncements = await db.select().from(nashobatvAnnouncements);
+      }
+      if (tableSet.has('nashobatvPhotos')) {
+        data.nashobatvPhotos = await db.select().from(nashobatvPhotos);
+      }
+      if (tableSet.has('nashobatvDisplaySettings')) {
+        data.nashobatvDisplaySettings = await db.select().from(nashobatvDisplaySettings);
+      }
+      if (tableSet.has('nashobatvHistoricalFacts')) {
+        data.nashobatvHistoricalFacts = await db.select().from(nashobatvHistoricalFacts);
+      }
+      if (tableSet.has('nashobatvDailySpecials')) {
+        data.nashobatvDailySpecials = await db.select().from(nashobatvDailySpecials);
+      }
+
       // RBAC tables - need lookups for natural key resolution
       // CRITICAL: Auto-include parent tables when child tables are selected for proper import
       const rbac = await import('./rbac');
