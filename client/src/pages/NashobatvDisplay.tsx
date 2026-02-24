@@ -252,17 +252,27 @@ function AnnouncementSlide({ announcements }: { announcements: Announcement[] })
   );
 }
 
+const galleryIndexTracker: Record<string, number> = {};
+
 function PhotoGallerySlide({ photos, galleryName }: { photos: Photo[]; galleryName?: string }) {
+  const gKey = galleryName || "Default";
   const galleryPhotos = useMemo(() => {
     if (!galleryName || galleryName === "all") return photos;
     return photos.filter(p => (p.galleryName || "Default") === galleryName);
   }, [photos, galleryName]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const savedIndex = galleryIndexTracker[gKey];
+  const startIndex = galleryPhotos.length > 0
+    ? (savedIndex !== undefined ? (savedIndex + 1) % galleryPhotos.length : 0)
+    : 0;
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
 
   useEffect(() => {
-    setCurrentIndex(0);
-  }, [galleryName]);
+    if (galleryPhotos.length > 0 && currentIndex >= galleryPhotos.length) {
+      setCurrentIndex(0);
+    }
+    galleryIndexTracker[gKey] = currentIndex;
+  }, [currentIndex, gKey, galleryPhotos.length]);
 
   useEffect(() => {
     if (galleryPhotos.length <= 1) return;
@@ -860,33 +870,49 @@ export default function NashobatvDisplay() {
       if (t === "welcome") {
         const welcomeConfig = setting.configData as { customMessage?: string } | null;
         order.push({ type: "welcome", duration: dur, data: welcomeConfig });
-      } else if (t === "events_today" && todayEvents && todayEvents.length > 0) {
-        order.push({ type: "events_today", duration: dur });
-      } else if (t === "upcoming_events" && upcomingEvents && upcomingEvents.length > 0) {
-        order.push({ type: "upcoming_events", duration: dur });
-      } else if (t === "photo_gallery" && photos && photos.length > 0) {
-        const galleryConfig = setting.configData as { galleryName?: string } | null;
-        const gName = galleryConfig?.galleryName || "Default";
-        const galleryPhotos = photos.filter(p => (p.galleryName || "Default") === gName);
-        if (galleryPhotos.length > 0) {
-          order.push({ type: "photo_gallery", duration: dur, data: { galleryName: gName } });
+      } else if (t === "events_today") {
+        if (todayEvents && todayEvents.length > 0) {
+          order.push({ type: "events_today", duration: dur });
         }
-      } else if (t === "announcement" && announcements && announcements.length > 0) {
-        order.push({ type: "announcement", duration: dur });
+      } else if (t === "upcoming_events") {
+        if (upcomingEvents && upcomingEvents.length > 0) {
+          order.push({ type: "upcoming_events", duration: dur });
+        }
+      } else if (t === "photo_gallery") {
+        if (photos && photos.length > 0) {
+          const galleryConfig = setting.configData as { galleryName?: string } | null;
+          const gName = galleryConfig?.galleryName || "Default";
+          const galleryPhotos = photos.filter(p => (p.galleryName || "Default") === gName);
+          if (galleryPhotos.length > 0) {
+            order.push({ type: "photo_gallery", duration: dur, data: { galleryName: gName } });
+          }
+        }
+      } else if (t === "announcement") {
+        if (announcements && announcements.length > 0) {
+          order.push({ type: "announcement", duration: dur });
+        }
       } else if (t === "weather") {
         order.push({ type: "weather", duration: dur });
       } else if (t === "wine_club") {
         order.push({ type: "wine_club", duration: dur });
-      } else if (t === "trivia" && triviaQuestions && triviaQuestions.length > 0) {
-        const triviaConfig = setting.configData as { selectedQuestionId?: string } | null;
-        order.push({ type: "trivia", duration: dur, data: triviaConfig });
-      } else if (t === "history" && historicalFacts && historicalFacts.length > 0) {
-        order.push({ type: "history", duration: dur });
-      } else if (t === "daily_specials" && specials && specials.length > 0) {
-        order.push({ type: "daily_specials", duration: dur });
-      } else if (t === "custom" && slides) {
-        for (const slide of slides.filter((s) => s.slideType === "custom")) {
-          order.push({ type: "custom", duration: slide.duration || dur, data: slide });
+      } else if (t === "trivia") {
+        if (triviaQuestions && triviaQuestions.length > 0) {
+          const triviaConfig = setting.configData as { selectedQuestionId?: string } | null;
+          order.push({ type: "trivia", duration: dur, data: triviaConfig });
+        }
+      } else if (t === "history") {
+        if (historicalFacts && historicalFacts.length > 0) {
+          order.push({ type: "history", duration: dur });
+        }
+      } else if (t === "daily_specials") {
+        if (specials && specials.length > 0) {
+          order.push({ type: "daily_specials", duration: dur });
+        }
+      } else if (t === "custom") {
+        if (slides) {
+          for (const slide of slides.filter((s) => s.slideType === "custom")) {
+            order.push({ type: "custom", duration: slide.duration || dur, data: slide });
+          }
         }
       }
     }
