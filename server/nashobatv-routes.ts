@@ -1075,4 +1075,85 @@ router.delete("/api/nashobatv/display-settings/:id", requireAuth, async (req: Re
   }
 });
 
+router.post("/api/nashobatv/seed-initial-data", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const existingChannels = await db.select().from(nashobatvChannels);
+    if (existingChannels.length > 0) {
+      return res.status(400).json({ error: "NashobaTV already has channels. This endpoint is for initial seeding only." });
+    }
+
+    const [channel] = await db.insert(nashobatvChannels).values({
+      name: "Tasting Room",
+      slug: "tasting-room",
+      description: "Main tasting room TV display",
+      channelType: "tv_display",
+      location: "Tasting Room",
+      isActive: true,
+      isEmbeddable: true,
+    }).returning();
+
+    const displaySettingsData = [
+      { slideType: "welcome", isEnabled: true, duration: 12, sortOrder: 1, channelId: channel.id },
+      { slideType: "events_today", isEnabled: true, duration: 12, sortOrder: 2, channelId: channel.id },
+      { slideType: "photo_gallery", isEnabled: true, duration: 8, sortOrder: 3, channelId: channel.id, configData: JSON.stringify({ galleryName: "Winery" }) },
+      { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 4, channelId: channel.id, configData: JSON.stringify({ galleryName: "J's" }) },
+      { slideType: "upcoming_events", isEnabled: true, duration: 12, sortOrder: 5, channelId: channel.id },
+      { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 6, channelId: channel.id },
+      { slideType: "announcement", isEnabled: true, duration: 10, sortOrder: 7, channelId: channel.id },
+      { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 8, channelId: channel.id, configData: JSON.stringify({ galleryName: "Distillery" }) },
+      { slideType: "weather", isEnabled: true, duration: 8, sortOrder: 9, channelId: channel.id },
+      { slideType: "photo_gallery", isEnabled: true, duration: 10, sortOrder: 10, channelId: channel.id, configData: JSON.stringify({ galleryName: "Orchard/ineyard" }) },
+      { slideType: "wine_club", isEnabled: true, duration: 10, sortOrder: 11, channelId: channel.id },
+      { slideType: "daily_specials", isEnabled: true, duration: 10, sortOrder: 12, channelId: channel.id },
+      { slideType: "history", isEnabled: true, duration: 15, sortOrder: 13, channelId: channel.id },
+      { slideType: "custom", isEnabled: true, duration: 12, sortOrder: 14, channelId: channel.id },
+    ];
+    await db.insert(nashobatvDisplaySettings).values(displaySettingsData);
+
+    const historicalFactsData = [
+      { fact: "Jack Partridge began experimenting with fruit wines in his basement in Somerville, MA, inspired by early Pilgrim recipes and a passion for scientific fermentation.", year: 1976, category: "winery", isActive: true },
+      { fact: "Nashoba Valley Winery was officially founded by Jack Partridge, making it one of the pioneering fruit wineries in New England.", year: 1978, category: "winery", isActive: true },
+      { fact: "After outgrowing his basement, Jack Partridge rented commercial space in a West Concord mill building, partnering with Larry Ames — one of Massachusetts's first commercial winemakers.", year: 1980, category: "winery", isActive: true },
+      { fact: "Jack Partridge purchased 'Upland Farm' in Bolton, including a rustic farmhouse built in 1923. He replanted the orchards with over 100 varieties of antique apples.", year: 1983, category: "farm", isActive: true },
+      { fact: "Rich and Cindy Pelletier purchased Nashoba Valley Winery from founder Jack Partridge. They brought back original winemaker Larry Ames to rebuild and recreate the original wines.", year: 1995, category: "winery", isActive: true },
+      { fact: "J's Restaurant opened in the beautifully restored 1923 farmhouse, showcasing the winery's own fruits, wines, herbs, and vegetables in farm-to-table dining.", year: 1998, category: "restaurant", isActive: true },
+      { fact: "Nashoba Valley Spirits received the first farmer-distiller license in Massachusetts, expanding into brandies, eau de vie, vodka, and whiskey.", year: 2003, month: 2, day: 26, category: "distillery", isActive: true },
+      { fact: "Bolton Beer Works brewery opened on the property, dedicated to crafting small-batch beers for the restaurant and events.", year: 2004, category: "brewery", isActive: true },
+      { fact: "The Bolton Beer Works brewery doubled in size with new fermentation tanks, bottling lines, and kegging equipment.", year: 2015, category: "brewery", isActive: true },
+      { fact: "J's Restaurant was named one of the Top 10 Winery Restaurants in America, bringing national recognition to the Bolton property.", year: 2017, category: "restaurant", isActive: true },
+      { fact: "The brewery underwent a major overhaul with a new ABE mash tun and kettle system, modernizing the brewing operation.", year: 2019, category: "brewery", isActive: true },
+      { fact: "J's Restaurant was ranked the #3 Winery Restaurant in America, the highest ranking ever for a New England winery restaurant.", year: 2024, category: "restaurant", isActive: true },
+      { fact: "The original Bolton farmhouse was built in 1923 by Dr. Clemens, a chiropractor. It would later become the home of J's Restaurant, serving guests with panoramic views of orchards and vineyards.", year: 1923, category: "farm", isActive: true },
+      { fact: "Nashoba Valley Winery has won over 100 national wine awards, establishing itself as a premier producer of both traditional and fruit wines in New England.", category: "winery", isActive: true },
+      { fact: "The winery produces 37 different wines and over 13,000 cases per year, with more than 40,000 gallons of tank space across the property.", category: "winery", isActive: true },
+      { fact: "Nashoba Valley's orchards feature over 100 varieties of antique apples, originally planted by founder Jack Partridge for wine and cider experimentation.", category: "farm", isActive: true },
+      { fact: "The winery sources ingredients from across New England — cranberries from Cape Cod, blueberries from Maine, and maple syrup from the Berkshires — creating truly regional wines.", category: "winery", isActive: true },
+      { fact: "Nashoba Valley operates as a positive carbon footprint farm, spanning over 52 acres of orchards, vineyards, and production facilities in Bolton, Massachusetts.", category: "farm", isActive: true },
+      { fact: "Executive Chef Matt Sciabarrasi leads J's Restaurant with farm-to-table seasonal menus, using produce and herbs grown steps away from the kitchen.", category: "restaurant", isActive: true },
+      { fact: "J's Restaurant has been consistently recognized by Zagat since 2003, along with honors from Yankee Magazine, The Boston Globe, and Phantom Gourmet.", category: "restaurant", isActive: true },
+      { fact: "Larry Ames, a Brown University graduate, served as Nashoba's founding winemaker. He returned in 1995 when the Pelletiers purchased the winery, staying through 2002 to rebuild its reputation.", category: "winery", isActive: true },
+      { fact: "The name 'Nashoba' comes from the Algonquin language, meaning 'beautiful place between the hills' — fitting for the rolling landscape of Bolton, Massachusetts.", category: "winery", isActive: true },
+      { fact: "Apple picking season at Nashoba Valley brings thousands of visitors each fall to the orchards, which have been cultivated since the 1980s with heirloom and antique varieties.", month: 9, category: "farm", isActive: true },
+      { fact: "Nashoba Valley was one of the first wineries in Massachusetts to prove that New England fruit could produce award-winning wines, challenging the notion that great wine only comes from traditional grape regions.", category: "winery", isActive: true },
+      { fact: "Justin Pelletier, son of owners Rich and Cindy Pelletier, grew up working at the winery from childhood and was promoted to Chief Operating Officer upon earning his business degree from the University of Connecticut in 2018 — taking a hands-on leadership role at just 22 years old.", year: 2018, category: "winery", isActive: true },
+      { fact: "After earning his business degree from UConn, Justin Pelletier furthered his winemaking expertise by studying viticulture and enology at UC Davis and Sonoma State University, bringing formal winemaking education back to complement his lifelong hands-on experience at Nashoba Valley.", category: "winery", isActive: true },
+      { fact: "During the COVID-19 pandemic in 2020, Justin Pelletier led the conversion of Nashoba Valley's distillery from producing gin and whiskey to manufacturing up to 250 gallons of hand sanitizer daily, donating much of it to hospitals and life care facilities in the community.", year: 2020, category: "distillery", isActive: true },
+      { fact: "The U.S. Postal Service honored Nashoba Valley Winery with a commemorative stamp in recognition of their COVID-19 hand sanitizer production efforts, which helped protect healthcare workers and residents across the region.", year: 2020, category: "distillery", isActive: true },
+      { fact: "Under Justin Pelletier's operational leadership, Nashoba Valley expanded its outdoor dining with The Vintner's Knoll during the pandemic and invested heavily in new equipment, technology, and staff to emerge from COVID-19 stronger than before.", year: 2020, category: "restaurant", isActive: true },
+    ];
+    await db.insert(nashobatvHistoricalFacts).values(historicalFactsData);
+
+    res.json({
+      success: true,
+      channelId: channel.id,
+      displaySettings: displaySettingsData.length,
+      historicalFacts: historicalFactsData.length,
+      message: "NashobaTV Tasting Room channel seeded with display settings and historical facts. Photos must be uploaded separately via the Media Center."
+    });
+  } catch (error: any) {
+    console.error("Error seeding NashobaTV data:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
