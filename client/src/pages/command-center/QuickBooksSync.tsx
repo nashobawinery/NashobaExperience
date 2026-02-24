@@ -398,6 +398,7 @@ export default function QuickBooksSync() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/descriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/products-with-media"] });
       toast({
         title: data.created ? "Product Created & Mapped" : "Existing Product Mapped",
