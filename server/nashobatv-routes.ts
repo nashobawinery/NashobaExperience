@@ -13,6 +13,8 @@ import {
   triviaQuestions,
   nashobatvHistoricalFacts,
   mediaSpecialEvents,
+  mediaMusicEvents,
+  mediaMusicians,
 } from "@shared/schema";
 import { objectStorageClient } from "./objectStorage";
 
@@ -41,7 +43,8 @@ const DEFAULT_DISPLAY_SETTINGS = [
   { slideType: "daily_specials", isEnabled: true, duration: 12, sortOrder: 8 },
   { slideType: "trivia", isEnabled: true, duration: 15, sortOrder: 9 },
   { slideType: "history", isEnabled: true, duration: 15, sortOrder: 10 },
-  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 11 },
+  { slideType: "live_music", isEnabled: true, duration: 12, sortOrder: 11 },
+  { slideType: "custom", isEnabled: false, duration: 12, sortOrder: 12 },
 ];
 
 async function ensureDefaultChannel(): Promise<typeof nashobatvChannels.$inferSelect> {
@@ -397,6 +400,37 @@ router.get("/api/public/display/trivia", async (_req: Request, res: Response) =>
   }
 });
 
+router.get("/api/public/display/music", async (_req: Request, res: Response) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select({
+        id: mediaMusicEvents.id,
+        title: mediaMusicEvents.title,
+        eventDate: mediaMusicEvents.eventDate,
+        startTime: mediaMusicEvents.startTime,
+        endTime: mediaMusicEvents.endTime,
+        location: mediaMusicEvents.location,
+        description: mediaMusicEvents.description,
+        imageUrl: mediaMusicEvents.imageUrl,
+        musicianName: mediaMusicians.name,
+        musicianGenre: mediaMusicians.genre,
+        musicianImage: mediaMusicians.imageUrl,
+      })
+      .from(mediaMusicEvents)
+      .leftJoin(mediaMusicians, eq(mediaMusicEvents.musicianId, mediaMusicians.id))
+      .where(and(
+        eq(mediaMusicEvents.isActive, true),
+        sql`${mediaMusicEvents.eventDate} >= ${today}`
+      ))
+      .orderBy(asc(mediaMusicEvents.eventDate), asc(mediaMusicEvents.startTime));
+    res.json(events.slice(0, 6));
+  } catch (error) {
+    console.error("Error fetching music for display:", error);
+    res.status(500).json({ error: "Failed to fetch music" });
+  }
+});
+
 router.get("/api/public/display/history", async (_req: Request, res: Response) => {
   try {
     const now = new Date();
@@ -703,6 +737,39 @@ router.get("/api/public/display/:slug/trivia", async (_req: Request, res: Respon
   } catch (error) {
     console.error("Error fetching trivia for display:", error);
     res.status(500).json({ error: "Failed to fetch trivia" });
+  }
+});
+
+router.get("/api/public/display/:slug/music", async (req: Request, res: Response) => {
+  try {
+    const channel = await getChannelBySlug(req.params.slug);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+    const today = new Date().toISOString().split("T")[0];
+    const events = await db
+      .select({
+        id: mediaMusicEvents.id,
+        title: mediaMusicEvents.title,
+        eventDate: mediaMusicEvents.eventDate,
+        startTime: mediaMusicEvents.startTime,
+        endTime: mediaMusicEvents.endTime,
+        location: mediaMusicEvents.location,
+        description: mediaMusicEvents.description,
+        imageUrl: mediaMusicEvents.imageUrl,
+        musicianName: mediaMusicians.name,
+        musicianGenre: mediaMusicians.genre,
+        musicianImage: mediaMusicians.imageUrl,
+      })
+      .from(mediaMusicEvents)
+      .leftJoin(mediaMusicians, eq(mediaMusicEvents.musicianId, mediaMusicians.id))
+      .where(and(
+        eq(mediaMusicEvents.isActive, true),
+        sql`${mediaMusicEvents.eventDate} >= ${today}`
+      ))
+      .orderBy(asc(mediaMusicEvents.eventDate), asc(mediaMusicEvents.startTime));
+    res.json(events.slice(0, 6));
+  } catch (error) {
+    console.error("Error fetching music for display:", error);
+    res.status(500).json({ error: "Failed to fetch music" });
   }
 });
 
@@ -1106,7 +1173,8 @@ router.post("/api/nashobatv/seed-initial-data", requireAuth, async (req: Request
       { slideType: "wine_club", isEnabled: true, duration: 10, sortOrder: 11, channelId: channel.id },
       { slideType: "daily_specials", isEnabled: true, duration: 10, sortOrder: 12, channelId: channel.id },
       { slideType: "history", isEnabled: true, duration: 15, sortOrder: 13, channelId: channel.id },
-      { slideType: "custom", isEnabled: true, duration: 12, sortOrder: 14, channelId: channel.id },
+      { slideType: "live_music", isEnabled: true, duration: 12, sortOrder: 14, channelId: channel.id },
+      { slideType: "custom", isEnabled: true, duration: 12, sortOrder: 15, channelId: channel.id },
     ];
     await db.insert(nashobatvDisplaySettings).values(displaySettingsData);
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle, Landmark } from "lucide-react";
+import { Wine, Calendar, Clock, Star, Camera, Bell, Grape, Beer, GlassWater, Sparkles, MapPin, ChevronRight, ChevronLeft, UtensilsCrossed, Cloud, Sun, CloudRain, Snowflake, Leaf, HelpCircle, CheckCircle2, XCircle, Landmark, Music } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface DisplaySettings {
@@ -64,6 +64,20 @@ interface DailySpecial {
   description: string | null;
   happyHourStart: string | null;
   happyHourEnd: string | null;
+}
+
+interface MusicEvent {
+  id: number;
+  title: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  musicianName: string | null;
+  musicianGenre: string | null;
+  musicianImage: string | null;
 }
 
 function formatTime(time: string | null): string {
@@ -248,6 +262,65 @@ function AnnouncementSlide({ announcements }: { announcements: Announcement[] })
           <p className="text-2xl max-w-4xl leading-relaxed" style={{ color: "#F5F0E8AA" }}>{a.body}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function LiveMusicSlide({ musicEvents }: { musicEvents: MusicEvent[] }) {
+  if (musicEvents.length === 0) return null;
+  const next6 = musicEvents.slice(0, 6);
+  const cols = next6.length <= 3 ? 1 : 2;
+  return (
+    <div className="flex flex-col h-full px-16 py-12" data-testid="slide-live-music">
+      <div className="flex items-center gap-4 mb-3">
+        <Music className="w-10 h-10" style={{ color: GOLD }} />
+        <h2 className="text-5xl font-light" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+          Live Music
+        </h2>
+      </div>
+      <Divider className="mb-8" />
+      <div className={`flex-1 grid gap-4 overflow-hidden ${cols === 2 ? "grid-cols-2" : "grid-cols-1 max-w-3xl mx-auto w-full"}`}>
+        {next6.map((event) => {
+          const dateObj = new Date(event.eventDate + "T12:00:00");
+          const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+          const monthDay = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          return (
+            <div key={event.id} className="flex items-center gap-5 rounded-lg p-4" style={{ background: "rgba(201, 160, 80, 0.06)", border: `1px solid ${GOLD}18` }}>
+              {(event.musicianImage || event.imageUrl) && (
+                <img
+                  src={event.musicianImage || event.imageUrl || ""}
+                  alt={event.musicianName || event.title}
+                  className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-2xl font-semibold truncate" style={{ color: "#F5F0E8", fontFamily: "Georgia, serif" }}>
+                  {event.musicianName || event.title}
+                </h3>
+                {event.musicianGenre && (
+                  <p className="text-base mt-0.5" style={{ color: `${GOLD}99` }}>{event.musicianGenre}</p>
+                )}
+                <div className="flex items-center gap-3 mt-1.5 text-base" style={{ color: GOLD_LIGHT }}>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {dayName}, {monthDay}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {formatTime(event.startTime)}{event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+                  </span>
+                </div>
+                {event.location && (
+                  <p className="text-base mt-1 flex items-center gap-1" style={{ color: "#F5F0E860" }}>
+                    <MapPin className="w-4 h-4" />
+                    {event.location}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -858,6 +931,12 @@ export default function NashobatvDisplay() {
     refetchInterval: 3600000,
   });
 
+  const { data: musicEvents } = useQuery<MusicEvent[]>({
+    queryKey: [apiBase, "music"],
+    queryFn: async () => { const r = await fetch(`${apiBase}/music`); if (!r.ok) throw new Error("Failed"); return r.json(); },
+    refetchInterval: 300000,
+  });
+
   const buildSlideOrder = useCallback(() => {
     if (!settings) return;
     const enabledSettings = settings.filter((s) => s.isEnabled).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -908,6 +987,10 @@ export default function NashobatvDisplay() {
         if (specials && specials.length > 0) {
           order.push({ type: "daily_specials", duration: dur });
         }
+      } else if (t === "live_music") {
+        if (musicEvents && musicEvents.length > 0) {
+          order.push({ type: "live_music", duration: dur });
+        }
       } else if (t === "custom") {
         if (slides) {
           for (const slide of slides.filter((s) => s.slideType === "custom")) {
@@ -922,7 +1005,7 @@ export default function NashobatvDisplay() {
     }
 
     setSlideOrder(order);
-  }, [settings, todayEvents, upcomingEvents, announcements, photos, specials, slides, triviaQuestions, historicalFacts]);
+  }, [settings, todayEvents, upcomingEvents, announcements, photos, specials, slides, triviaQuestions, historicalFacts, musicEvents]);
 
   useEffect(() => {
     buildSlideOrder();
@@ -1003,6 +1086,7 @@ export default function NashobatvDisplay() {
       case "history":
         return <HistorySlide key={`history-${currentSlideIndex}`} facts={historicalFacts} forcedFactId={currentHistoryIdRef.current} />;
       case "wine_club": return <WineClubSlide />;
+      case "live_music": return <LiveMusicSlide musicEvents={musicEvents || []} />;
       case "custom": return <CustomSlide slide={current.data} />;
       default: return <WelcomeSlide />;
     }
