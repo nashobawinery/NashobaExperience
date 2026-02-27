@@ -4604,7 +4604,7 @@ export class DatabaseStorage implements IStorage {
   async getActiveAccessCodesByStaffName(staffName: string): Promise<DailyReportAccessCode[]> {
     return await db.select().from(dailyReportAccessCodes)
       .where(and(
-        eq(dailyReportAccessCodes.staffName, staffName),
+        sql`LOWER(${dailyReportAccessCodes.staffName}) = LOWER(${staffName})`,
         eq(dailyReportAccessCodes.isActive, true)
       ))
       .orderBy(dailyReportAccessCodes.department);

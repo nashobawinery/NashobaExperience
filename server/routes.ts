@@ -12614,15 +12614,23 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       
       const isDepartmentAvailableNow = (template: { availableFromTime?: string | null; availableUntilTime?: string | null }) => {
         if (!template.availableFromTime && !template.availableUntilTime) return true;
-        const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        // Use Eastern time (America/New_York) so time windows match local business hours
+        const nowEastern = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).formatToParts(new Date());
+        const h = parseInt(nowEastern.find(p => p.type === 'hour')?.value ?? '0', 10);
+        const m = parseInt(nowEastern.find(p => p.type === 'minute')?.value ?? '0', 10);
+        const currentMinutes = h * 60 + m;
         if (template.availableFromTime) {
-          const [h, m] = template.availableFromTime.split(':').map(Number);
-          if (currentMinutes < h * 60 + m) return false;
+          const [fh, fm] = template.availableFromTime.split(':').map(Number);
+          if (currentMinutes < fh * 60 + fm) return false;
         }
         if (template.availableUntilTime) {
-          const [h, m] = template.availableUntilTime.split(':').map(Number);
-          const untilMinutes = h * 60 + m;
+          const [uh, um] = template.availableUntilTime.split(':').map(Number);
+          const untilMinutes = uh * 60 + um;
           const effectiveUntil = untilMinutes === 0 ? 24 * 60 : untilMinutes;
           if (currentMinutes >= effectiveUntil) return false;
         }
