@@ -12390,18 +12390,41 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
         }
       };
 
-      // Build Daily Reports departments list
+      // Helper: check if a template's time window is open right now (Eastern time)
+      const isAvailableNowEastern = (template: { availableFromTime?: string | null; availableUntilTime?: string | null } | null) => {
+        if (!template || (!template.availableFromTime && !template.availableUntilTime)) return true;
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).formatToParts(new Date());
+        const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+        const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+        const cur = h * 60 + m;
+        if (template.availableFromTime) {
+          const [fh, fm] = template.availableFromTime.split(':').map(Number);
+          if (cur < fh * 60 + fm) return false;
+        }
+        if (template.availableUntilTime) {
+          const [uh, um] = template.availableUntilTime.split(':').map(Number);
+          const until = uh * 60 + um;
+          if (cur >= (until === 0 ? 24 * 60 : until)) return false;
+        }
+        return true;
+      };
+
+      // Build Daily Reports departments list — filtered by Eastern time window
       if (dailyReportCodes.length > 0) {
-        response.dailyReports.departments = await Promise.all(
+        const allDepts = await Promise.all(
           dailyReportCodes.map(async (ac) => {
             const template = await storage.getDailyReportTemplateByDepartment(ac.department);
-            return {
-              department: ac.department,
-              departmentLabel: template?.departmentLabel || ac.department,
-              code: ac.code
-            };
+            return { department: ac.department, departmentLabel: template?.departmentLabel || ac.department, code: ac.code, template };
           })
         );
+        response.dailyReports.departments = allDepts
+          .filter(d => isAvailableNowEastern(d.template))
+          .map(({ department, departmentLabel, code: deptCode }) => ({ department, departmentLabel, code: deptCode }));
         // Update last used timestamp
         await storage.updateDailyReportAccessCodeLastUsed(code);
       }
