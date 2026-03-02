@@ -196,6 +196,10 @@ router.get("/menus/available", isAuthenticated, async (req, res) => {
       menuList = obj.menus || obj.data || [rawResponse];
     }
 
+    const totalCount = menuList.length;
+    menuList = menuList.filter((menu: any) => !menu.archived && !menu.deleted && !menu.deletedDate);
+    console.log(`[Toast Menus] Filtered to ${menuList.length} active menus (${totalCount - menuList.length} archived/deleted excluded)`);
+
     const available = menuList.map((menu: any) => ({
       guid: menu.guid || menu.id || menu.menuId || "",
       name: menu.name || "Unnamed Menu",
@@ -231,6 +235,12 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     } else if (rawResponse && typeof rawResponse === "object") {
       const obj = rawResponse as Record<string, any>;
       menuList = obj.menus || obj.data || [rawResponse];
+    }
+
+    const priorToFilter = menuList.length;
+    menuList = menuList.filter((menu: any) => !menu.archived && !menu.deleted && !menu.deletedDate);
+    if (priorToFilter !== menuList.length) {
+      console.log(`[Toast Menus] Excluded ${priorToFilter - menuList.length} archived/deleted menus from sync`);
     }
 
     if (selectedGuids) {
@@ -305,9 +315,10 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
       });
       menuCount++;
 
-      const groups = menu.menuGroups || menu.groups || menu.subgroups || [];
+      const allGroups = menu.menuGroups || menu.groups || menu.subgroups || [];
+      const groups = allGroups.filter((g: any) => !g.archived && !g.deleted && !g.deletedDate);
       if (groups.length > 0) {
-        console.log(`[Toast Menus] Menu "${menuName}" has ${groups.length} groups. First group keys: ${Object.keys(groups[0]).join(", ")}`);
+        console.log(`[Toast Menus] Menu "${menuName}" has ${groups.length} active groups (${allGroups.length - groups.length} archived excluded). First group keys: ${Object.keys(groups[0]).join(", ")}`);
       }
 
       for (let gi = 0; gi < groups.length; gi++) {
@@ -328,7 +339,8 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
         });
         groupCount++;
 
-        const items = group.menuItems || group.items || [];
+        const allItems = group.menuItems || group.items || [];
+        const items = allItems.filter((it: any) => !it.archived && !it.deleted && !it.deletedDate);
         for (let ii = 0; ii < items.length; ii++) {
           const item = items[ii];
           const itemGuid = item.guid || item.id || item.itemId || "";
