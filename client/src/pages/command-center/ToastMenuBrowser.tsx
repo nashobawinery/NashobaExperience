@@ -160,6 +160,7 @@ export function ToastMenuBrowser() {
   const [printFooterFontSize, setPrintFooterFontSize] = useState(1.0);
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
+  const [printShowImages, setPrintShowImages] = useState(false);
 
   const HEADER_PRESETS_KEY = "toast-menu-header-presets";
   const FOOTER_PRESETS_KEY = "toast-menu-footer-presets";
@@ -270,6 +271,7 @@ export function ToastMenuBrowser() {
     hideDescriptions: boolean | null;
     hidePricing: boolean | null;
     hideWinePairing: boolean | null;
+    showImages: boolean | null;
     pages: number | null;
     pageBreaks: string | null;
     customTitle: string | null;
@@ -302,6 +304,7 @@ export function ToastMenuBrowser() {
     hideDescriptions: printHideDescriptions,
     hidePricing: printHidePricing,
     hideWinePairing: printHideWinePairing,
+    showImages: printShowImages,
     pages: printPages,
     pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
     customTitle: null,
@@ -546,7 +549,7 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -560,10 +563,11 @@ export function ToastMenuBrowser() {
     if (hideWinePairing) url += `&hidepairing=1`;
     if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
     if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
+    if (showImages) url += `&showimages=1`;
     return url;
   };
 
-  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -577,19 +581,20 @@ export function ToastMenuBrowser() {
     if (hideWinePairing) url += `&hidepairing=1`;
     if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
     if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
+    if (showImages) url += `&showimages=1`;
     return url;
   };
 
   const buildPrintUrl = (template: string) => {
     const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
+      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
     }
-    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
+    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
   };
 
-  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, undefined, undefined, footer, undefined, hideDescriptions, header, hidePricing, hideWinePairing, headerSize, footerSize);
+  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, undefined, undefined, footer, undefined, hideDescriptions, header, hidePricing, hideWinePairing, headerSize, footerSize, showImages);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -1024,6 +1029,14 @@ export function ToastMenuBrowser() {
                 />
                 <span className="font-medium">Hide Wine Pairings</span>
               </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printShowImages}
+                  onCheckedChange={(checked) => setPrintShowImages(!!checked)}
+                  data-testid="checkbox-detail-show-images"
+                />
+                <span className="font-medium">Show Images</span>
+              </label>
             </div>
           </CardContent>
         </Card>
@@ -1190,8 +1203,8 @@ export function ToastMenuBrowser() {
   const renderEmbedView = () => {
     if (!selectedMenu) return null;
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
-    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
+    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
 
     return (
       <>

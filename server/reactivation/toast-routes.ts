@@ -719,6 +719,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const hideDescriptions = req.query.hidedesc === "1";
     const hidePricing = req.query.hideprice === "1";
     const hideWinePairing = req.query.hidepairing === "1";
+    const showImages = req.query.showimages === "1";
 
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
@@ -848,16 +849,23 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const showDesc = !hideDescriptions && item.description;
         const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
         const showPrice = !hidePricing;
+        const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
+        const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
+        const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item">
-              <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-              ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+            <div class="bev-item-row">
+              ${bevImgHtml}
+              <div class="bev-item">
+                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+              </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
+              ${itemImageHtml}
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -865,6 +873,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         } else {
           itemsHtml += `
             <div class="menu-item">
+              ${itemImageHtml}
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
                 ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
@@ -918,6 +927,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-image-wrap { text-align: center; margin-bottom: 12px; }
+        .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
         .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
@@ -939,9 +950,11 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .bev-groups-container { column-count: 2; column-gap: 32px; }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
-        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; }
+        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-size: 0.85rem; font-weight: 400; }
         .bev-price { font-size: 0.85rem; font-weight: 500; white-space: nowrap; }
+        .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
@@ -970,6 +983,8 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-image-wrap { margin-bottom: 10px; }
+        .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
@@ -1038,6 +1053,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const hideDescriptions = req.query.hidedesc === "1";
     const hidePricing = req.query.hideprice === "1";
     const hideWinePairing = req.query.hidepairing === "1";
+    const showImages = req.query.showimages === "1";
     const customTitle = (req.query.title as string) || "";
     const groupGuidParam = req.query.groupGuid as string | undefined;
     const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
@@ -1146,16 +1162,23 @@ router.get("/public/menus/embed", async (req, res) => {
         const showDesc = !hideDescriptions && item.description;
         const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
         const showPrice = !hidePricing;
+        const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
+        const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
+        const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item">
-              <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-              ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+            <div class="bev-item-row">
+              ${bevImgHtml}
+              <div class="bev-item">
+                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+              </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
+              ${itemImageHtml}
               <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -1163,6 +1186,7 @@ router.get("/public/menus/embed", async (req, res) => {
         } else {
           itemsHtml += `
             <div class="menu-item">
+              ${itemImageHtml}
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
                 ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
@@ -1215,6 +1239,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-image-wrap { text-align: center; margin-bottom: 12px; }
+        .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
         .custom-header { text-align: center; font-size: ${headerFontSize}rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
@@ -1236,9 +1262,11 @@ router.get("/public/menus/embed", async (req, res) => {
         .bev-groups-container { column-count: 2; column-gap: 32px; }
         .bev-group { break-inside: avoid; margin-bottom: 20px; }
         .bev-group-name { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1c1917; padding-bottom: 2px; margin-bottom: 6px; }
-        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; }
+        .bev-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 0; line-height: 1.4; flex: 1; }
         .bev-name { font-size: 0.85rem; font-weight: 400; }
         .bev-price { font-size: 0.85rem; font-weight: 500; white-space: nowrap; }
+        .bev-item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .bev-img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
@@ -1267,6 +1295,8 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-image-wrap { margin-bottom: 10px; }
+        .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
@@ -1426,6 +1456,7 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.headerFontSize && config.headerFontSize !== 1) url += `&headerSize=${config.headerFontSize.toFixed(1)}`;
     if (config.footerFontSize && config.footerFontSize !== 1) url += `&footerSize=${config.footerFontSize.toFixed(1)}`;
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
+    if (config.showImages) url += `&showimages=1`;
 
     return res.redirect(302, url);
   } catch (error: any) {
@@ -1469,6 +1500,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       hideDescriptions: req.body.hideDescriptions ?? false,
       hidePricing: req.body.hidePricing ?? false,
       hideWinePairing: req.body.hideWinePairing ?? false,
+      showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
       customTitle: req.body.customTitle || null,
@@ -1496,6 +1528,7 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       hideDescriptions: req.body.hideDescriptions ?? false,
       hidePricing: req.body.hidePricing ?? false,
       hideWinePairing: req.body.hideWinePairing ?? false,
+      showImages: req.body.showImages ?? false,
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
       customTitle: req.body.customTitle ?? null,
