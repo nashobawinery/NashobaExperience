@@ -172,6 +172,7 @@ export function ToastMenuBrowser() {
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [showStaffSavePrompt, setShowStaffSavePrompt] = useState(false);
   const [staffSaveMode, setStaffSaveMode] = useState<"new" | "overwrite" | null>(null);
+  const [staffSaveIsDirectEntry, setStaffSaveIsDirectEntry] = useState(false);
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -358,6 +359,7 @@ export function ToastMenuBrowser() {
         setPendingNavAction(null);
         setShowUnsavedWarning(false);
       } else {
+        setStaffSaveIsDirectEntry(false);
         setShowStaffSavePrompt(true);
       }
     },
@@ -698,6 +700,14 @@ export function ToastMenuBrowser() {
             >
               <Printer className="w-4 h-4 mr-2" />
               Print
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setSaveName(menu.name || ""); setStaffSaveIsDirectEntry(true); setShowStaffSavePrompt(true); }}
+              data-testid="button-save-to-staff-print"
+            >
+              <BookMarked className="w-4 h-4 mr-2" />
+              Save to Staff Print
             </Button>
             <Button
               variant="outline"
@@ -1647,15 +1657,18 @@ export function ToastMenuBrowser() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showStaffSavePrompt} onOpenChange={(open) => { if (!open) { setShowStaffSavePrompt(false); setStaffSaveMode(null); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); } }}>
+      <Dialog open={showStaffSavePrompt} onOpenChange={(open) => { if (!open) { setShowStaffSavePrompt(false); setStaffSaveMode(null); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); setStaffSaveIsDirectEntry(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Save to Staff Print Board?</DialogTitle>
+            <DialogTitle>Save to Staff Print Board</DialogTitle>
           </DialogHeader>
           {staffSaveMode === null ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Your menu changes have been saved. Would you also like to save this menu to the Staff Print Board so staff can print it with one click?
+                {staffSaveIsDirectEntry
+                  ? "Save this menu to the Staff Print Board so staff can quickly open and print it from the Staff Portal with one click."
+                  : "Your menu changes have been saved. Would you also like to save this menu to the Staff Print Board so staff can print it with one click?"
+                }
               </p>
               <div className="flex flex-col gap-2 pt-2">
                 <Button
