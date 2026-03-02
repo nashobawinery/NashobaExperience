@@ -195,6 +195,9 @@ export function ToastMenuBrowser() {
   const [staffSaveMode, setStaffSaveMode] = useState<"new" | "overwrite" | null>(null);
   const [staffSaveIsDirectEntry, setStaffSaveIsDirectEntry] = useState(false);
 
+  const [staticUrlName, setStaticUrlName] = useState("");
+  const [copiedStaticId, setCopiedStaticId] = useState<number | null>(null);
+
   const { data: statusData } = useQuery<{
     configured: boolean;
     authenticated: boolean;
@@ -251,6 +254,94 @@ export function ToastMenuBrowser() {
     );
     return [...primary, ...additional];
   }, [menuDetail, additionalMenuDetailsList]);
+
+  interface EmbedConfig {
+    id: number;
+    slug: string;
+    name: string;
+    menuGuids: string;
+    template: string | null;
+    header: string | null;
+    footer: string | null;
+    headerFontSize: number | null;
+    footerFontSize: number | null;
+    scale: number | null;
+    groupGuids: string | null;
+    hideDescriptions: boolean | null;
+    hidePricing: boolean | null;
+    hideWinePairing: boolean | null;
+    pages: number | null;
+    pageBreaks: string | null;
+    customTitle: string | null;
+    createdAt: string;
+  }
+
+  const { data: embedConfigs = [] } = useQuery<EmbedConfig[]>({
+    queryKey: ["/api/toast/embed-configs", selectedMenu],
+    queryFn: async () => {
+      if (!selectedMenu) return [];
+      const res = await fetch(`/api/toast/embed-configs?menuGuid=${encodeURIComponent(selectedMenu)}`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!selectedMenu,
+  });
+
+  const getCurrentEmbedPayload = (name: string) => ({
+    name,
+    menuGuids: selectedMenu
+      ? (additionalMenuGuids.length > 0 ? [selectedMenu, ...additionalMenuGuids].join(",") : selectedMenu)
+      : "",
+    template: printTemplate,
+    header: printHeader || null,
+    footer: printFooter || null,
+    headerFontSize: printHeaderFontSize,
+    footerFontSize: printFooterFontSize,
+    scale: printScale,
+    groupGuids: selectedPrintGroups.length > 0 ? selectedPrintGroups.join(",") : null,
+    hideDescriptions: printHideDescriptions,
+    hidePricing: printHidePricing,
+    hideWinePairing: printHideWinePairing,
+    pages: printPages,
+    pageBreaks: printPageBreaks.length > 0 ? printPageBreaks.join(",") : null,
+    customTitle: null,
+  });
+
+  const createEmbedConfigMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/toast/embed-configs", getCurrentEmbedPayload(name));
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
+      setStaticUrlName("");
+      toast({ title: "Static link saved", description: "Your permanent embed URL is ready to use." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to save static link.", variant: "destructive" }),
+  });
+
+  const updateEmbedConfigMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const res = await apiRequest("PUT", `/api/toast/embed-configs/${id}`, getCurrentEmbedPayload(name));
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
+      toast({ title: "Static link updated", description: "The link now reflects your current settings." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update static link.", variant: "destructive" }),
+  });
+
+  const deleteEmbedConfigMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/toast/embed-configs/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
+      toast({ title: "Static link deleted" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to delete static link.", variant: "destructive" }),
+  });
 
   const syncMutation = useMutation({
     mutationFn: async ({ guid, menuGuids }: { guid: string; menuGuids?: string[] }) => {
@@ -1160,6 +1251,97 @@ export function ToastMenuBrowser() {
               className="font-mono text-xs"
               data-testid="input-embed-url"
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm">Static Links</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Save current settings as a permanent URL — update settings and click "Sync" to refresh what it displays without changing the link itself.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <Input
+                placeholder="Link name (e.g. Main Website Menu)"
+                value={staticUrlName}
+                onChange={e => setStaticUrlName(e.target.value)}
+                className="flex-1 text-sm"
+                data-testid="input-static-url-name"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!staticUrlName.trim() || createEmbedConfigMutation.isPending}
+                onClick={() => createEmbedConfigMutation.mutate(staticUrlName.trim())}
+                data-testid="button-save-static-url"
+              >
+                {createEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                Save as Static Link
+              </Button>
+            </div>
+
+            {embedConfigs.length > 0 && (
+              <div className="space-y-2 pt-1">
+                {embedConfigs.map(cfg => {
+                  const staticUrl = `${window.location.origin}/api/toast/public/embed-config/${cfg.slug}`;
+                  const isCopied = copiedStaticId === cfg.id;
+                  return (
+                    <div key={cfg.id} className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-sm font-medium">{cfg.name}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="Sync current settings to this link"
+                            disabled={updateEmbedConfigMutation.isPending}
+                            onClick={() => updateEmbedConfigMutation.mutate({ id: cfg.id, name: cfg.name })}
+                            data-testid={`button-update-static-${cfg.id}`}
+                          >
+                            <RefreshCw className="w-3 h-3 mr-1" />
+                            Sync
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(staticUrl);
+                              setCopiedStaticId(cfg.id);
+                              setTimeout(() => setCopiedStaticId(null), 2000);
+                            }}
+                            data-testid={`button-copy-static-${cfg.id}`}
+                          >
+                            {isCopied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                            {isCopied ? "Copied" : "Copy"}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            title="Delete this static link"
+                            disabled={deleteEmbedConfigMutation.isPending}
+                            onClick={() => deleteEmbedConfigMutation.mutate(cfg.id)}
+                            data-testid={`button-delete-static-${cfg.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Input
+                        readOnly
+                        value={staticUrl}
+                        className="font-mono text-xs"
+                        data-testid={`input-static-url-${cfg.id}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 

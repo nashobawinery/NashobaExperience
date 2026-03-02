@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { sql, eq, and, inArray, or } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
-import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus } from "@shared/schema";
+import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus, toastMenuEmbedConfigs } from "@shared/schema";
 import {
   getToastToken,
   getRestaurants,
@@ -1392,6 +1392,130 @@ router.delete("/staff-print-menus/:id", isAuthenticated, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to delete staff print menu" });
+  }
+});
+
+// ─── Embed Config Static URLs ────────────────────────────────────────────────
+
+router.get("/public/embed-config/:slug", async (req, res) => {
+  try {
+    const [config] = await db.select().from(toastMenuEmbedConfigs)
+      .where(eq(toastMenuEmbedConfigs.slug, req.params.slug))
+      .limit(1);
+    if (!config) return res.status(404).send("<html><body><p style='font-family:sans-serif;padding:2rem'>Embed configuration not found.</p></body></html>");
+
+    const base = `${req.protocol}://${req.get("host")}`;
+    const menuGuids = (config.menuGuids || "").split(",").map((g: string) => g.trim()).filter(Boolean);
+    if (menuGuids.length === 0) return res.status(400).send("<html><body><p>No menus configured.</p></body></html>");
+
+    let url: string;
+    if (menuGuids.length > 1) {
+      url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${encodeURIComponent(config.template || "fine-dining")}`;
+    } else {
+      url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuids[0])}/embed?template=${encodeURIComponent(config.template || "fine-dining")}`;
+    }
+    if (config.groupGuids) url += `&groupGuid=${encodeURIComponent(config.groupGuids)}`;
+    if (config.scale && config.scale !== 100) url += `&scale=${config.scale}`;
+    if (config.pages && config.pages > 0) url += `&pages=${config.pages}`;
+    if (config.footer) url += `&footer=${encodeURIComponent(config.footer)}`;
+    if (config.pageBreaks) url += `&pagebreaks=${encodeURIComponent(config.pageBreaks)}`;
+    if (config.hideDescriptions) url += `&hidedesc=1`;
+    if (config.header) url += `&header=${encodeURIComponent(config.header)}`;
+    if (config.hidePricing) url += `&hideprice=1`;
+    if (config.hideWinePairing) url += `&hidepairing=1`;
+    if (config.headerFontSize && config.headerFontSize !== 1) url += `&headerSize=${config.headerFontSize.toFixed(1)}`;
+    if (config.footerFontSize && config.footerFontSize !== 1) url += `&footerSize=${config.footerFontSize.toFixed(1)}`;
+    if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
+
+    return res.redirect(302, url);
+  } catch (error: any) {
+    res.status(500).send("<html><body><p>Server error</p></body></html>");
+  }
+});
+
+router.get("/embed-configs", isAuthenticated, async (req, res) => {
+  try {
+    const menuGuid = req.query.menuGuid as string | undefined;
+    let configs;
+    if (menuGuid) {
+      configs = await db.select().from(toastMenuEmbedConfigs)
+        .where(sql`${toastMenuEmbedConfigs.menuGuids} LIKE ${"%" + menuGuid + "%"}`)
+        .orderBy(toastMenuEmbedConfigs.createdAt);
+    } else {
+      configs = await db.select().from(toastMenuEmbedConfigs)
+        .orderBy(toastMenuEmbedConfigs.createdAt);
+    }
+    res.json(configs);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to load embed configs" });
+  }
+});
+
+router.post("/embed-configs", isAuthenticated, async (req, res) => {
+  try {
+    const { randomBytes } = await import("crypto");
+    const slug = randomBytes(6).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
+    const result = await db.insert(toastMenuEmbedConfigs).values({
+      slug,
+      name: req.body.name || "Untitled",
+      menuGuids: req.body.menuGuids || "",
+      template: req.body.template || "fine-dining",
+      header: req.body.header || null,
+      footer: req.body.footer || null,
+      headerFontSize: req.body.headerFontSize ?? 1,
+      footerFontSize: req.body.footerFontSize ?? 1,
+      scale: req.body.scale ?? 100,
+      groupGuids: req.body.groupGuids || null,
+      hideDescriptions: req.body.hideDescriptions ?? false,
+      hidePricing: req.body.hidePricing ?? false,
+      hideWinePairing: req.body.hideWinePairing ?? false,
+      pages: req.body.pages ?? 0,
+      pageBreaks: req.body.pageBreaks || null,
+      customTitle: req.body.customTitle || null,
+    }).returning();
+    res.json(result[0]);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to create embed config" });
+  }
+});
+
+router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const result = await db.update(toastMenuEmbedConfigs).set({
+      name: req.body.name,
+      menuGuids: req.body.menuGuids,
+      template: req.body.template,
+      header: req.body.header ?? null,
+      footer: req.body.footer ?? null,
+      headerFontSize: req.body.headerFontSize ?? 1,
+      footerFontSize: req.body.footerFontSize ?? 1,
+      scale: req.body.scale ?? 100,
+      groupGuids: req.body.groupGuids ?? null,
+      hideDescriptions: req.body.hideDescriptions ?? false,
+      hidePricing: req.body.hidePricing ?? false,
+      hideWinePairing: req.body.hideWinePairing ?? false,
+      pages: req.body.pages ?? 0,
+      pageBreaks: req.body.pageBreaks ?? null,
+      customTitle: req.body.customTitle ?? null,
+      updatedAt: new Date(),
+    }).where(eq(toastMenuEmbedConfigs.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Not found" });
+    res.json(result[0]);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to update embed config" });
+  }
+});
+
+router.delete("/embed-configs/:id", isAuthenticated, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    await db.delete(toastMenuEmbedConfigs).where(eq(toastMenuEmbedConfigs.id, id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete embed config" });
   }
 });
 

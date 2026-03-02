@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index, serial, date, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, boolean, timestamp, jsonb, unique, pgEnum, index, serial, date, numeric, uniqueIndex, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -6166,3 +6166,29 @@ export const staffPrintMenus = pgTable("staff_print_menus", {
 export const insertStaffPrintMenuSchema = createInsertSchema(staffPrintMenus).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertStaffPrintMenu = z.infer<typeof insertStaffPrintMenuSchema>;
 export type StaffPrintMenu = typeof staffPrintMenus.$inferSelect;
+
+export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 20 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  menuGuids: text("menu_guids").notNull(),
+  template: varchar("template", { length: 50 }).default("fine-dining"),
+  header: text("header"),
+  footer: text("footer"),
+  headerFontSize: real("header_font_size").default(1),
+  footerFontSize: real("footer_font_size").default(1),
+  scale: integer("scale").default(100),
+  groupGuids: text("group_guids"),
+  hideDescriptions: boolean("hide_descriptions").default(false),
+  hidePricing: boolean("hide_pricing").default(false),
+  hideWinePairing: boolean("hide_wine_pairing").default(false),
+  pages: integer("pages").default(0),
+  pageBreaks: text("page_breaks"),
+  customTitle: text("custom_title"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertToastMenuEmbedConfigSchema = createInsertSchema(toastMenuEmbedConfigs).omit({ id: true, slug: true, createdAt: true, updatedAt: true });
+export type InsertToastMenuEmbedConfig = z.infer<typeof insertToastMenuEmbedConfigSchema>;
+export type ToastMenuEmbedConfig = typeof toastMenuEmbedConfigs.$inferSelect;
