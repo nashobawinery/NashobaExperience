@@ -145,14 +145,12 @@ export function ToastMenuBrowser() {
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [copiedEmbed, setCopiedEmbed] = useState(false);
-  const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
   const [printPages, setPrintPages] = useState(0);
   const [printFooter, setPrintFooter] = useState("");
   const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
   const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
-  const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
@@ -472,8 +470,8 @@ export function ToastMenuBrowser() {
     return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
   };
 
-  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[]) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids);
+  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, undefined, undefined, footer, undefined, hideDescriptions, header, hidePricing, hideWinePairing);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -500,7 +498,6 @@ export function ToastMenuBrowser() {
       setViewMode("detail");
       setAdditionalMenuGuids([]);
       setSelectedPrintGroups([]);
-      setSelectedEmbedGroups([]);
     };
     if (viewMode === "detail" && selectedMenu !== menuGuid) {
       navigateWithCheck(doOpen);
@@ -711,7 +708,7 @@ export function ToastMenuBrowser() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => window.open(getEmbedUrl(menu.menuGuid, "fine-dining"), "_blank")}
+              onClick={() => window.open(buildPrintUrl(printTemplate), "_blank")}
               data-testid="button-preview-menu"
             >
               <Eye className="w-4 h-4 mr-2" />
@@ -738,6 +735,86 @@ export function ToastMenuBrowser() {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Menu Options</p>
+              <p className="text-xs text-muted-foreground mt-0.5">These settings apply to both the website link and the print view.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Template Style</label>
+                <Select value={printTemplate} onValueChange={setPrintTemplate}>
+                  <SelectTrigger data-testid="select-detail-template">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fine-dining">Fine Dining (Dark &amp; Elegant)</SelectItem>
+                    <SelectItem value="modern">Modern (Clean &amp; Minimal)</SelectItem>
+                    <SelectItem value="beverage">Beverage Menu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Courses / Groups</label>
+                {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-detail-group", menuDetail?.groups || [])}
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Custom Header</label>
+                <p className="text-xs text-muted-foreground">Subtitle above the menu title (e.g., "Spring 2026").</p>
+                <input
+                  type="text"
+                  value={printHeader}
+                  onChange={(e) => setPrintHeader(e.target.value)}
+                  placeholder="e.g., Spring 2026 Season"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-detail-header"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Custom Footer</label>
+                <p className="text-xs text-muted-foreground">Message at the bottom (e.g., website, phone).</p>
+                <input
+                  type="text"
+                  value={printFooter}
+                  onChange={(e) => setPrintFooter(e.target.value)}
+                  placeholder="e.g., nashobawinery.com · (978) 779-5521"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-detail-footer"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printHidePricing}
+                  onCheckedChange={(checked) => setPrintHidePricing(!!checked)}
+                  data-testid="checkbox-detail-hide-pricing"
+                />
+                <span className="font-medium">Hide Pricing</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printHideDescriptions}
+                  onCheckedChange={(checked) => setPrintHideDescriptions(!!checked)}
+                  data-testid="checkbox-detail-hide-descriptions"
+                />
+                <span className="font-medium">Hide Descriptions</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={printHideWinePairing}
+                  onCheckedChange={(checked) => setPrintHideWinePairing(!!checked)}
+                  data-testid="checkbox-detail-hide-wine-pairing"
+                />
+                <span className="font-medium">Hide Wine Pairings</span>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="bg-muted/30">
           <CardContent className="p-4 space-y-2">
@@ -900,7 +977,9 @@ export function ToastMenuBrowser() {
 
   const renderEmbedView = () => {
     if (!selectedMenu) return null;
-    const embedGroups = selectedEmbedGroups.length > 0 ? selectedEmbedGroups : undefined;
+    const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
+    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
 
     return (
       <>
@@ -911,27 +990,8 @@ export function ToastMenuBrowser() {
           <div>
             <h2 className="text-lg font-semibold" data-testid="text-embed-title">Get Website Link / Embed Code</h2>
             <p className="text-sm text-muted-foreground">
-              Generate an embed code or link to display this menu on your website.
+              Template, groups, and display options are set in the menu editor. Go back to change them.
             </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Template Style</label>
-            <Select value={embedTemplate} onValueChange={setEmbedTemplate}>
-              <SelectTrigger data-testid="select-embed-template">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fine-dining">Fine Dining (Dark & Elegant)</SelectItem>
-                <SelectItem value="modern">Modern (Clean & Minimal)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Courses / Groups</label>
-            {renderGroupMultiSelect(selectedEmbedGroups, setSelectedEmbedGroups, "select-embed-group", menuDetail?.groups || [])}
           </div>
         </div>
 
@@ -942,7 +1002,7 @@ export function ToastMenuBrowser() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(getEmbedCode(selectedMenu, embedTemplate, embedGroups))}
+                onClick={() => copyToClipboard(sharedEmbedCode)}
                 data-testid="button-copy-embed"
               >
                 {copiedEmbed ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
@@ -951,7 +1011,7 @@ export function ToastMenuBrowser() {
             </div>
             <Textarea
               readOnly
-              value={getEmbedCode(selectedMenu, embedTemplate, embedGroups)}
+              value={sharedEmbedCode}
               className="font-mono text-xs resize-none"
               rows={3}
               data-testid="textarea-embed-code"
@@ -966,7 +1026,7 @@ export function ToastMenuBrowser() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(getEmbedUrl(selectedMenu, embedTemplate, embedGroups))}
+                onClick={() => copyToClipboard(sharedUrl)}
                 data-testid="button-copy-link"
               >
                 <Copy className="w-4 h-4 mr-1" />
@@ -975,7 +1035,7 @@ export function ToastMenuBrowser() {
             </div>
             <Input
               readOnly
-              value={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
+              value={sharedUrl}
               className="font-mono text-xs"
               data-testid="input-embed-url"
             />
@@ -985,7 +1045,7 @@ export function ToastMenuBrowser() {
         <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
-            onClick={() => window.open(getEmbedUrl(selectedMenu, embedTemplate, embedGroups), "_blank")}
+            onClick={() => window.open(sharedUrl, "_blank")}
             data-testid="button-preview-embed"
           >
             <ExternalLink className="w-4 h-4 mr-2" />
@@ -999,7 +1059,7 @@ export function ToastMenuBrowser() {
               Live Preview
             </div>
             <iframe
-              src={getEmbedUrl(selectedMenu, embedTemplate, embedGroups)}
+              src={sharedUrl}
               className="w-full border-0"
               style={{ height: "500px" }}
               title="Menu Preview"
@@ -1038,28 +1098,8 @@ export function ToastMenuBrowser() {
           <div>
             <h2 className="text-lg font-semibold" data-testid="text-print-title">Print Menu</h2>
             <p className="text-sm text-muted-foreground">
-              Configure your print options, then click Print on a template below.
+              Template, groups, and display options are set in the menu editor. Configure print-specific options below.
             </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Print Template</label>
-            <Select value={printTemplate} onValueChange={setPrintTemplate}>
-              <SelectTrigger data-testid="select-print-template">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fine-dining">Fine Dining</SelectItem>
-                <SelectItem value="modern">Modern Clean</SelectItem>
-                <SelectItem value="beverage">Beverage Menu</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Courses / Groups</label>
-            {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-print-group", allPrintGroups)}
           </div>
         </div>
 
@@ -1148,60 +1188,6 @@ export function ToastMenuBrowser() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Custom Header</label>
-            <p className="text-xs text-muted-foreground">Add a subtitle or tagline above the menu title (e.g., "Est. 1978" or "Spring 2026").</p>
-            <input
-              type="text"
-              value={printHeader}
-              onChange={(e) => setPrintHeader(e.target.value)}
-              placeholder="e.g., Spring 2026 Season"
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              data-testid="input-print-header"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Custom Footer</label>
-            <p className="text-xs text-muted-foreground">Add a custom message at the bottom (e.g., website URL, phone number).</p>
-            <input
-              type="text"
-              value={printFooter}
-              onChange={(e) => setPrintFooter(e.target.value)}
-              placeholder="e.g., nashobawinery.com · (978) 779-5521"
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              data-testid="input-print-footer"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <Checkbox
-              checked={printHideDescriptions}
-              onCheckedChange={(checked) => setPrintHideDescriptions(!!checked)}
-              data-testid="checkbox-hide-descriptions"
-            />
-            <span className="font-medium">Hide Descriptions</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <Checkbox
-              checked={printHidePricing}
-              onCheckedChange={(checked) => setPrintHidePricing(!!checked)}
-              data-testid="checkbox-hide-pricing"
-            />
-            <span className="font-medium">Hide Pricing</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <Checkbox
-              checked={printHideWinePairing}
-              onCheckedChange={(checked) => setPrintHideWinePairing(!!checked)}
-              data-testid="checkbox-hide-wine-pairing"
-            />
-            <span className="font-medium">Hide Wine Pairings</span>
-          </label>
         </div>
 
         {allPrintGroups.length > 1 && (
