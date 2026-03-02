@@ -134,6 +134,10 @@ export function ToastMenuBrowser() {
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
+  const [printPages, setPrintPages] = useState(0);
+  const [printFooter, setPrintFooter] = useState("");
+  const [printHideDescriptions, setPrintHideDescriptions] = useState(false);
+  const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
   const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -230,11 +234,15 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
     const base = window.location.origin;
-    let url = `${base}/api/toast/public/menu/${menuGuid}/embed?template=${template}`;
-    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${groupGuids.join(",")}`;
+    let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
+    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
     if (scale && scale !== 100) url += `&scale=${scale}`;
+    if (pages && pages > 0) url += `&pages=${pages}`;
+    if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
+    if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
+    if (hideDescriptions) url += `&hidedesc=1`;
     return url;
   };
 
@@ -250,8 +258,8 @@ export function ToastMenuBrowser() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale);
+  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, pages, footer, pageBreaks, hideDescriptions);
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -704,6 +712,14 @@ export function ToastMenuBrowser() {
   const renderPrintView = () => {
     if (!selectedMenu) return null;
     const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+    const groups = menuDetail?.groups || [];
+
+    const handlePrint = (template: string) => {
+      openPrintView(selectedMenu, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
+    };
+
+    const getPrintPreviewUrl = () =>
+      getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
 
     return (
       <>
@@ -714,7 +730,7 @@ export function ToastMenuBrowser() {
           <div>
             <h2 className="text-lg font-semibold" data-testid="text-print-title">Print Menu</h2>
             <p className="text-sm text-muted-foreground">
-              Select a template and courses, then print. Opens in a new tab.
+              Configure your print options, then click Print on a template below.
             </p>
           </div>
         </div>
@@ -729,6 +745,7 @@ export function ToastMenuBrowser() {
               <SelectContent>
                 <SelectItem value="fine-dining">Fine Dining</SelectItem>
                 <SelectItem value="modern">Modern Clean</SelectItem>
+                <SelectItem value="beverage">Beverage Menu</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -738,38 +755,193 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Font Size: {printScale}%</label>
+            <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page.</p>
+            <input
+              type="range"
+              min={60}
+              max={120}
+              step={5}
+              value={printScale}
+              onChange={(e) => setPrintScale(Number(e.target.value))}
+              className="w-full max-w-xs accent-primary"
+              data-testid="slider-print-scale"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Target Pages: {printPages === 0 ? "Auto" : printPages}</label>
+            <p className="text-xs text-muted-foreground">Set the number of pages the menu should print on. Use with font size to fit content.</p>
+            <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
+              <SelectTrigger data-testid="select-print-pages">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Auto</SelectItem>
+                <SelectItem value="1">1 Page</SelectItem>
+                <SelectItem value="2">2 Pages</SelectItem>
+                <SelectItem value="3">3 Pages</SelectItem>
+                <SelectItem value="4">4 Pages</SelectItem>
+                <SelectItem value="5">5 Pages</SelectItem>
+                <SelectItem value="6">6 Pages</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="space-y-2">
-          <label className="text-sm font-medium">Font Size: {printScale}%</label>
-          <p className="text-xs text-muted-foreground">Reduce to fit more content per page. Try 85-90% if items spill onto an extra page. In your browser's print dialog, uncheck "Headers and footers" to remove the date and page title.</p>
+          <label className="text-sm font-medium">Custom Footer</label>
+          <p className="text-xs text-muted-foreground">Add a custom message at the bottom of the last page (e.g., website URL, phone number, or special message).</p>
           <input
-            type="range"
-            min={60}
-            max={120}
-            step={5}
-            value={printScale}
-            onChange={(e) => setPrintScale(Number(e.target.value))}
-            className="w-full max-w-xs accent-primary"
-            data-testid="slider-print-scale"
+            type="text"
+            value={printFooter}
+            onChange={(e) => setPrintFooter(e.target.value)}
+            placeholder="e.g., Visit us at nashobawinery.com or call (978) 779-5521"
+            className="w-full max-w-lg px-3 py-2 rounded-md border border-input bg-background text-sm"
+            data-testid="input-print-footer"
           />
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={() => openPrintView(selectedMenu, printTemplate, printGroups, printScale)}
-            data-testid="button-print-now"
-          >
-            <Printer className="w-4 h-4 mr-2" />
-            Print Menu
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => window.open(getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale), "_blank")}
-            data-testid="button-preview-print"
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview
-          </Button>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={printHideDescriptions}
+              onCheckedChange={(checked) => setPrintHideDescriptions(!!checked)}
+              data-testid="checkbox-hide-descriptions"
+            />
+            <span className="font-medium">Hide Descriptions</span>
+            <span className="text-muted-foreground">- Show only item names and prices (ideal for wine lists or beverage menus)</span>
+          </label>
         </div>
+
+        {groups.length > 1 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Page Breaks</label>
+            </div>
+            <p className="text-xs text-muted-foreground">Force a page break before specific courses so each starts on a new page when printing.</p>
+            <div className="flex flex-wrap gap-3">
+              {groups.map((g, idx) => {
+                if (idx === 0) return null;
+                const isChecked = printPageBreaks.includes(g.groupGuid);
+                return (
+                  <label key={g.groupGuid} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={(checked) => {
+                        setPrintPageBreaks(prev =>
+                          checked ? [...prev, g.groupGuid] : prev.filter(id => id !== g.groupGuid)
+                        );
+                      }}
+                      data-testid={`checkbox-pagebreak-${g.groupGuid}`}
+                    />
+                    <span>Before "{g.name}"</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card className="overflow-hidden">
+            <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
+              <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
+              <div className="w-8 h-px bg-[#a08c6e] mb-3" />
+              <p className="text-[#e8dcc8] font-serif text-sm uppercase tracking-wider mb-1">Starters</p>
+              <p className="text-[#b8a890] text-xs italic">Elegant serif typography</p>
+              <p className="text-[#b8a890] text-xs italic">Dark background, gold accents</p>
+              <p className="text-[#b8a890] text-xs italic">Centered layout</p>
+            </div>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-sm">Fine Dining</p>
+                  <p className="text-xs text-muted-foreground">Dark, elegant, serif fonts</p>
+                </div>
+                <Button size="sm" onClick={() => handlePrint("fine-dining")} data-testid="button-print-fine-dining">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="aspect-[3/4] bg-[#fafaf9] flex flex-col items-center justify-center p-6 text-center">
+              <p className="text-[#1c1917] font-sans text-xl font-semibold mb-2">Modern Clean</p>
+              <div className="w-full h-px bg-[#e7e5e4] mb-3" />
+              <p className="text-[#44403c] font-sans text-sm font-semibold uppercase tracking-wider mb-1">Starters</p>
+              <p className="text-[#78716c] text-xs">Clean sans-serif typography</p>
+              <p className="text-[#78716c] text-xs">Light background, minimal</p>
+              <p className="text-[#78716c] text-xs">Left-aligned with prices</p>
+            </div>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-sm">Modern Clean</p>
+                  <p className="text-xs text-muted-foreground">Light, minimal, sans-serif</p>
+                </div>
+                <Button size="sm" onClick={() => handlePrint("modern")} data-testid="button-print-modern">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="aspect-[3/4] bg-white flex flex-col items-center justify-center p-6 text-center">
+              <p className="text-[#1c1917] font-sans text-lg font-bold uppercase tracking-wider mb-3">Beverage Menu</p>
+              <div className="w-full text-left space-y-1 px-2">
+                <p className="text-[#1c1917] font-sans text-xs font-bold underline">Wine</p>
+                <div className="flex justify-between text-[10px] text-[#44403c]"><span>Chardonnay</span><span>$12</span></div>
+                <div className="flex justify-between text-[10px] text-[#44403c]"><span>Pinot Noir</span><span>$14</span></div>
+                <p className="text-[#1c1917] font-sans text-xs font-bold underline mt-2">Beer</p>
+                <div className="flex justify-between text-[10px] text-[#44403c]"><span>IPA</span><span>$8</span></div>
+                <div className="flex justify-between text-[10px] text-[#44403c]"><span>Lager</span><span>$7</span></div>
+              </div>
+              <p className="text-[#78716c] text-xs mt-3 italic">Compact list, no descriptions</p>
+            </div>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-sm">Beverage Menu</p>
+                  <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
+                </div>
+                <Button size="sm" onClick={() => handlePrint("beverage")} data-testid="button-print-beverage">
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardContent className="p-0 overflow-hidden rounded-md">
+            <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
+              <span>Print Preview</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handlePrint(printTemplate)}
+                data-testid="button-open-print"
+              >
+                <Printer className="w-4 h-4 mr-1" />
+                Open & Print
+              </Button>
+            </div>
+            <iframe
+              src={getPrintPreviewUrl()}
+              className="w-full border-0"
+              style={{ height: "600px" }}
+              title="Print Preview"
+              data-testid="iframe-print-preview"
+            />
+          </CardContent>
+        </Card>
       </>
     );
   };
