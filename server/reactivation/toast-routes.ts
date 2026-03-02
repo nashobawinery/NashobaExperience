@@ -579,6 +579,49 @@ router.patch("/menu-items/batch-overrides", isAuthenticated, async (req, res) =>
 
 // ===================== Public Routes (no auth - for embed/print) =====================
 
+router.get("/public/menus-combined", async (req, res) => {
+  try {
+    const guidsParam = req.query.guids as string;
+    const includeHidden = req.query.includeHidden === "true";
+    if (!guidsParam) return res.status(400).json({ error: "guids required" });
+    const guids = guidsParam.split(",").map(g => g.trim()).filter(Boolean);
+
+    const results = [];
+    for (const guid of guids) {
+      const menu = await db.select().from(toastMenus)
+        .where(or(eq(toastMenus.menuGuid, guid), eq(toastMenus.name, guid)))
+        .limit(1);
+      if (menu.length === 0) continue;
+
+      const menuGuid = menu[0].menuGuid;
+      const groups = await db.select().from(toastMenuGroups)
+        .where(eq(toastMenuGroups.menuGuid, menuGuid))
+        .orderBy(toastMenuGroups.displayOrder);
+
+      const allItems = await db.select().from(toastMenuItems)
+        .where(eq(toastMenuItems.menuGuid, menuGuid))
+        .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
+
+      const visibleItems = includeHidden ? allItems : allItems.filter((i) => !i.hidden);
+
+      const groupsWithItems = groups.map((g) => ({
+        ...g,
+        items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
+      }));
+
+      results.push({
+        menu: menu[0],
+        groups: groupsWithItems,
+        totalItems: visibleItems.length,
+      });
+    }
+
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch combined menus" });
+  }
+});
+
 router.get("/public/menu/:menuGuid", async (req, res) => {
   try {
     const { menuGuid } = req.params;
@@ -941,6 +984,8 @@ router.get("/public/menus/embed", async (req, res) => {
     const hidePricing = req.query.hideprice === "1";
     const hideWinePairing = req.query.hidepairing === "1";
     const customTitle = (req.query.title as string) || "";
+    const groupGuidParam = req.query.groupGuid as string | undefined;
+    const filterGroupGuids = groupGuidParam ? groupGuidParam.split(",").map(g => g.trim()).filter(Boolean) : [];
 
     const allGroups: { group: any; items: any[]; menuName: string }[] = [];
     const menuNames: string[] = [];
@@ -965,6 +1010,7 @@ router.get("/public/menus/embed", async (req, res) => {
       const visibleItems = items.filter((i) => !i.hidden);
 
       for (const group of groups) {
+        if (filterGroupGuids.length > 0 && !filterGroupGuids.includes(group.groupGuid)) continue;
         const groupItems = visibleItems.filter((i) => i.groupGuid === group.groupGuid);
         if (groupItems.length > 0) {
           allGroups.push({ group, items: groupItems, menuName: menu[0].name });

@@ -142,6 +142,10 @@ export function ToastMenuBrowser() {
   const [selectedPrintGroups, setSelectedPrintGroups] = useState<string[]>([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
+  const [additionalMenuGuids, setAdditionalMenuGuids] = useState<string[]>([]);
+  const [printHeader, setPrintHeader] = useState("");
+  const [printHidePricing, setPrintHidePricing] = useState(false);
+  const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -179,6 +183,26 @@ export function ToastMenuBrowser() {
     queryKey: ["/api/toast/menus/available", { restaurantGuid }],
     enabled: false,
   });
+
+  const additionalGuidsKey = additionalMenuGuids.join(",");
+  const { data: additionalMenuDetailsList = [] } = useQuery<MenuDetailData[]>({
+    queryKey: ["/api/toast/public/menus-combined", additionalGuidsKey],
+    queryFn: async () => {
+      if (!additionalGuidsKey) return [];
+      const res = await fetch(`/api/toast/public/menus-combined?guids=${encodeURIComponent(additionalGuidsKey)}&includeHidden=true`);
+      if (!res.ok) throw new Error("Failed to load additional menus");
+      return res.json();
+    },
+    enabled: additionalMenuGuids.length > 0,
+  });
+
+  const allPrintGroups = useMemo(() => {
+    const primary = (menuDetail?.groups || []).map(g => ({ ...g, sourceName: menuDetail?.menu?.name || "" }));
+    const additional = additionalMenuDetailsList.flatMap(md =>
+      (md.groups || []).map(g => ({ ...g, sourceName: md.menu?.name || "" }))
+    );
+    return [...primary, ...additional];
+  }, [menuDetail, additionalMenuDetailsList]);
 
   const syncMutation = useMutation({
     mutationFn: async ({ guid, menuGuids }: { guid: string; menuGuids?: string[] }) => {
@@ -234,7 +258,7 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -243,7 +267,33 @@ export function ToastMenuBrowser() {
     if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
     if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
     if (hideDescriptions) url += `&hidedesc=1`;
+    if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
+    if (hidePricing) url += `&hideprice=1`;
+    if (hideWinePairing) url += `&hidepairing=1`;
     return url;
+  };
+
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
+    const base = window.location.origin;
+    let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
+    if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
+    if (scale && scale !== 100) url += `&scale=${scale}`;
+    if (pages && pages > 0) url += `&pages=${pages}`;
+    if (footer && footer.trim()) url += `&footer=${encodeURIComponent(footer.trim())}`;
+    if (pageBreaks && pageBreaks.length > 0) url += `&pagebreaks=${encodeURIComponent(pageBreaks.join(","))}`;
+    if (hideDescriptions) url += `&hidedesc=1`;
+    if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
+    if (hidePricing) url += `&hideprice=1`;
+    if (hideWinePairing) url += `&hidepairing=1`;
+    return url;
+  };
+
+  const buildPrintUrl = (template: string) => {
+    const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+    if (additionalMenuGuids.length > 0 && selectedMenu) {
+      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
+    }
+    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
   };
 
   const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[]) => {
@@ -258,8 +308,7 @@ export function ToastMenuBrowser() {
     toast({ title: "Copied to clipboard" });
   };
 
-  const openPrintView = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, scale, pages, footer, pageBreaks, hideDescriptions);
+  const openPrintView = (url: string) => {
     const printWindow = window.open(url, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
@@ -271,6 +320,9 @@ export function ToastMenuBrowser() {
   const openMenuDetail = (menuGuid: string) => {
     setSelectedMenu(menuGuid);
     setViewMode("detail");
+    setAdditionalMenuGuids([]);
+    setSelectedPrintGroups([]);
+    setSelectedEmbedGroups([]);
   };
 
   const goBack = () => {
@@ -551,23 +603,23 @@ export function ToastMenuBrowser() {
     setSelected(selected.includes(guid) ? selected.filter(g => g !== guid) : [...selected, guid]);
   };
 
-  const getGroupLabel = (selected: string[], groups?: { groupGuid: string; name: string }[]) => {
+  const getGroupLabel = (selected: string[], groups: { groupGuid: string; name: string }[]) => {
     if (selected.length === 0) return "All courses (full menu)";
-    if (!groups) return `${selected.length} selected`;
+    if (!groups.length) return `${selected.length} selected`;
     const names = selected.map(g => groups.find(gr => gr.groupGuid === g)?.name).filter(Boolean);
     if (names.length <= 2) return names.join(", ");
     return `${names.length} courses selected`;
   };
 
-  const renderGroupMultiSelect = (selected: string[], setSelected: (v: string[]) => void, testIdPrefix: string) => (
+  const renderGroupMultiSelect = (selected: string[], setSelected: (v: string[]) => void, testIdPrefix: string, groups: { groupGuid: string; name: string; sourceName?: string }[]) => (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" className="w-full justify-between text-left font-normal" data-testid={`${testIdPrefix}-trigger`}>
-          <span className="truncate">{getGroupLabel(selected, menuDetail?.groups)}</span>
+          <span className="truncate">{getGroupLabel(selected, groups)}</span>
           <ListFilter className="w-4 h-4 ml-2 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="start">
+      <PopoverContent className="w-72 p-2" align="start">
         <div className="space-y-1">
           <Button
             variant={selected.length === 0 ? "secondary" : "ghost"}
@@ -578,7 +630,7 @@ export function ToastMenuBrowser() {
           >
             All courses (full menu)
           </Button>
-          {menuDetail?.groups.map((g) => (
+          {groups.map((g) => (
             <label
               key={g.groupGuid}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
@@ -588,7 +640,10 @@ export function ToastMenuBrowser() {
                 checked={selected.includes(g.groupGuid)}
                 onCheckedChange={() => toggleGroupSelection(g.groupGuid, selected, setSelected)}
               />
-              <span className="text-sm">{g.name}</span>
+              <div className="min-w-0">
+                <span className="text-sm">{g.name}</span>
+                {g.sourceName && <p className="text-xs text-muted-foreground truncate">{g.sourceName}</p>}
+              </div>
             </label>
           ))}
         </div>
@@ -629,7 +684,7 @@ export function ToastMenuBrowser() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Courses / Groups</label>
-            {renderGroupMultiSelect(selectedEmbedGroups, setSelectedEmbedGroups, "select-embed-group")}
+            {renderGroupMultiSelect(selectedEmbedGroups, setSelectedEmbedGroups, "select-embed-group", menuDetail?.groups || [])}
           </div>
         </div>
 
@@ -711,15 +766,21 @@ export function ToastMenuBrowser() {
 
   const renderPrintView = () => {
     if (!selectedMenu) return null;
-    const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-    const groups = menuDetail?.groups || [];
 
     const handlePrint = (template: string) => {
-      openPrintView(selectedMenu, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
+      openPrintView(buildPrintUrl(template));
     };
 
-    const getPrintPreviewUrl = () =>
-      getEmbedUrl(selectedMenu, printTemplate, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions);
+    const getPrintPreviewUrl = () => buildPrintUrl(printTemplate);
+
+    const primaryMenuName = menuDetail?.menu?.name || "";
+    const baseMenuName = primaryMenuName.replace(/\s*\(copy\)(\s+\d+)?$/i, "").trim();
+    const otherMenus = menus.filter(m => m.menuGuid !== selectedMenu);
+    const suggestedMenus = otherMenus.filter(m =>
+      baseMenuName && m.name.toLowerCase().includes(baseMenuName.toLowerCase())
+    );
+    const restMenus = otherMenus.filter(m => !suggestedMenus.includes(m));
+    const sortedOtherMenus = [...suggestedMenus, ...restMenus];
 
     return (
       <>
@@ -751,9 +812,61 @@ export function ToastMenuBrowser() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Courses / Groups</label>
-            {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-print-group")}
+            {renderGroupMultiSelect(selectedPrintGroups, setSelectedPrintGroups, "select-print-group", allPrintGroups)}
           </div>
         </div>
+
+        {sortedOtherMenus.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Merge Groups From Another Menu</label>
+            <p className="text-xs text-muted-foreground">
+              Include groups from additional menus in this print job. Useful when related groups were imported as separate menus in Toast.
+            </p>
+            <div className="border rounded-md p-3 space-y-1 max-h-48 overflow-y-auto">
+              {suggestedMenus.length > 0 && (
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pb-1">Related menus</p>
+              )}
+              {suggestedMenus.map(m => (
+                <label key={m.menuGuid} className="flex items-center gap-2 px-1 py-1.5 rounded-md cursor-pointer hover-elevate" data-testid={`checkbox-merge-menu-${m.menuGuid}`}>
+                  <Checkbox
+                    checked={additionalMenuGuids.includes(m.menuGuid)}
+                    onCheckedChange={(checked) => {
+                      setAdditionalMenuGuids(prev =>
+                        checked ? [...prev, m.menuGuid] : prev.filter(g => g !== m.menuGuid)
+                      );
+                    }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{m.name}</p>
+                  </div>
+                </label>
+              ))}
+              {restMenus.length > 0 && suggestedMenus.length > 0 && (
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2 pb-1">Other menus</p>
+              )}
+              {restMenus.map(m => (
+                <label key={m.menuGuid} className="flex items-center gap-2 px-1 py-1.5 rounded-md cursor-pointer hover-elevate" data-testid={`checkbox-merge-menu-${m.menuGuid}`}>
+                  <Checkbox
+                    checked={additionalMenuGuids.includes(m.menuGuid)}
+                    onCheckedChange={(checked) => {
+                      setAdditionalMenuGuids(prev =>
+                        checked ? [...prev, m.menuGuid] : prev.filter(g => g !== m.menuGuid)
+                      );
+                    }}
+                  />
+                  <div>
+                    <p className="text-sm">{m.name}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {additionalMenuGuids.length > 0 && (
+              <p className="text-xs text-primary font-medium">
+                {additionalMenuGuids.length} additional menu{additionalMenuGuids.length > 1 ? "s" : ""} merged — {allPrintGroups.length} total groups available
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -790,20 +903,34 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Custom Footer</label>
-          <p className="text-xs text-muted-foreground">Add a custom message at the bottom of the last page (e.g., website URL, phone number, or special message).</p>
-          <input
-            type="text"
-            value={printFooter}
-            onChange={(e) => setPrintFooter(e.target.value)}
-            placeholder="e.g., Visit us at nashobawinery.com or call (978) 779-5521"
-            className="w-full max-w-lg px-3 py-2 rounded-md border border-input bg-background text-sm"
-            data-testid="input-print-footer"
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Custom Header</label>
+            <p className="text-xs text-muted-foreground">Add a subtitle or tagline above the menu title (e.g., "Est. 1978" or "Spring 2026").</p>
+            <input
+              type="text"
+              value={printHeader}
+              onChange={(e) => setPrintHeader(e.target.value)}
+              placeholder="e.g., Spring 2026 Season"
+              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              data-testid="input-print-header"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Custom Footer</label>
+            <p className="text-xs text-muted-foreground">Add a custom message at the bottom (e.g., website URL, phone number).</p>
+            <input
+              type="text"
+              value={printFooter}
+              onChange={(e) => setPrintFooter(e.target.value)}
+              placeholder="e.g., nashobawinery.com · (978) 779-5521"
+              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              data-testid="input-print-footer"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={printHideDescriptions}
@@ -811,18 +938,31 @@ export function ToastMenuBrowser() {
               data-testid="checkbox-hide-descriptions"
             />
             <span className="font-medium">Hide Descriptions</span>
-            <span className="text-muted-foreground">- Show only item names and prices (ideal for wine lists or beverage menus)</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={printHidePricing}
+              onCheckedChange={(checked) => setPrintHidePricing(!!checked)}
+              data-testid="checkbox-hide-pricing"
+            />
+            <span className="font-medium">Hide Pricing</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={printHideWinePairing}
+              onCheckedChange={(checked) => setPrintHideWinePairing(!!checked)}
+              data-testid="checkbox-hide-wine-pairing"
+            />
+            <span className="font-medium">Hide Wine Pairings</span>
           </label>
         </div>
 
-        {groups.length > 1 && (
+        {allPrintGroups.length > 1 && (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Page Breaks</label>
-            </div>
+            <label className="text-sm font-medium">Page Breaks</label>
             <p className="text-xs text-muted-foreground">Force a page break before specific courses so each starts on a new page when printing.</p>
             <div className="flex flex-wrap gap-3">
-              {groups.map((g, idx) => {
+              {allPrintGroups.map((g, idx) => {
                 if (idx === 0) return null;
                 const isChecked = printPageBreaks.includes(g.groupGuid);
                 return (
