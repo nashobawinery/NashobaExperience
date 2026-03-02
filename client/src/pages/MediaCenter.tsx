@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import NashobatvAdmin from "@/components/NashobatvAdmin";
-import ToastMenuPrinter from "@/components/ToastMenuPrinter";
+import { ToastMenuBrowser } from "@/pages/command-center/ToastMenuBrowser";
 import MusicManager from "@/components/MusicManager";
 import SpecialEventsManager from "@/components/SpecialEventsManager";
 import ShelfTalkerPrinter from "@/components/ShelfTalkerPrinter";
@@ -256,7 +256,7 @@ export default function MediaCenter() {
           data-testid="button-section-menu-printer"
         >
           <Printer className="w-4 h-4" />
-          Menu Printer
+          Toast Menu Printer
         </Button>
         <Button
           variant={activeSection === "live-music" ? "default" : "ghost"}
@@ -292,7 +292,9 @@ export default function MediaCenter() {
       )}
 
       {activeSection === "menu-printer" && (
-        <ToastMenuPrinter testIdPrefix="mc" />
+        <div className="-m-6">
+          <ToastMenuBrowser />
+        </div>
       )}
 
       {activeSection === "special-events" && (
