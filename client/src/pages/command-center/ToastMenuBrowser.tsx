@@ -158,6 +158,27 @@ export function ToastMenuBrowser() {
   const [printHeader, setPrintHeader] = useState("");
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
+
+  const HEADER_PRESETS_KEY = "toast-menu-header-presets";
+  const FOOTER_PRESETS_KEY = "toast-menu-footer-presets";
+  const [headerPresets, setHeaderPresets] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(HEADER_PRESETS_KEY) || "[]"); } catch { return []; }
+  });
+  const [footerPresets, setFooterPresets] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(FOOTER_PRESETS_KEY) || "[]"); } catch { return []; }
+  });
+  const savePreset = (storageKey: string, value: string, presets: string[], setPresets: (p: string[]) => void) => {
+    if (!value.trim() || presets.includes(value)) return;
+    const updated = [...presets, value];
+    setPresets(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+  const removePreset = (storageKey: string, value: string, presets: string[], setPresets: (p: string[]) => void) => {
+    const updated = presets.filter(p => p !== value);
+    setPresets(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
@@ -763,7 +784,49 @@ export function ToastMenuBrowser() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-sm font-medium">Custom Header</label>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <label className="text-sm font-medium">Custom Header</label>
+                  <div className="flex items-center gap-1">
+                    {headerPresets.length > 0 && (
+                      <Select
+                        onValueChange={(v) => {
+                          if (v === "__remove__" && printHeader) {
+                            removePreset(HEADER_PRESETS_KEY, printHeader, headerPresets, setHeaderPresets);
+                          } else if (v !== "__remove__") {
+                            setPrintHeader(v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-36" data-testid="select-header-presets">
+                          <SelectValue placeholder="Saved presets" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {headerPresets.map((p, i) => (
+                            <SelectItem key={i} value={p} data-testid={`option-header-preset-${i}`}>
+                              {p.length > 38 ? p.slice(0, 38) + "…" : p}
+                            </SelectItem>
+                          ))}
+                          {headerPresets.includes(printHeader) && (
+                            <SelectItem value="__remove__" className="text-destructive">
+                              Remove current from saved
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2"
+                      onClick={() => savePreset(HEADER_PRESETS_KEY, printHeader, headerPresets, setHeaderPresets)}
+                      disabled={!printHeader.trim() || headerPresets.includes(printHeader)}
+                      title="Save current value as a preset"
+                      data-testid="button-save-header-preset"
+                    >
+                      <BookMarked className="w-3 h-3 mr-1" />Save
+                    </Button>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">Appears below the menu title. Supports HTML (e.g., <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, <code className="text-xs">&lt;i&gt;</code>).</p>
                 <input
                   type="text"
@@ -775,7 +838,49 @@ export function ToastMenuBrowser() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">Custom Footer</label>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <label className="text-sm font-medium">Custom Footer</label>
+                  <div className="flex items-center gap-1">
+                    {footerPresets.length > 0 && (
+                      <Select
+                        onValueChange={(v) => {
+                          if (v === "__remove__" && printFooter) {
+                            removePreset(FOOTER_PRESETS_KEY, printFooter, footerPresets, setFooterPresets);
+                          } else if (v !== "__remove__") {
+                            setPrintFooter(v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-36" data-testid="select-footer-presets">
+                          <SelectValue placeholder="Saved presets" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {footerPresets.map((p, i) => (
+                            <SelectItem key={i} value={p} data-testid={`option-footer-preset-${i}`}>
+                              {p.length > 38 ? p.slice(0, 38) + "…" : p}
+                            </SelectItem>
+                          ))}
+                          {footerPresets.includes(printFooter) && (
+                            <SelectItem value="__remove__" className="text-destructive">
+                              Remove current from saved
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2"
+                      onClick={() => savePreset(FOOTER_PRESETS_KEY, printFooter, footerPresets, setFooterPresets)}
+                      disabled={!printFooter.trim() || footerPresets.includes(printFooter)}
+                      title="Save current value as a preset"
+                      data-testid="button-save-footer-preset"
+                    >
+                      <BookMarked className="w-3 h-3 mr-1" />Save
+                    </Button>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">Message at the bottom (e.g., website, phone).</p>
                 <input
                   type="text"
