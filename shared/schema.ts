@@ -6150,3 +6150,19 @@ export type MusicianSubmission = typeof mediaMusicianSubmissions.$inferSelect;
 export const insertSpecialEventSchema = createInsertSchema(mediaSpecialEvents).omit({ id: true, createdAt: true });
 export type InsertSpecialEvent = z.infer<typeof insertSpecialEventSchema>;
 export type SpecialEvent = typeof mediaSpecialEvents.$inferSelect;
+
+export const staffPrintMenus = pgTable("staff_print_menus", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  printUrl: text("print_url").notNull(),
+  menuGuid: varchar("menu_guid", { length: 100 }),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertStaffPrintMenuSchema = createInsertSchema(staffPrintMenus).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertStaffPrintMenu = z.infer<typeof insertStaffPrintMenuSchema>;
+export type StaffPrintMenu = typeof staffPrintMenus.$inferSelect;

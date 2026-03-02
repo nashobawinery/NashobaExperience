@@ -29,7 +29,8 @@ import {
 import {
   RefreshCw, UtensilsCrossed, Loader2,
   ExternalLink, Eye, EyeOff, ListFilter,
-  ArrowLeft, Code, Printer, Copy, Check, Wine
+  ArrowLeft, Code, Printer, Copy, Check, Wine,
+  BookMarked, Trash2, Pencil, Save, Plus
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -124,7 +125,19 @@ interface AvailableMenu {
   itemCount: number;
 }
 
-type ViewMode = "list" | "detail" | "embed" | "print";
+interface StaffPrintMenuData {
+  id: number;
+  name: string;
+  description: string | null;
+  printUrl: string;
+  menuGuid: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type ViewMode = "list" | "detail" | "embed" | "print" | "staff-board";
 
 export function ToastMenuBrowser() {
   const { toast } = useToast();
@@ -147,6 +160,11 @@ export function ToastMenuBrowser() {
   const [printHeader, setPrintHeader] = useState("");
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveDescription, setSaveDescription] = useState("");
+  const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
+  const [editingBoardItem, setEditingBoardItem] = useState<{id: number; name: string; description: string} | null>(null);
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -267,6 +285,61 @@ export function ToastMenuBrowser() {
         const key = query.queryKey[0] as string;
         return key?.startsWith?.("/api/toast/");
       }});
+    },
+    onError: (err: Error) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const { data: staffPrintMenuList = [] } = useQuery<StaffPrintMenuData[]>({
+    queryKey: ["/api/toast/staff-print-menus"],
+  });
+
+  const saveStaffPrintMenu = useMutation({
+    mutationFn: async ({ name, description, printUrl, overwriteId }: { name: string; description: string; printUrl: string; overwriteId?: number | null }) => {
+      if (overwriteId) {
+        const res = await apiRequest("PATCH", `/api/toast/staff-print-menus/${overwriteId}`, { name, description, printUrl, menuGuid: selectedMenu });
+        return res.json();
+      }
+      const res = await apiRequest("POST", `/api/toast/staff-print-menus`, { name, description, printUrl, menuGuid: selectedMenu });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/staff-print-menus"] });
+      setShowSaveDialog(false);
+      setSaveName("");
+      setSaveDescription("");
+      setSaveOverwriteId(null);
+      toast({ title: "Saved to Staff Board" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteStaffPrintMenu = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/toast/staff-print-menus/${id}`, undefined);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/staff-print-menus"] });
+      toast({ title: "Removed from Staff Board" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateStaffPrintMenuMeta = useMutation({
+    mutationFn: async ({ id, name, description }: { id: number; name: string; description: string }) => {
+      const res = await apiRequest("PATCH", `/api/toast/staff-print-menus/${id}`, { name, description });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/toast/staff-print-menus"] });
+      setEditingBoardItem(null);
+      toast({ title: "Updated" });
     },
     onError: (err: Error) => {
       toast({ title: "Update failed", description: err.message, variant: "destructive" });
@@ -396,6 +469,17 @@ export function ToastMenuBrowser() {
               </SelectContent>
             </Select>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setViewMode("staff-board")}
+            data-testid="button-staff-board"
+          >
+            <BookMarked className="w-4 h-4 mr-2" />
+            Staff Print Board
+            {staffPrintMenuList.length > 0 && (
+              <Badge variant="secondary" className="ml-2 no-default-active-elevate">{staffPrintMenuList.length}</Badge>
+            )}
+          </Button>
           <Button
             onClick={handleOpenSyncDialog}
             disabled={syncMutation.isPending || !restaurantGuid}
@@ -1088,6 +1172,75 @@ export function ToastMenuBrowser() {
         </div>
 
         <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <BookMarked className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Save to Staff Print Board</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Save this menu configuration so staff can find and print it from the Staff Portal with one click. You can save as a new entry or overwrite an existing one.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Menu Name for Staff</label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder={`e.g., ${menuDetail?.menu?.name || "Evening Menu"} — No Pricing`}
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-save-name"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Description (optional)</label>
+                <input
+                  type="text"
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="e.g., For dining room staff"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-save-description"
+                />
+              </div>
+            </div>
+            {staffPrintMenuList.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Overwrite existing entry (optional)</label>
+                <Select
+                  value={saveOverwriteId ? String(saveOverwriteId) : "new"}
+                  onValueChange={(v) => setSaveOverwriteId(v === "new" ? null : Number(v))}
+                >
+                  <SelectTrigger data-testid="select-overwrite-menu">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Save as new entry</SelectItem>
+                    {staffPrintMenuList.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button
+              size="sm"
+              disabled={!saveName.trim() || saveStaffPrintMenu.isPending}
+              onClick={() => saveStaffPrintMenu.mutate({
+                name: saveName.trim(),
+                description: saveDescription.trim(),
+                printUrl: buildPrintUrl(printTemplate),
+                overwriteId: saveOverwriteId,
+              })}
+              data-testid="button-save-to-staff-board"
+            >
+              {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              {saveOverwriteId ? "Overwrite Entry" : "Save to Staff Board"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardContent className="p-0 overflow-hidden rounded-md">
             <div className="bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground border-b flex items-center justify-between gap-2 flex-wrap">
               <span>Print Preview</span>
@@ -1114,6 +1267,122 @@ export function ToastMenuBrowser() {
     );
   };
 
+  const renderStaffBoardView = () => (
+    <>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button variant="ghost" size="icon" onClick={() => setViewMode("list")} data-testid="button-back-staff-board">
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-semibold">Staff Print Board</h2>
+          <p className="text-sm text-muted-foreground">
+            Menus saved here appear in the Staff Portal for one-click printing.
+          </p>
+        </div>
+      </div>
+
+      {staffPrintMenuList.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <BookMarked className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="font-medium">No menus saved yet</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+              Go to a menu's Print view and use "Save to Staff Print Board" to add menus here.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {staffPrintMenuList.map((item) => (
+            <Card key={item.id}>
+              <CardContent className="p-4">
+                {editingBoardItem?.id === item.id ? (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Name</label>
+                        <input
+                          type="text"
+                          value={editingBoardItem.name}
+                          onChange={(e) => setEditingBoardItem({ ...editingBoardItem, name: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                          data-testid={`input-edit-name-${item.id}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Description</label>
+                        <input
+                          type="text"
+                          value={editingBoardItem.description}
+                          onChange={(e) => setEditingBoardItem({ ...editingBoardItem, description: e.target.value })}
+                          className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                          data-testid={`input-edit-description-${item.id}`}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => updateStaffPrintMenuMeta.mutate({ id: item.id, name: editingBoardItem.name, description: editingBoardItem.description })}
+                        disabled={updateStaffPrintMenuMeta.isPending}
+                        data-testid={`button-save-edit-${item.id}`}
+                      >
+                        {updateStaffPrintMenuMeta.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingBoardItem(null)} data-testid={`button-cancel-edit-${item.id}`}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm" data-testid={`text-board-name-${item.id}`}>{item.name}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Saved {new Date(item.updatedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openPrintView(item.printUrl)}
+                        data-testid={`button-preview-board-${item.id}`}
+                      >
+                        <Printer className="w-4 h-4 mr-1" />
+                        Preview & Print
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setEditingBoardItem({ id: item.id, name: item.name, description: item.description || "" })}
+                        data-testid={`button-edit-board-${item.id}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => { if (confirm(`Remove "${item.name}" from the Staff Board?`)) deleteStaffPrintMenu.mutate(item.id); }}
+                        data-testid={`button-delete-board-${item.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
       <div className="p-6 space-y-4">
@@ -1121,6 +1390,7 @@ export function ToastMenuBrowser() {
         {viewMode === "detail" && renderMenuDetail()}
         {viewMode === "embed" && renderEmbedView()}
         {viewMode === "print" && renderPrintView()}
+        {viewMode === "staff-board" && renderStaffBoardView()}
       </div>
 
       <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>

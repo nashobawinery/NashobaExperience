@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { sql, eq, and, inArray, or } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
-import { toastMenus, toastMenuGroups, toastMenuItems } from "@shared/schema";
+import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus } from "@shared/schema";
 import {
   getToastToken,
   getRestaurants,
@@ -1271,6 +1271,81 @@ router.get("/public/menus", async (_req, res) => {
     res.json(menus);
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch menus" });
+  }
+});
+
+router.get("/public/staff-print-menus", async (_req, res) => {
+  try {
+    const menus = await db.select().from(staffPrintMenus)
+      .where(eq(staffPrintMenus.isActive, true))
+      .orderBy(staffPrintMenus.sortOrder, staffPrintMenus.name);
+    res.json(menus);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch staff print menus" });
+  }
+});
+
+router.get("/staff-print-menus", isAuthenticated, async (_req, res) => {
+  try {
+    const menus = await db.select().from(staffPrintMenus)
+      .orderBy(staffPrintMenus.sortOrder, staffPrintMenus.name);
+    res.json(menus);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch staff print menus" });
+  }
+});
+
+router.post("/staff-print-menus", isAuthenticated, async (req, res) => {
+  try {
+    const { name, description, printUrl, menuGuid, isActive, sortOrder } = req.body;
+    if (!name?.trim() || !printUrl?.trim()) {
+      return res.status(400).json({ error: "name and printUrl are required" });
+    }
+    const result = await db.insert(staffPrintMenus).values({
+      name: name.trim(),
+      description: description?.trim() || null,
+      printUrl: printUrl.trim(),
+      menuGuid: menuGuid || null,
+      isActive: isActive !== false,
+      sortOrder: sortOrder ?? 0,
+    }).returning();
+    res.json(result[0]);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to create staff print menu" });
+  }
+});
+
+router.patch("/staff-print-menus/:id", isAuthenticated, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+    const { name, description, printUrl, menuGuid, isActive, sortOrder } = req.body;
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description?.trim() || null;
+    if (printUrl !== undefined) updates.printUrl = printUrl.trim();
+    if (menuGuid !== undefined) updates.menuGuid = menuGuid || null;
+    if (isActive !== undefined) updates.isActive = isActive;
+    if (sortOrder !== undefined) updates.sortOrder = sortOrder;
+
+    const result = await db.update(staffPrintMenus).set(updates)
+      .where(eq(staffPrintMenus.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Not found" });
+    res.json(result[0]);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to update staff print menu" });
+  }
+});
+
+router.delete("/staff-print-menus/:id", isAuthenticated, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    await db.delete(staffPrintMenus).where(eq(staffPrintMenus.id, id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete staff print menu" });
   }
 });
 

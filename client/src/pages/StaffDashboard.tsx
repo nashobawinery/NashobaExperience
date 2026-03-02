@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Wine, Building2, GraduationCap, FileText, BookOpen, Wrench, Factory, ClipboardCheck,
-  ArrowRight, Home, Headphones, Scale, ClipboardList, Users, Package, ExternalLink
+  ArrowRight, Home, Headphones, Scale, ClipboardList, Users, Package, ExternalLink,
+  Printer, BookMarked
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -31,6 +32,13 @@ interface StaffDashboardModule {
   module: PlatformModule;
 }
 
+interface StaffPrintMenu {
+  id: number;
+  name: string;
+  description: string | null;
+  printUrl: string;
+}
+
 const iconMap: Record<string, any> = {
   Wine,
   Building2,
@@ -55,11 +63,25 @@ export default function StaffDashboard() {
     refetchOnMount: 'always',
   });
 
+  const { data: printMenus = [], isLoading: printMenusLoading } = useQuery<StaffPrintMenu[]>({
+    queryKey: ['/api/toast/public/staff-print-menus'],
+    staleTime: 30000,
+  });
+
   const handleNavigate = (linkUrl: string) => {
     if (linkUrl.startsWith('http://') || linkUrl.startsWith('https://')) {
       window.open(linkUrl, '_blank');
     } else {
       window.location.href = linkUrl;
+    }
+  };
+
+  const openPrintMenu = (url: string) => {
+    const printWindow = window.open(url, "_blank");
+    if (printWindow) {
+      printWindow.addEventListener("load", () => {
+        setTimeout(() => printWindow.print(), 500);
+      });
     }
   };
 
@@ -104,7 +126,65 @@ export default function StaffDashboard() {
         </div>
       </header>
 
-      <main className="container py-8">
+      <main className="container py-8 space-y-10">
+        {(printMenusLoading || printMenus.length > 0) && (
+          <section data-testid="section-print-menus">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Printer className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Print Menus</h2>
+                <p className="text-sm text-muted-foreground">Click a menu to open a print-ready version</p>
+              </div>
+            </div>
+
+            {printMenusLoading ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <Skeleton className="h-5 w-40 mb-2" />
+                      <Skeleton className="h-4 w-56 mb-4" />
+                      <Skeleton className="h-9 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {printMenus.map((menu) => (
+                  <Card key={menu.id} data-testid={`card-print-menu-${menu.id}`}>
+                    <CardContent className="p-4 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted flex-shrink-0">
+                          <BookMarked className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm leading-tight" data-testid={`text-print-menu-name-${menu.id}`}>
+                            {menu.name}
+                          </p>
+                          {menu.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{menu.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full"
+                        onClick={() => openPrintMenu(menu.printUrl)}
+                        data-testid={`button-print-menu-${menu.id}`}
+                      >
+                        <Printer className="h-4 w-4 mr-2" />
+                        Open & Print
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -121,10 +201,10 @@ export default function StaffDashboard() {
             ))}
           </div>
         ) : modules && modules.length > 0 ? (
-          <>
+          <section>
             <div className="mb-6">
-              <h2 className="text-2xl font-semibold mb-2">Available Resources</h2>
-              <p className="text-muted-foreground">
+              <h2 className="text-xl font-semibold mb-1">Available Resources</h2>
+              <p className="text-sm text-muted-foreground">
                 Access staff and customer-facing tools and resources
               </p>
             </div>
@@ -178,7 +258,7 @@ export default function StaffDashboard() {
                 );
               })}
             </div>
-          </>
+          </section>
         ) : (
           <Card data-testid="staff-dashboard-empty">
             <CardContent className="py-12 text-center">
