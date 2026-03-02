@@ -160,18 +160,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "toast-connect",
-    label: "Toast Connect",
-    icon: UtensilsCrossed,
-    defaultOpen: false,
-    items: [
-      { id: "toast-menus", label: "Toast Menus", icon: UtensilsCrossed },
-      { id: "toast-print", label: "Print Menus", icon: Printer },
-      { id: "integrations", label: "Integrations", icon: Plug },
-      { id: "toast-docs", label: "Documentation", icon: FileText },
-    ],
-  },
-  {
     id: "quickbooks",
     label: "QuickBooks",
     icon: BookOpen,
