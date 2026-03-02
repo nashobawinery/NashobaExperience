@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -166,6 +166,13 @@ export function ToastMenuBrowser() {
   const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
   const [editingBoardItem, setEditingBoardItem] = useState<{id: number; name: string; description: string} | null>(null);
 
+  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
+  const [pendingGroupChanges, setPendingGroupChanges] = useState<Map<number, { hidden: boolean }>>(new Map());
+  const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [showStaffSavePrompt, setShowStaffSavePrompt] = useState(false);
+  const [staffSaveMode, setStaffSaveMode] = useState<"new" | "overwrite" | null>(null);
+
   const { data: statusData } = useQuery<{
     configured: boolean;
     authenticated: boolean;
@@ -291,6 +298,83 @@ export function ToastMenuBrowser() {
     },
   });
 
+  const hasPendingChanges = pendingItemChanges.size > 0 || pendingGroupChanges.size > 0;
+
+  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; suggestedPairing?: string; description?: string }) => {
+    setPendingItemChanges(prev => {
+      const next = new Map(prev);
+      next.set(itemId, { ...(next.get(itemId) || {}), ...change });
+      return next;
+    });
+  }, []);
+
+  const applyGroupChange = useCallback((groupId: number, hidden: boolean) => {
+    setPendingGroupChanges(prev => {
+      const next = new Map(prev);
+      next.set(groupId, { hidden });
+      return next;
+    });
+  }, []);
+
+  const getEffectiveItem = useCallback((item: ToastMenuItemData): ToastMenuItemData => {
+    const pending = pendingItemChanges.get(item.id);
+    if (!pending) return item;
+    return { ...item, ...pending };
+  }, [pendingItemChanges]);
+
+  const getEffectiveGroup = useCallback((group: ToastMenuGroupData): ToastMenuGroupData => {
+    const pendingGroup = pendingGroupChanges.get(group.id);
+    return {
+      ...group,
+      hidden: pendingGroup !== undefined ? pendingGroup.hidden : group.hidden,
+      items: group.items.map(getEffectiveItem),
+    };
+  }, [pendingGroupChanges, getEffectiveItem]);
+
+  const clearPendingChanges = useCallback(() => {
+    setPendingItemChanges(new Map());
+    setPendingGroupChanges(new Map());
+  }, []);
+
+  const saveChangesMutation = useMutation({
+    mutationFn: async () => {
+      const itemPromises = Array.from(pendingItemChanges.entries()).map(([itemId, changes]) =>
+        apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, changes).then(r => r.json())
+      );
+      const groupPromises = Array.from(pendingGroupChanges.entries()).map(([groupId, changes]) =>
+        apiRequest("PATCH", `/api/toast/menu-groups/${groupId}/overrides`, changes).then(r => r.json())
+      );
+      await Promise.all([...itemPromises, ...groupPromises]);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key?.startsWith?.("/api/toast/");
+      }});
+      clearPendingChanges();
+      toast({ title: "Changes saved" });
+      if (pendingNavAction) {
+        pendingNavAction();
+        setPendingNavAction(null);
+        setShowUnsavedWarning(false);
+      } else {
+        setShowStaffSavePrompt(true);
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const navigateWithCheck = useCallback((action: () => void) => {
+    if (pendingItemChanges.size > 0 || pendingGroupChanges.size > 0) {
+      setPendingNavAction(() => action);
+      setShowUnsavedWarning(true);
+    } else {
+      action();
+    }
+  }, [pendingItemChanges, pendingGroupChanges]);
+
   const { data: staffPrintMenuList = [] } = useQuery<StaffPrintMenuData[]>({
     queryKey: ["/api/toast/staff-print-menus"],
   });
@@ -408,16 +492,27 @@ export function ToastMenuBrowser() {
   };
 
   const openMenuDetail = (menuGuid: string) => {
-    setSelectedMenu(menuGuid);
-    setViewMode("detail");
-    setAdditionalMenuGuids([]);
-    setSelectedPrintGroups([]);
-    setSelectedEmbedGroups([]);
+    const doOpen = () => {
+      clearPendingChanges();
+      setSelectedMenu(menuGuid);
+      setViewMode("detail");
+      setAdditionalMenuGuids([]);
+      setSelectedPrintGroups([]);
+      setSelectedEmbedGroups([]);
+    };
+    if (viewMode === "detail" && selectedMenu !== menuGuid) {
+      navigateWithCheck(doOpen);
+    } else {
+      doOpen();
+    }
   };
 
   const goBack = () => {
-    setSelectedMenu(null);
-    setViewMode("list");
+    navigateWithCheck(() => {
+      clearPendingChanges();
+      setSelectedMenu(null);
+      setViewMode("list");
+    });
   };
 
   if (!isConfigured) {
@@ -563,6 +658,7 @@ export function ToastMenuBrowser() {
     if (!menuDetail) return null;
 
     const { menu, groups, totalItems } = menuDetail;
+    const effectiveGroups = groups.map(getEffectiveGroup);
 
     return (
       <>
@@ -577,6 +673,16 @@ export function ToastMenuBrowser() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {hasPendingChanges && (
+              <Button
+                onClick={() => saveChangesMutation.mutate()}
+                disabled={saveChangesMutation.isPending}
+                data-testid="button-save-changes"
+              >
+                {saveChangesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Changes
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => { setViewMode("embed"); }}
@@ -604,6 +710,25 @@ export function ToastMenuBrowser() {
           </div>
         </div>
 
+        {hasPendingChanges && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="p-3 flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
+                You have unsaved changes. Click "Save Changes" to keep them.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => saveChangesMutation.mutate()}
+                disabled={saveChangesMutation.isPending}
+                data-testid="button-save-changes-banner"
+              >
+                {saveChangesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                Save Changes
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="bg-muted/30">
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-medium">HTML Formatting Guide for Descriptions</p>
@@ -622,14 +747,14 @@ export function ToastMenuBrowser() {
           </CardContent>
         </Card>
 
-        {groups.map((group) => (
+        {effectiveGroups.map((group) => (
           <div key={group.id} className={`space-y-1 ${group.hidden ? "opacity-50" : ""}`}>
             <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
               <div className="flex items-center gap-2 min-w-0">
                 <Button
                   size="icon"
                   variant="ghost"
-                  onClick={() => updateGroupOverride.mutate({ groupId: group.id, hidden: !group.hidden })}
+                  onClick={() => applyGroupChange(group.id, !group.hidden)}
                   data-testid={`button-toggle-group-visibility-${group.id}`}
                   title={group.hidden ? "Show group" : "Hide group"}
                 >
@@ -656,7 +781,7 @@ export function ToastMenuBrowser() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => updateItemOverride.mutate({ itemId: item.id, hidden: !item.hidden })}
+                      onClick={() => applyItemChange(item.id, { hidden: !item.hidden })}
                       data-testid={`button-toggle-visibility-${item.id}`}
                     >
                       {item.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -678,7 +803,7 @@ export function ToastMenuBrowser() {
                           onBlur={(e) => {
                             const val = e.target.value.trim();
                             if (val !== (item.description || "")) {
-                              updateItemOverride.mutate({ itemId: item.id, description: val });
+                              applyItemChange(item.id, { description: val });
                             }
                           }}
                           data-testid={`input-description-${item.id}`}
@@ -694,7 +819,7 @@ export function ToastMenuBrowser() {
                           onBlur={(e) => {
                             const val = e.target.value.trim();
                             if (val !== (item.suggestedPairing || "")) {
-                              updateItemOverride.mutate({ itemId: item.id, suggestedPairing: val });
+                              applyItemChange(item.id, { suggestedPairing: val });
                             }
                           }}
                           data-testid={`input-pairing-${item.id}`}
@@ -1477,6 +1602,172 @@ export function ToastMenuBrowser() {
               Sync Selected ({selectedMenuGuids.length})
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showUnsavedWarning} onOpenChange={(open) => { if (!open) { setShowUnsavedWarning(false); setPendingNavAction(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unsaved Changes</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Your changes will be lost if you navigate away without saving. What would you like to do?
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={() => saveChangesMutation.mutate()}
+              disabled={saveChangesMutation.isPending}
+              data-testid="button-unsaved-save-continue"
+            >
+              {saveChangesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Changes &amp; Continue
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearPendingChanges();
+                setShowUnsavedWarning(false);
+                if (pendingNavAction) {
+                  pendingNavAction();
+                  setPendingNavAction(null);
+                }
+              }}
+              data-testid="button-unsaved-discard"
+            >
+              Discard Changes
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => { setShowUnsavedWarning(false); setPendingNavAction(null); }}
+              data-testid="button-unsaved-cancel"
+            >
+              Cancel — Stay on Page
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showStaffSavePrompt} onOpenChange={(open) => { if (!open) { setShowStaffSavePrompt(false); setStaffSaveMode(null); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save to Staff Print Board?</DialogTitle>
+          </DialogHeader>
+          {staffSaveMode === null ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Your menu changes have been saved. Would you also like to save this menu to the Staff Print Board so staff can print it with one click?
+              </p>
+              <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  onClick={() => { setStaffSaveMode("new"); setSaveName(menuDetail?.menu?.name || ""); }}
+                  data-testid="button-staff-save-new"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Yes — Save as New Entry
+                </Button>
+                {staffPrintMenuList.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setStaffSaveMode("overwrite")}
+                    data-testid="button-staff-save-overwrite"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Yes — Overwrite Existing Entry
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={() => { setShowStaffSavePrompt(false); setStaffSaveMode(null); }}
+                  data-testid="button-staff-save-skip"
+                >
+                  No — Skip
+                </Button>
+              </div>
+            </>
+          ) : staffSaveMode === "new" ? (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Name for Staff Board</label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder={menuDetail?.menu?.name || "Menu name"}
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-staff-save-name"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Description (optional)</label>
+                <input
+                  type="text"
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="e.g., For dining room staff"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-staff-save-description"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  disabled={!saveName.trim() || saveStaffPrintMenu.isPending}
+                  onClick={() => saveStaffPrintMenu.mutate({
+                    name: saveName.trim(),
+                    description: saveDescription.trim(),
+                    printUrl: buildPrintUrl("fine-dining"),
+                    overwriteId: null,
+                  })}
+                  data-testid="button-staff-save-confirm-new"
+                >
+                  {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save
+                </Button>
+                <Button variant="outline" onClick={() => setStaffSaveMode(null)} data-testid="button-staff-save-back">
+                  Back
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Select Entry to Overwrite</label>
+                <Select
+                  value={saveOverwriteId ? String(saveOverwriteId) : ""}
+                  onValueChange={(v) => setSaveOverwriteId(Number(v))}
+                >
+                  <SelectTrigger data-testid="select-overwrite-entry">
+                    <SelectValue placeholder="Choose entry..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staffPrintMenuList.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  disabled={!saveOverwriteId || saveStaffPrintMenu.isPending}
+                  onClick={() => {
+                    const existing = staffPrintMenuList.find(m => m.id === saveOverwriteId);
+                    saveStaffPrintMenu.mutate({
+                      name: existing?.name || "",
+                      description: existing?.description || "",
+                      printUrl: buildPrintUrl("fine-dining"),
+                      overwriteId: saveOverwriteId,
+                    });
+                  }}
+                  data-testid="button-staff-save-confirm-overwrite"
+                >
+                  {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Overwrite
+                </Button>
+                <Button variant="outline" onClick={() => setStaffSaveMode(null)} data-testid="button-staff-save-back-overwrite">
+                  Back
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
