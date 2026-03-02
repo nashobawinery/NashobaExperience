@@ -764,7 +764,7 @@ export function ToastMenuBrowser() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Custom Header</label>
-                <p className="text-xs text-muted-foreground">Subtitle above the menu title (e.g., "Spring 2026").</p>
+                <p className="text-xs text-muted-foreground">Appears below the menu title. Supports HTML (e.g., <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, <code className="text-xs">&lt;i&gt;</code>).</p>
                 <input
                   type="text"
                   value={printHeader}

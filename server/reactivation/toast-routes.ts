@@ -785,6 +785,19 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .replace(/___BR___/g, "<br>");
     };
 
+    const sanitizeHeaderHtml = (str: string) => {
+      const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
+      const saved: string[] = [];
+      let result = str;
+      safeTags.forEach(tag => {
+        const re = new RegExp(`</?${tag}\\b[^>]*>`, 'gi');
+        result = result.replace(re, (m) => { const p = `___HTAG${saved.length}___`; saved.push(m); return p; });
+      });
+      result = result.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      saved.forEach((tag, i) => { result = result.split(`___HTAG${i}___`).join(tag); });
+      return result;
+    };
+
     const extractDietaryTags = (name: string): string[] => {
       const tags: string[] = [];
       const patterns = [
@@ -905,7 +918,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
-        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 12px; }
+        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -931,6 +944,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-size: 0.8rem; color: #78716c; font-style: italic; }
+        .custom-header { text-align: center; font-size: 0.9rem; color: #78716c; font-style: italic; margin-bottom: 20px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
@@ -958,6 +972,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
+        .custom-header { text-align: center; font-size: 1rem; color: #78716c; font-style: italic; margin-bottom: 24px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
@@ -975,9 +990,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
-    ${customHeader ? `<p class="custom-header">${escapeHtml(customHeader)}</p>` : ""}
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
+    ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
@@ -1072,6 +1087,19 @@ router.get("/public/menus/embed", async (req, res) => {
       return str.replace(/<br\s*\/?>/gi, "___BR___")
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
         .replace(/___BR___/g, "<br>");
+    };
+
+    const sanitizeHeaderHtml = (str: string) => {
+      const safeTags = ['br', 'b', 'strong', 'i', 'em', 'u'];
+      const saved: string[] = [];
+      let result = str;
+      safeTags.forEach(tag => {
+        const re = new RegExp(`</?${tag}\\b[^>]*>`, 'gi');
+        result = result.replace(re, (m) => { const p = `___HTAG${saved.length}___`; saved.push(m); return p; });
+      });
+      result = result.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      saved.forEach((tag, i) => { result = result.split(`___HTAG${i}___`).join(tag); });
+      return result;
     };
 
     const extractDietaryTags = (name: string): string[] => {
@@ -1185,7 +1213,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
-        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 12px; }
+        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 28px; line-height: 1.6; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -1211,6 +1239,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .dietary-tag { background: #f0f0f0; color: #333; border: 1px solid #ddd; font-size: 0.6rem; }
         .footer { text-align: center; margin-top: 32px; font-size: 0.75rem; color: #a8a29e; }
         .custom-footer { margin-top: 8px; font-size: 0.8rem; color: #78716c; font-style: italic; }
+        .custom-header { text-align: center; font-size: 0.9rem; color: #78716c; font-style: italic; margin-bottom: 20px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 16px; margin-top: 8px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
@@ -1238,6 +1267,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .dietary-tag { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; font-size: 0.75rem; }
         .footer { text-align: center; margin-top: 40px; font-size: 0.85rem; color: #a8a29e; }
         .custom-footer { margin-top: 12px; font-size: 0.9rem; color: #78716c; font-style: italic; }
+        .custom-header { text-align: center; font-size: 1rem; color: #78716c; font-style: italic; margin-bottom: 24px; line-height: 1.5; }
         .page-break { border-top: 2px dashed #d6d3d1; padding-top: 24px; margin-top: 12px; position: relative; }
         .page-break::before { content: "PAGE BREAK"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fafaf9; padding: 0 12px; font-size: 0.65rem; letter-spacing: 0.15em; color: #a8a29e; }
         @page { size: letter; margin: 0.3in 0.4in; }
@@ -1255,9 +1285,9 @@ router.get("/public/menus/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
-    ${customHeader ? `<p class="custom-header">${escapeHtml(customHeader)}</p>` : ""}
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
+    ${customHeader ? `<div class="custom-header">${sanitizeHeaderHtml(customHeader)}</div>` : ""}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
     <div class="footer">
       <p>Consumer Advisory: Consumption of undercooked meat, poultry, eggs, or seafood may increase the risk of food-borne illnesses.</p>
