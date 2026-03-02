@@ -1,7 +1,10 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -16,8 +19,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Printer, ListFilter, Scissors,
-  ChevronUp, ChevronDown, GripVertical, RefreshCw, Loader2
+  ChevronUp, ChevronDown, GripVertical, RefreshCw, Loader2, Check
 } from "lucide-react";
 
 interface ToastMenuData {
@@ -50,11 +59,38 @@ interface MenuDetailData {
   totalItems: number;
 }
 
+interface AvailableMenu {
+  guid: string;
+  name: string;
+  groupCount: number;
+  itemCount: number;
+}
+
+interface SyncStatus {
+  [restaurantGuid: string]: {
+    menuCount: number;
+    groupCount: number;
+    itemCount: number;
+    lastSynced: string;
+  };
+}
+
 interface ToastMenuPrinterProps {
   testIdPrefix?: string;
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrinterProps) {
+  const { toast } = useToast();
   const [printTemplate, setPrintTemplate] = useState("fine-dining");
   const [printScale, setPrintScale] = useState(100);
   const [printPages, setPrintPages] = useState(0);
@@ -64,6 +100,8 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
   const [printPageBreaks, setPrintPageBreaks] = useState<string[]>([]);
   const [selectedPrintMenus, setSelectedPrintMenus] = useState<string[]>([]);
   const [printMenuTitle, setPrintMenuTitle] = useState("");
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
     configured: boolean;
@@ -73,10 +111,16 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     queryKey: ["/api/toast/status"],
   });
 
+  const { data: syncStatus } = useQuery<SyncStatus>({
+    queryKey: ["/api/toast/menus/sync-status"],
+  });
+
   const restaurants = statusData?.restaurants || [];
   const isConfigured = statusData?.configured && statusData?.authenticated;
   const defaultRestaurant = restaurants.find(r => r.name.toLowerCase().includes("nashoba valley")) || restaurants[0];
   const restaurantGuid = defaultRestaurant?.guid || "";
+
+  const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
   const { data: menus = [], isLoading: menusLoading } = useQuery<ToastMenuData[]>({
     queryKey: ["/api/toast/menus", { restaurantGuid }],
@@ -110,6 +154,47 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     },
     enabled: selectedPrintMenus.length > 0,
   });
+
+  const { data: availableMenus = [], isLoading: availableLoading, refetch: fetchAvailableMenus } = useQuery<AvailableMenu[]>({
+    queryKey: ["/api/toast/menus/available", { restaurantGuid }],
+    enabled: false,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async ({ guid, menuGuids }: { guid: string; menuGuids?: string[] }) => {
+      const body: any = { restaurantGuid: guid };
+      if (menuGuids && menuGuids.length > 0) body.menuGuids = menuGuids;
+      const res = await apiRequest("POST", "/api/toast/menus/sync", body);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key?.startsWith?.("/api/toast/");
+      }});
+      setShowSyncDialog(false);
+      setSelectedMenuGuids([]);
+      toast({
+        title: "Menu sync complete",
+        description: `Synced ${data.menuCount} menus, ${data.groupCount} groups, ${data.itemCount} items`,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleOpenSyncDialog = () => {
+    setShowSyncDialog(true);
+    setSelectedMenuGuids([]);
+    fetchAvailableMenus();
+  };
+
+  const toggleMenuGuid = (guid: string) => {
+    setSelectedMenuGuids(prev =>
+      prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+    );
+  };
 
   const allPrintGroups = useMemo(() => {
     const groups: { groupGuid: string; name: string; menuName: string }[] = [];
@@ -222,32 +307,6 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     }
   };
 
-  if (statusLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!isConfigured) {
-    return (
-      <div className="text-center py-12 space-y-2">
-        <Printer className="h-10 w-10 mx-auto text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Toast POS is not configured. Menu printing requires an active Toast connection.</p>
-      </div>
-    );
-  }
-
-  if (menusLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading menus...</span>
-      </div>
-    );
-  }
-
   const renderGroupMultiSelect = (selected: string[], setSelected: (v: string[]) => void, testId: string) => (
     <Popover>
       <PopoverTrigger asChild>
@@ -285,48 +344,118 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     </Popover>
   );
 
+  if (statusLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isConfigured) {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <Printer className="h-10 w-10 mx-auto text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Toast POS is not configured. Menu printing requires an active Toast connection.</p>
+      </div>
+    );
+  }
+
+  if (menusLoading || syncMutation.isPending) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">
+          {syncMutation.isPending ? "Syncing menus from Toast..." : "Loading menus..."}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" data-testid={`text-${testIdPrefix}-print-title`}>Toast Menu Printer</h2>
-        <p className="text-sm text-muted-foreground">
-          Select one or more menus to combine into a single printable document. Use the arrows to control the order they appear.
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold" data-testid={`text-${testIdPrefix}-print-title`}>Toast Menu Printer</h2>
+          <p className="text-sm text-muted-foreground">
+            Select one or more menus to combine into a single printable document.
+          </p>
+        </div>
+        <Button
+          onClick={handleOpenSyncDialog}
+          disabled={syncMutation.isPending || !restaurantGuid}
+          data-testid={`${testIdPrefix}-button-sync-menus`}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Sync Menus from Toast
+        </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Select Menus</label>
-          <p className="text-xs text-muted-foreground">Check the menus you want to include. Select multiple to combine them into one printed menu.</p>
-          <div className="space-y-1 border rounded-md p-2 max-h-64 overflow-y-auto" data-testid={`${testIdPrefix}-print-menu-list`}>
-            {menus.map((m) => {
-              const isSelected = selectedPrintMenus.includes(m.menuGuid);
-              return (
-                <label
-                  key={m.menuGuid}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover-elevate"
-                  data-testid={`${testIdPrefix}-print-menu-option-${m.menuGuid}`}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => togglePrintMenu(m.menuGuid)}
-                  />
-                  <span className="text-sm flex-1">{m.name}</span>
-                </label>
-              );
-            })}
-          </div>
+      {currentRestaurantStatus && (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+          <span>Last synced: {formatDate(currentRestaurantStatus.lastSynced)}</span>
+          <Badge variant="secondary">{currentRestaurantStatus.menuCount} menus</Badge>
+          <Badge variant="secondary">{currentRestaurantStatus.groupCount} groups</Badge>
+          <Badge variant="secondary">{currentRestaurantStatus.itemCount} items</Badge>
         </div>
+      )}
 
-        <div className="space-y-2">
-          {selectedPrintMenus.length > 0 && (
-            <>
-              <label className="text-sm font-medium">
-                Print Order ({selectedPrintMenus.length} selected)
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {isMultiMenu ? "Drag to reorder. Menus will appear in this order on the printed document." : "One menu selected."}
-              </p>
+      {menus.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center space-y-2">
+            <Printer className="w-10 h-10 mx-auto text-muted-foreground" />
+            <p className="font-medium">No menus synced yet</p>
+            <p className="text-sm text-muted-foreground">Click "Sync Menus from Toast" to pull in your menu items.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label className="text-sm font-medium">Select Menus</label>
+              {hasSelection && (
+                <span className="text-xs text-muted-foreground">{selectedPrintMenus.length} selected</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Click a menu to select it for printing. Select multiple to combine them into one document.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid={`${testIdPrefix}-print-menu-list`}>
+              {menus.map((m) => {
+                const isSelected = selectedPrintMenus.includes(m.menuGuid);
+                return (
+                  <Card
+                    key={m.menuGuid}
+                    className={`cursor-pointer hover-elevate transition-all ${isSelected ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => togglePrintMenu(m.menuGuid)}
+                    data-testid={`${testIdPrefix}-print-menu-option-${m.menuGuid}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-medium text-sm truncate">{m.name}</h3>
+                          {m.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>
+                          )}
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
+                          {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Synced {formatDate(m.syncedAt)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {hasSelection && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Print Order ({selectedPrintMenus.length} selected)</label>
+              {isMultiMenu && (
+                <p className="text-xs text-muted-foreground">Use the arrows to control the order menus appear in the printed document.</p>
+              )}
               <div className="space-y-1 border rounded-md p-2" data-testid={`${testIdPrefix}-print-menu-order`}>
                 {selectedPrintMenus.map((guid, index) => {
                   const menu = menus.find(m => m.menuGuid === guid);
@@ -343,7 +472,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
                           size="icon"
                           variant="ghost"
                           disabled={index === 0}
-                          onClick={() => movePrintMenu(index, "up")}
+                          onClick={(e) => { e.stopPropagation(); movePrintMenu(index, "up"); }}
                           data-testid={`${testIdPrefix}-button-move-up-${index}`}
                         >
                           <ChevronUp className="w-4 h-4" />
@@ -352,7 +481,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
                           size="icon"
                           variant="ghost"
                           disabled={index === selectedPrintMenus.length - 1}
-                          onClick={() => movePrintMenu(index, "down")}
+                          onClick={(e) => { e.stopPropagation(); movePrintMenu(index, "down"); }}
                           data-testid={`${testIdPrefix}-button-move-down-${index}`}
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -362,10 +491,10 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
                   );
                 })}
               </div>
-            </>
+            </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -612,6 +741,71 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Sync Menus from Toast</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose which menus to sync, or sync all at once.
+            </p>
+            {availableLoading ? (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Loading available menus from Toast...</span>
+              </div>
+            ) : availableMenus.length > 0 ? (
+              <div className="space-y-1 max-h-64 overflow-y-auto border rounded-md p-2">
+                {availableMenus.map((m) => (
+                  <label
+                    key={m.guid}
+                    className="flex items-center gap-3 px-2 py-2 rounded-md cursor-pointer hover-elevate"
+                  >
+                    <Checkbox
+                      checked={selectedMenuGuids.includes(m.guid)}
+                      onCheckedChange={() => toggleMenuGuid(m.guid)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">{m.groupCount} groups · {m.itemCount} items</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex gap-2 justify-end flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => setShowSyncDialog(false)}
+                data-testid={`${testIdPrefix}-button-cancel-sync`}
+              >
+                Cancel
+              </Button>
+              {availableMenus.length > 0 && selectedMenuGuids.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => syncMutation.mutate({ guid: restaurantGuid, menuGuids: selectedMenuGuids })}
+                  disabled={syncMutation.isPending}
+                  data-testid={`${testIdPrefix}-button-sync-selected`}
+                >
+                  {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                  Sync Selected ({selectedMenuGuids.length})
+                </Button>
+              )}
+              <Button
+                onClick={() => syncMutation.mutate({ guid: restaurantGuid })}
+                disabled={syncMutation.isPending}
+                data-testid={`${testIdPrefix}-button-sync-all`}
+              >
+                {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Sync All Menus
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
