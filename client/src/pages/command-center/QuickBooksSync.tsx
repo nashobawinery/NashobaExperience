@@ -247,7 +247,7 @@ export default function QuickBooksSync() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quickbooks/items"] });
-      toast({ title: "Items Synced", description: `Found ${data.total} items. ${data.newMapped} auto-matched.` });
+      toast({ title: "Items Synced", description: `Found ${data.total} items on E-invoices. ${data.newMapped} auto-matched${data.removed > 0 ? `, ${data.removed} stale items removed` : ''}.` });
     },
     onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
   });

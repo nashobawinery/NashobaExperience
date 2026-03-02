@@ -404,12 +404,14 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
 
     const invoiceItemIdStrings = Array.from(invoiceItemIds);
     const staleItems = await db.select().from(qbItemMap);
+    // Keep only items that are manually mapped by the user (isAutoMatched=false with a productId).
+    // Remove everything else (unmapped, auto-matched, ignored) that no longer appears on E-invoices.
     const staleIds = staleItems
-      .filter(m => !invoiceItemIdStrings.includes(m.qbItemId) && !m.productId)
+      .filter(m => !invoiceItemIdStrings.includes(m.qbItemId) && !(m.isAutoMatched === false && m.productId !== null))
       .map(m => m.id);
     if (staleIds.length > 0) {
       await db.delete(qbItemMap).where(inArray(qbItemMap.id, staleIds));
-      console.log(`[QB Item Sync] Removed ${staleIds.length} stale items not found on invoices`);
+      console.log(`[QB Item Sync] Removed ${staleIds.length} stale items not found on E-invoices`);
     }
 
     const packagingPatterns = [
@@ -482,7 +484,7 @@ router.post("/api/quickbooks/items/sync", async (_req: Request, res: Response) =
       console.log(`[QB Item Sync] Un-ignored ${unIgnored} items (no longer matching packaging patterns)`);
     }
 
-    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length, autoIgnored, unIgnored });
+    res.json({ total: qbItems.length, newMapped, alreadyMapped: existingMaps.length, autoIgnored, unIgnored, removed: staleIds.length });
   } catch (error: any) {
     console.error("QB item sync error:", error.response?.data || error.message);
     res.status(500).json({ error: error.message });

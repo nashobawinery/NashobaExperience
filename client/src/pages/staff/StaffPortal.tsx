@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle, Wrench } from "lucide-react";
+import { ClipboardList, CheckSquare, LogIn, LogOut, ChevronRight, User, FileText, ClipboardCheck, Clock, AlertCircle, Wrench, Printer, BookMarked } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -52,6 +52,13 @@ interface DailyReportDraft {
   createdAt: string;
 }
 
+interface StaffPrintMenu {
+  id: number;
+  name: string;
+  description: string | null;
+  printUrl: string;
+}
+
 export default function StaffPortal() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -84,6 +91,20 @@ export default function StaffPortal() {
   });
 
   const hasDrafts = procedureDrafts.length > 0 || reportDrafts.length > 0;
+
+  const { data: printMenus = [] } = useQuery<StaffPrintMenu[]>({
+    queryKey: ['/api/toast/public/staff-print-menus'],
+    staleTime: 30000,
+  });
+
+  const openPrintMenu = (url: string) => {
+    const printWindow = window.open(url, "_blank");
+    if (printWindow) {
+      printWindow.addEventListener("load", () => {
+        setTimeout(() => printWindow.print(), 500);
+      });
+    }
+  };
 
   const validateMutation = useMutation({
     mutationFn: async (accessCode: string) => {
@@ -357,6 +378,47 @@ export default function StaffPortal() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Print Menus Section - shown when menus are configured */}
+        {printMenus.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                  <Printer className="w-6 h-6 text-purple-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Print Menus</CardTitle>
+                  <CardDescription>
+                    {printMenus.length} print-ready menu{printMenus.length !== 1 ? 's' : ''} available
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {printMenus.map((menu) => (
+                <Button
+                  key={menu.id}
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => openPrintMenu(menu.printUrl)}
+                  data-testid={`button-print-menu-${menu.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <BookMarked className="w-4 h-4 text-purple-500" />
+                    <div className="text-left">
+                      <div className="font-medium">{menu.name}</div>
+                      {menu.description && (
+                        <div className="text-xs text-muted-foreground">{menu.description}</div>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Work Order Section - Always available */}
         <Card>
