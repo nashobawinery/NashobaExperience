@@ -5453,6 +5453,7 @@ export const toastMenuGroups = pgTable("toast_menu_groups", {
   description: text("description"),
   displayOrder: integer("display_order"),
   visibility: text("visibility"),
+  hidden: boolean("hidden").default(false),
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_toast_menu_groups_guid").on(table.groupGuid),

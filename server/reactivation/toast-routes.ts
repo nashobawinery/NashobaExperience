@@ -547,6 +547,27 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
   }
 });
 
+router.patch("/menu-groups/:groupId/overrides", isAuthenticated, async (req, res) => {
+  try {
+    const groupId = parseInt(req.params.groupId);
+    if (isNaN(groupId)) return res.status(400).json({ error: "Invalid group ID" });
+
+    const { hidden } = req.body;
+    if (typeof hidden !== "boolean") return res.status(400).json({ error: "hidden must be a boolean" });
+
+    const result = await db.update(toastMenuGroups)
+      .set({ hidden })
+      .where(eq(toastMenuGroups.id, groupId))
+      .returning();
+
+    if (result.length === 0) return res.status(404).json({ error: "Group not found" });
+    res.json(result[0]);
+  } catch (error: any) {
+    console.error("[Toast Groups] Override update error:", error.message);
+    res.status(500).json({ error: "Failed to update group" });
+  }
+});
+
 router.patch("/menu-items/batch-overrides", isAuthenticated, async (req, res) => {
   try {
     const { items } = req.body;
@@ -603,8 +624,9 @@ router.get("/public/menus-combined", async (req, res) => {
         .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
 
       const visibleItems = includeHidden ? allItems : allItems.filter((i) => !i.hidden);
+      const visibleGroups = includeHidden ? groups : groups.filter((g) => !g.hidden);
 
-      const groupsWithItems = groups.map((g) => ({
+      const groupsWithItems = visibleGroups.map((g) => ({
         ...g,
         items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
       }));
@@ -649,8 +671,9 @@ router.get("/public/menu/:menuGuid", async (req, res) => {
       .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
 
     const visibleItems = includeHidden ? allItems : allItems.filter((i) => !i.hidden);
+    const visibleGroups = includeHidden ? groups : groups.filter((g) => !g.hidden);
 
-    const groupsWithItems = groups.map((g) => ({
+    const groupsWithItems = visibleGroups.map((g) => ({
       ...g,
       items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
@@ -727,9 +750,10 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       .orderBy(toastMenuItems.displayOrder, toastMenuItems.name);
 
     const visibleItems = allItems.filter((i) => !i.hidden);
+    const visibleGroups = groups.filter((g) => !g.hidden);
 
     const menuData = menu[0];
-    const groupsWithItems = groups.map((g) => ({
+    const groupsWithItems = visibleGroups.map((g) => ({
       ...g,
       items: visibleItems.filter((i) => i.groupGuid === g.groupGuid),
     }));
@@ -1010,6 +1034,7 @@ router.get("/public/menus/embed", async (req, res) => {
       const visibleItems = items.filter((i) => !i.hidden);
 
       for (const group of groups) {
+        if (group.hidden) continue;
         if (filterGroupGuids.length > 0 && !filterGroupGuids.includes(group.groupGuid)) continue;
         const groupItems = visibleItems.filter((i) => i.groupGuid === group.groupGuid);
         if (groupItems.length > 0) {

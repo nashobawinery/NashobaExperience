@@ -59,6 +59,7 @@ interface ToastMenuGroupData {
   description: string | null;
   displayOrder: number | null;
   visibility: string | null;
+  hidden: boolean;
   syncedAt: string;
   items: ToastMenuItemData[];
 }
@@ -243,6 +244,22 @@ export function ToastMenuBrowser() {
   const updateItemOverride = useMutation({
     mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string; description?: string }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key?.startsWith?.("/api/toast/");
+      }});
+    },
+    onError: (err: Error) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateGroupOverride = useMutation({
+    mutationFn: async ({ groupId, hidden }: { groupId: number; hidden: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/toast/menu-groups/${groupId}/overrides`, { hidden });
       return res.json();
     },
     onSuccess: () => {
@@ -522,13 +539,24 @@ export function ToastMenuBrowser() {
         </Card>
 
         {groups.map((group) => (
-          <div key={group.id} className="space-y-1">
+          <div key={group.id} className={`space-y-1 ${group.hidden ? "opacity-50" : ""}`}>
             <div className="flex items-center justify-between gap-2 pt-2 border-b pb-1">
-              <h3 className="font-semibold text-base" data-testid={`text-group-name-${group.id}`}>
-                {group.name}
-              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => updateGroupOverride.mutate({ groupId: group.id, hidden: !group.hidden })}
+                  data-testid={`button-toggle-group-visibility-${group.id}`}
+                  title={group.hidden ? "Show group" : "Hide group"}
+                >
+                  {group.hidden ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4" />}
+                </Button>
+                <h3 className={`font-semibold text-base ${group.hidden ? "line-through text-muted-foreground" : ""}`} data-testid={`text-group-name-${group.id}`}>
+                  {group.name}
+                </h3>
+              </div>
               <Badge variant="secondary" className="no-default-active-elevate">
-                {group.items.filter(i => !i.hidden).length}/{group.items.length} visible
+                {group.hidden ? "hidden" : `${group.items.filter(i => !i.hidden).length}/${group.items.length} visible`}
               </Badge>
             </div>
             {group.items.length === 0 ? (
