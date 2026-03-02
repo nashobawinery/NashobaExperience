@@ -156,6 +156,8 @@ export function ToastMenuBrowser() {
   const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
   const [additionalMenuGuids, setAdditionalMenuGuids] = useState<string[]>([]);
   const [printHeader, setPrintHeader] = useState("");
+  const [printHeaderFontSize, setPrintHeaderFontSize] = useState(1.0);
+  const [printFooterFontSize, setPrintFooterFontSize] = useState(1.0);
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
 
@@ -453,7 +455,7 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -465,10 +467,12 @@ export function ToastMenuBrowser() {
     if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
     if (hidePricing) url += `&hideprice=1`;
     if (hideWinePairing) url += `&hidepairing=1`;
+    if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
+    if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
     return url;
   };
 
-  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -480,19 +484,21 @@ export function ToastMenuBrowser() {
     if (header && header.trim()) url += `&header=${encodeURIComponent(header.trim())}`;
     if (hidePricing) url += `&hideprice=1`;
     if (hideWinePairing) url += `&hidepairing=1`;
+    if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
+    if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
     return url;
   };
 
   const buildPrintUrl = (template: string) => {
     const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
+      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
     }
-    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
+    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
   };
 
-  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean) => {
-    const url = getEmbedUrl(menuGuid, template, groupGuids, undefined, undefined, footer, undefined, hideDescriptions, header, hidePricing, hideWinePairing);
+  const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number) => {
+    const url = getEmbedUrl(menuGuid, template, groupGuids, undefined, undefined, footer, undefined, hideDescriptions, header, hidePricing, hideWinePairing, headerSize, footerSize);
     return `<iframe src="${url}" width="100%" height="800" frameborder="0" style="border:none; max-width:900px; margin:0 auto; display:block;"></iframe>`;
   };
 
@@ -828,14 +834,19 @@ export function ToastMenuBrowser() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Appears below the menu title. Supports HTML (e.g., <code className="text-xs">&lt;br&gt;</code>, <code className="text-xs">&lt;b&gt;</code>, <code className="text-xs">&lt;i&gt;</code>).</p>
-                <input
-                  type="text"
-                  value={printHeader}
-                  onChange={(e) => setPrintHeader(e.target.value)}
-                  placeholder="e.g., Spring 2026 Season"
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-detail-header"
-                />
+                <div className="flex gap-1 items-center">
+                  <input
+                    type="text"
+                    value={printHeader}
+                    onChange={(e) => setPrintHeader(e.target.value)}
+                    placeholder="e.g., Spring 2026 Season"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                    data-testid="input-detail-header"
+                  />
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintHeaderFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printHeaderFontSize <= 0.5} title="Decrease font size" data-testid="button-header-font-decrease">A−</Button>
+                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printHeaderFontSize.toFixed(1)}×</span>
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintHeaderFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printHeaderFontSize >= 3} title="Increase font size" data-testid="button-header-font-increase">A+</Button>
+                </div>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -882,14 +893,19 @@ export function ToastMenuBrowser() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Message at the bottom (e.g., website, phone).</p>
-                <input
-                  type="text"
-                  value={printFooter}
-                  onChange={(e) => setPrintFooter(e.target.value)}
-                  placeholder="e.g., nashobawinery.com · (978) 779-5521"
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-detail-footer"
-                />
+                <div className="flex gap-1 items-center">
+                  <input
+                    type="text"
+                    value={printFooter}
+                    onChange={(e) => setPrintFooter(e.target.value)}
+                    placeholder="e.g., nashobawinery.com · (978) 779-5521"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                    data-testid="input-detail-footer"
+                  />
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintFooterFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printFooterFontSize <= 0.5} title="Decrease font size" data-testid="button-footer-font-decrease">A−</Button>
+                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printFooterFontSize.toFixed(1)}×</span>
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintFooterFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printFooterFontSize >= 3} title="Increase font size" data-testid="button-footer-font-increase">A+</Button>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -1083,8 +1099,8 @@ export function ToastMenuBrowser() {
   const renderEmbedView = () => {
     if (!selectedMenu) return null;
     const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
-    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
-    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing);
+    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
+    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize);
 
     return (
       <>
