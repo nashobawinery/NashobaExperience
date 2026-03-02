@@ -632,10 +632,13 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
+    const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
+    const hidePricing = req.query.hideprice === "1";
+    const hideWinePairing = req.query.hidepairing === "1";
 
     const menu = await db.select().from(toastMenus).where(or(eq(toastMenus.menuGuid, menuGuid), eq(toastMenus.name, menuGuid))).limit(1);
     if (menu.length === 0) {
@@ -749,18 +752,19 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
           : "";
 
         const showDesc = !hideDescriptions && item.description;
-        const showPairing = !hideDescriptions ? pairingHtml : "";
+        const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
+        const showPrice = !hidePricing;
 
         if (template === "beverage") {
           itemsHtml += `
             <div class="bev-item">
               <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-              ${price ? `<span class="bev-price">${price}</span>` : ""}
+              ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
@@ -769,7 +773,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
             <div class="menu-item">
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${price ? `<span class="item-price">${price}</span>` : ""}
+                ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -822,6 +826,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
+        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 12px; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -891,6 +896,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
+    ${customHeader ? `<p class="custom-header">${escapeHtml(customHeader)}</p>` : ""}
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
@@ -927,10 +933,13 @@ router.get("/public/menus/embed", async (req, res) => {
     const scale = Math.min(120, Math.max(60, rawScale));
     const rawPages = parseInt(req.query.pages as string) || 0;
     const pages = Math.min(10, Math.max(0, rawPages));
+    const customHeader = (req.query.header as string) || "";
     const customFooter = (req.query.footer as string) || "";
     const pagebreaksParam = req.query.pagebreaks as string | undefined;
     const pagebreakGuids = pagebreaksParam ? pagebreaksParam.split(",").map(g => g.trim()).filter(Boolean) : [];
     const hideDescriptions = req.query.hidedesc === "1";
+    const hidePricing = req.query.hideprice === "1";
+    const hideWinePairing = req.query.hidepairing === "1";
     const customTitle = (req.query.title as string) || "";
 
     const allGroups: { group: any; items: any[]; menuName: string }[] = [];
@@ -1020,18 +1029,19 @@ router.get("/public/menus/embed", async (req, res) => {
           : "";
 
         const showDesc = !hideDescriptions && item.description;
-        const showPairing = !hideDescriptions ? pairingHtml : "";
+        const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
+        const showPrice = !hidePricing;
 
         if (template === "beverage") {
           itemsHtml += `
             <div class="bev-item">
               <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-              ${price ? `<span class="bev-price">${price}</span>` : ""}
+              ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
@@ -1040,7 +1050,7 @@ router.get("/public/menus/embed", async (req, res) => {
             <div class="menu-item">
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${price ? `<span class="item-price">${price}</span>` : ""}
+                ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -1092,6 +1102,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
         ${dietaryTagsCss}
         .dietary-tag { background: rgba(212, 184, 150, 0.15); color: #d4b896; border: 1px solid rgba(212, 184, 150, 0.3); font-size: 0.8rem; }
+        .custom-header { text-align: center; font-size: 1rem; color: #a08c6e; font-style: italic; letter-spacing: 0.1em; margin-bottom: 12px; }
         .footer { text-align: center; margin-top: 48px; font-size: 0.9rem; color: #6b5f4f; letter-spacing: 0.1em; }
         .custom-footer { margin-top: 12px; font-size: 0.95rem; color: #a08c6e; font-style: italic; }
         .page-break { border-top: 2px dashed #a08c6e; padding-top: 32px; margin-top: 16px; position: relative; }
@@ -1161,6 +1172,7 @@ router.get("/public/menus/embed", async (req, res) => {
 </head>
 <body>
   <div class="menu-container">
+    ${customHeader ? `<p class="custom-header">${escapeHtml(customHeader)}</p>` : ""}
     <h1 class="menu-title">${escapeHtml(embedTitle)}</h1>
     ${template === "fine-dining" ? `<div class="ornament">&mdash;</div>` : template === "beverage" ? `<p class="menu-subtitle">Beverage List</p>` : `<p class="menu-subtitle">Menu</p>`}
     ${template === "beverage" ? `<div class="bev-groups-container">${groupsHtml}</div>` : groupsHtml}
