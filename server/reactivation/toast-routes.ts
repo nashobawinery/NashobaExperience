@@ -414,14 +414,6 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
 
           if (strategy === "SIZE_PRICE") {
             const sizeGroupGuid: string = item.pricingRules?.sizeSpecificPricingGuid || "";
-            // Debug: log full structure of this SIZE_PRICE item
-            console.log(`[Toast Sync DEBUG] SIZE_PRICE item "${itemName}": pricingRules=${JSON.stringify(item.pricingRules)}, portions=${JSON.stringify(item.portions)}`);
-            if (hasModifierMaps) {
-              const firstGroupEntry = Object.values(modifierGroupRefMap)[0];
-              const firstOptionEntry = Object.values(modifierOptionRefMap)[0];
-              console.log(`[Toast Sync DEBUG] First modGrp entry: ${JSON.stringify(firstGroupEntry)}`);
-              console.log(`[Toast Sync DEBUG] First modOpt entry: ${JSON.stringify(firstOptionEntry)}`);
-            }
 
             // Strategy 1: check item.portions array (direct size pricing on the item)
             const portionSizes = (item.portions || [])
@@ -443,7 +435,6 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
                 ? modifierGroupRefMap[String(sizeGroupRef)]
                 : Object.values(modifierGroupRefMap).find((g: any) => g.guid === sizeGroupGuid)
               ) as any;
-              console.log(`[Toast Sync DEBUG] sizeGroupRef=${sizeGroupRef}, sizeGroup found=${!!sizeGroup}`);
               if (sizeGroup) {
                 const optionRefIds: number[] = sizeGroup.modifierOptionReferences || [];
                 const sizeOptions = optionRefIds
