@@ -258,10 +258,10 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; displayOrder: number | null; description: string | null; descriptionEdited: boolean }>();
+    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; description: string | null }>();
     {
       let existingItems;
-      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, displayOrder: toastMenuItems.displayOrder, description: toastMenuItems.description };
+      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
       if (selectedGuids) {
         existingItems = await db.select(selectFields)
           .from(toastMenuItems)
@@ -272,11 +272,11 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           .where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
       }
       for (const item of existingItems) {
-        if (item.hidden || item.suggestedPairing || item.displayOrder != null || item.description) {
-          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, displayOrder: item.displayOrder, description: item.description, descriptionEdited: false });
+        if (item.hidden || item.suggestedPairing || item.description) {
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, description: item.description });
         }
       }
-      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/order/description)`);
+      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/description)`);
     }
 
     if (selectedGuids) {
@@ -384,7 +384,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
             suggestedPairing: finalPairing,
-            displayOrder: overrides?.displayOrder ?? ii,
+            displayOrder: ii,
           });
           itemCount++;
         }
