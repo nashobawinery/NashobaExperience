@@ -414,11 +414,36 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
 
           if (strategy === "SIZE_PRICE") {
             const sizeGroupGuid: string = item.pricingRules?.sizeSpecificPricingGuid || "";
-            if (sizeGroupGuid && hasModifierMaps) {
-              // Try inline resolution using the top-level modifier reference maps
-              const sizeGroup = Object.values(modifierGroupRefMap).find(
-                (g: any) => g.guid === sizeGroupGuid
+            // Debug: log full structure of this SIZE_PRICE item
+            console.log(`[Toast Sync DEBUG] SIZE_PRICE item "${itemName}": pricingRules=${JSON.stringify(item.pricingRules)}, portions=${JSON.stringify(item.portions)}`);
+            if (hasModifierMaps) {
+              const firstGroupEntry = Object.values(modifierGroupRefMap)[0];
+              const firstOptionEntry = Object.values(modifierOptionRefMap)[0];
+              console.log(`[Toast Sync DEBUG] First modGrp entry: ${JSON.stringify(firstGroupEntry)}`);
+              console.log(`[Toast Sync DEBUG] First modOpt entry: ${JSON.stringify(firstOptionEntry)}`);
+            }
+
+            // Strategy 1: check item.portions array (direct size pricing on the item)
+            const portionSizes = (item.portions || [])
+              .filter((p: any) => p.name && (p.price != null || p.modifier != null))
+              .map((p: any) => ({
+                name: String(p.name || p.displayName || ""),
+                price: String(Number(p.price ?? p.modifier ?? 0).toFixed(2)),
+              }))
+              .filter((s: any) => s.name);
+
+            if (portionSizes.length > 0) {
+              sizePrices = JSON.stringify(portionSizes);
+              price = portionSizes[0].price;
+              console.log(`[Toast Sync] SIZE_PRICE portions resolved "${itemName}": ${portionSizes.map((s: any) => `${s.name}=$${s.price}`).join(", ")}`);
+            } else if (sizeGroupGuid && hasModifierMaps) {
+              // Strategy 2: inline modifier reference maps — find group by numeric ref or GUID
+              const sizeGroupRef: number | undefined = item.pricingRules?.sizeSpecificPricingRef;
+              const sizeGroup = (sizeGroupRef != null
+                ? modifierGroupRefMap[String(sizeGroupRef)]
+                : Object.values(modifierGroupRefMap).find((g: any) => g.guid === sizeGroupGuid)
               ) as any;
+              console.log(`[Toast Sync DEBUG] sizeGroupRef=${sizeGroupRef}, sizeGroup found=${!!sizeGroup}`);
               if (sizeGroup) {
                 const optionRefIds: number[] = sizeGroup.modifierOptionReferences || [];
                 const sizeOptions = optionRefIds
@@ -434,14 +459,17 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
                   price = sizeOptions[0].price;
                   console.log(`[Toast Sync] SIZE_PRICE inline resolved "${itemName}": ${sizeOptions.map((s: any) => `${s.name}=$${s.price}`).join(", ")}`);
                 } else {
-                  console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroup ${sizeGroupGuid} found but ${optionRefIds.length} option refs had no data`);
+                  console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroup ${sizeGroupGuid} found but ${optionRefIds.length} option refs had no data — queuing config API`);
                   sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
                 }
               } else {
+                console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroupGuid ${sizeGroupGuid} not in modifierGroupRefMap (${Object.keys(modifierGroupRefMap).length} entries) — queuing config API`);
                 sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
               }
             } else if (sizeGroupGuid) {
               sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
+            } else {
+              console.log(`[Toast Sync] SIZE_PRICE "${itemName}": no portions, no sizeGroupGuid — cannot resolve price`);
             }
             // price and sizePrices stay null if not resolved above; updated in post-processing
           } else if (item.price != null && item.price !== "") {
