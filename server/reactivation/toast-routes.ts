@@ -348,10 +348,32 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           if (!itemGuid) continue;
 
           let price: string | null = null;
-          if (item.price != null && item.price !== "") {
+          let sizePrices: string | null = null;
+
+          const menuItemPrices: any[] = item.menuItemPrices || [];
+          const namedPrices = menuItemPrices.filter((p: any) => p.name && (p.price != null || p.amount != null));
+
+          if (namedPrices.length > 1) {
+            sizePrices = JSON.stringify(
+              namedPrices.map((p: any) => ({
+                name: String(p.name),
+                price: String(Number(p.price ?? p.amount ?? 0).toFixed(2)),
+              }))
+            );
+            price = String(Number(namedPrices[0].price ?? namedPrices[0].amount ?? 0).toFixed(2));
+          } else if (item.price != null && item.price !== "") {
             price = String(item.price);
           } else if (item.prices && item.prices.length > 0) {
-            price = String(item.prices[0].price ?? item.prices[0].amount ?? 0);
+            const firstPrice = item.prices[0];
+            if (item.prices.length > 1 && item.prices.every((p: any) => p.name)) {
+              sizePrices = JSON.stringify(
+                item.prices.map((p: any) => ({
+                  name: String(p.name),
+                  price: String(Number(p.price ?? p.amount ?? 0).toFixed(2)),
+                }))
+              );
+            }
+            price = String(Number(firstPrice.price ?? firstPrice.amount ?? 0).toFixed(2));
           }
 
           const overrides = existingOverrides.get(itemGuid);
@@ -384,6 +406,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
             hidePrice: overrides?.hidePrice ?? false,
+            sizePrices,
             suggestedPairing: finalPairing,
             displayOrder: ii,
           });
@@ -856,20 +879,32 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
 
+        let sizePriceHtml = "";
+        if (showPrice && item.sizePrices) {
+          try {
+            const sizes: { name: string; price: string }[] = JSON.parse(item.sizePrices);
+            if (sizes.length > 1) {
+              sizePriceHtml = sizes.map(s => `<span class="size-entry">${escapeHtml(s.name)}&nbsp;${formatPrice(s.price)}</span>`).join('<span class="size-sep">&middot;</span>');
+            }
+          } catch {}
+        }
+        const showSinglePrice = showPrice && price && !sizePriceHtml;
+
         if (template === "beverage") {
           itemsHtml += `
             <div class="bev-item-row">
               ${bevImgHtml}
               <div class="bev-item">
                 <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+                ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
@@ -879,7 +914,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
               ${itemImageHtml}
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
+                ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -927,6 +962,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .menu-item { text-align: center; margin-bottom: 20px; }
         .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
+        .item-sizes { font-size: 0.85em; color: #c4a880; margin-top: 3px; display: block; }
+        .size-entry { white-space: nowrap; }
+        .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
@@ -983,6 +1021,9 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-weight: 500; font-size: 1.1rem; }
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
+        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
+        .size-entry { white-space: nowrap; }
+        .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
@@ -1169,20 +1210,32 @@ router.get("/public/menus/embed", async (req, res) => {
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
 
+        let sizePriceHtml = "";
+        if (showPrice && item.sizePrices) {
+          try {
+            const sizes: { name: string; price: string }[] = JSON.parse(item.sizePrices);
+            if (sizes.length > 1) {
+              sizePriceHtml = sizes.map(s => `<span class="size-entry">${escapeHtml(s.name)}&nbsp;${formatPrice(s.price)}</span>`).join('<span class="size-sep">&middot;</span>');
+            }
+          } catch {}
+        }
+        const showSinglePrice = showPrice && price && !sizePriceHtml;
+
         if (template === "beverage") {
           itemsHtml += `
             <div class="bev-item-row">
               ${bevImgHtml}
               <div class="bev-item">
                 <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${showPrice && price ? `<span class="bev-price">${price}</span>` : ""}
+                ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
             <div class="menu-item">
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showPrice && price ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
@@ -1192,7 +1245,7 @@ router.get("/public/menus/embed", async (req, res) => {
               ${itemImageHtml}
               <div class="item-header">
                 <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
-                ${showPrice && price ? `<span class="item-price">${price}</span>` : ""}
+                ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
@@ -1239,6 +1292,9 @@ router.get("/public/menus/embed", async (req, res) => {
         .menu-item { text-align: center; margin-bottom: 20px; }
         .item-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #e8dcc8; }
         .item-price { font-weight: 400; color: #d4b896; margin-left: 8px; }
+        .item-sizes { font-size: 0.85em; color: #c4a880; margin-top: 3px; display: block; }
+        .size-entry { white-space: nowrap; }
+        .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
@@ -1295,6 +1351,9 @@ router.get("/public/menus/embed", async (req, res) => {
         .item-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .item-name { font-weight: 500; font-size: 1.1rem; }
         .item-price { font-weight: 600; color: #44403c; white-space: nowrap; }
+        .item-sizes { font-size: 0.85em; color: #57534e; margin-top: 2px; }
+        .size-entry { white-space: nowrap; }
+        .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-size: 1rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
         .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }

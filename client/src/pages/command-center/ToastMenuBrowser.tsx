@@ -82,6 +82,7 @@ interface ToastMenuItemData {
   imageUrl: string | null;
   hidden: boolean | null;
   hidePrice: boolean | null;
+  sizePrices: string | null;
   suggestedPairing: string | null;
   displayOrder: number | null;
   syncedAt: string;
@@ -1117,11 +1118,23 @@ export function ToastMenuBrowser() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between gap-2 flex-wrap">
                         <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>{item.name}</span>
-                        {item.price && (
+                        {item.sizePrices ? (() => {
+                          try {
+                            const sizes: { name: string; price: string }[] = JSON.parse(item.sizePrices);
+                            if (sizes.length > 1) {
+                              return (
+                                <span className={`text-xs text-muted-foreground whitespace-nowrap ${item.hidePrice ? "line-through opacity-50" : ""}`}>
+                                  {sizes.map(s => `${s.name} ${formatPrice(s.price)}`).join(" · ")}
+                                </span>
+                              );
+                            }
+                          } catch {}
+                          return null;
+                        })() : item.price ? (
                           <span className={`text-sm font-medium whitespace-nowrap ${item.hidePrice ? "line-through text-muted-foreground" : ""}`}>
                             {formatPrice(item.price)}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div className="mt-1">
                         <Textarea
