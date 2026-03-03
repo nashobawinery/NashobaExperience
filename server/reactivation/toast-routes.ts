@@ -178,6 +178,28 @@ router.get("/sync/history", isAuthenticated, async (_req, res) => {
 
 // ===================== Toast Menu Routes =====================
 
+router.get("/menus/debug-raw", isAuthenticated, async (req, res) => {
+  try {
+    const restaurantGuid = req.query.restaurantGuid as string;
+    if (!restaurantGuid) return res.status(400).json({ error: "restaurantGuid required" });
+    const rawResponse = await getMenus(restaurantGuid);
+    let menuList: any[] = Array.isArray(rawResponse) ? rawResponse : (rawResponse as any).menus || [];
+    const result: any[] = [];
+    for (const menu of menuList.slice(0, 3)) {
+      const groups = menu.menuGroups || menu.groups || [];
+      for (const group of groups.slice(0, 3)) {
+        const items = group.menuItems || group.items || [];
+        for (const item of items.slice(0, 5)) {
+          result.push({ menu: menu.name, group: group.name, item: item.name, price: item.price, pricingStrategy: item.pricingStrategy, menuItemPrices: item.menuItemPrices, modifierGroups: item.modifierGroups?.slice(0, 1), allKeys: Object.keys(item) });
+        }
+      }
+    }
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get("/menus/available", isAuthenticated, async (req, res) => {
   try {
     const restaurantGuid = req.query.restaurantGuid as string;
@@ -349,6 +371,13 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
 
           let price: string | null = null;
           let sizePrices: string | null = null;
+
+          if (ii === 0 && gi === 0) {
+            console.log(`[Toast Sync] First item keys: ${Object.keys(item).join(", ")}`);
+          }
+          if (item.price == null || item.price === "" || item.price === 0 || item.pricingStrategy === "SIZE") {
+            console.log(`[Toast Sync] Null/size-priced item "${itemName}" raw:`, JSON.stringify(item).substring(0, 3000));
+          }
 
           const menuItemPrices: any[] = item.menuItemPrices || [];
           const namedPrices = menuItemPrices.filter((p: any) => p.name && (p.price != null || p.amount != null));
