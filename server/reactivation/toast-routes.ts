@@ -413,13 +413,37 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           const strategy: string = item.pricingStrategy || "";
 
           if (strategy === "SIZE_PRICE") {
-            // Sizes come from the Toast config API modifier option group.
-            // Queue this item — will be resolved after main sync loop.
             const sizeGroupGuid: string = item.pricingRules?.sizeSpecificPricingGuid || "";
-            if (sizeGroupGuid) {
+            if (sizeGroupGuid && hasModifierMaps) {
+              // Try inline resolution using the top-level modifier reference maps
+              const sizeGroup = Object.values(modifierGroupRefMap).find(
+                (g: any) => g.guid === sizeGroupGuid
+              ) as any;
+              if (sizeGroup) {
+                const optionRefIds: number[] = sizeGroup.modifierOptionReferences || [];
+                const sizeOptions = optionRefIds
+                  .map((refId: number) => modifierOptionRefMap[String(refId)])
+                  .filter(Boolean)
+                  .map((opt: any) => ({
+                    name: String(opt.name || opt.posName || ""),
+                    price: String(Number(opt.price ?? 0).toFixed(2)),
+                  }))
+                  .filter((s: any) => s.name);
+                if (sizeOptions.length > 0) {
+                  sizePrices = JSON.stringify(sizeOptions);
+                  price = sizeOptions[0].price;
+                  console.log(`[Toast Sync] SIZE_PRICE inline resolved "${itemName}": ${sizeOptions.map((s: any) => `${s.name}=$${s.price}`).join(", ")}`);
+                } else {
+                  console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroup ${sizeGroupGuid} found but ${optionRefIds.length} option refs had no data`);
+                  sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
+                }
+              } else {
+                sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
+              }
+            } else if (sizeGroupGuid) {
               sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
             }
-            // price and sizePrices stay null for now; updated in post-processing
+            // price and sizePrices stay null if not resolved above; updated in post-processing
           } else if (item.price != null && item.price !== "") {
             price = String(item.price);
           } else if (item.prices && item.prices.length > 0) {
@@ -483,24 +507,32 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
       for (const guid of uniqueGuids) {
         try {
           const optGroup = await toastApiRequest(`/config/v2/menuOptionGroups/${guid}`, restaurantGuid);
-          // Config API returns modifier options under various field names
           const rawOptions: any[] =
             optGroup.modifierOptions ||
             optGroup.items ||
             optGroup.menuItems ||
             optGroup.options ||
             [];
-          const sizeOptions = rawOptions
-            .filter((opt: any) => opt.name)
-            .map((opt: any) => ({
-              name: String(opt.name),
-              price: String(Number(opt.price ?? opt.amount ?? 0).toFixed(2)),
-            }));
+
+          const sizeOptions: Array<{name: string; price: string}> = [];
+          for (const opt of rawOptions) {
+            if (typeof opt === "string") {
+              // Option is a GUID string — look up in modifierOptionRefMap
+              const optData = Object.values(modifierOptionRefMap).find((o: any) => o.guid === opt) as any;
+              if (optData?.name) sizeOptions.push({ name: String(optData.name), price: String(Number(optData.price ?? 0).toFixed(2)) });
+            } else if (opt?.name) {
+              sizeOptions.push({ name: String(opt.name), price: String(Number(opt.price ?? opt.amount ?? 0).toFixed(2)) });
+            } else if (opt?.guid) {
+              // Option is an object with a GUID — look up in modifierOptionRefMap
+              const optData = Object.values(modifierOptionRefMap).find((o: any) => o.guid === opt.guid) as any;
+              if (optData?.name) sizeOptions.push({ name: String(optData.name), price: String(Number(optData.price ?? opt.price ?? 0).toFixed(2)) });
+            }
+          }
+
           if (sizeOptions.length > 0) {
             optGroupMap[guid] = sizeOptions;
           } else {
-            // Log the response structure so we can debug unexpected shapes
-            console.log(`[Toast Sync] No options found for group ${guid}. Response keys: ${Object.keys(optGroup).join(", ")}`);
+            console.log(`[Toast Sync] No named options for group ${guid}. Response keys: ${Object.keys(optGroup).join(", ")}. First option: ${JSON.stringify(rawOptions[0])}`);
           }
         } catch (e: any) {
           console.warn(`[Toast Sync] Failed to fetch option group ${guid}: ${e.message}`);
