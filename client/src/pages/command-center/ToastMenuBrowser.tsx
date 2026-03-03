@@ -30,7 +30,7 @@ import {
   RefreshCw, UtensilsCrossed, Loader2,
   ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine,
-  BookMarked, Trash2, Pencil, Save, Plus
+  BookMarked, Trash2, Pencil, Save, Plus, DollarSign
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -81,6 +81,7 @@ interface ToastMenuItemData {
   visibility: string | null;
   imageUrl: string | null;
   hidden: boolean | null;
+  hidePrice: boolean | null;
   suggestedPairing: string | null;
   displayOrder: number | null;
   syncedAt: string;
@@ -188,7 +189,7 @@ export function ToastMenuBrowser() {
   const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
   const [editingBoardItem, setEditingBoardItem] = useState<{id: number; name: string; description: string} | null>(null);
 
-  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
+  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
   const [pendingGroupChanges, setPendingGroupChanges] = useState<Map<number, { hidden: boolean }>>(new Map());
   const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
@@ -383,7 +384,7 @@ export function ToastMenuBrowser() {
   };
 
   const updateItemOverride = useMutation({
-    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; suggestedPairing?: string; description?: string }) => {
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
       return res.json();
     },
@@ -416,7 +417,7 @@ export function ToastMenuBrowser() {
 
   const hasPendingChanges = pendingItemChanges.size > 0 || pendingGroupChanges.size > 0;
 
-  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; suggestedPairing?: string; description?: string }) => {
+  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }) => {
     setPendingItemChanges(prev => {
       const next = new Map(prev);
       next.set(itemId, { ...(next.get(itemId) || {}), ...change });
@@ -1090,19 +1091,36 @@ export function ToastMenuBrowser() {
                     className={`flex items-start gap-3 py-2 border-b border-muted/50 last:border-0 ${item.hidden ? "opacity-40" : ""}`}
                     data-testid={`row-item-${item.id}`}
                   >
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => applyItemChange(item.id, { hidden: !item.hidden })}
-                      data-testid={`button-toggle-visibility-${item.id}`}
-                    >
-                      {item.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </Button>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => applyItemChange(item.id, { hidden: !item.hidden })}
+                        data-testid={`button-toggle-visibility-${item.id}`}
+                        title={item.hidden ? "Show item" : "Hide item"}
+                      >
+                        {item.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                      {item.price && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => applyItemChange(item.id, { hidePrice: !item.hidePrice })}
+                          data-testid={`button-toggle-price-${item.id}`}
+                          title={item.hidePrice ? "Show price" : "Hide price"}
+                          className={item.hidePrice ? "toggle-elevate toggle-elevated" : "toggle-elevate"}
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between gap-2 flex-wrap">
                         <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>{item.name}</span>
                         {item.price && (
-                          <span className="text-sm font-medium whitespace-nowrap">{formatPrice(item.price)}</span>
+                          <span className={`text-sm font-medium whitespace-nowrap ${item.hidePrice ? "line-through text-muted-foreground" : ""}`}>
+                            {formatPrice(item.price)}
+                          </span>
                         )}
                       </div>
                       <div className="mt-1">

@@ -258,10 +258,10 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    const existingOverrides = new Map<string, { hidden: boolean | null; suggestedPairing: string | null; description: string | null }>();
+    const existingOverrides = new Map<string, { hidden: boolean | null; hidePrice: boolean | null; suggestedPairing: string | null; description: string | null }>();
     {
       let existingItems;
-      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
+      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, hidePrice: toastMenuItems.hidePrice, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
       if (selectedGuids) {
         existingItems = await db.select(selectFields)
           .from(toastMenuItems)
@@ -272,11 +272,11 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           .where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
       }
       for (const item of existingItems) {
-        if (item.hidden || item.suggestedPairing || item.description) {
-          existingOverrides.set(item.itemGuid, { hidden: item.hidden, suggestedPairing: item.suggestedPairing, description: item.description });
+        if (item.hidden || item.hidePrice || item.suggestedPairing || item.description) {
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, hidePrice: item.hidePrice, suggestedPairing: item.suggestedPairing, description: item.description });
         }
       }
-      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/pairing/description)`);
+      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/hidePrice/pairing/description)`);
     }
 
     if (selectedGuids) {
@@ -383,6 +383,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             visibility: JSON.stringify(item.visibility || []),
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
+            hidePrice: overrides?.hidePrice ?? false,
             suggestedPairing: finalPairing,
             displayOrder: ii,
           });
@@ -535,9 +536,10 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
     const itemId = parseInt(req.params.itemId);
     if (isNaN(itemId)) return res.status(400).json({ error: "Invalid item ID" });
 
-    const { hidden, suggestedPairing, displayOrder, description } = req.body;
+    const { hidden, hidePrice, suggestedPairing, displayOrder, description } = req.body;
     const updates: Record<string, any> = {};
     if (typeof hidden === "boolean") updates.hidden = hidden;
+    if (typeof hidePrice === "boolean") updates.hidePrice = hidePrice;
     if (suggestedPairing !== undefined) updates.suggestedPairing = suggestedPairing || null;
     if (displayOrder !== undefined) updates.displayOrder = displayOrder != null ? Number(displayOrder) : null;
     if (description !== undefined) updates.description = description;
@@ -591,6 +593,7 @@ router.patch("/menu-items/batch-overrides", isAuthenticated, async (req, res) =>
     for (const item of items) {
       const updates: Record<string, any> = {};
       if (typeof item.hidden === "boolean") updates.hidden = item.hidden;
+      if (typeof item.hidePrice === "boolean") updates.hidePrice = item.hidePrice;
       if (item.suggestedPairing !== undefined) updates.suggestedPairing = item.suggestedPairing || null;
       if (item.displayOrder !== undefined) updates.displayOrder = item.displayOrder != null ? Number(item.displayOrder) : null;
 
@@ -848,7 +851,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
         const showDesc = !hideDescriptions && item.description;
         const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
-        const showPrice = !hidePricing;
+        const showPrice = !hidePricing && !item.hidePrice;
         const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
@@ -1161,7 +1164,7 @@ router.get("/public/menus/embed", async (req, res) => {
 
         const showDesc = !hideDescriptions && item.description;
         const showPairing = (!hideDescriptions && !hideWinePairing) ? pairingHtml : "";
-        const showPrice = !hidePricing;
+        const showPrice = !hidePricing && !item.hidePrice;
         const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
