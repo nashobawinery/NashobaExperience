@@ -4,6 +4,7 @@ import { sql, eq, and, inArray, or } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
 import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus, toastMenuEmbedConfigs } from "@shared/schema";
 import {
+  toastApiRequest,
   getToastToken,
   getRestaurants,
   getRestaurantInfo,
@@ -256,6 +257,14 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     let modifierGroupRefMap: Record<string, any> = {};
     let modifierOptionRefMap: Record<string, any> = {};
 
+    // Log raw response structure to understand the API shape
+    if (Array.isArray(rawResponse)) {
+      const firstKeys = rawResponse.length > 0 ? Object.keys(rawResponse[0]).join(", ") : "(empty)";
+      console.log(`[Toast Menus] Raw response: ARRAY of ${rawResponse.length} items. First element keys: ${firstKeys}`);
+    } else if (rawResponse && typeof rawResponse === "object") {
+      console.log(`[Toast Menus] Raw response: OBJECT with keys: ${Object.keys(rawResponse).join(", ")}`);
+    }
+
     let menuList: any[] = [];
     if (Array.isArray(rawResponse)) {
       menuList = rawResponse;
@@ -339,6 +348,9 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     let groupCount = 0;
     let itemCount = 0;
 
+    // Collect SIZE_PRICE items for post-sync price resolution via config API
+    const sizePriceQueue: Array<{itemGuid: string; sizeGroupGuid: string; itemName: string}> = [];
+
     for (const menu of menuList) {
       const menuGuid = menu.guid || menu.id || menu.menuId || "";
       const menuName = menu.name || "Unnamed Menu";
@@ -400,37 +412,14 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
 
           const strategy: string = item.pricingStrategy || "";
 
-          if (strategy === "SIZE_PRICE" && hasModifierMaps) {
-            // Sizes live in the top-level modifier reference maps.
-            // pricingRules.sizeSpecificPricingGuid identifies the Size modifier group.
+          if (strategy === "SIZE_PRICE") {
+            // Sizes come from the Toast config API modifier option group.
+            // Queue this item — will be resolved after main sync loop.
             const sizeGroupGuid: string = item.pricingRules?.sizeSpecificPricingGuid || "";
             if (sizeGroupGuid) {
-              // Find the modifier group by GUID in the reference map (keyed by numeric referenceId).
-              const sizeGroup = Object.values(modifierGroupRefMap).find(
-                (g: any) => g.guid === sizeGroupGuid
-              ) as any;
-              if (sizeGroup) {
-                const optionRefIds: number[] = sizeGroup.modifierOptionReferences || [];
-                const sizeOptions = optionRefIds
-                  .map((refId: number) => modifierOptionRefMap[String(refId)])
-                  .filter(Boolean)
-                  .map((opt: any) => ({
-                    name: String(opt.name || ""),
-                    price: String(Number(opt.price ?? 0).toFixed(2)),
-                  }));
-                if (sizeOptions.length > 0) {
-                  sizePrices = JSON.stringify(sizeOptions);
-                  price = sizeOptions[0].price;
-                  console.log(`[Toast Sync] SIZE_PRICE resolved for "${itemName}": ${sizeOptions.map(s => `${s.name}=$${s.price}`).join(", ")}`);
-                } else {
-                  console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroup found but no modifier options resolved`);
-                }
-              } else {
-                console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroupGuid ${sizeGroupGuid} not found in modifier map (${Object.keys(modifierGroupRefMap).length} groups)`);
-              }
-            } else {
-              console.log(`[Toast Sync] SIZE_PRICE "${itemName}": no sizeSpecificPricingGuid in pricingRules: ${JSON.stringify(item.pricingRules)}`);
+              sizePriceQueue.push({ itemGuid, sizeGroupGuid, itemName });
             }
+            // price and sizePrices stay null for now; updated in post-processing
           } else if (item.price != null && item.price !== "") {
             price = String(item.price);
           } else if (item.prices && item.prices.length > 0) {
@@ -444,8 +433,6 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
               );
             }
             price = String(Number(firstPrice.price ?? firstPrice.amount ?? 0).toFixed(2));
-          } else if (strategy === "SIZE_PRICE" && !hasModifierMaps) {
-            console.log(`[Toast Sync] SIZE_PRICE "${itemName}": no modifier maps available in response`);
           }
 
           const overrides = existingOverrides.get(itemGuid);
@@ -485,6 +472,54 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           itemCount++;
         }
       }
+    }
+
+    // Post-sync: resolve SIZE_PRICE items by fetching their modifier option groups from the config API
+    if (sizePriceQueue.length > 0) {
+      console.log(`[Toast Sync] Resolving size prices for ${sizePriceQueue.length} SIZE_PRICE items...`);
+      const uniqueGuids = [...new Set(sizePriceQueue.map(q => q.sizeGroupGuid))];
+      const optGroupMap: Record<string, Array<{name: string; price: string}>> = {};
+
+      for (const guid of uniqueGuids) {
+        try {
+          const optGroup = await toastApiRequest(`/config/v2/menuOptionGroups/${guid}`, restaurantGuid);
+          // Config API returns modifier options under various field names
+          const rawOptions: any[] =
+            optGroup.modifierOptions ||
+            optGroup.items ||
+            optGroup.menuItems ||
+            optGroup.options ||
+            [];
+          const sizeOptions = rawOptions
+            .filter((opt: any) => opt.name)
+            .map((opt: any) => ({
+              name: String(opt.name),
+              price: String(Number(opt.price ?? opt.amount ?? 0).toFixed(2)),
+            }));
+          if (sizeOptions.length > 0) {
+            optGroupMap[guid] = sizeOptions;
+          } else {
+            // Log the response structure so we can debug unexpected shapes
+            console.log(`[Toast Sync] No options found for group ${guid}. Response keys: ${Object.keys(optGroup).join(", ")}`);
+          }
+        } catch (e: any) {
+          console.warn(`[Toast Sync] Failed to fetch option group ${guid}: ${e.message}`);
+        }
+      }
+
+      let sizeResolved = 0;
+      for (const { itemGuid, sizeGroupGuid, itemName } of sizePriceQueue) {
+        const sizeOptions = optGroupMap[sizeGroupGuid];
+        if (sizeOptions && sizeOptions.length > 0) {
+          const firstPrice = sizeOptions[0].price;
+          await db.update(toastMenuItems)
+            .set({ sizePrices: JSON.stringify(sizeOptions), price: firstPrice })
+            .where(and(eq(toastMenuItems.itemGuid, itemGuid), eq(toastMenuItems.restaurantGuid, restaurantGuid)));
+          console.log(`[Toast Sync] SIZE_PRICE resolved for "${itemName}": ${sizeOptions.map((s: any) => `${s.name}=$${s.price}`).join(", ")}`);
+          sizeResolved++;
+        }
+      }
+      console.log(`[Toast Sync] Size price resolution complete: ${sizeResolved}/${sizePriceQueue.length} items resolved`);
     }
 
     console.log(`[Toast Menus] Sync complete: ${menuCount} menus, ${groupCount} groups, ${itemCount} items`);
