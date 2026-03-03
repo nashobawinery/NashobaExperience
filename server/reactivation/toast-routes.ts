@@ -251,13 +251,35 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Starting menu sync for restaurant ${restaurantGuid}${selectedGuids ? ` (${selectedGuids.length} selected)` : " (all)"}`);
     const rawResponse = await getMenus(restaurantGuid);
 
+    // Build modifier group/option lookup maps for SIZE_PRICE resolution.
+    // Toast API stores size prices in top-level modifierGroupReferences and modifierOptionReferences.
+    let modifierGroupRefMap: Record<string, any> = {};
+    let modifierOptionRefMap: Record<string, any> = {};
+
     let menuList: any[] = [];
     if (Array.isArray(rawResponse)) {
       menuList = rawResponse;
+      // If the array elements are restaurant-level objects (each has a .menus property),
+      // unwrap them and collect the reference maps.
+      if (menuList.length > 0 && (menuList[0].menus || menuList[0].modifierGroupReferences)) {
+        const allMenus: any[] = [];
+        for (const restaurantObj of menuList) {
+          const menus = restaurantObj.menus || restaurantObj.data || [];
+          allMenus.push(...menus);
+          Object.assign(modifierGroupRefMap, restaurantObj.modifierGroupReferences || {});
+          Object.assign(modifierOptionRefMap, restaurantObj.modifierOptionReferences || {});
+        }
+        menuList = allMenus;
+      }
     } else if (rawResponse && typeof rawResponse === "object") {
       const obj = rawResponse as Record<string, any>;
       menuList = obj.menus || obj.data || [rawResponse];
+      modifierGroupRefMap = obj.modifierGroupReferences || {};
+      modifierOptionRefMap = obj.modifierOptionReferences || {};
     }
+
+    const hasModifierMaps = Object.keys(modifierGroupRefMap).length > 0;
+    console.log(`[Toast Menus] Modifier reference maps loaded: ${Object.keys(modifierGroupRefMap).length} groups, ${Object.keys(modifierOptionRefMap).length} options`);
 
     const priorToFilter = menuList.length;
     menuList = menuList.filter((menu: any) => !menu.archived && !menu.deleted && !menu.deletedDate);
@@ -375,21 +397,40 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           if (ii === 0 && gi === 0) {
             console.log(`[Toast Sync] First item keys: ${Object.keys(item).join(", ")}`);
           }
-          if (item.price == null || item.price === "" || item.price === 0 || item.pricingStrategy === "SIZE") {
-            console.log(`[Toast Sync] Null/size-priced item "${itemName}" raw:`, JSON.stringify(item).substring(0, 3000));
-          }
 
-          const menuItemPrices: any[] = item.menuItemPrices || [];
-          const namedPrices = menuItemPrices.filter((p: any) => p.name && (p.price != null || p.amount != null));
+          const strategy: string = item.pricingStrategy || "";
 
-          if (namedPrices.length > 1) {
-            sizePrices = JSON.stringify(
-              namedPrices.map((p: any) => ({
-                name: String(p.name),
-                price: String(Number(p.price ?? p.amount ?? 0).toFixed(2)),
-              }))
-            );
-            price = String(Number(namedPrices[0].price ?? namedPrices[0].amount ?? 0).toFixed(2));
+          if (strategy === "SIZE_PRICE" && hasModifierMaps) {
+            // Sizes live in the top-level modifier reference maps.
+            // pricingRules.sizeSpecificPricingGuid identifies the Size modifier group.
+            const sizeGroupGuid: string = item.pricingRules?.sizeSpecificPricingGuid || "";
+            if (sizeGroupGuid) {
+              // Find the modifier group by GUID in the reference map (keyed by numeric referenceId).
+              const sizeGroup = Object.values(modifierGroupRefMap).find(
+                (g: any) => g.guid === sizeGroupGuid
+              ) as any;
+              if (sizeGroup) {
+                const optionRefIds: number[] = sizeGroup.modifierOptionReferences || [];
+                const sizeOptions = optionRefIds
+                  .map((refId: number) => modifierOptionRefMap[String(refId)])
+                  .filter(Boolean)
+                  .map((opt: any) => ({
+                    name: String(opt.name || ""),
+                    price: String(Number(opt.price ?? 0).toFixed(2)),
+                  }));
+                if (sizeOptions.length > 0) {
+                  sizePrices = JSON.stringify(sizeOptions);
+                  price = sizeOptions[0].price;
+                  console.log(`[Toast Sync] SIZE_PRICE resolved for "${itemName}": ${sizeOptions.map(s => `${s.name}=$${s.price}`).join(", ")}`);
+                } else {
+                  console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroup found but no modifier options resolved`);
+                }
+              } else {
+                console.log(`[Toast Sync] SIZE_PRICE "${itemName}": sizeGroupGuid ${sizeGroupGuid} not found in modifier map (${Object.keys(modifierGroupRefMap).length} groups)`);
+              }
+            } else {
+              console.log(`[Toast Sync] SIZE_PRICE "${itemName}": no sizeSpecificPricingGuid in pricingRules: ${JSON.stringify(item.pricingRules)}`);
+            }
           } else if (item.price != null && item.price !== "") {
             price = String(item.price);
           } else if (item.prices && item.prices.length > 0) {
@@ -403,6 +444,8 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
               );
             }
             price = String(Number(firstPrice.price ?? firstPrice.amount ?? 0).toFixed(2));
+          } else if (strategy === "SIZE_PRICE" && !hasModifierMaps) {
+            console.log(`[Toast Sync] SIZE_PRICE "${itemName}": no modifier maps available in response`);
           }
 
           const overrides = existingOverrides.get(itemGuid);
