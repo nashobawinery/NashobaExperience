@@ -311,10 +311,10 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
     console.log(`[Toast Menus] Syncing ${menuList.length} menus`);
     console.log(`[Toast Menus] First menu keys: ${Object.keys(menuList[0]).join(", ")}`);
 
-    const existingOverrides = new Map<string, { hidden: boolean | null; hidePrice: boolean | null; suggestedPairing: string | null; description: string | null }>();
+    const existingOverrides = new Map<string, { hidden: boolean | null; hidePrice: boolean | null; isSpecial: boolean | null; suggestedPairing: string | null; description: string | null }>();
     {
       let existingItems;
-      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, hidePrice: toastMenuItems.hidePrice, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
+      const selectFields = { itemGuid: toastMenuItems.itemGuid, hidden: toastMenuItems.hidden, hidePrice: toastMenuItems.hidePrice, isSpecial: toastMenuItems.isSpecial, suggestedPairing: toastMenuItems.suggestedPairing, description: toastMenuItems.description };
       if (selectedGuids) {
         existingItems = await db.select(selectFields)
           .from(toastMenuItems)
@@ -325,11 +325,11 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           .where(eq(toastMenuItems.restaurantGuid, restaurantGuid));
       }
       for (const item of existingItems) {
-        if (item.hidden || item.hidePrice || item.suggestedPairing || item.description) {
-          existingOverrides.set(item.itemGuid, { hidden: item.hidden, hidePrice: item.hidePrice, suggestedPairing: item.suggestedPairing, description: item.description });
+        if (item.hidden || item.hidePrice || item.isSpecial || item.suggestedPairing || item.description) {
+          existingOverrides.set(item.itemGuid, { hidden: item.hidden, hidePrice: item.hidePrice, isSpecial: item.isSpecial, suggestedPairing: item.suggestedPairing, description: item.description });
         }
       }
-      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/hidePrice/pairing/description)`);
+      console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/hidePrice/isSpecial/pairing/description)`);
     }
 
     if (selectedGuids) {
@@ -517,6 +517,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
             imageUrl: item.imageUrl || item.image || null,
             hidden: overrides?.hidden ?? false,
             hidePrice: overrides?.hidePrice ?? false,
+            isSpecial: overrides?.isSpecial ?? false,
             sizePrices,
             suggestedPairing: finalPairing,
             displayOrder: ii,
@@ -726,10 +727,11 @@ router.patch("/menu-items/:itemId/overrides", isAuthenticated, async (req, res) 
     const itemId = parseInt(req.params.itemId);
     if (isNaN(itemId)) return res.status(400).json({ error: "Invalid item ID" });
 
-    const { hidden, hidePrice, suggestedPairing, displayOrder, description } = req.body;
+    const { hidden, hidePrice, isSpecial, suggestedPairing, displayOrder, description } = req.body;
     const updates: Record<string, any> = {};
     if (typeof hidden === "boolean") updates.hidden = hidden;
     if (typeof hidePrice === "boolean") updates.hidePrice = hidePrice;
+    if (typeof isSpecial === "boolean") updates.isSpecial = isSpecial;
     if (suggestedPairing !== undefined) updates.suggestedPairing = suggestedPairing || null;
     if (displayOrder !== undefined) updates.displayOrder = displayOrder != null ? Number(displayOrder) : null;
     if (description !== undefined) updates.description = description;
@@ -1045,6 +1047,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
+        const specialBadgeHtml = item.isSpecial ? `<span class="special-badge">Today's Special</span>` : "";
 
         let sizePriceHtml = "";
         if (showPrice && item.sizePrices) {
@@ -1059,28 +1062,28 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item-row">
+            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}">
               ${bevImgHtml}
               <div class="bev-item">
-                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
-            <div class="menu-item">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
           itemsHtml += `
-            <div class="menu-item">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
               ${itemImageHtml}
               <div class="item-header">
-                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
@@ -1113,6 +1116,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     const dietaryTagsCss = `
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
+        .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
     `;
     if (template === "fine-dining") {
       css = `
@@ -1376,6 +1380,7 @@ router.get("/public/menus/embed", async (req, res) => {
         const imgSrc = showImages && item.imageUrl ? escapeHtml(item.imageUrl) : "";
         const itemImageHtml = imgSrc ? `<div class="item-image-wrap"><img src="${imgSrc}" class="item-img" alt="${escapeHtml(cleanName)}" onerror="this.parentNode.style.display='none'" loading="lazy" /></div>` : "";
         const bevImgHtml = imgSrc ? `<img src="${imgSrc}" class="bev-img" alt="${escapeHtml(cleanName)}" onerror="this.style.display='none'" loading="lazy" />` : "";
+        const specialBadgeHtml = item.isSpecial ? `<span class="special-badge">Today's Special</span>` : "";
 
         let sizePriceHtml = "";
         if (showPrice && item.sizePrices) {
@@ -1390,28 +1395,28 @@ router.get("/public/menus/embed", async (req, res) => {
 
         if (template === "beverage") {
           itemsHtml += `
-            <div class="bev-item-row">
+            <div class="bev-item-row${item.isSpecial ? " item-special" : ""}">
               ${bevImgHtml}
               <div class="bev-item">
-                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                <span class="bev-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="bev-price">${price}</span>` : sizePriceHtml ? `<span class="bev-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
             </div>`;
         } else if (template === "fine-dining") {
           itemsHtml += `
-            <div class="menu-item">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
               ${itemImageHtml}
-              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
+              <h3 class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}${showSinglePrice ? ` <span class="item-price">${price}</span>` : ""}</h3>
               ${sizePriceHtml ? `<p class="item-sizes">${sizePriceHtml}</p>` : ""}
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
               ${showPairing}
             </div>`;
         } else {
           itemsHtml += `
-            <div class="menu-item">
+            <div class="menu-item${item.isSpecial ? " item-special" : ""}">
               ${itemImageHtml}
               <div class="item-header">
-                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}</span>
+                <span class="item-name">${escapeHtml(cleanName)}${tagsHtml}${specialBadgeHtml}</span>
                 ${showSinglePrice ? `<span class="item-price">${price}</span>` : sizePriceHtml ? `<span class="item-price item-sizes">${sizePriceHtml}</span>` : ""}
               </div>
               ${showDesc ? `<p class="item-description">${sanitizeDescriptionHtml(item.description!)}</p>` : ""}
@@ -1441,6 +1446,7 @@ router.get("/public/menus/embed", async (req, res) => {
     const dietaryTagsCss = `
         .dietary-tags { margin-left: 6px; }
         .dietary-tag { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 3px; margin-left: 3px; vertical-align: middle; }
+        .special-badge { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; background: rgba(180,120,40,0.18); color: #b47828; border: 1px solid rgba(180,120,40,0.35); }
     `;
 
     let css = "";

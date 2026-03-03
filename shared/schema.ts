@@ -5482,6 +5482,7 @@ export const toastMenuItems = pgTable("toast_menu_items", {
   imageUrl: text("image_url"),
   hidden: boolean("hidden").default(false),
   hidePrice: boolean("hide_price").default(false),
+  isSpecial: boolean("is_special").default(false),
   sizePrices: text("size_prices"),
   suggestedPairing: text("suggested_pairing"),
   displayOrder: integer("display_order"),

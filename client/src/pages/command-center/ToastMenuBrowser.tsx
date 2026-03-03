@@ -30,7 +30,7 @@ import {
   RefreshCw, UtensilsCrossed, Loader2,
   ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine,
-  BookMarked, Trash2, Pencil, Save, Plus, DollarSign
+  BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -82,6 +82,7 @@ interface ToastMenuItemData {
   imageUrl: string | null;
   hidden: boolean | null;
   hidePrice: boolean | null;
+  isSpecial: boolean | null;
   sizePrices: string | null;
   suggestedPairing: string | null;
   displayOrder: number | null;
@@ -190,7 +191,7 @@ export function ToastMenuBrowser() {
   const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
   const [editingBoardItem, setEditingBoardItem] = useState<{id: number; name: string; description: string} | null>(null);
 
-  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
+  const [pendingItemChanges, setPendingItemChanges] = useState<Map<number, { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }>>(new Map());
   const [pendingGroupChanges, setPendingGroupChanges] = useState<Map<number, { hidden: boolean }>>(new Map());
   const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
@@ -385,7 +386,7 @@ export function ToastMenuBrowser() {
   };
 
   const updateItemOverride = useMutation({
-    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }) => {
+    mutationFn: async ({ itemId, ...data }: { itemId: number; hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }) => {
       const res = await apiRequest("PATCH", `/api/toast/menu-items/${itemId}/overrides`, data);
       return res.json();
     },
@@ -418,7 +419,7 @@ export function ToastMenuBrowser() {
 
   const hasPendingChanges = pendingItemChanges.size > 0 || pendingGroupChanges.size > 0;
 
-  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; hidePrice?: boolean; suggestedPairing?: string; description?: string }) => {
+  const applyItemChange = useCallback((itemId: number, change: { hidden?: boolean; hidePrice?: boolean; isSpecial?: boolean; suggestedPairing?: string; description?: string }) => {
     setPendingItemChanges(prev => {
       const next = new Map(prev);
       next.set(itemId, { ...(next.get(itemId) || {}), ...change });
@@ -1114,10 +1115,27 @@ export function ToastMenuBrowser() {
                           <DollarSign className="w-4 h-4" />
                         </Button>
                       )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => applyItemChange(item.id, { isSpecial: !item.isSpecial })}
+                        data-testid={`button-toggle-special-${item.id}`}
+                        title={item.isSpecial ? "Remove special designation" : "Mark as today's special"}
+                        className={item.isSpecial ? "toggle-elevate toggle-elevated text-amber-600" : "toggle-elevate"}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </Button>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                        <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>{item.name}</span>
+                        <span className={`font-medium text-sm ${item.hidden ? "line-through" : ""}`}>
+                          {item.name}
+                          {item.isSpecial && (
+                            <Badge variant="outline" className="ml-2 text-amber-600 border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 text-[10px] py-0 px-1.5 font-semibold tracking-wide uppercase no-default-active-elevate" style={{verticalAlign: "middle"}}>
+                              Special
+                            </Badge>
+                          )}
+                        </span>
                         {item.sizePrices ? (() => {
                           try {
                             const sizes: { name: string; price: string }[] = JSON.parse(item.sizePrices);
