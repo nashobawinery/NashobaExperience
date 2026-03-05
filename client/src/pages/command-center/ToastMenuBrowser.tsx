@@ -18,6 +18,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -197,9 +198,6 @@ export function ToastMenuBrowser() {
   const [pendingGroupChanges, setPendingGroupChanges] = useState<Map<number, { hidden: boolean }>>(new Map());
   const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
-  const [showStaffSavePrompt, setShowStaffSavePrompt] = useState(false);
-  const [staffSaveMode, setStaffSaveMode] = useState<"new" | "overwrite" | null>(null);
-  const [staffSaveIsDirectEntry, setStaffSaveIsDirectEntry] = useState(false);
 
   const [staticUrlName, setStaticUrlName] = useState("");
   const [copiedStaticId, setCopiedStaticId] = useState<number | null>(null);
@@ -347,6 +345,7 @@ export function ToastMenuBrowser() {
     },
     onSuccess: () => {
       invalidateAllConfigs();
+      setShowSaveDialog(false);
       setSaveName("");
       setSaveDescription("");
       setSaveOverwriteId(null);
@@ -362,6 +361,7 @@ export function ToastMenuBrowser() {
     },
     onSuccess: () => {
       invalidateAllConfigs();
+      setShowSaveDialog(false);
       setSaveName("");
       setSaveDescription("");
       setSaveOverwriteId(null);
@@ -542,27 +542,6 @@ export function ToastMenuBrowser() {
     queryKey: ["/api/toast/staff-print-menus"],
   });
 
-  const saveStaffPrintMenu = useMutation({
-    mutationFn: async ({ name, description, printUrl, overwriteId }: { name: string; description: string; printUrl: string; overwriteId?: number | null }) => {
-      if (overwriteId) {
-        const res = await apiRequest("PATCH", `/api/toast/staff-print-menus/${overwriteId}`, { name, description, printUrl, menuGuid: selectedMenu });
-        return res.json();
-      }
-      const res = await apiRequest("POST", `/api/toast/staff-print-menus`, { name, description, printUrl, menuGuid: selectedMenu });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/toast/staff-print-menus"] });
-      setShowSaveDialog(false);
-      setSaveName("");
-      setSaveDescription("");
-      setSaveOverwriteId(null);
-      toast({ title: "Saved to Staff Board" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Save failed", description: err.message, variant: "destructive" });
-    },
-  });
 
   const deleteStaffPrintMenu = useMutation({
     mutationFn: async (id: number) => {
@@ -967,11 +946,11 @@ export function ToastMenuBrowser() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => { setSaveName(menu.name || ""); setStaffSaveIsDirectEntry(true); setShowStaffSavePrompt(true); }}
-              data-testid="button-save-to-staff-print"
+              onClick={() => { setSaveName(menu.name || ""); setSaveDescription(""); setSaveOverwriteId(null); setShowSaveDialog(true); }}
+              data-testid="button-save-menu"
             >
               <BookMarked className="w-4 h-4 mr-2" />
-              Save to Staff Print
+              Save Menu
             </Button>
             <Button
               variant="outline"
@@ -2406,130 +2385,76 @@ export function ToastMenuBrowser() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showStaffSavePrompt} onOpenChange={(open) => { if (!open) { setShowStaffSavePrompt(false); setStaffSaveMode(null); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); setStaffSaveIsDirectEntry(false); } }}>
+      <Dialog open={showSaveDialog} onOpenChange={(open) => { if (!open) { setShowSaveDialog(false); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Save to Staff Print Board</DialogTitle>
+            <DialogTitle>Save Menu</DialogTitle>
+            <DialogDescription>
+              Save the current menu configuration to your Saved Menus library. From there you can print, share, or toggle staff board visibility.
+            </DialogDescription>
           </DialogHeader>
-          {staffSaveMode === null ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {staffSaveIsDirectEntry
-                  ? "Save this menu to the Staff Print Board so staff can quickly open and print it from the Staff Portal with one click."
-                  : "Your menu changes have been saved. Would you also like to save this menu to the Staff Print Board so staff can print it with one click?"
-                }
-              </p>
-              <div className="flex flex-col gap-2 pt-2">
-                <Button
-                  onClick={() => { setStaffSaveMode("new"); setSaveName(menuDetail?.menu?.name || ""); }}
-                  data-testid="button-staff-save-new"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Yes — Save as New Entry
-                </Button>
-                {staffPrintMenuList.length > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setStaffSaveMode("overwrite")}
-                    data-testid="button-staff-save-overwrite"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Yes — Overwrite Existing Entry
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  onClick={() => { setShowStaffSavePrompt(false); setStaffSaveMode(null); }}
-                  data-testid="button-staff-save-skip"
-                >
-                  No — Skip
-                </Button>
-              </div>
-            </>
-          ) : staffSaveMode === "new" ? (
-            <div className="space-y-4 pt-1">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Name for Staff Board</label>
-                <input
-                  type="text"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  placeholder={menuDetail?.menu?.name || "Menu name"}
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-staff-save-name"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Description (optional)</label>
-                <input
-                  type="text"
-                  value={saveDescription}
-                  onChange={(e) => setSaveDescription(e.target.value)}
-                  placeholder="e.g., For dining room staff"
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                  data-testid="input-staff-save-description"
-                />
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  disabled={!saveName.trim() || saveStaffPrintMenu.isPending}
-                  onClick={() => saveStaffPrintMenu.mutate({
-                    name: saveName.trim(),
-                    description: saveDescription.trim(),
-                    printUrl: buildPrintUrl("fine-dining"),
-                    overwriteId: null,
-                  })}
-                  data-testid="button-staff-save-confirm-new"
-                >
-                  {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                  Save
-                </Button>
-                <Button variant="outline" onClick={() => setStaffSaveMode(null)} data-testid="button-staff-save-back">
-                  Back
-                </Button>
-              </div>
+          <div className="space-y-4 pt-1">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Menu Name</label>
+              <input
+                type="text"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder={menuDetail?.menu?.name || "e.g., Easter Brunch Menu"}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                data-testid="input-save-name-dialog"
+              />
             </div>
-          ) : (
-            <div className="space-y-4 pt-1">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <input
+                type="text"
+                value={saveDescription}
+                onChange={(e) => setSaveDescription(e.target.value)}
+                placeholder="e.g., For dining room staff, no pricing"
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                data-testid="input-save-description-dialog"
+              />
+            </div>
+            {allEmbedConfigs.length > 0 && (
               <div className="space-y-1">
-                <label className="text-sm font-medium">Select Entry to Overwrite</label>
+                <label className="text-sm font-medium">Overwrite existing <span className="text-muted-foreground font-normal">(optional)</span></label>
                 <Select
-                  value={saveOverwriteId ? String(saveOverwriteId) : ""}
-                  onValueChange={(v) => setSaveOverwriteId(Number(v))}
+                  value={saveOverwriteId ? String(saveOverwriteId) : "new"}
+                  onValueChange={(v) => setSaveOverwriteId(v === "new" ? null : Number(v))}
                 >
-                  <SelectTrigger data-testid="select-overwrite-entry">
-                    <SelectValue placeholder="Choose entry..." />
+                  <SelectTrigger data-testid="select-overwrite-dialog">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {staffPrintMenuList.map(m => (
+                    <SelectItem value="new">Save as new entry</SelectItem>
+                    {allEmbedConfigs.map(m => (
                       <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  disabled={!saveOverwriteId || saveStaffPrintMenu.isPending}
-                  onClick={() => {
-                    const existing = staffPrintMenuList.find(m => m.id === saveOverwriteId);
-                    saveStaffPrintMenu.mutate({
-                      name: existing?.name || "",
-                      description: existing?.description || "",
-                      printUrl: buildPrintUrl("fine-dining"),
-                      overwriteId: saveOverwriteId,
-                    });
-                  }}
-                  data-testid="button-staff-save-confirm-overwrite"
-                >
-                  {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                  Overwrite
-                </Button>
-                <Button variant="outline" onClick={() => setStaffSaveMode(null)} data-testid="button-staff-save-back-overwrite">
-                  Back
-                </Button>
-              </div>
+            )}
+            <div className="flex gap-2 flex-wrap pt-1">
+              <Button
+                disabled={!saveName.trim() || createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending}
+                onClick={() => {
+                  if (saveOverwriteId) {
+                    updateEmbedConfigMutation.mutate({ id: saveOverwriteId, name: saveName.trim(), description: saveDescription.trim() });
+                  } else {
+                    createEmbedConfigMutation.mutate({ name: saveName.trim(), description: saveDescription.trim() });
+                  }
+                }}
+                data-testid="button-save-dialog-confirm"
+              >
+                {(createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {saveOverwriteId ? "Update Saved Menu" : "Save Menu"}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowSaveDialog(false); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); }} data-testid="button-save-dialog-cancel">
+                Cancel
+              </Button>
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
