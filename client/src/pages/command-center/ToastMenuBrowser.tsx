@@ -617,6 +617,53 @@ export function ToastMenuBrowser() {
     }
   };
 
+  const loadFromBoardItem = (item: StaffPrintMenuData) => {
+    try {
+      const fullUrl = new URL(item.printUrl, window.location.origin);
+      const params = fullUrl.searchParams;
+
+      const menusParam = params.get("menus");
+      let primaryMenuGuid: string | null = null;
+      let extraMenuGuids: string[] = [];
+
+      if (menusParam) {
+        const guids = menusParam.split(",").map(g => g.trim()).filter(Boolean);
+        primaryMenuGuid = guids[0] || null;
+        extraMenuGuids = guids.slice(1);
+      } else {
+        const pathMatch = fullUrl.pathname.match(/\/menu\/([^/]+)\/embed/);
+        primaryMenuGuid = pathMatch ? pathMatch[1] : (item.menuGuid || null);
+      }
+
+      if (!primaryMenuGuid) {
+        toast({ title: "Cannot load settings", description: "Menu GUID not found in saved URL.", variant: "destructive" });
+        return;
+      }
+
+      setPrintTemplate(params.get("template") || "fine-dining");
+      setSelectedPrintGroups(params.get("groupGuid") ? params.get("groupGuid")!.split(",").map(g => g.trim()).filter(Boolean) : []);
+      setPrintHeader(params.get("header") || "");
+      setPrintFooter(params.get("footer") || "");
+      setPrintHeaderFontSize(parseFloat(params.get("headerSize") || "1") || 1.0);
+      setPrintFooterFontSize(parseFloat(params.get("footerSize") || "1") || 1.0);
+      setPrintScale(parseFloat(params.get("scale") || "100") || 100);
+      setPrintHideDescriptions(params.get("hidedesc") === "1");
+      setPrintHidePricing(params.get("hideprice") === "1");
+      setPrintHideWinePairing(params.get("hidepairing") === "1");
+      setPrintShowImages(params.get("showimages") === "1");
+      setPrintPages(parseInt(params.get("pages") || "0") || 0);
+      setPrintPageBreaks(params.get("pagebreaks") ? params.get("pagebreaks")!.split(",").map(g => g.trim()).filter(Boolean) : []);
+      setAdditionalMenuGuids(extraMenuGuids);
+
+      clearPendingChanges();
+      setSelectedMenu(primaryMenuGuid);
+      setViewMode("detail");
+      toast({ title: `"${item.name}" loaded`, description: "All settings restored. Edit above, then resave to the Staff Print Board." });
+    } catch {
+      toast({ title: "Failed to load settings", description: "Could not parse the saved menu URL.", variant: "destructive" });
+    }
+  };
+
   const openMenuDetail = (menuGuid: string) => {
     const doOpen = () => {
       clearPendingChanges();
@@ -1863,7 +1910,17 @@ export function ToastMenuBrowser() {
                         Saved {new Date(item.updatedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Restore all settings from this saved menu into the editor so you can make changes"
+                        onClick={() => loadFromBoardItem(item)}
+                        data-testid={`button-load-board-${item.id}`}
+                      >
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit Settings
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1871,15 +1928,16 @@ export function ToastMenuBrowser() {
                         data-testid={`button-preview-board-${item.id}`}
                       >
                         <Printer className="w-4 h-4 mr-1" />
-                        Preview & Print
+                        Print
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
+                        title="Rename or edit description"
                         onClick={() => setEditingBoardItem({ id: item.id, name: item.name, description: item.description || "" })}
-                        data-testid={`button-edit-board-${item.id}`}
+                        data-testid={`button-rename-board-${item.id}`}
                       >
-                        <Pencil className="w-4 h-4" />
+                        <BookMarked className="w-4 h-4" />
                       </Button>
                       <Button
                         size="icon"
