@@ -830,7 +830,10 @@ export function ToastMenuBrowser() {
     if (!menuDetail) return null;
 
     const { menu, groups, totalItems } = menuDetail;
-    const effectiveGroups = groups.map(getEffectiveGroup);
+    const filteredGroups = selectedPrintGroups.length > 0
+      ? groups.filter(g => selectedPrintGroups.includes(g.groupGuid))
+      : groups;
+    const effectiveGroups = filteredGroups.map(getEffectiveGroup);
 
     return (
       <>
@@ -841,7 +844,9 @@ export function ToastMenuBrowser() {
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold truncate" data-testid="text-menu-detail-name">{menu.name}</h2>
             <p className="text-sm text-muted-foreground">
-              {groups.length} courses, {totalItems} items
+              {selectedPrintGroups.length > 0
+                ? `Showing ${filteredGroups.length} of ${groups.length} courses`
+                : `${groups.length} courses, ${totalItems} items`}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
