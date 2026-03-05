@@ -1322,7 +1322,7 @@ export function ToastMenuBrowser() {
               <div className="flex-1">
                 <h3 className="font-medium text-sm">Static Links</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Save current settings as a permanent URL — update settings and click "Sync" to refresh what it displays without changing the link itself.
+                  Save current settings as a permanent URL. To edit a saved link: click <strong>Load</strong> to restore its settings, make changes above, then click <strong>Sync</strong> to save — the URL stays the same.
                 </p>
               </div>
             </div>
@@ -1356,7 +1356,38 @@ export function ToastMenuBrowser() {
                     <div key={cfg.id} className="rounded-md border bg-muted/30 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-sm font-medium">{cfg.name}</span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="Load this config's settings into the editor above"
+                            onClick={() => {
+                              setPrintTemplate(cfg.template || "fine-dining");
+                              setPrintHeader(cfg.header || "");
+                              setPrintFooter(cfg.footer || "");
+                              setPrintHeaderFontSize(cfg.headerFontSize ?? 1.0);
+                              setPrintFooterFontSize(cfg.footerFontSize ?? 1.0);
+                              setPrintScale(cfg.scale ?? 100);
+                              setPrintHideDescriptions(cfg.hideDescriptions ?? false);
+                              setPrintHidePricing(cfg.hidePricing ?? false);
+                              setPrintHideWinePairing(cfg.hideWinePairing ?? false);
+                              setPrintShowImages(cfg.showImages ?? false);
+                              setPrintPages(cfg.pages ?? 0);
+                              setPrintPageBreaks(cfg.pageBreaks ? cfg.pageBreaks.split(",").map(s => s.trim()).filter(Boolean) : []);
+                              setSelectedPrintGroups(cfg.groupGuids ? cfg.groupGuids.split(",").map(s => s.trim()).filter(Boolean) : []);
+                              const allGuids = cfg.menuGuids ? cfg.menuGuids.split(",").map(s => s.trim()).filter(Boolean) : [];
+                              if (allGuids.length > 1) {
+                                setAdditionalMenuGuids(allGuids.slice(1));
+                              } else {
+                                setAdditionalMenuGuids([]);
+                              }
+                              toast({ title: `"${cfg.name}" loaded`, description: "Settings restored. Edit above, then click Sync to save changes." });
+                            }}
+                            data-testid={`button-load-static-${cfg.id}`}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" />
+                            Load
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
