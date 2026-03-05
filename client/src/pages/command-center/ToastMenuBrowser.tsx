@@ -189,6 +189,9 @@ export function ToastMenuBrowser() {
   };
 
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveDialogTab, setSaveDialogTab] = useState<"update" | "new">("update");
+  const [loadedEmbedConfigId, setLoadedEmbedConfigId] = useState<number | null>(null);
+  const [loadedEmbedConfigName, setLoadedEmbedConfigName] = useState<string>("");
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
   const [saveOverwriteId, setSaveOverwriteId] = useState<number | null>(null);
@@ -719,6 +722,8 @@ export function ToastMenuBrowser() {
     setSaveName(config.name);
     setSaveDescription(config.description || "");
     setSaveOverwriteId(config.id);
+    setLoadedEmbedConfigId(config.id);
+    setLoadedEmbedConfigName(config.name);
     setSelectedMenu(primaryGuid);
     setViewMode("detail");
     toast({ title: `"${config.name}" loaded`, description: "All settings restored. Edit, then resave." });
@@ -731,6 +736,11 @@ export function ToastMenuBrowser() {
       setViewMode("detail");
       setAdditionalMenuGuids([]);
       setSelectedPrintGroups([]);
+      setLoadedEmbedConfigId(null);
+      setLoadedEmbedConfigName("");
+      setSaveName("");
+      setSaveDescription("");
+      setSaveOverwriteId(null);
     };
     if (viewMode === "detail" && selectedMenu !== menuGuid) {
       navigateWithCheck(doOpen);
@@ -946,7 +956,16 @@ export function ToastMenuBrowser() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => { setSaveName(menu.name || ""); setSaveDescription(""); setSaveOverwriteId(null); setShowSaveDialog(true); }}
+              onClick={() => {
+                if (loadedEmbedConfigId) {
+                  setSaveDialogTab("update");
+                } else {
+                  setSaveName(menu.name || "");
+                  setSaveDescription("");
+                  setSaveOverwriteId(null);
+                }
+                setShowSaveDialog(true);
+              }}
               data-testid="button-save-menu"
             >
               <BookMarked className="w-4 h-4 mr-2" />
@@ -2385,76 +2404,143 @@ export function ToastMenuBrowser() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSaveDialog} onOpenChange={(open) => { if (!open) { setShowSaveDialog(false); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); } }}>
+      <Dialog open={showSaveDialog} onOpenChange={(open) => { if (!open) { setShowSaveDialog(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save Menu</DialogTitle>
             <DialogDescription>
-              Save the current menu configuration to your Saved Menus library. From there you can print, share, or toggle staff board visibility.
+              {loadedEmbedConfigId
+                ? `You're working from "${loadedEmbedConfigName}". Update it or save as a new menu.`
+                : "Save the current menu configuration to your Saved Menus library."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-1">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Menu Name</label>
-              <input
-                type="text"
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                placeholder={menuDetail?.menu?.name || "e.g., Easter Brunch Menu"}
-                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                data-testid="input-save-name-dialog"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
-              <input
-                type="text"
-                value={saveDescription}
-                onChange={(e) => setSaveDescription(e.target.value)}
-                placeholder="e.g., For dining room staff, no pricing"
-                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                data-testid="input-save-description-dialog"
-              />
-            </div>
-            {allEmbedConfigs.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Overwrite existing <span className="text-muted-foreground font-normal">(optional)</span></label>
-                <Select
-                  value={saveOverwriteId ? String(saveOverwriteId) : "new"}
-                  onValueChange={(v) => setSaveOverwriteId(v === "new" ? null : Number(v))}
+
+          {loadedEmbedConfigId ? (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={saveDialogTab === "update" ? "default" : "outline"}
+                  onClick={() => { setSaveDialogTab("update"); setSaveOverwriteId(loadedEmbedConfigId); }}
+                  data-testid="button-save-tab-update"
                 >
-                  <SelectTrigger data-testid="select-overwrite-dialog">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">Save as new entry</SelectItem>
-                    {allEmbedConfigs.map(m => (
-                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  Update "{loadedEmbedConfigName}"
+                </Button>
+                <Button
+                  size="sm"
+                  variant={saveDialogTab === "new" ? "default" : "outline"}
+                  onClick={() => { setSaveDialogTab("new"); setSaveOverwriteId(null); setSaveName(""); setSaveDescription(""); }}
+                  data-testid="button-save-tab-new"
+                >
+                  Save as New
+                </Button>
               </div>
-            )}
-            <div className="flex gap-2 flex-wrap pt-1">
-              <Button
-                disabled={!saveName.trim() || createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending}
-                onClick={() => {
-                  if (saveOverwriteId) {
-                    updateEmbedConfigMutation.mutate({ id: saveOverwriteId, name: saveName.trim(), description: saveDescription.trim() });
-                  } else {
-                    createEmbedConfigMutation.mutate({ name: saveName.trim(), description: saveDescription.trim() });
-                  }
-                }}
-                data-testid="button-save-dialog-confirm"
-              >
-                {(createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {saveOverwriteId ? "Update Saved Menu" : "Save Menu"}
-              </Button>
-              <Button variant="outline" onClick={() => { setShowSaveDialog(false); setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); }} data-testid="button-save-dialog-cancel">
-                Cancel
-              </Button>
+
+              {saveDialogTab === "update" ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Overwrites <span className="font-medium text-foreground">"{loadedEmbedConfigName}"</span> with your current selections and settings.
+                  </p>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={saveDescription}
+                      onChange={(e) => setSaveDescription(e.target.value)}
+                      placeholder="e.g., For dining room staff, no pricing"
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      data-testid="input-save-description-update"
+                    />
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      disabled={updateEmbedConfigMutation.isPending}
+                      onClick={() => updateEmbedConfigMutation.mutate({ id: loadedEmbedConfigId, name: loadedEmbedConfigName, description: saveDescription.trim() })}
+                      data-testid="button-save-dialog-update"
+                    >
+                      {updateEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Update
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowSaveDialog(false)} data-testid="button-save-dialog-cancel">Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">New Menu Name</label>
+                    <input
+                      type="text"
+                      value={saveName}
+                      onChange={(e) => setSaveName(e.target.value)}
+                      placeholder={menuDetail?.menu?.name || "e.g., Easter Brunch — No Pricing"}
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      data-testid="input-save-name-new"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={saveDescription}
+                      onChange={(e) => setSaveDescription(e.target.value)}
+                      placeholder="e.g., For dining room staff, no pricing"
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      data-testid="input-save-description-new"
+                    />
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      disabled={!saveName.trim() || createEmbedConfigMutation.isPending}
+                      onClick={() => createEmbedConfigMutation.mutate({ name: saveName.trim(), description: saveDescription.trim() })}
+                      data-testid="button-save-dialog-new"
+                    >
+                      {createEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Save as New
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowSaveDialog(false)} data-testid="button-save-dialog-cancel-new">Cancel</Button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Menu Name</label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder={menuDetail?.menu?.name || "e.g., Easter Brunch Menu"}
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-save-name-dialog"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="e.g., For dining room staff, no pricing"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  data-testid="input-save-description-dialog"
+                />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  disabled={!saveName.trim() || createEmbedConfigMutation.isPending}
+                  onClick={() => createEmbedConfigMutation.mutate({ name: saveName.trim(), description: saveDescription.trim() })}
+                  data-testid="button-save-dialog-confirm"
+                >
+                  {createEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Menu
+                </Button>
+                <Button variant="outline" onClick={() => setShowSaveDialog(false)} data-testid="button-save-dialog-cancel">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
