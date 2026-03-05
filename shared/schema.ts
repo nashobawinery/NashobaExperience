@@ -6180,6 +6180,8 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   footer: text("footer"),
   headerFontSize: real("header_font_size").default(1),
   footerFontSize: real("footer_font_size").default(1),
+  itemFontSize: real("item_font_size").default(1),
+  descFontSize: real("desc_font_size").default(1),
   scale: integer("scale").default(100),
   groupGuids: text("group_guids"),
   hideDescriptions: boolean("hide_descriptions").default(false),

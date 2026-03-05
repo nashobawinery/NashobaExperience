@@ -161,6 +161,8 @@ export function ToastMenuBrowser() {
   const [printHeader, setPrintHeader] = useState("");
   const [printHeaderFontSize, setPrintHeaderFontSize] = useState(1.0);
   const [printFooterFontSize, setPrintFooterFontSize] = useState(1.0);
+  const [printItemFontSize, setPrintItemFontSize] = useState(1.0);
+  const [printDescFontSize, setPrintDescFontSize] = useState(1.0);
   const [printHidePricing, setPrintHidePricing] = useState(false);
   const [printHideWinePairing, setPrintHideWinePairing] = useState(false);
   const [printShowImages, setPrintShowImages] = useState(false);
@@ -269,6 +271,8 @@ export function ToastMenuBrowser() {
     footer: string | null;
     headerFontSize: number | null;
     footerFontSize: number | null;
+    itemFontSize: number | null;
+    descFontSize: number | null;
     scale: number | null;
     groupGuids: string | null;
     hideDescriptions: boolean | null;
@@ -302,6 +306,8 @@ export function ToastMenuBrowser() {
     footer: printFooter || null,
     headerFontSize: printHeaderFontSize,
     footerFontSize: printFooterFontSize,
+    itemFontSize: printItemFontSize,
+    descFontSize: printDescFontSize,
     scale: printScale,
     groupGuids: selectedPrintGroups.length > 0 ? selectedPrintGroups.join(",") : null,
     hideDescriptions: printHideDescriptions,
@@ -552,7 +558,7 @@ export function ToastMenuBrowser() {
 
   const currentRestaurantStatus = restaurantGuid && syncStatus ? syncStatus[restaurantGuid] : null;
 
-  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
+  const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean, itemSize?: number, descSize?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -567,10 +573,12 @@ export function ToastMenuBrowser() {
     if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
     if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
     if (showImages) url += `&showimages=1`;
+    if (itemSize && itemSize !== 1) url += `&itemSize=${itemSize.toFixed(1)}`;
+    if (descSize && descSize !== 1) url += `&descSize=${descSize.toFixed(1)}`;
     return url;
   };
 
-  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
+  const getMultiMenuEmbedUrl = (menuGuids: string[], template: string, groupGuids?: string[], scale?: number, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean, itemSize?: number, descSize?: number) => {
     const base = window.location.origin;
     let url = `${base}/api/toast/public/menus/embed?menus=${encodeURIComponent(menuGuids.join(","))}&template=${template}`;
     if (groupGuids && groupGuids.length > 0) url += `&groupGuid=${encodeURIComponent(groupGuids.join(","))}`;
@@ -585,15 +593,17 @@ export function ToastMenuBrowser() {
     if (headerSize && headerSize !== 1) url += `&headerSize=${headerSize.toFixed(1)}`;
     if (footerSize && footerSize !== 1) url += `&footerSize=${footerSize.toFixed(1)}`;
     if (showImages) url += `&showimages=1`;
+    if (itemSize && itemSize !== 1) url += `&itemSize=${itemSize.toFixed(1)}`;
+    if (descSize && descSize !== 1) url += `&descSize=${descSize.toFixed(1)}`;
     return url;
   };
 
   const buildPrintUrl = (template: string) => {
     const printGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
     if (additionalMenuGuids.length > 0 && selectedMenu) {
-      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+      return getMultiMenuEmbedUrl([selectedMenu, ...additionalMenuGuids], template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
     }
-    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+    return getEmbedUrl(selectedMenu!, template, printGroups, printScale, printPages, printFooter, printPageBreaks, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages, printItemFontSize, printDescFontSize);
   };
 
   const getEmbedCode = (menuGuid: string, template: string, groupGuids?: string[], footer?: string, hideDescriptions?: boolean, header?: string, hidePricing?: boolean, hideWinePairing?: boolean, headerSize?: number, footerSize?: number, showImages?: boolean) => {
@@ -646,6 +656,8 @@ export function ToastMenuBrowser() {
       setPrintFooter(params.get("footer") || "");
       setPrintHeaderFontSize(parseFloat(params.get("headerSize") || "1") || 1.0);
       setPrintFooterFontSize(parseFloat(params.get("footerSize") || "1") || 1.0);
+      setPrintItemFontSize(parseFloat(params.get("itemSize") || "1") || 1.0);
+      setPrintDescFontSize(parseFloat(params.get("descSize") || "1") || 1.0);
       setPrintScale(parseFloat(params.get("scale") || "100") || 100);
       setPrintHideDescriptions(params.get("hidedesc") === "1");
       setPrintHidePricing(params.get("hideprice") === "1");
@@ -1096,6 +1108,33 @@ export function ToastMenuBrowser() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold">Font Size</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Adjust the size of menu item names and description text on the printed or embedded menu.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Menu Item</label>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintItemFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printItemFontSize <= 0.5} title="Decrease item font size" data-testid="button-item-font-decrease">A−</Button>
+                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printItemFontSize.toFixed(1)}×</span>
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintItemFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printItemFontSize >= 3} title="Increase item font size" data-testid="button-item-font-increase">A+</Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Description</label>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintDescFontSize(f => Math.max(0.5, parseFloat((f - 0.1).toFixed(1))))} disabled={printDescFontSize <= 0.5} title="Decrease description font size" data-testid="button-desc-font-decrease">A−</Button>
+                  <span className="text-xs text-muted-foreground shrink-0 w-8 text-center">{printDescFontSize.toFixed(1)}×</span>
+                  <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs" onClick={() => setPrintDescFontSize(f => Math.min(3, parseFloat((f + 0.1).toFixed(1))))} disabled={printDescFontSize >= 3} title="Increase description font size" data-testid="button-desc-font-increase">A+</Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="bg-muted/30">
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-medium">HTML Formatting Guide for Descriptions</p>
@@ -1419,6 +1458,8 @@ export function ToastMenuBrowser() {
                               setPrintFooter(cfg.footer || "");
                               setPrintHeaderFontSize(cfg.headerFontSize ?? 1.0);
                               setPrintFooterFontSize(cfg.footerFontSize ?? 1.0);
+                              setPrintItemFontSize(cfg.itemFontSize ?? 1.0);
+                              setPrintDescFontSize(cfg.descFontSize ?? 1.0);
                               setPrintScale(cfg.scale ?? 100);
                               setPrintHideDescriptions(cfg.hideDescriptions ?? false);
                               setPrintHidePricing(cfg.hidePricing ?? false);
