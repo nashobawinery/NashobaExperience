@@ -31,7 +31,8 @@ import {
   RefreshCw, UtensilsCrossed, Loader2,
   ExternalLink, Eye, EyeOff, ListFilter,
   ArrowLeft, Code, Printer, Copy, Check, Wine,
-  BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles
+  BookMarked, Trash2, Pencil, Save, Plus, DollarSign, Sparkles,
+  BookOpen, HelpCircle, AlertCircle, Lightbulb, Share2, Monitor
 } from "lucide-react";
 
 
@@ -141,7 +142,7 @@ interface StaffPrintMenuData {
   updatedAt: string;
 }
 
-type ViewMode = "list" | "detail" | "embed" | "print" | "staff-board" | "saved-menus";
+type ViewMode = "list" | "detail" | "embed" | "print" | "staff-board" | "saved-menus" | "docs";
 
 export function ToastMenuBrowser() {
   const { toast } = useToast();
@@ -775,6 +776,21 @@ export function ToastMenuBrowser() {
 
   const renderMenuList = () => (
     <>
+      <div className="rounded-md border bg-muted/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <UtensilsCrossed className="w-5 h-5 text-muted-foreground shrink-0 hidden sm:block" />
+        <div className="text-sm text-muted-foreground leading-relaxed">
+          <span className="font-medium text-foreground">Toast Menu Printer</span> syncs your Toast POS menus so you can prepare them for print and the web.
+          Sync from Toast, open a menu, select which courses to include, then save a named configuration.
+          Saved menus can be printed instantly, shared via a permanent link, or pinned to the Staff Print Board for front-of-house staff.{" "}
+          <button
+            onClick={() => setViewMode("docs")}
+            className="text-primary underline-offset-2 hover:underline font-medium"
+            data-testid="link-view-docs-inline"
+          >
+            How it works
+          </button>
+        </div>
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-lg font-semibold" data-testid="text-toast-menus-title">Toast Menu Items</h2>
@@ -818,6 +834,14 @@ export function ToastMenuBrowser() {
           >
             <BookMarked className="w-4 h-4 mr-2" />
             Staff Board
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setViewMode("docs")}
+            data-testid="button-docs"
+          >
+            <HelpCircle className="w-4 h-4 mr-2" />
+            How It Works
           </Button>
           <Button
             onClick={handleOpenSyncDialog}
