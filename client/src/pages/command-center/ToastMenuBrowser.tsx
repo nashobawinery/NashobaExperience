@@ -2112,7 +2112,7 @@ export function ToastMenuBrowser() {
                         <p className="text-xs text-muted-foreground mt-1">
                           {config.menuGuids.split(",").filter(Boolean).length} menu{config.menuGuids.split(",").filter(Boolean).length !== 1 ? "s" : ""}
                           {config.groupGuids ? ` · ${config.groupGuids.split(",").filter(Boolean).length} groups` : ""}
-                          {" · "}Saved {new Date(config.updatedAt).toLocaleDateString()}
+                          {" · "}Saved {new Date(config.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
