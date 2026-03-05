@@ -1684,7 +1684,15 @@ router.get("/public/embed-config/:slug", async (req, res) => {
     if (config.customTitle) url += `&title=${encodeURIComponent(config.customTitle)}`;
     if (config.showImages) url += `&showimages=1`;
 
-    return res.redirect(302, url);
+    // Serve the HTML directly (not a redirect) so the short slug URL stays in the browser bar
+    const embedRes = await fetch(url);
+    if (!embedRes.ok) {
+      return res.status(embedRes.status).send(`<html><body><p>Failed to load menu embed (${embedRes.status})</p></body></html>`);
+    }
+    const html = await embedRes.text();
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Cache-Control", "no-cache");
+    return res.send(html);
   } catch (error: any) {
     res.status(500).send("<html><body><p>Server error</p></body></html>");
   }
