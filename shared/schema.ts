@@ -6174,6 +6174,7 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   id: serial("id").primaryKey(),
   slug: varchar("slug", { length: 20 }).notNull().unique(),
   name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
   menuGuids: text("menu_guids").notNull(),
   template: varchar("template", { length: 50 }).default("fine-dining"),
   header: text("header"),
@@ -6191,6 +6192,7 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
   pages: integer("pages").default(0),
   pageBreaks: text("page_breaks"),
   customTitle: text("custom_title"),
+  showOnStaffBoard: boolean("show_on_staff_board").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

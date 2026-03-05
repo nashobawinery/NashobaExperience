@@ -140,7 +140,7 @@ interface StaffPrintMenuData {
   updatedAt: string;
 }
 
-type ViewMode = "list" | "detail" | "embed" | "print" | "staff-board";
+type ViewMode = "list" | "detail" | "embed" | "print" | "staff-board" | "saved-menus";
 
 export function ToastMenuBrowser() {
   const { toast } = useToast();
@@ -203,6 +203,8 @@ export function ToastMenuBrowser() {
 
   const [staticUrlName, setStaticUrlName] = useState("");
   const [copiedStaticId, setCopiedStaticId] = useState<number | null>(null);
+  const [editingSavedConfig, setEditingSavedConfig] = useState<{id: number; name: string; description: string} | null>(null);
+  const [copiedSavedConfigId, setCopiedSavedConfigId] = useState<number | null>(null);
 
   const { data: statusData } = useQuery<{
     configured: boolean;
@@ -265,6 +267,7 @@ export function ToastMenuBrowser() {
     id: number;
     slug: string;
     name: string;
+    description: string | null;
     menuGuids: string;
     template: string | null;
     header: string | null;
@@ -282,7 +285,9 @@ export function ToastMenuBrowser() {
     pages: number | null;
     pageBreaks: string | null;
     customTitle: string | null;
+    showOnStaffBoard: boolean | null;
     createdAt: string;
+    updatedAt: string;
   }
 
   const { data: embedConfigs = [] } = useQuery<EmbedConfig[]>({
@@ -296,8 +301,24 @@ export function ToastMenuBrowser() {
     enabled: !!selectedMenu,
   });
 
-  const getCurrentEmbedPayload = (name: string) => ({
+  const { data: allEmbedConfigs = [], isLoading: allConfigsLoading } = useQuery<EmbedConfig[]>({
+    queryKey: ["/api/toast/embed-configs/all"],
+    queryFn: async () => {
+      const res = await fetch("/api/toast/embed-configs");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const invalidateAllConfigs = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs/all"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
+    queryClient.invalidateQueries({ queryKey: ["/api/toast/staff-print-menus"] });
+  };
+
+  const getCurrentEmbedPayload = (name: string, description?: string) => ({
     name,
+    description: description || null,
     menuGuids: selectedMenu
       ? (additionalMenuGuids.length > 0 ? [selectedMenu, ...additionalMenuGuids].join(",") : selectedMenu)
       : "",
@@ -320,28 +341,44 @@ export function ToastMenuBrowser() {
   });
 
   const createEmbedConfigMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", "/api/toast/embed-configs", getCurrentEmbedPayload(name));
+    mutationFn: async ({ name, description }: { name: string; description?: string }) => {
+      const res = await apiRequest("POST", "/api/toast/embed-configs", getCurrentEmbedPayload(name, description));
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
-      setStaticUrlName("");
-      toast({ title: "Static link saved", description: "Your permanent embed URL is ready to use." });
+      invalidateAllConfigs();
+      setSaveName("");
+      setSaveDescription("");
+      setSaveOverwriteId(null);
+      toast({ title: "Menu saved", description: "Find it in Saved Menus to edit, print, or share." });
     },
-    onError: () => toast({ title: "Error", description: "Failed to save static link.", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to save menu.", variant: "destructive" }),
   });
 
   const updateEmbedConfigMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: number; name: string }) => {
-      const res = await apiRequest("PUT", `/api/toast/embed-configs/${id}`, getCurrentEmbedPayload(name));
+    mutationFn: async ({ id, name, description }: { id: number; name: string; description?: string }) => {
+      const res = await apiRequest("PUT", `/api/toast/embed-configs/${id}`, getCurrentEmbedPayload(name, description));
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
-      toast({ title: "Static link updated", description: "The link now reflects your current settings." });
+      invalidateAllConfigs();
+      setSaveName("");
+      setSaveDescription("");
+      setSaveOverwriteId(null);
+      toast({ title: "Menu updated", description: "Your changes have been saved." });
     },
-    onError: () => toast({ title: "Error", description: "Failed to update static link.", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to update saved menu.", variant: "destructive" }),
+  });
+
+  const patchEmbedConfigMutation = useMutation({
+    mutationFn: async ({ id, ...fields }: { id: number; name?: string; description?: string; showOnStaffBoard?: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/toast/embed-configs/${id}`, fields);
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateAllConfigs();
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update saved menu.", variant: "destructive" }),
   });
 
   const deleteEmbedConfigMutation = useMutation({
@@ -349,10 +386,10 @@ export function ToastMenuBrowser() {
       await apiRequest("DELETE", `/api/toast/embed-configs/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/toast/embed-configs", selectedMenu] });
-      toast({ title: "Static link deleted" });
+      invalidateAllConfigs();
+      toast({ title: "Saved menu deleted" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to delete static link.", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to delete saved menu.", variant: "destructive" }),
   });
 
   const syncMutation = useMutation({
@@ -676,6 +713,38 @@ export function ToastMenuBrowser() {
     }
   };
 
+  const loadFromEmbedConfig = (config: EmbedConfig) => {
+    const guids = config.menuGuids.split(",").map(g => g.trim()).filter(Boolean);
+    const primaryGuid = guids[0] || null;
+    if (!primaryGuid) {
+      toast({ title: "Cannot load", description: "No menu GUID found in saved config.", variant: "destructive" });
+      return;
+    }
+    clearPendingChanges();
+    setPrintTemplate(config.template || "fine-dining");
+    setPrintHeader(config.header || "");
+    setPrintFooter(config.footer || "");
+    setPrintHeaderFontSize(config.headerFontSize || 1.0);
+    setPrintFooterFontSize(config.footerFontSize || 1.0);
+    setPrintItemFontSize(config.itemFontSize || 1.0);
+    setPrintDescFontSize(config.descFontSize || 1.0);
+    setPrintScale(config.scale || 100);
+    setPrintHideDescriptions(config.hideDescriptions || false);
+    setPrintHidePricing(config.hidePricing || false);
+    setPrintHideWinePairing(config.hideWinePairing || false);
+    setPrintShowImages(config.showImages || false);
+    setPrintPages(config.pages || 0);
+    setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
+    setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
+    setAdditionalMenuGuids(guids.slice(1));
+    setSaveName(config.name);
+    setSaveDescription(config.description || "");
+    setSaveOverwriteId(config.id);
+    setSelectedMenu(primaryGuid);
+    setViewMode("detail");
+    toast({ title: `"${config.name}" loaded`, description: "All settings restored. Edit, then resave." });
+  };
+
   const openMenuDetail = (menuGuid: string) => {
     const doOpen = () => {
       clearPendingChanges();
@@ -750,14 +819,22 @@ export function ToastMenuBrowser() {
           )}
           <Button
             variant="outline"
+            onClick={() => setViewMode("saved-menus")}
+            data-testid="button-saved-menus"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Saved Menus
+            {allEmbedConfigs.length > 0 && (
+              <Badge variant="secondary" className="ml-2 no-default-active-elevate">{allEmbedConfigs.length}</Badge>
+            )}
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setViewMode("staff-board")}
             data-testid="button-staff-board"
           >
             <BookMarked className="w-4 h-4 mr-2" />
-            Staff Print Board
-            {staffPrintMenuList.length > 0 && (
-              <Badge variant="secondary" className="ml-2 no-default-active-elevate">{staffPrintMenuList.length}</Badge>
-            )}
+            Staff Board
           </Button>
           <Button
             onClick={handleOpenSyncDialog}
@@ -1430,7 +1507,7 @@ export function ToastMenuBrowser() {
                 size="sm"
                 variant="outline"
                 disabled={!staticUrlName.trim() || createEmbedConfigMutation.isPending}
-                onClick={() => createEmbedConfigMutation.mutate(staticUrlName.trim())}
+                onClick={() => createEmbedConfigMutation.mutate({ name: staticUrlName.trim() })}
                 data-testid="button-save-static-url"
               >
                 {createEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
@@ -1784,15 +1861,15 @@ export function ToastMenuBrowser() {
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <BookMarked className="w-4 h-4 text-muted-foreground" />
-              <p className="text-sm font-medium">Save to Staff Print Board</p>
+              <Save className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Save Menu</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Save this menu configuration so staff can find and print it from the Staff Portal with one click. You can save as a new entry or overwrite an existing one.
+              Save this menu configuration to your Saved Menus library. You can edit, print, share, or toggle staff board visibility from there.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <label className="text-xs font-medium">Menu Name for Staff</label>
+                <label className="text-xs font-medium">Menu Name</label>
                 <input
                   type="text"
                   value={saveName}
@@ -1814,9 +1891,9 @@ export function ToastMenuBrowser() {
                 />
               </div>
             </div>
-            {staffPrintMenuList.length > 0 && (
+            {allEmbedConfigs.length > 0 && (
               <div className="space-y-1">
-                <label className="text-xs font-medium">Overwrite existing entry (optional)</label>
+                <label className="text-xs font-medium">Overwrite existing saved menu (optional)</label>
                 <Select
                   value={saveOverwriteId ? String(saveOverwriteId) : "new"}
                   onValueChange={(v) => setSaveOverwriteId(v === "new" ? null : Number(v))}
@@ -1826,27 +1903,49 @@ export function ToastMenuBrowser() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">Save as new entry</SelectItem>
-                    {staffPrintMenuList.map(m => (
+                    {allEmbedConfigs.map(m => (
                       <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
-            <Button
-              size="sm"
-              disabled={!saveName.trim() || saveStaffPrintMenu.isPending}
-              onClick={() => saveStaffPrintMenu.mutate({
-                name: saveName.trim(),
-                description: saveDescription.trim(),
-                printUrl: buildPrintUrl(printTemplate),
-                overwriteId: saveOverwriteId,
-              })}
-              data-testid="button-save-to-staff-board"
-            >
-              {saveStaffPrintMenu.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {saveOverwriteId ? "Overwrite Entry" : "Save to Staff Board"}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                disabled={!saveName.trim() || createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending}
+                onClick={() => {
+                  if (saveOverwriteId) {
+                    updateEmbedConfigMutation.mutate({ id: saveOverwriteId, name: saveName.trim(), description: saveDescription.trim() });
+                  } else {
+                    createEmbedConfigMutation.mutate({ name: saveName.trim(), description: saveDescription.trim() });
+                  }
+                }}
+                data-testid="button-save-menu"
+              >
+                {(createEmbedConfigMutation.isPending || updateEmbedConfigMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {saveOverwriteId ? "Update Saved Menu" : "Save Menu"}
+              </Button>
+              {(saveName.trim() || saveOverwriteId) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setSaveName(""); setSaveDescription(""); setSaveOverwriteId(null); }}
+                  data-testid="button-clear-save"
+                >
+                  Clear
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setViewMode("saved-menus")}
+                data-testid="button-go-saved-menus"
+              >
+                <BookMarked className="w-4 h-4 mr-1" />
+                View Saved Menus
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -1877,101 +1976,272 @@ export function ToastMenuBrowser() {
     );
   };
 
-  const renderStaffBoardView = () => (
-    <>
-      <div className="flex items-center gap-3 flex-wrap">
-        <Button variant="ghost" size="icon" onClick={() => setViewMode("list")} data-testid="button-back-staff-board">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold">Staff Print Board</h2>
-          <p className="text-sm text-muted-foreground">
-            Menus saved here appear in the Staff Portal for one-click printing.
-          </p>
-        </div>
-      </div>
+  const TEMPLATE_LABELS: Record<string, string> = {
+    "fine-dining": "Fine Dining",
+    "beverage": "Beverage",
+    "modern": "Modern",
+  };
 
-      {staffPrintMenuList.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <BookMarked className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="font-medium">No menus saved yet</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-              Go to a menu's Print view and use "Save to Staff Print Board" to add menus here.
+  const getConfigPrintUrl = (config: EmbedConfig) => {
+    const origin = window.location.origin;
+    return `${origin}/api/toast/public/embed-config/${config.slug}`;
+  };
+
+  const renderSavedMenusView = () => {
+    const staffVisible = allEmbedConfigs.filter(c => c.showOnStaffBoard);
+    return (
+      <>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="icon" onClick={() => setViewMode("list")} data-testid="button-back-saved-menus">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold">Saved Menus</h2>
+            <p className="text-sm text-muted-foreground">
+              {allEmbedConfigs.length} saved {allEmbedConfigs.length === 1 ? "menu" : "menus"} — {staffVisible.length} visible on Staff Board
             </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {staffPrintMenuList.map((item) => (
-            <Card key={item.id}>
-              <CardContent className="p-4">
-                {editingBoardItem?.id === item.id ? (
-                  <div className="space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">Name</label>
-                        <input
-                          type="text"
-                          value={editingBoardItem.name}
-                          onChange={(e) => setEditingBoardItem({ ...editingBoardItem, name: e.target.value })}
-                          className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                          data-testid={`input-edit-name-${item.id}`}
-                        />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("staff-board")}
+            data-testid="button-view-staff-board"
+          >
+            <BookMarked className="w-4 h-4 mr-2" />
+            Staff Board
+            {staffVisible.length > 0 && (
+              <Badge variant="secondary" className="ml-2 no-default-active-elevate">{staffVisible.length}</Badge>
+            )}
+          </Button>
+        </div>
+
+        {allConfigsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+            <span className="text-sm text-muted-foreground">Loading saved menus...</span>
+          </div>
+        ) : allEmbedConfigs.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Save className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="font-medium">No saved menus yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                Open a menu, configure it in the Print view, then use the Save Menu section to store it here.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {allEmbedConfigs.map((config) => (
+              <Card key={config.id} data-testid={`card-saved-menu-${config.id}`}>
+                <CardContent className="p-4">
+                  {editingSavedConfig?.id === config.id ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Name</label>
+                          <input
+                            type="text"
+                            value={editingSavedConfig.name}
+                            onChange={(e) => setEditingSavedConfig({ ...editingSavedConfig, name: e.target.value })}
+                            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                            data-testid={`input-edit-config-name-${config.id}`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Description</label>
+                          <input
+                            type="text"
+                            value={editingSavedConfig.description}
+                            onChange={(e) => setEditingSavedConfig({ ...editingSavedConfig, description: e.target.value })}
+                            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                            data-testid={`input-edit-config-desc-${config.id}`}
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">Description</label>
-                        <input
-                          type="text"
-                          value={editingBoardItem.description}
-                          onChange={(e) => setEditingBoardItem({ ...editingBoardItem, description: e.target.value })}
-                          className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                          data-testid={`input-edit-description-${item.id}`}
-                        />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={patchEmbedConfigMutation.isPending}
+                          onClick={() => patchEmbedConfigMutation.mutate(
+                            { id: config.id, name: editingSavedConfig.name, description: editingSavedConfig.description },
+                            { onSuccess: () => setEditingSavedConfig(null) }
+                          )}
+                          data-testid={`button-save-config-edit-${config.id}`}
+                        >
+                          {patchEmbedConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
+                          Save Name
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingSavedConfig(null)}>Cancel</Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => updateStaffPrintMenuMeta.mutate({ id: item.id, name: editingBoardItem.name, description: editingBoardItem.description })}
-                        disabled={updateStaffPrintMenuMeta.isPending}
-                        data-testid={`button-save-edit-${item.id}`}
-                      >
-                        {updateStaffPrintMenuMeta.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
-                        Save
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingBoardItem(null)} data-testid={`button-cancel-edit-${item.id}`}>
-                        Cancel
-                      </Button>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm" data-testid={`text-saved-menu-name-${config.id}`}>{config.name}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {TEMPLATE_LABELS[config.template || "fine-dining"] || config.template}
+                          </Badge>
+                          {config.showOnStaffBoard && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Eye className="w-3 h-3 mr-1" />
+                              Staff Board
+                            </Badge>
+                          )}
+                        </div>
+                        {config.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {config.menuGuids.split(",").filter(Boolean).length} menu{config.menuGuids.split(",").filter(Boolean).length !== 1 ? "s" : ""}
+                          {config.groupGuids ? ` · ${config.groupGuids.split(",").filter(Boolean).length} groups` : ""}
+                          {" · "}Saved {new Date(config.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => loadFromEmbedConfig(config)}
+                          data-testid={`button-load-config-${config.id}`}
+                          title="Load this saved menu into the editor to edit and resave"
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openPrintView(getConfigPrintUrl(config))}
+                          data-testid={`button-print-config-${config.id}`}
+                        >
+                          <Printer className="w-4 h-4 mr-1" />
+                          Print
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Copy permanent URL"
+                          onClick={() => {
+                            navigator.clipboard.writeText(getConfigPrintUrl(config));
+                            setCopiedSavedConfigId(config.id);
+                            setTimeout(() => setCopiedSavedConfigId(null), 2000);
+                            toast({ title: "URL copied" });
+                          }}
+                          data-testid={`button-copy-url-config-${config.id}`}
+                        >
+                          {copiedSavedConfigId === config.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title={config.showOnStaffBoard ? "Remove from Staff Board" : "Show on Staff Board"}
+                          className={config.showOnStaffBoard ? "text-primary" : ""}
+                          onClick={() => patchEmbedConfigMutation.mutate({ id: config.id, showOnStaffBoard: !config.showOnStaffBoard })}
+                          data-testid={`button-toggle-staff-${config.id}`}
+                        >
+                          {config.showOnStaffBoard ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Rename"
+                          onClick={() => setEditingSavedConfig({ id: config.id, name: config.name, description: config.description || "" })}
+                          data-testid={`button-rename-config-${config.id}`}
+                        >
+                          <BookMarked className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => { if (confirm(`Delete "${config.name}"? This cannot be undone.`)) deleteEmbedConfigMutation.mutate(config.id); }}
+                          data-testid={`button-delete-config-${config.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderStaffBoardView = () => {
+    const staffConfigs = allEmbedConfigs.filter(c => c.showOnStaffBoard);
+    return (
+      <>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="icon" onClick={() => setViewMode("saved-menus")} data-testid="button-back-staff-board">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold">Staff Print Board</h2>
+            <p className="text-sm text-muted-foreground">
+              These menus appear in the Staff Portal for one-click printing. Toggle visibility from Saved Menus.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setViewMode("saved-menus")} data-testid="button-manage-saved">
+            <Save className="w-4 h-4 mr-2" />
+            Manage Saved Menus
+          </Button>
+        </div>
+
+        {staffConfigs.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <BookMarked className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="font-medium">No menus on the Staff Board yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                Go to Saved Menus and toggle the eye icon to make a menu visible on the Staff Board.
+              </p>
+              <Button className="mt-4" variant="outline" size="sm" onClick={() => setViewMode("saved-menus")}>
+                <Save className="w-4 h-4 mr-2" />
+                Go to Saved Menus
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {staffConfigs.map((config) => (
+              <Card key={config.id}>
+                <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm" data-testid={`text-board-name-${item.id}`}>{item.name}</p>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm" data-testid={`text-staff-config-name-${config.id}`}>{config.name}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {TEMPLATE_LABELS[config.template || "fine-dining"] || config.template}
+                        </Badge>
+                      </div>
+                      {config.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        Saved {new Date(item.updatedAt).toLocaleDateString()}
+                        {config.menuGuids.split(",").filter(Boolean).length} menu{config.menuGuids.split(",").filter(Boolean).length !== 1 ? "s" : ""}
+                        {" · "}Updated {new Date(config.updatedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
                       <Button
                         size="sm"
                         variant="outline"
-                        title="Restore all settings from this saved menu into the editor so you can make changes"
-                        onClick={() => loadFromBoardItem(item)}
-                        data-testid={`button-load-board-${item.id}`}
+                        onClick={() => loadFromEmbedConfig(config)}
+                        data-testid={`button-load-staff-config-${config.id}`}
                       >
                         <Pencil className="w-4 h-4 mr-1" />
-                        Edit Settings
+                        Edit
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => openPrintView(item.printUrl)}
-                        data-testid={`button-preview-board-${item.id}`}
+                        onClick={() => openPrintView(getConfigPrintUrl(config))}
+                        data-testid={`button-print-staff-config-${config.id}`}
                       >
                         <Printer className="w-4 h-4 mr-1" />
                         Print
@@ -1979,30 +2249,22 @@ export function ToastMenuBrowser() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        title="Rename or edit description"
-                        onClick={() => setEditingBoardItem({ id: item.id, name: item.name, description: item.description || "" })}
-                        data-testid={`button-rename-board-${item.id}`}
+                        title="Remove from Staff Board"
+                        onClick={() => patchEmbedConfigMutation.mutate({ id: config.id, showOnStaffBoard: false })}
+                        data-testid={`button-remove-staff-${config.id}`}
                       >
-                        <BookMarked className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => { if (confirm(`Remove "${item.name}" from the Staff Board?`)) deleteStaffPrintMenu.mutate(item.id); }}
-                        data-testid={`button-delete-board-${item.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                        <EyeOff className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </>
-  );
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <>
@@ -2011,6 +2273,7 @@ export function ToastMenuBrowser() {
         {viewMode === "detail" && renderMenuDetail()}
         {viewMode === "embed" && renderEmbedView()}
         {viewMode === "print" && renderPrintView()}
+        {viewMode === "saved-menus" && renderSavedMenusView()}
         {viewMode === "staff-board" && renderStaffBoardView()}
       </div>
 

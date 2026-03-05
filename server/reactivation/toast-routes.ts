@@ -1580,12 +1580,32 @@ router.get("/public/menus", async (_req, res) => {
   }
 });
 
-router.get("/public/staff-print-menus", async (_req, res) => {
+router.get("/public/staff-print-menus", async (req, res) => {
   try {
-    const menus = await db.select().from(staffPrintMenus)
+    const legacyMenus = await db.select().from(staffPrintMenus)
       .where(eq(staffPrintMenus.isActive, true))
       .orderBy(staffPrintMenus.sortOrder, staffPrintMenus.name);
-    res.json(menus);
+
+    const savedConfigs = await db.select().from(toastMenuEmbedConfigs)
+      .where(eq(toastMenuEmbedConfigs.showOnStaffBoard, true))
+      .orderBy(toastMenuEmbedConfigs.name);
+
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const configMenus = savedConfigs.map(c => ({
+      id: `cfg-${c.id}`,
+      name: c.name,
+      description: c.description,
+      printUrl: `${origin}/api/toast/public/embed-config/${c.slug}`,
+      menuGuid: c.menuGuids.split(",")[0] || null,
+      isActive: true,
+      sortOrder: 999,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      _source: "saved-config",
+      slug: c.slug,
+    }));
+
+    res.json([...legacyMenus, ...configMenus]);
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch staff print menus" });
   }
@@ -1729,12 +1749,15 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
     const result = await db.insert(toastMenuEmbedConfigs).values({
       slug,
       name: req.body.name || "Untitled",
+      description: req.body.description || null,
       menuGuids: req.body.menuGuids || "",
       template: req.body.template || "fine-dining",
       header: req.body.header || null,
       footer: req.body.footer || null,
       headerFontSize: req.body.headerFontSize ?? 1,
       footerFontSize: req.body.footerFontSize ?? 1,
+      itemFontSize: req.body.itemFontSize ?? 1,
+      descFontSize: req.body.descFontSize ?? 1,
       scale: req.body.scale ?? 100,
       groupGuids: req.body.groupGuids || null,
       hideDescriptions: req.body.hideDescriptions ?? false,
@@ -1744,6 +1767,7 @@ router.post("/embed-configs", isAuthenticated, async (req, res) => {
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks || null,
       customTitle: req.body.customTitle || null,
+      showOnStaffBoard: req.body.showOnStaffBoard ?? false,
     }).returning();
     res.json(result[0]);
   } catch (error: any) {
@@ -1757,12 +1781,15 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const result = await db.update(toastMenuEmbedConfigs).set({
       name: req.body.name,
+      description: req.body.description ?? null,
       menuGuids: req.body.menuGuids,
       template: req.body.template,
       header: req.body.header ?? null,
       footer: req.body.footer ?? null,
       headerFontSize: req.body.headerFontSize ?? 1,
       footerFontSize: req.body.footerFontSize ?? 1,
+      itemFontSize: req.body.itemFontSize ?? 1,
+      descFontSize: req.body.descFontSize ?? 1,
       scale: req.body.scale ?? 100,
       groupGuids: req.body.groupGuids ?? null,
       hideDescriptions: req.body.hideDescriptions ?? false,
@@ -1772,12 +1799,30 @@ router.put("/embed-configs/:id", isAuthenticated, async (req, res) => {
       pages: req.body.pages ?? 0,
       pageBreaks: req.body.pageBreaks ?? null,
       customTitle: req.body.customTitle ?? null,
+      showOnStaffBoard: req.body.showOnStaffBoard ?? false,
       updatedAt: new Date(),
     }).where(eq(toastMenuEmbedConfigs.id, id)).returning();
     if (result.length === 0) return res.status(404).json({ error: "Not found" });
     res.json(result[0]);
   } catch (error: any) {
     res.status(500).json({ error: "Failed to update embed config" });
+  }
+});
+
+router.patch("/embed-configs/:id", isAuthenticated, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (req.body.name !== undefined) updates.name = req.body.name;
+    if (req.body.description !== undefined) updates.description = req.body.description || null;
+    if (req.body.showOnStaffBoard !== undefined) updates.showOnStaffBoard = req.body.showOnStaffBoard;
+    const result = await db.update(toastMenuEmbedConfigs).set(updates)
+      .where(eq(toastMenuEmbedConfigs.id, id)).returning();
+    if (result.length === 0) return res.status(404).json({ error: "Not found" });
+    res.json(result[0]);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to patch embed config" });
   }
 });
 
