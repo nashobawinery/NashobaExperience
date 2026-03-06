@@ -1341,9 +1341,48 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Frame-Options", "ALLOWALL");
     res.send(html);
   } catch (error: any) {
     res.status(500).send("<html><body><p>Error loading menu</p></body></html>");
+  }
+});
+
+router.get("/public/menu/:menuGuid/embed.js", async (req, res) => {
+  try {
+    const { menuGuid } = req.params;
+    const params = new URLSearchParams();
+    for (const [key, val] of Object.entries(req.query)) {
+      if (typeof val === "string") params.set(key, val);
+    }
+    const iframeSrc = `https://nashobawinery.org/api/toast/public/menu/${encodeURIComponent(menuGuid)}/embed?${params.toString()}`;
+    const uid = `nashoba_menu_${Math.random().toString(36).slice(2, 9)}`;
+    const js = `(function(){
+  var s=document.currentScript||document.scripts[document.scripts.length-1];
+  var w=document.createElement('div');
+  w.id=${JSON.stringify(uid)};
+  w.style.width='100%';
+  var f=document.createElement('iframe');
+  f.src=${JSON.stringify(iframeSrc)};
+  f.style.cssText='width:100%;border:none;display:block;overflow:hidden;';
+  f.height='900';
+  f.setAttribute('scrolling','no');
+  f.setAttribute('frameborder','0');
+  w.appendChild(f);
+  if(s&&s.parentNode){s.parentNode.insertBefore(w,s.nextSibling);}else{document.body.appendChild(w);}
+  window.addEventListener('message',function(e){
+    if(e.data&&e.data.type==='nashoba-menu-resize'&&typeof e.data.height==='number'){
+      f.height=Math.ceil(e.data.height+32);
+      f.style.height=Math.ceil(e.data.height+32)+'px';
+    }
+  });
+})();`;
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(js);
+  } catch (error: any) {
+    res.status(500).send("/* Error generating embed widget */");
   }
 });
 
