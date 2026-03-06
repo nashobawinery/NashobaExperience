@@ -1335,6 +1335,14 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
       ${customFooter ? `<div class="custom-footer">${sanitizeHeaderHtml(customFooter)}</div>` : ""}
     </div>
   </div>
+  <script>
+    function sendHeight() {
+      var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.body.offsetHeight);
+      window.parent.postMessage({ type: 'nashoba-menu-resize', height: h }, '*');
+    }
+    window.addEventListener('load', function() { sendHeight(); setTimeout(sendHeight, 300); setTimeout(sendHeight, 1000); });
+    window.addEventListener('resize', sendHeight);
+  </script>
 </body>
 </html>`;
 
