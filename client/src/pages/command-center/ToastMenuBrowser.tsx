@@ -776,19 +776,34 @@ export function ToastMenuBrowser() {
 
   const renderMenuList = () => (
     <>
-      <div className="rounded-md border bg-muted/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-        <UtensilsCrossed className="w-5 h-5 text-muted-foreground shrink-0 hidden sm:block" />
-        <div className="text-sm text-muted-foreground leading-relaxed">
-          <span className="font-medium text-foreground">Toast Menu Printer</span> syncs your Toast POS menus so you can prepare them for print and the web.
-          Sync from Toast, open a menu, select which courses to include, then save a named configuration.
-          Saved menus can be printed instantly, shared via a permanent link, or pinned to the Staff Print Board for front-of-house staff.{" "}
-          <button
-            onClick={() => setViewMode("docs")}
-            className="text-primary underline-offset-2 hover:underline font-medium"
-            data-testid="link-view-docs-inline"
-          >
-            How it works
-          </button>
+      <div className="rounded-md border bg-muted/30 px-4 py-3 flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+          <UtensilsCrossed className="w-5 h-5 text-muted-foreground shrink-0 hidden sm:block mt-0.5" />
+          <div className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground">Toast Menu Printer</span> syncs your Toast POS menus so you can prepare them for print and the web.
+            Sync from Toast, open a menu, select which courses to include, then save a named configuration.
+            Saved menus can be printed instantly, shared via a permanent link, or pinned to the Staff Print Board for front-of-house staff.{" "}
+            <button
+              onClick={() => setViewMode("docs")}
+              className="text-primary underline-offset-2 hover:underline font-medium"
+              data-testid="link-view-docs-inline"
+            >
+              How it works
+            </button>
+          </div>
+        </div>
+        <div className="border-t pt-2.5 flex flex-col sm:flex-row sm:items-start gap-2">
+          <p className="text-xs font-medium text-foreground shrink-0">Dietary badges:</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Add a code in parentheses to an item's name in Toast POS and it will automatically display as a styled badge on the menu.
+            Supported codes:{" "}
+            <span className="font-medium text-foreground">(GF)</span> Gluten Free &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(V)</span> Vegetarian &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(VG)</span> Vegan &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(DF)</span> Dairy Free &nbsp;&middot;&nbsp;
+            <span className="font-medium text-foreground">(NF)</span> Nut Free.
+            The code is removed from the displayed item name automatically.
+          </p>
         </div>
       </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
