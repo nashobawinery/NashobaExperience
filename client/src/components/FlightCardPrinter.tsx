@@ -2,15 +2,15 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -29,6 +29,9 @@ import {
   ChevronDown,
   Info,
   TriangleAlert,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import type { FlightCardConfig } from "@shared/schema";
 
@@ -69,6 +72,208 @@ const TEMPLATES = [
   { value: "modern",  label: "Modern Clean",     desc: "White, blue accents, sans-serif" },
   { value: "rustic",  label: "Rustic Craft",     desc: "Kraft paper tones, earthy serif" },
 ];
+
+// ─── Text Preset Management ──────────────────────────────────────────────────
+
+interface TextPreset {
+  id: string;
+  text: string;
+}
+
+function useTextPresets(storageKey: string) {
+  const [presets, setPresets] = useState<TextPreset[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const persist = (next: TextPreset[]) => {
+    setPresets(next);
+    localStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  const addPreset = (text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    persist([...presets, { id: String(Date.now()), text: t }]);
+  };
+
+  const editPreset = (id: string, text: string) => {
+    persist(presets.map(p => p.id === id ? { ...p, text: text.trim() || p.text } : p));
+  };
+
+  const deletePreset = (id: string) => {
+    persist(presets.filter(p => p.id !== id));
+  };
+
+  return { presets, addPreset, editPreset, deletePreset };
+}
+
+function TextPresetPicker({
+  label,
+  value,
+  onChange,
+  placeholder,
+  storageKey,
+  testId,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  storageKey: string;
+  testId: string;
+}) {
+  const { toast } = useToast();
+  const { presets, addPreset, editPreset, deletePreset } = useTextPresets(storageKey);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const handleApply = (text: string) => {
+    onChange(text);
+    setOpen(false);
+  };
+
+  const handleSaveCurrent = () => {
+    if (!value.trim()) {
+      toast({ title: "Nothing to save — type some text first", variant: "destructive" });
+      return;
+    }
+    addPreset(value);
+    toast({ title: "Saved as preset" });
+  };
+
+  const startEdit = (preset: TextPreset) => {
+    setEditingId(preset.id);
+    setEditValue(preset.text);
+  };
+
+  const commitEdit = (id: string) => {
+    if (editValue.trim()) editPreset(id, editValue);
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const preview = value.trim();
+  const saveLabel = preview.length > 28 ? `"${preview.slice(0, 28)}…"` : preview ? `"${preview}"` : null;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <Label className="text-sm font-medium">{label}</Label>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1.5 text-xs text-muted-foreground"
+              data-testid={`button-${testId}-presets`}
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              Saved
+              {presets.length > 0 && (
+                <Badge variant="secondary" className="text-xs no-default-active-elevate">{presets.length}</Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="end">
+            <div className="px-3 py-2 border-b">
+              <p className="text-xs font-medium text-muted-foreground">Saved {label} Presets</p>
+            </div>
+
+            {presets.length === 0 ? (
+              <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                No saved presets yet. Type a {label.toLowerCase()} and click save below.
+              </div>
+            ) : (
+              <div className="max-h-56 overflow-y-auto divide-y">
+                {presets.map(preset => (
+                  <div key={preset.id} className="px-3 py-2" data-testid={`preset-item-${preset.id}`}>
+                    {editingId === preset.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          className="h-7 text-sm flex-1"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === "Enter") commitEdit(preset.id);
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                          data-testid={`input-preset-edit-${preset.id}`}
+                        />
+                        <Button size="icon" variant="ghost" onClick={() => commitEdit(preset.id)} data-testid={`button-preset-save-${preset.id}`}>
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={cancelEdit} data-testid={`button-preset-cancel-${preset.id}`}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          className="flex-1 text-left text-sm truncate py-0.5 px-1 rounded hover-elevate"
+                          onClick={() => handleApply(preset.text)}
+                          title={preset.text}
+                          data-testid={`button-preset-apply-${preset.id}`}
+                        >
+                          {preset.text}
+                        </button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => startEdit(preset)}
+                          data-testid={`button-preset-edit-${preset.id}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deletePreset(preset.id)}
+                          data-testid={`button-preset-delete-${preset.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="px-3 py-2 border-t">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                disabled={!value.trim()}
+                onClick={handleSaveCurrent}
+                data-testid={`button-${testId}-save-preset`}
+              >
+                <BookmarkPlus className="w-3.5 h-3.5 mr-1.5" />
+                {saveLabel ? `Save ${saveLabel} as preset` : `Type a ${label.toLowerCase()} to save`}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+      <Input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        data-testid={testId}
+      />
+    </div>
+  );
+}
+
+// ─── Save Dialog ─────────────────────────────────────────────────────────────
 
 interface SaveDialogProps {
   open: boolean;
@@ -564,25 +769,23 @@ export default function FlightCardPrinter() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Flight Header / Title</Label>
-            <Input
-              value={header}
-              onChange={e => setHeader(e.target.value)}
-              placeholder="e.g. Reserve Red Wine Flight"
-              data-testid="input-flight-header"
-            />
-          </div>
+          <TextPresetPicker
+            label="Flight Header / Title"
+            value={header}
+            onChange={setHeader}
+            placeholder="e.g. Reserve Red Wine Flight"
+            storageKey="flight-header-presets"
+            testId="input-flight-header"
+          />
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Footer Text</Label>
-            <Input
-              value={footer}
-              onChange={e => setFooter(e.target.value)}
-              placeholder="e.g. Ask your host about bottle prices"
-              data-testid="input-flight-footer"
-            />
-          </div>
+          <TextPresetPicker
+            label="Footer Text"
+            value={footer}
+            onChange={setFooter}
+            placeholder="e.g. Ask your host about bottle prices"
+            storageKey="flight-footer-presets"
+            testId="input-flight-footer"
+          />
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Fields to Display</Label>
