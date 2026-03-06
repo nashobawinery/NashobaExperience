@@ -189,6 +189,7 @@ export function ToastMenuBrowser() {
     localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
+  const [activeDetailTab, setActiveDetailTab] = useState<"web" | "print">("web");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogTab, setSaveDialogTab] = useState<"update" | "new">("update");
   const [loadedEmbedConfigId, setLoadedEmbedConfigId] = useState<number | null>(null);
@@ -286,6 +287,7 @@ export function ToastMenuBrowser() {
     showImages: boolean | null;
     pages: number | null;
     pageBreaks: string | null;
+    printAdditionalMenuGuids: string | null;
     customTitle: string | null;
     showOnStaffBoard: boolean | null;
     createdAt: string;
@@ -321,9 +323,8 @@ export function ToastMenuBrowser() {
   const getCurrentEmbedPayload = (name: string, description?: string) => ({
     name,
     description: description || null,
-    menuGuids: selectedMenu
-      ? (additionalMenuGuids.length > 0 ? [selectedMenu, ...additionalMenuGuids].join(",") : selectedMenu)
-      : "",
+    menuGuids: selectedMenu || "",
+    printAdditionalMenuGuids: additionalMenuGuids.length > 0 ? additionalMenuGuids.join(",") : null,
     template: printTemplate,
     header: printHeader || null,
     footer: printFooter || null,
@@ -697,8 +698,7 @@ export function ToastMenuBrowser() {
   };
 
   const loadFromEmbedConfig = (config: EmbedConfig) => {
-    const guids = config.menuGuids.split(",").map(g => g.trim()).filter(Boolean);
-    const primaryGuid = guids[0] || null;
+    const primaryGuid = config.menuGuids?.trim() || null;
     if (!primaryGuid) {
       toast({ title: "Cannot load", description: "No menu GUID found in saved config.", variant: "destructive" });
       return;
@@ -719,12 +719,19 @@ export function ToastMenuBrowser() {
     setPrintPages(config.pages || 0);
     setPrintPageBreaks(config.pageBreaks ? config.pageBreaks.split(",").filter(Boolean) : []);
     setSelectedPrintGroups(config.groupGuids ? config.groupGuids.split(",").filter(Boolean) : []);
-    setAdditionalMenuGuids(guids.slice(1));
+    // Use dedicated print additional guids if available, otherwise fall back to legacy multi-guid format
+    if (config.printAdditionalMenuGuids) {
+      setAdditionalMenuGuids(config.printAdditionalMenuGuids.split(",").filter(Boolean));
+    } else {
+      const allGuids = config.menuGuids.split(",").map(g => g.trim()).filter(Boolean);
+      setAdditionalMenuGuids(allGuids.slice(1));
+    }
     setSaveName(config.name);
     setSaveDescription(config.description || "");
     setSaveOverwriteId(config.id);
     setLoadedEmbedConfigId(config.id);
     setLoadedEmbedConfigName(config.name);
+    setActiveDetailTab("web");
     setSelectedMenu(primaryGuid);
     setViewMode("detail");
     toast({ title: `"${config.name}" loaded`, description: "All settings restored. Edit, then resave." });
@@ -940,6 +947,21 @@ export function ToastMenuBrowser() {
     }
     if (!menuDetail) return null;
 
+    const handlePrint = (template: string) => openPrintView(buildPrintUrl(template));
+
+    // Web share URL — no page breaks, no columns
+    const sharedGroups = selectedPrintGroups.length > 0 ? selectedPrintGroups : undefined;
+    const sharedUrl = getEmbedUrl(selectedMenu, printTemplate, sharedGroups, undefined, undefined, printFooter, undefined, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+    const sharedEmbedCode = getEmbedCode(selectedMenu, printTemplate, sharedGroups, printFooter, printHideDescriptions, printHeader, printHidePricing, printHideWinePairing, printHeaderFontSize, printFooterFontSize, printShowImages);
+
+    // Merge menus helpers for Print tab
+    const primaryMenuName = menuDetail?.menu?.name || "";
+    const baseMenuName = primaryMenuName.replace(/\s*\(copy\)(\s+\d+)?$/i, "").trim();
+    const otherMenus = menus.filter(m => m.menuGuid !== selectedMenu);
+    const suggestedMenus = otherMenus.filter(m => baseMenuName && m.name.toLowerCase().includes(baseMenuName.toLowerCase()));
+    const restMenus = otherMenus.filter(m => !suggestedMenus.includes(m));
+    const sortedOtherMenus = [...suggestedMenus, ...restMenus];
+
     const { menu, groups, totalItems } = menuDetail;
     const filteredGroups = selectedPrintGroups.length > 0
       ? groups.filter(g => selectedPrintGroups.includes(g.groupGuid))
@@ -973,22 +995,6 @@ export function ToastMenuBrowser() {
             )}
             <Button
               variant="outline"
-              onClick={() => { setViewMode("embed"); }}
-              data-testid="button-get-embed"
-            >
-              <Code className="w-4 h-4 mr-2" />
-              Get Website Link
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => { setViewMode("print"); }}
-              data-testid="button-go-print"
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
-            <Button
-              variant="outline"
               onClick={() => {
                 if (loadedEmbedConfigId) {
                   setSaveDialogTab("update");
@@ -1006,11 +1012,11 @@ export function ToastMenuBrowser() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => window.open(buildPrintUrl(printTemplate), "_blank")}
+              onClick={() => window.open(sharedUrl, "_blank")}
               data-testid="button-preview-menu"
             >
               <Eye className="w-4 h-4 mr-2" />
-              Preview
+              Preview Web
             </Button>
           </div>
         </div>
@@ -1034,11 +1040,34 @@ export function ToastMenuBrowser() {
           </Card>
         )}
 
+        <div className="flex items-center gap-1 border-b pb-1">
+          <Button
+            variant={activeDetailTab === "web" ? "default" : "ghost"}
+            onClick={() => setActiveDetailTab("web")}
+            className="flex items-center gap-2"
+            data-testid="button-tab-web"
+          >
+            <Monitor className="w-4 h-4" />
+            Web
+          </Button>
+          <Button
+            variant={activeDetailTab === "print" ? "default" : "ghost"}
+            onClick={() => setActiveDetailTab("print")}
+            className="flex items-center gap-2"
+            data-testid="button-tab-print"
+          >
+            <Printer className="w-4 h-4" />
+            Print
+          </Button>
+        </div>
+
+        {activeDetailTab === "web" && (
+        <>
         <Card>
           <CardContent className="p-4 space-y-4">
             <div>
-              <p className="text-sm font-semibold">Menu Options</p>
-              <p className="text-xs text-muted-foreground mt-0.5">These settings apply to both the website link and the print view.</p>
+              <p className="text-sm font-semibold">Web &amp; Display Options</p>
+              <p className="text-xs text-muted-foreground mt-0.5">These settings control how the menu looks on the web share link and on print.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
@@ -1392,6 +1421,235 @@ export function ToastMenuBrowser() {
             )}
           </div>
         ))}
+
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold">Web Share Link</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Share this URL to let anyone view this menu in a browser. It does not include print page breaks.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                readOnly
+                value={sharedUrl}
+                className="flex-1 min-w-0 px-3 py-2 rounded-md border border-input bg-muted/30 text-xs font-mono"
+                data-testid="input-web-share-url"
+              />
+              <Button size="sm" variant="outline" onClick={() => copyToClipboard(sharedUrl)} data-testid="button-copy-web-url">
+                {copiedEmbed ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
+                {copiedEmbed ? "Copied" : "Copy URL"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => window.open(sharedUrl, "_blank")} data-testid="button-open-web-url">
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Open
+              </Button>
+            </div>
+            <div>
+              <p className="text-xs font-medium mb-1">Embed Code (iframe)</p>
+              <div className="flex items-start gap-2">
+                <Textarea
+                  readOnly
+                  value={sharedEmbedCode}
+                  className="flex-1 font-mono text-xs resize-none"
+                  rows={2}
+                  data-testid="textarea-embed-code"
+                />
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(sharedEmbedCode)} data-testid="button-copy-embed">
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        </>
+        )}
+
+        {activeDetailTab === "print" && (
+          <>
+            {sortedOtherMenus.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Merge Groups From Another Menu</label>
+                <p className="text-xs text-muted-foreground">
+                  Include groups from additional menus in this print job. Useful when related groups were imported as separate menus in Toast.
+                </p>
+                <div className="border rounded-md p-3 space-y-1 max-h-48 overflow-y-auto">
+                  {suggestedMenus.length > 0 && (
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pb-1">Related menus</p>
+                  )}
+                  {suggestedMenus.map(m => (
+                    <label key={m.menuGuid} className="flex items-center gap-2 px-1 py-1.5 rounded-md cursor-pointer hover-elevate" data-testid={`checkbox-merge-menu-${m.menuGuid}`}>
+                      <Checkbox
+                        checked={additionalMenuGuids.includes(m.menuGuid)}
+                        onCheckedChange={(checked) => {
+                          setAdditionalMenuGuids(prev =>
+                            checked ? [...prev, m.menuGuid] : prev.filter(g => g !== m.menuGuid)
+                          );
+                        }}
+                      />
+                      <p className="text-sm font-medium">{m.name}</p>
+                    </label>
+                  ))}
+                  {restMenus.length > 0 && suggestedMenus.length > 0 && (
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2 pb-1">Other menus</p>
+                  )}
+                  {restMenus.map(m => (
+                    <label key={m.menuGuid} className="flex items-center gap-2 px-1 py-1.5 rounded-md cursor-pointer hover-elevate" data-testid={`checkbox-merge-menu-${m.menuGuid}`}>
+                      <Checkbox
+                        checked={additionalMenuGuids.includes(m.menuGuid)}
+                        onCheckedChange={(checked) => {
+                          setAdditionalMenuGuids(prev =>
+                            checked ? [...prev, m.menuGuid] : prev.filter(g => g !== m.menuGuid)
+                          );
+                        }}
+                      />
+                      <p className="text-sm">{m.name}</p>
+                    </label>
+                  ))}
+                </div>
+                {additionalMenuGuids.length > 0 && (
+                  <p className="text-xs text-primary font-medium">
+                    {additionalMenuGuids.length} additional menu{additionalMenuGuids.length > 1 ? "s" : ""} merged — {allPrintGroups.length} total groups available
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Print Scale</label>
+                <p className="text-xs text-muted-foreground">Overall size of text on the printed page.</p>
+                <Select value={String(printScale)} onValueChange={(v) => setPrintScale(Number(v))}>
+                  <SelectTrigger data-testid="select-print-scale">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="70">70% — Very Small</SelectItem>
+                    <SelectItem value="80">80% — Small</SelectItem>
+                    <SelectItem value="90">90% — Slightly Small</SelectItem>
+                    <SelectItem value="100">100% — Normal</SelectItem>
+                    <SelectItem value="110">110% — Large</SelectItem>
+                    <SelectItem value="120">120% — Very Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Number of Pages / Columns</label>
+                <p className="text-xs text-muted-foreground">Splits the menu across multiple columns or pages.</p>
+                <Select value={String(printPages)} onValueChange={(v) => setPrintPages(Number(v))}>
+                  <SelectTrigger data-testid="select-print-pages">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Single column (default)</SelectItem>
+                    <SelectItem value="2">2 Pages / Columns</SelectItem>
+                    <SelectItem value="3">3 Pages</SelectItem>
+                    <SelectItem value="4">4 Pages</SelectItem>
+                    <SelectItem value="5">5 Pages</SelectItem>
+                    <SelectItem value="6">6 Pages</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {allPrintGroups.length > 1 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Page Breaks</label>
+                <p className="text-xs text-muted-foreground">Force a new page before specific courses when printing.</p>
+                <div className="flex flex-wrap gap-3">
+                  {allPrintGroups.map((g, idx) => {
+                    if (idx === 0) return null;
+                    const isChecked = printPageBreaks.includes(g.groupGuid);
+                    return (
+                      <label key={g.groupGuid} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            setPrintPageBreaks(prev =>
+                              checked ? [...prev, g.groupGuid] : prev.filter(id => id !== g.groupGuid)
+                            );
+                          }}
+                          data-testid={`checkbox-pagebreak-${g.groupGuid}`}
+                        />
+                        <span>Before "{g.name}"</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-sm font-medium mb-1">Choose a template and print</p>
+              <p className="text-xs text-muted-foreground mb-3">Each template opens a print-ready page in a new tab and triggers your browser's print dialog.</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Card className="overflow-hidden">
+                  <div className="aspect-[3/4] bg-[#1a1a18] flex flex-col items-center justify-center p-6 text-center">
+                    <p className="text-[#d4b896] font-serif text-xl tracking-widest uppercase mb-2">Fine Dining</p>
+                    <div className="w-8 h-px bg-[#a08c6e] mb-3" />
+                    <p className="text-[#e8dcc8] font-serif text-sm uppercase tracking-wider mb-1">Starters</p>
+                    <p className="text-[#b8a890] text-xs italic">Elegant serif typography</p>
+                    <p className="text-[#b8a890] text-xs italic">Dark background, gold accents</p>
+                  </div>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm">Fine Dining</p>
+                        <p className="text-xs text-muted-foreground">Dark, elegant, serif</p>
+                      </div>
+                      <Button size="sm" onClick={() => handlePrint("fine-dining")} data-testid="button-print-fine-dining">
+                        <Printer className="w-4 h-4 mr-1" />Print
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden">
+                  <div className="aspect-[3/4] bg-[#fafaf9] flex flex-col items-center justify-center p-6 text-center">
+                    <p className="text-[#1c1917] font-sans text-xl font-semibold mb-2">Modern Clean</p>
+                    <div className="w-full h-px bg-[#e7e5e4] mb-3" />
+                    <p className="text-[#44403c] font-sans text-sm font-semibold uppercase tracking-wider mb-1">Starters</p>
+                    <p className="text-[#78716c] text-xs">Clean sans-serif typography</p>
+                    <p className="text-[#78716c] text-xs">Light background, minimal</p>
+                  </div>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm">Modern Clean</p>
+                        <p className="text-xs text-muted-foreground">Light, minimal, sans-serif</p>
+                      </div>
+                      <Button size="sm" onClick={() => handlePrint("modern")} data-testid="button-print-modern">
+                        <Printer className="w-4 h-4 mr-1" />Print
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden">
+                  <div className="aspect-[3/4] bg-white flex flex-col items-center justify-center p-6 text-center">
+                    <p className="text-[#1c1917] font-sans text-lg font-bold uppercase tracking-wider mb-3">Beverage</p>
+                    <div className="w-full text-left space-y-1 px-2">
+                      <p className="text-[#1c1917] font-sans text-xs font-bold underline">Wine</p>
+                      <div className="flex justify-between text-[10px] text-[#44403c]"><span>Chardonnay</span><span>$12</span></div>
+                      <div className="flex justify-between text-[10px] text-[#44403c]"><span>Pinot Noir</span><span>$14</span></div>
+                    </div>
+                    <p className="text-[#78716c] text-xs mt-3 italic">Compact list, no descriptions</p>
+                  </div>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm">Beverage</p>
+                        <p className="text-xs text-muted-foreground">Compact list, names + prices</p>
+                      </div>
+                      <Button size="sm" onClick={() => handlePrint("beverage")} data-testid="button-print-beverage">
+                        <Printer className="w-4 h-4 mr-1" />Print
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </>
+        )}
       </>
     );
   };
