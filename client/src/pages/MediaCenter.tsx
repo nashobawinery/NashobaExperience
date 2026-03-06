@@ -7,6 +7,7 @@ import { ToastMenuBrowser } from "@/pages/command-center/ToastMenuBrowser";
 import MusicManager from "@/components/MusicManager";
 import SpecialEventsManager from "@/components/SpecialEventsManager";
 import ShelfTalkerPrinter from "@/components/ShelfTalkerPrinter";
+import FlightCardPrinter from "@/components/FlightCardPrinter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,7 @@ const CHANNEL_TYPES: Record<string, string> = {
 
 export default function MediaCenter() {
   const { toast } = useToast();
-  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "shelf-talkers">("nashobatv");
+  const [activeSection, setActiveSection] = useState<"nashobatv" | "menu-printer" | "live-music" | "special-events" | "shelf-talkers" | "flight-cards">("nashobatv");
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editChannel, setEditChannel] = useState<Channel | null>(null);
@@ -214,7 +215,7 @@ export default function MediaCenter() {
               Media Center
             </h1>
             <p className="text-muted-foreground mt-1">
-              Digital signage, live music, special events, printing tools, and shelf talkers.
+              Digital signage, live music, special events, menus, shelf talkers, and flight cards.
             </p>
           </div>
         </div>
@@ -285,6 +286,15 @@ export default function MediaCenter() {
           <Tag className="w-4 h-4" />
           Shelf Talkers
         </Button>
+        <Button
+          variant={activeSection === "flight-cards" ? "default" : "ghost"}
+          onClick={() => setActiveSection("flight-cards")}
+          className="flex items-center gap-2"
+          data-testid="button-section-flight-cards"
+        >
+          <Printer className="w-4 h-4" />
+          Flight Cards
+        </Button>
       </div>
 
       {activeSection === "live-music" && (
@@ -303,6 +313,10 @@ export default function MediaCenter() {
 
       {activeSection === "shelf-talkers" && (
         <ShelfTalkerPrinter />
+      )}
+
+      {activeSection === "flight-cards" && (
+        <FlightCardPrinter />
       )}
 
       {activeSection === "nashobatv" && ((!channels || channels.length === 0) ? (

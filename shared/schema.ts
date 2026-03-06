@@ -6201,3 +6201,28 @@ export const toastMenuEmbedConfigs = pgTable("toast_menu_embed_configs", {
 export const insertToastMenuEmbedConfigSchema = createInsertSchema(toastMenuEmbedConfigs).omit({ id: true, slug: true, createdAt: true, updatedAt: true });
 export type InsertToastMenuEmbedConfig = z.infer<typeof insertToastMenuEmbedConfigSchema>;
 export type ToastMenuEmbedConfig = typeof toastMenuEmbedConfigs.$inferSelect;
+
+// ─── Flight Card Configs ────────────────────────────────────────────────────
+export const flightCardConfigs = pgTable("flight_card_configs", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  header: text("header"),
+  footer: text("footer"),
+  productIds: text("product_ids").notNull().default(""),
+  template: varchar("template", { length: 50 }).default("classic"),
+  paperSize: varchar("paper_size", { length: 20 }).default("a6"),
+  showPrice: boolean("show_price").default(true),
+  showDescription: boolean("show_description").default(true),
+  showVintage: boolean("show_vintage").default(true),
+  showVarietal: boolean("show_varietal").default(true),
+  showAlcohol: boolean("show_alcohol").default(false),
+  showTastingLines: boolean("show_tasting_lines").default(false),
+  fontScale: integer("font_scale").default(100),
+  showOnStaffBoard: boolean("show_on_staff_board").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFlightCardConfigSchema = createInsertSchema(flightCardConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFlightCardConfig = z.infer<typeof insertFlightCardConfigSchema>;
+export type FlightCardConfig = typeof flightCardConfigs.$inferSelect;
