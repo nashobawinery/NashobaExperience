@@ -2,9 +2,10 @@ import { Router } from "express";
 import { db } from "../db";
 import { sql, eq, and, inArray, or } from "drizzle-orm";
 import { isAuthenticated, isAdmin } from "../replitAuth";
-import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus, toastMenuEmbedConfigs } from "@shared/schema";
+import { toastMenus, toastMenuGroups, toastMenuItems, staffPrintMenus, toastMenuEmbedConfigs, toastProductMap, products } from "@shared/schema";
 import {
   toastApiRequest,
+  toastApiWrite,
   getToastToken,
   getRestaurants,
   getRestaurantInfo,
@@ -585,6 +586,106 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
   } catch (error: any) {
     console.error("[Toast Menus] Sync error:", error.message);
     res.status(500).json({ error: error.message || "Failed to sync menus" });
+  }
+});
+
+// Push internal product descriptions to Toast menu items for all mapped products
+router.post("/descriptions/push", isAuthenticated, async (req, res) => {
+  try {
+    const { itemGuids } = req.body as { itemGuids?: string[] };
+
+    // Get all mappings with a product assigned and not ignored
+    const mappings = await db.select().from(toastProductMap)
+      .where(and(eq(toastProductMap.isIgnored, false)));
+
+    const mapped = mappings.filter(m => m.productId && m.itemGuid && m.restaurantGuid);
+    const targetMappings = itemGuids && itemGuids.length > 0
+      ? mapped.filter(m => itemGuids.includes(m.itemGuid))
+      : mapped;
+
+    if (targetMappings.length === 0) {
+      return res.json({ pushed: 0, failed: 0, skipped: 0, results: [], message: "No mapped items to push" });
+    }
+
+    // Load all needed products
+    const productIds = [...new Set(targetMappings.map(m => m.productId!))];
+    const productList = await db.select({ id: products.id, name: products.name, description: products.description })
+      .from(products)
+      .where(inArray(products.id, productIds));
+    const productMap = new Map(productList.map(p => [p.id, p]));
+
+    // Group by restaurantGuid
+    const byRestaurant = new Map<string, typeof targetMappings>();
+    for (const m of targetMappings) {
+      const rg = m.restaurantGuid!;
+      if (!byRestaurant.has(rg)) byRestaurant.set(rg, []);
+      byRestaurant.get(rg)!.push(m);
+    }
+
+    let pushed = 0;
+    let failed = 0;
+    let skipped = 0;
+    const results: Array<{ itemName: string; itemGuid: string; status: string; detail?: string }> = [];
+
+    for (const [restaurantGuid, items] of byRestaurant) {
+      // Build payload: only include items where product has a description
+      const payload = items.map(m => {
+        const product = productMap.get(m.productId!);
+        if (!product?.description?.trim()) return null;
+        return {
+          entityType: "MenuItem",
+          guid: m.itemGuid,
+          description: product.description.trim(),
+        };
+      }).filter(Boolean);
+
+      const noDesc = items.filter(m => {
+        const product = productMap.get(m.productId!);
+        return !product?.description?.trim();
+      });
+      for (const m of noDesc) {
+        skipped++;
+        results.push({ itemName: m.itemName, itemGuid: m.itemGuid, status: "skipped", detail: "No description on internal product" });
+      }
+
+      if (payload.length === 0) continue;
+
+      console.log(`[Toast Push] Pushing ${payload.length} item descriptions to restaurant ${restaurantGuid}`);
+      const result = await toastApiWrite("/menus/v2/menuItems", "PUT", payload, restaurantGuid);
+
+      if (result.ok) {
+        for (const item of payload) {
+          pushed++;
+          const mapping = items.find(m => m.itemGuid === (item as any).guid);
+          results.push({ itemName: mapping?.itemName || (item as any).guid, itemGuid: (item as any).guid, status: "success" });
+        }
+        console.log(`[Toast Push] Successfully pushed ${payload.length} descriptions`);
+      } else {
+        const errDetail = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+        let userFriendlyError = `HTTP ${result.status}: ${errDetail.substring(0, 200)}`;
+        if (result.status === 403 || result.status === 405) {
+          userFriendlyError = `Toast API returned ${result.status} — your integration does not have menu write permission. Contact your Toast account representative to enable the Menu Management write scope.`;
+        } else if (result.status === 404) {
+          userFriendlyError = `Toast API returned 404 — the menu write endpoint is not available on your current integration tier. Contact your Toast account representative to enable menu write access.`;
+        }
+        console.error(`[Toast Push] Failed for restaurant ${restaurantGuid}: HTTP ${result.status} — ${errDetail}`);
+        for (const item of payload) {
+          failed++;
+          const mapping = items.find(m => m.itemGuid === (item as any).guid);
+          results.push({
+            itemName: mapping?.itemName || (item as any).guid,
+            itemGuid: (item as any).guid,
+            status: "failed",
+            detail: userFriendlyError,
+          });
+        }
+      }
+    }
+
+    res.json({ pushed, failed, skipped, results });
+  } catch (error: any) {
+    console.error("[Toast Push] Error:", error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 

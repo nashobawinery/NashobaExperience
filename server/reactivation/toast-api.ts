@@ -65,6 +65,34 @@ export async function toastApiRequest(path: string, restaurantGuid?: string): Pr
   return response.json();
 }
 
+export async function toastApiWrite(
+  path: string,
+  method: "PUT" | "PATCH" | "POST",
+  body: any,
+  restaurantGuid?: string
+): Promise<{ ok: boolean; status: number; data: any }> {
+  const token = await getToastToken();
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  if (restaurantGuid) {
+    headers["Toast-Restaurant-External-ID"] = restaurantGuid;
+  }
+
+  const response = await fetch(`${TOAST_API_HOST}${path}`, {
+    method,
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  let data: any = null;
+  try { data = JSON.parse(text); } catch { data = text; }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
 export async function getRestaurants(): Promise<any[]> {
   return toastApiRequest("/partners/v1/restaurants");
 }

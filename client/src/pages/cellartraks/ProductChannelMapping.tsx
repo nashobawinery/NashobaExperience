@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   RefreshCw, Search, Eye, EyeOff, Link2, Unlink, Store, ShoppingBag, Package,
-  CheckCircle2, AlertCircle, ArrowUpDown, Filter
+  CheckCircle2, AlertCircle, ArrowUpDown, Filter, Upload
 } from "lucide-react";
 
 interface ProductOption {
@@ -162,6 +162,35 @@ function ToastMappingTab() {
     onError: (err: any) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
   });
 
+  const pushDescriptionsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/toast/descriptions/push");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.error) {
+        toast({ title: "Push Failed", description: data.error, variant: "destructive" });
+        return;
+      }
+      const total = (data.pushed || 0) + (data.failed || 0) + (data.skipped || 0);
+      if (data.pushed > 0) {
+        toast({
+          title: "Descriptions Pushed",
+          description: `${data.pushed} of ${total} items updated in Toast${data.failed > 0 ? `, ${data.failed} failed` : ""}${data.skipped > 0 ? `, ${data.skipped} skipped (no description)` : ""}`,
+        });
+      } else if (data.failed > 0) {
+        toast({
+          title: "Push Failed",
+          description: `Toast API returned an error — your API credentials may not have menu write permission. Check with your Toast account team.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Nothing to Push", description: data.message || "No mapped items with descriptions found." });
+      }
+    },
+    onError: (err: any) => toast({ title: "Push Failed", description: err.message, variant: "destructive" }),
+  });
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, productId, isIgnored }: { id: number; productId?: string | null; isIgnored?: boolean }) => {
       const res = await apiRequest("PATCH", `/api/cellartraks/product-channel-mapping/toast/${id}`, { productId, isIgnored });
@@ -215,6 +244,15 @@ function ToastMappingTab() {
             {data?.mappings && data.mappings.length === 0 && (
               <p className="text-sm text-muted-foreground">No items yet - sync from Toast first</p>
             )}
+            <Button
+              variant="outline"
+              onClick={() => pushDescriptionsMutation.mutate()}
+              disabled={pushDescriptionsMutation.isPending}
+              data-testid="button-push-descriptions"
+            >
+              <Upload className={`h-3.5 w-3.5 mr-1.5 ${pushDescriptionsMutation.isPending ? "animate-bounce" : ""}`} />
+              {pushDescriptionsMutation.isPending ? "Pushing..." : "Push Descriptions to Toast"}
+            </Button>
             <Button
               variant="outline"
               onClick={() => syncMutation.mutate()}
