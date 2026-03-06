@@ -1239,6 +1239,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
     res.send(html);
   } catch (error: any) {
     res.status(500).send("<html><body><p>Error loading menu</p></body></html>");
@@ -1582,6 +1583,7 @@ router.get("/public/menus/embed", async (req, res) => {
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "no-store");
     res.send(html);
   } catch (error: any) {
     res.status(500).send("<html><body><p>Error loading combined menu</p></body></html>");
