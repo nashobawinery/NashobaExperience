@@ -1551,30 +1551,73 @@ export function ToastMenuBrowser() {
               </div>
             </div>
 
-            {allPrintGroups.length > 1 && (
+            {allPrintGroups.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Page Breaks</label>
-                <p className="text-xs text-muted-foreground">Force a new page before specific courses when printing.</p>
-                <div className="flex flex-wrap gap-3">
-                  {allPrintGroups.map((g, idx) => {
-                    if (idx === 0) return null;
-                    const isChecked = printPageBreaks.includes(g.groupGuid);
+                <div>
+                  <label className="text-sm font-medium">Page Breaks</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Mark where the printer should start a new page. You can break before a course or after any item.
+                  </p>
+                </div>
+                <div className="border rounded-md overflow-y-auto max-h-72">
+                  {allPrintGroups.map((g, gIdx) => {
+                    const groupItems = (g.items || []).filter((item: ToastMenuItemData) => !item.hidden);
                     return (
-                      <label key={g.groupGuid} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={(checked) => {
-                            setPrintPageBreaks(prev =>
-                              checked ? [...prev, g.groupGuid] : prev.filter(id => id !== g.groupGuid)
-                            );
-                          }}
-                          data-testid={`checkbox-pagebreak-${g.groupGuid}`}
-                        />
-                        <span>Before "{g.name}"</span>
-                      </label>
+                      <div key={g.groupGuid} className="border-b last:border-b-0">
+                        {gIdx > 0 && (
+                          <label className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 cursor-pointer hover-elevate" data-testid={`checkbox-pagebreak-before-${g.groupGuid}`}>
+                            <Checkbox
+                              checked={printPageBreaks.includes(g.groupGuid)}
+                              onCheckedChange={(checked) => {
+                                setPrintPageBreaks(prev =>
+                                  checked ? [...prev, g.groupGuid] : prev.filter(id => id !== g.groupGuid)
+                                );
+                              }}
+                            />
+                            <span className="text-xs text-primary font-medium">Break before "{g.name}"</span>
+                          </label>
+                        )}
+                        <div className="px-3 py-1 bg-muted/30">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.name}</span>
+                          {gIdx === 0 && <span className="text-xs text-muted-foreground ml-2">(first course — no break before)</span>}
+                        </div>
+                        {groupItems.map((item: ToastMenuItemData) => (
+                          <label
+                            key={item.itemGuid}
+                            className="flex items-center gap-2 px-3 py-1.5 border-t border-border/30 cursor-pointer hover-elevate"
+                            data-testid={`checkbox-pagebreak-after-${item.itemGuid}`}
+                          >
+                            <Checkbox
+                              checked={printPageBreaks.includes(item.itemGuid)}
+                              onCheckedChange={(checked) => {
+                                setPrintPageBreaks(prev =>
+                                  checked ? [...prev, item.itemGuid] : prev.filter(id => id !== item.itemGuid)
+                                );
+                              }}
+                            />
+                            <span className="text-sm truncate flex-1">{item.name.replace(/\s*\((GF|V|VG|DF|NF)\)\s*/gi, " ").trim()}</span>
+                            {printPageBreaks.includes(item.itemGuid) && (
+                              <span className="text-xs text-primary shrink-0">break after</span>
+                            )}
+                          </label>
+                        ))}
+                        {groupItems.length === 0 && (
+                          <p className="px-3 py-1.5 text-xs text-muted-foreground italic">No visible items</p>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
+                {printPageBreaks.length > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-primary font-medium">
+                      {printPageBreaks.length} page break{printPageBreaks.length > 1 ? "s" : ""} set
+                    </p>
+                    <Button size="sm" variant="ghost" onClick={() => setPrintPageBreaks([])} className="text-xs h-7 px-2" data-testid="button-clear-pagebreaks">
+                      Clear all
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
