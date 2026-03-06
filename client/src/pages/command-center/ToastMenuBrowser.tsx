@@ -785,10 +785,10 @@ export function ToastMenuBrowser() {
             Saved menus can be printed instantly, shared via a permanent link, or pinned to the Staff Print Board for front-of-house staff.{" "}
             <button
               onClick={() => setViewMode("docs")}
-              className="text-primary underline-offset-2 hover:underline font-medium"
+              className="text-primary underline font-medium"
               data-testid="link-view-docs-inline"
             >
-              How it works
+              Click here for more information.
             </button>
           </div>
         </div>
