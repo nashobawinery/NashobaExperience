@@ -970,6 +970,34 @@ export function ToastMenuBrowser() {
 
     return (
       <>
+        <Card className="bg-muted/40">
+          <CardContent className="p-3">
+            <div className="grid gap-2 sm:grid-cols-3 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <Monitor className="w-3.5 h-3.5 mt-0.5 shrink-0 text-foreground" />
+                <div>
+                  <p className="font-semibold text-foreground">Web tab</p>
+                  <p>Customize how the menu looks as a shareable link or embedded widget — template, fonts, header/footer text, and item display options.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Printer className="w-3.5 h-3.5 mt-0.5 shrink-0 text-foreground" />
+                <div>
+                  <p className="font-semibold text-foreground">Print tab</p>
+                  <p>Merge menus, set item-level page breaks, adjust print scale, then choose a template to open a print-ready page in a new tab.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <BookMarked className="w-3.5 h-3.5 mt-0.5 shrink-0 text-foreground" />
+                <div>
+                  <p className="font-semibold text-foreground">Saving</p>
+                  <p>Click <span className="font-medium text-foreground">Save Menu</span> to store all current settings as a named configuration. Saved menus can be reloaded and pinned to the Staff Print Board.</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex items-center gap-3 flex-wrap">
           <Button variant="ghost" size="icon" onClick={goBack} data-testid="button-back-menus">
             <ArrowLeft className="w-4 h-4" />
