@@ -1248,7 +1248,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-family: 'EB Garamond', serif; font-size: ${(1.1 * descFontSize).toFixed(2)}rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
@@ -1311,7 +1311,7 @@ router.get("/public/menu/:menuGuid/embed", async (req, res) => {
         .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-size: ${(1.0 * descFontSize).toFixed(2)}rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
@@ -1639,7 +1639,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-family: 'EB Garamond', serif; font-size: ${(1.1 * descFontSize).toFixed(2)}rem; color: #b8a890; margin-top: 4px; line-height: 1.5; max-width: 600px; margin-left: auto; margin-right: auto; }
         .item-pairing { font-family: 'EB Garamond', serif; font-size: 1.1rem; color: #a08c6e; margin-top: 4px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { text-align: center; margin-bottom: 12px; }
         .item-img { width: 200px; height: 140px; object-fit: cover; border-radius: 4px; opacity: 0.9; }
         ${dietaryTagsCss}
@@ -1702,7 +1702,7 @@ router.get("/public/menus/embed", async (req, res) => {
         .size-sep { margin: 0 5px; opacity: 0.4; }
         .item-description { font-size: ${(1.0 * descFontSize).toFixed(2)}rem; color: #78716c; margin-top: 4px; line-height: 1.4; }
         .item-pairing { font-size: 1rem; color: #78716c; margin-top: 2px; font-style: italic; }
-        .item-pairing::before { content: "Suggested Pairings: "; font-weight: normal; }
+        .item-pairing::before { content: "Suggested Pairing: "; font-weight: normal; }
         .item-image-wrap { margin-bottom: 10px; }
         .item-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 4px; }
         ${dietaryTagsCss}
