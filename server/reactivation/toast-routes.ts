@@ -243,12 +243,14 @@ router.get("/menus/available", isAuthenticated, async (req, res) => {
 
 router.post("/menus/sync", isAuthenticated, async (req, res) => {
   try {
-    const { restaurantGuid, menuGuids } = req.body;
+    const { restaurantGuid, menuGuids, groupGuids, itemGuids } = req.body;
     if (!restaurantGuid) {
       return res.status(400).json({ error: "restaurantGuid is required" });
     }
 
     const selectedGuids: string[] | null = Array.isArray(menuGuids) && menuGuids.length > 0 ? menuGuids : null;
+    const selectedGroupGuids: string[] | null = Array.isArray(groupGuids) && groupGuids.length > 0 ? groupGuids : null;
+    const selectedItemGuids: string[] | null = Array.isArray(itemGuids) && itemGuids.length > 0 ? itemGuids : null;
 
     console.log(`[Toast Menus] Starting menu sync for restaurant ${restaurantGuid}${selectedGuids ? ` (${selectedGuids.length} selected)` : " (all)"}`);
     const rawResponse = await getMenus(restaurantGuid);
@@ -333,7 +335,16 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
       console.log(`[Toast Menus] Preserved ${existingOverrides.size} item overrides (hidden/hidePrice/isSpecial/pairing/description)`);
     }
 
-    if (selectedGuids) {
+    if (selectedItemGuids) {
+      for (const iGuid of selectedItemGuids) {
+        await db.delete(toastMenuItems).where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid), eq(toastMenuItems.itemGuid, iGuid)));
+      }
+    } else if (selectedGroupGuids) {
+      for (const gGuid of selectedGroupGuids) {
+        await db.delete(toastMenuItems).where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid), eq(toastMenuItems.groupGuid, gGuid)));
+        await db.delete(toastMenuGroups).where(and(eq(toastMenuGroups.restaurantGuid, restaurantGuid), eq(toastMenuGroups.groupGuid, gGuid)));
+      }
+    } else if (selectedGuids) {
       for (const guid of selectedGuids) {
         await db.delete(toastMenuItems).where(and(eq(toastMenuItems.restaurantGuid, restaurantGuid), eq(toastMenuItems.menuGuid, guid)));
         await db.delete(toastMenuGroups).where(and(eq(toastMenuGroups.restaurantGuid, restaurantGuid), eq(toastMenuGroups.menuGuid, guid)));
@@ -384,6 +395,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
         const groupName = group.name || "Unnamed Group";
 
         if (!groupGuid) continue;
+        if (selectedGroupGuids && !selectedGroupGuids.includes(groupGuid)) continue;
 
         await db.insert(toastMenuGroups).values({
           groupGuid,
@@ -403,6 +415,7 @@ router.post("/menus/sync", isAuthenticated, async (req, res) => {
           const itemGuid = item.guid || item.id || item.itemId || "";
           const itemName = item.name || "Unnamed Item";
           if (!itemGuid) continue;
+          if (selectedItemGuids && !selectedItemGuids.includes(itemGuid)) continue;
 
           let price: string | null = null;
           let sizePrices: string | null = null;
