@@ -318,13 +318,11 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
     );
   }
 
-  if (menusLoading || syncMutation.isPending) {
+  if (menusLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">
-          {syncMutation.isPending ? "Syncing menus from Toast..." : "Loading menus..."}
-        </span>
+        <span className="ml-2 text-sm text-muted-foreground">Loading menus...</span>
       </div>
     );
   }
@@ -340,7 +338,7 @@ export default function ToastMenuPrinter({ testIdPrefix = "mc" }: ToastMenuPrint
         </div>
         <Button
           onClick={handleOpenSyncDialog}
-          disabled={syncMutation.isPending || !restaurantGuid}
+          disabled={!restaurantGuid}
           data-testid={`${testIdPrefix}-button-sync-menus`}
         >
           <RefreshCw className="w-4 h-4 mr-2" />

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ToastMenuPrinter from "@/components/ToastMenuPrinter";
+import { ToastSyncDialog } from "@/components/ToastSyncDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,13 +122,6 @@ function formatDate(dateStr: string): string {
   });
 }
 
-interface AvailableMenu {
-  guid: string;
-  name: string;
-  groupCount: number;
-  itemCount: number;
-}
-
 type ActiveSection = "menus" | "embed" | "print" | "reservations" | "docs";
 
 function ToastConnectContent() {
@@ -202,72 +196,9 @@ function ToastConnectContent() {
     },
   });
 
-  const handleOpenSyncDialog = async () => {
+  const handleOpenSyncDialog = () => {
     setShowSyncDialog(true);
-    setSelectedMenuGuids([]);
-    setSelectedGroupGuids([]);
-    setSelectedItemGuids([]);
-    setExpandedMenusInSync(new Set());
-    setExpandedGroupsInSync(new Set());
-    fetchAvailableMenus();
   };
-
-  const toggleMenuGuid = (guid: string) => {
-    setSelectedMenuGuids(prev =>
-      prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
-    );
-  };
-
-  const loadMenuDetailForSync = async (menuGuid: string) => {
-    if (menuDetailCache[menuGuid]) return;
-    try {
-      const res = await fetch(`/api/toast/public/menu/${menuGuid}?includeHidden=true`);
-      if (res.ok) {
-        const data = await res.json();
-        setMenuDetailCache(prev => ({ ...prev, [menuGuid]: data }));
-      }
-    } catch (_e) {}
-  };
-
-  const getEffectiveSyncParams = (): { menuGuids?: string[]; groupGuids?: string[]; itemGuids?: string[] } | null => {
-    if (selectedItemGuids.length > 0) {
-      const parentGroupGuids = new Set<string>();
-      const parentMenuGuids = new Set<string>();
-      for (const [menuGuid, detail] of Object.entries(menuDetailCache)) {
-        for (const group of detail.groups) {
-          for (const item of group.items) {
-            if (selectedItemGuids.includes(item.itemGuid)) {
-              parentGroupGuids.add(group.groupGuid);
-              parentMenuGuids.add(menuGuid);
-            }
-          }
-        }
-      }
-      return { menuGuids: Array.from(parentMenuGuids), groupGuids: Array.from(parentGroupGuids), itemGuids: selectedItemGuids };
-    }
-    if (selectedGroupGuids.length > 0) {
-      const parentMenuGuids = new Set<string>();
-      for (const [menuGuid, detail] of Object.entries(menuDetailCache)) {
-        for (const group of detail.groups) {
-          if (selectedGroupGuids.includes(group.groupGuid)) parentMenuGuids.add(menuGuid);
-        }
-      }
-      return { menuGuids: Array.from(parentMenuGuids), groupGuids: selectedGroupGuids };
-    }
-    if (selectedMenuGuids.length > 0) {
-      return { menuGuids: selectedMenuGuids };
-    }
-    return null;
-  };
-
-  const syncSelectionLabel = (): string => {
-    if (selectedItemGuids.length > 0) return `Sync ${selectedItemGuids.length} item${selectedItemGuids.length === 1 ? "" : "s"}`;
-    if (selectedGroupGuids.length > 0) return `Sync ${selectedGroupGuids.length} course${selectedGroupGuids.length === 1 ? "" : "s"}`;
-    if (selectedMenuGuids.length > 0) return `Sync ${selectedMenuGuids.length} menu${selectedMenuGuids.length === 1 ? "" : "s"}`;
-    return "Sync Selected";
-  };
-
-  const hasSelection = selectedMenuGuids.length > 0 || selectedGroupGuids.length > 0 || selectedItemGuids.length > 0;
 
   const getEmbedUrl = (menuGuid: string, template: string, groupGuids?: string[], scale?: number, useNames = false, pages?: number, footer?: string, pageBreaks?: string[], hideDescriptions?: boolean) => {
     const base = window.location.origin;
@@ -437,10 +368,10 @@ function ToastConnectContent() {
           )}
           <Button
             onClick={handleOpenSyncDialog}
-            disabled={!restaurantGuid || syncMutation.isPending}
+            disabled={!restaurantGuid}
             data-testid="button-sync-menus"
           >
-            {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            <RefreshCw className="w-4 h-4 mr-2" />
             Sync from Toast
           </Button>
         </div>
@@ -1056,225 +987,12 @@ function ToastConnectContent() {
         </div>
       </div>
 
-      <Dialog open={showSyncDialog} onOpenChange={(open) => {
-        setShowSyncDialog(open);
-        if (!open) {
-          setSelectedMenuGuids([]);
-          setSelectedGroupGuids([]);
-          setSelectedItemGuids([]);
-          setExpandedMenusInSync(new Set());
-          setExpandedGroupsInSync(new Set());
-        }
-      }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Sync Menus from Toast</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Expand a menu to select specific courses or individual items, or sync everything at once.
-          </p>
-
-          {availableLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-              <span className="text-sm text-muted-foreground">Loading menus from Toast...</span>
-            </div>
-          ) : availableMenus.length === 0 ? (
-            <div className="py-8 text-center">
-              <UtensilsCrossed className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">No menus found in your Toast account.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-xs text-muted-foreground">
-                  {selectedItemGuids.length > 0
-                    ? `${selectedItemGuids.length} item${selectedItemGuids.length === 1 ? "" : "s"} selected`
-                    : selectedGroupGuids.length > 0
-                    ? `${selectedGroupGuids.length} course${selectedGroupGuids.length === 1 ? "" : "s"} selected`
-                    : selectedMenuGuids.length > 0
-                    ? `${selectedMenuGuids.length} menu${selectedMenuGuids.length === 1 ? "" : "s"} selected`
-                    : "Select to narrow sync, or use Sync All"}
-                </p>
-                {hasSelection && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMenuGuids([]);
-                      setSelectedGroupGuids([]);
-                      setSelectedItemGuids([]);
-                    }}
-                    data-testid="button-clear-selection"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-
-              <div className="max-h-80 overflow-y-auto border rounded-md p-1 space-y-0.5">
-                {availableMenus.map((m) => {
-                  const isMenuChecked = selectedMenuGuids.includes(m.guid);
-                  const isMenuExpanded = expandedMenusInSync.has(m.guid);
-                  const detail = menuDetailCache[m.guid];
-                  const isLoadingDetail = isMenuExpanded && !detail;
-
-                  return (
-                    <div key={m.guid}>
-                      <div className="flex items-center gap-1.5 p-1.5 rounded-md hover-elevate" data-testid={`menu-row-${m.guid}`}>
-                        <button
-                          type="button"
-                          className="p-0.5 shrink-0"
-                          onClick={() => {
-                            setExpandedMenusInSync(prev => {
-                              const next = new Set(prev);
-                              if (next.has(m.guid)) { next.delete(m.guid); } else { next.add(m.guid); loadMenuDetailForSync(m.guid); }
-                              return next;
-                            });
-                          }}
-                          data-testid={`button-expand-menu-${m.guid}`}
-                        >
-                          <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", isMenuExpanded ? "rotate-90" : "")} />
-                        </button>
-                        <Checkbox
-                          checked={isMenuChecked}
-                          onCheckedChange={() => toggleMenuGuid(m.guid)}
-                          data-testid={`checkbox-menu-${m.guid}`}
-                        />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleMenuGuid(m.guid)}>
-                          <p className="text-sm font-medium truncate">{m.name}</p>
-                          <p className="text-xs text-muted-foreground">{m.groupCount} courses · {m.itemCount} items</p>
-                        </div>
-                      </div>
-
-                      {isMenuExpanded && (
-                        <div className="ml-7 space-y-0.5 mb-1">
-                          {isLoadingDetail ? (
-                            <div className="flex items-center gap-2 py-2 px-2">
-                              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Loading courses...</span>
-                            </div>
-                          ) : !detail || detail.groups.length === 0 ? (
-                            <p className="text-xs text-muted-foreground px-2 py-1">No courses found — sync the menu first.</p>
-                          ) : (
-                            detail.groups.map((group) => {
-                              const isGroupChecked = selectedGroupGuids.includes(group.groupGuid);
-                              const isGroupExpanded = expandedGroupsInSync.has(group.groupGuid);
-
-                              return (
-                                <div key={group.groupGuid}>
-                                  <div className="flex items-center gap-1.5 p-1.5 rounded-md hover-elevate" data-testid={`group-row-${group.groupGuid}`}>
-                                    <button
-                                      type="button"
-                                      className="p-0.5 shrink-0"
-                                      onClick={() => setExpandedGroupsInSync(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(group.groupGuid)) { next.delete(group.groupGuid); } else { next.add(group.groupGuid); }
-                                        return next;
-                                      })}
-                                      data-testid={`button-expand-group-${group.groupGuid}`}
-                                    >
-                                      <ChevronRight className={cn("w-3 h-3 text-muted-foreground transition-transform", isGroupExpanded ? "rotate-90" : "")} />
-                                    </button>
-                                    <Checkbox
-                                      checked={isGroupChecked}
-                                      onCheckedChange={() => {
-                                        setSelectedGroupGuids(prev =>
-                                          prev.includes(group.groupGuid)
-                                            ? prev.filter(g => g !== group.groupGuid)
-                                            : [...prev, group.groupGuid]
-                                        );
-                                        if (isGroupChecked) {
-                                          const itemGuidsInGroup = group.items.map(i => i.itemGuid);
-                                          setSelectedItemGuids(prev => prev.filter(id => !itemGuidsInGroup.includes(id)));
-                                        }
-                                      }}
-                                      data-testid={`checkbox-group-${group.groupGuid}`}
-                                    />
-                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
-                                      setSelectedGroupGuids(prev =>
-                                        prev.includes(group.groupGuid)
-                                          ? prev.filter(g => g !== group.groupGuid)
-                                          : [...prev, group.groupGuid]
-                                      );
-                                    }}>
-                                      <p className="text-sm truncate">{group.name}</p>
-                                      <p className="text-xs text-muted-foreground">{group.items.length} items</p>
-                                    </div>
-                                  </div>
-
-                                  {isGroupExpanded && (
-                                    <div className="ml-6 space-y-0.5 mb-1">
-                                      {group.items.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground px-2 py-1">No items</p>
-                                      ) : (
-                                        group.items.map((item) => (
-                                          <label
-                                            key={item.itemGuid}
-                                            className="flex items-center gap-1.5 p-1.5 rounded-md hover-elevate cursor-pointer"
-                                            data-testid={`item-row-${item.itemGuid}`}
-                                          >
-                                            <div className="w-3.5 shrink-0" />
-                                            <Checkbox
-                                              checked={selectedItemGuids.includes(item.itemGuid)}
-                                              onCheckedChange={() => setSelectedItemGuids(prev =>
-                                                prev.includes(item.itemGuid)
-                                                  ? prev.filter(id => id !== item.itemGuid)
-                                                  : [...prev, item.itemGuid]
-                                              )}
-                                              data-testid={`checkbox-item-${item.itemGuid}`}
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-xs truncate">{item.name}</p>
-                                              {item.price && <p className="text-xs text-muted-foreground">${parseFloat(item.price).toFixed(2)}</p>}
-                                            </div>
-                                          </label>
-                                        ))
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2 pt-2 flex-wrap">
-            <Button variant="outline" onClick={() => setShowSyncDialog(false)} data-testid="button-cancel-sync">
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => restaurantGuid && syncMutation.mutate({ guid: restaurantGuid })}
-              disabled={syncMutation.isPending || availableLoading || availableMenus.length === 0}
-              data-testid="button-sync-all"
-            >
-              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Sync All
-            </Button>
-            <Button
-              onClick={() => {
-                if (!restaurantGuid) return;
-                const params = getEffectiveSyncParams();
-                if (!params) return;
-                syncMutation.mutate({ guid: restaurantGuid, ...params });
-              }}
-              disabled={syncMutation.isPending || !hasSelection}
-              data-testid="button-sync-selected"
-            >
-              {syncMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ListFilter className="w-4 h-4 mr-2" />}
-              {syncSelectionLabel()}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ToastSyncDialog
+        restaurantGuid={restaurantGuid}
+        open={showSyncDialog}
+        onOpenChange={setShowSyncDialog}
+        testIdPrefix="toast-connect"
+      />
     </SidebarProvider>
   );
 }
