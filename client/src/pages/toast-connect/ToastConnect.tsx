@@ -138,12 +138,6 @@ function ToastConnectContent() {
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [embedTemplate, setEmbedTemplate] = useState("fine-dining");
   const [showSyncDialog, setShowSyncDialog] = useState(false);
-  const [selectedMenuGuids, setSelectedMenuGuids] = useState<string[]>([]);
-  const [selectedGroupGuids, setSelectedGroupGuids] = useState<string[]>([]);
-  const [selectedItemGuids, setSelectedItemGuids] = useState<string[]>([]);
-  const [expandedMenusInSync, setExpandedMenusInSync] = useState<Set<string>>(new Set());
-  const [expandedGroupsInSync, setExpandedGroupsInSync] = useState<Set<string>>(new Set());
-  const [menuDetailCache, setMenuDetailCache] = useState<Record<string, MenuDetailData>>({});
   const [selectedEmbedGroups, setSelectedEmbedGroups] = useState<string[]>([]);
 
   const { data: statusData, isLoading: statusLoading } = useQuery<{
@@ -174,41 +168,6 @@ function ToastConnectContent() {
     enabled: !!selectedMenu,
   });
 
-
-  const { data: availableMenus = [], isLoading: availableLoading, refetch: fetchAvailableMenus } = useQuery<AvailableMenu[]>({
-    queryKey: ["/api/toast/menus/available", { restaurantGuid }],
-    enabled: false,
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: async ({ guid, menuGuids, groupGuids, itemGuids }: { guid: string; menuGuids?: string[]; groupGuids?: string[]; itemGuids?: string[] }) => {
-      const body: any = { restaurantGuid: guid };
-      if (menuGuids && menuGuids.length > 0) body.menuGuids = menuGuids;
-      if (groupGuids && groupGuids.length > 0) body.groupGuids = groupGuids;
-      if (itemGuids && itemGuids.length > 0) body.itemGuids = itemGuids;
-      const res = await apiRequest("POST", "/api/toast/menus/sync", body);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ predicate: (query) => {
-        const key = query.queryKey[0] as string;
-        return key?.startsWith?.("/api/toast/");
-      }});
-      setShowSyncDialog(false);
-      setSelectedMenuGuids([]);
-      setSelectedGroupGuids([]);
-      setSelectedItemGuids([]);
-      setExpandedMenusInSync(new Set());
-      setExpandedGroupsInSync(new Set());
-      toast({
-        title: "Sync complete",
-        description: `Synced ${data.menuCount} menus, ${data.groupCount} groups, ${data.itemCount} items`,
-      });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
-    },
-  });
 
   const syncSingleMenu = useMutation({
     mutationFn: async (menuGuid: string) => {
