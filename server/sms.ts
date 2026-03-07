@@ -118,9 +118,8 @@ export function generateReservationReminderSMS(data: {
   const { customerName, experienceName, reservationTime, confirmationToken, status } = data;
   
   // Generate confirmation URL if needed
-  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-    : (process.env.PUBLIC_URL || 'https://nashobawinery.com');
+  const baseUrl = process.env.APP_URL
+    || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'https://nashobawinery.org');
   const confirmUrl = confirmationToken ? `${baseUrl}/reservations/confirm/${confirmationToken}` : null;
   const needsConfirmation = status === 'booked' && confirmationToken;
   

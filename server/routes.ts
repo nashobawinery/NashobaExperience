@@ -8184,11 +8184,8 @@ ${JSON.stringify(featureCatalog.map(f => ({ name: f.name, path: f.path, descript
       `);
       
       // Build completion URL
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://localhost:5000';
+      const baseUrl = process.env.APP_URL
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
       const completionUrl = `${baseUrl}/compliance/complete?token=${token}`;
 
       const subject = `Compliance Reminder: ${task.task_name}`;

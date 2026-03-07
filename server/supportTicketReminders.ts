@@ -87,9 +87,8 @@ async function sendReminderToAssignedAgents(ticket: any) {
     return;
   }
   
-  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL
+    || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
   
   // Get platform users for proper display names
   const rbac = await import('./rbac');
@@ -129,9 +128,8 @@ async function sendEscalationToAllAgents(ticket: any) {
     return;
   }
   
-  const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : 'http://localhost:5000';
+  const baseUrl = process.env.APP_URL
+    || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
   
   // Get platform users for proper display names
   const rbac = await import('./rbac');
@@ -376,9 +374,8 @@ async function sendManualAgentNotification(ticketId: string, agentId: string): P
       return { success: false, message: "Agent has no email address" };
     }
     
-    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-      : 'http://localhost:5000';
+    const baseUrl = process.env.APP_URL
+      || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
     
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);

@@ -51,3 +51,9 @@ defaultBucketID = "replit-objstore-bc352317-e44a-431b-a1e6-a56e47368287"
 SENDGRID_FROM_EMAIL = "email@nashobawinery.com"
 SHOPIFY_STORE_DOMAIN = "argd4d-3f.myshopify.com"
 QB_ENVIRONMENT = "production"
+
+[userenv.production]
+APP_URL = "https://nashobawinery.org"
+
+[userenv.development]
+APP_URL = "https://nashobawinery.org"
