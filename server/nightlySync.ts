@@ -225,11 +225,12 @@ async function runNightlySync() {
 function scheduleNightlySync() {
   const scheduleNext = () => {
     const now = new Date();
+    // Target 7:00 AM UTC = 2:00 AM Eastern Standard / 3:00 AM Eastern Daylight
     const target = new Date();
-    target.setHours(2, 0, 0, 0);
+    target.setUTCHours(7, 0, 0, 0);
 
     if (now >= target) {
-      target.setDate(target.getDate() + 1);
+      target.setUTCDate(target.getUTCDate() + 1);
     }
 
     const msUntilRun = target.getTime() - now.getTime();
@@ -251,4 +252,4 @@ function scheduleNightlySync() {
   console.log("[Nightly Sync] Scheduler initialized - runs daily at 2:00 AM");
 }
 
-export { runNightlySync, scheduleNightlySync };
+export { runNightlySync, scheduleNightlySync, runShopifyCustomerSync };

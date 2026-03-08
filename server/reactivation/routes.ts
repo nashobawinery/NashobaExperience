@@ -610,4 +610,63 @@ router.post("/sync/run-now", async (_req, res) => {
   }
 });
 
+router.post("/sync/backfill", async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt((req.body?.days as string) || "30", 10)));
+
+    const { getRestaurants, syncOrdersBatch, refreshSegments } = await import("./toast-api");
+    const { runShopifyCustomerSync } = await import("../nightlySync");
+
+    const restaurants = await getRestaurants();
+
+    const dates: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+
+    let toastTotal = 0, toastCreated = 0, toastErrors = 0;
+
+    for (const dateStr of dates) {
+      const startDate = dateStr + "T00:00:00.000+0000";
+      const endDate = dateStr + "T23:59:59.999+0000";
+      for (const restaurant of restaurants) {
+        try {
+          const result = await syncOrdersBatch(restaurant.restaurantGuid, startDate, endDate);
+          toastTotal += result.synced;
+          toastCreated += result.created;
+          toastErrors += result.errors;
+        } catch (err: any) {
+          console.error(`[Backfill] Toast error for ${dateStr}/${restaurant.restaurantName}:`, err.message);
+          toastErrors++;
+        }
+      }
+    }
+
+    console.log(`[Backfill] Toast complete: ${toastTotal} synced, ${toastCreated} new, ${toastErrors} errors across ${dates.length} days`);
+
+    const shopifyResult = await runShopifyCustomerSync();
+    console.log(`[Backfill] Shopify complete: ${shopifyResult.imported} imported, ${shopifyResult.updated} updated`);
+
+    const segmentsRefreshed = await refreshSegments();
+
+    await db.execute(sql`
+      INSERT INTO rcc_sync_log (sync_type, status, started_at, completed_at, toast_synced, shopify_synced, segments_refreshed)
+      VALUES ('manual_backfill', 'completed', NOW(), NOW(), ${toastTotal}, ${shopifyResult.imported + shopifyResult.updated}, ${segmentsRefreshed})
+    `).catch(() => {});
+
+    res.json({
+      success: true,
+      daysBackfilled: dates.length,
+      toast: { synced: toastTotal, newCustomers: toastCreated, errors: toastErrors },
+      shopify: { imported: shopifyResult.imported, updated: shopifyResult.updated },
+      segmentsRefreshed,
+    });
+  } catch (error: any) {
+    console.error("[Backfill] Error:", error);
+    res.status(500).json({ error: error.message || "Backfill failed" });
+  }
+});
+
 export default router;

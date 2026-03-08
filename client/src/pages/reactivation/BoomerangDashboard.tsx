@@ -2194,9 +2194,11 @@ interface SourceSummary {
 }
 
 export function NewCustomers() {
+  const { toast } = useToast();
   const [days, setDays] = useState("7");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [backfillDays, setBackfillDays] = useState("30");
 
   const { data, isLoading } = useQuery<{
     customers: NewCustomer[];
@@ -2206,6 +2208,34 @@ export function NewCustomers() {
     sourceSummary: SourceSummary[];
   }>({
     queryKey: ["/api/reactivation/new-customers", { days, source: sourceFilter, page: String(page) }],
+  });
+
+  const { data: syncStatus } = useQuery<{
+    lastSync: any;
+    lastToastUpdate: string | null;
+    lastShopifyUpdate: string | null;
+  }>({
+    queryKey: ["/api/reactivation/sync-status"],
+    refetchInterval: 30000,
+  });
+
+  const backfillMutation = useMutation({
+    mutationFn: async (days: number) => {
+      const resp = await apiRequest("POST", "/api/reactivation/sync/backfill", { days });
+      return resp.json();
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Backfill complete",
+        description: `Toast: ${result.toast.newCustomers} new customers found across ${result.daysBackfilled} days. Shopify: ${result.shopify.imported} new accounts imported.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation/new-customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation/sync-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reactivation/segments"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Backfill failed", description: err.message, variant: "destructive" });
+    },
   });
 
   const sourceLabel = (s: string) => {
@@ -2229,6 +2259,22 @@ export function NewCustomers() {
     return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
+  const formatRelative = (d: string | null) => {
+    if (!d) return null;
+    const diffDays = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    if (diffDays === 0) return "today";
+    if (diffDays === 1) return "yesterday";
+    return `${diffDays} days ago`;
+  };
+
+  const toastStaleDays = syncStatus?.lastToastUpdate
+    ? Math.floor((Date.now() - new Date(syncStatus.lastToastUpdate).getTime()) / 86400000)
+    : 999;
+  const shopifyStaleDays = syncStatus?.lastShopifyUpdate
+    ? Math.floor((Date.now() - new Date(syncStatus.lastShopifyUpdate).getTime()) / 86400000)
+    : 999;
+  const isStale = toastStaleDays > 2 || shopifyStaleDays > 2;
+
   const totalNew = data?.sourceSummary?.reduce((sum, s) => sum + s.count, 0) || 0;
   const totalWithEmail = data?.sourceSummary?.reduce((sum, s) => sum + s.withEmail, 0) || 0;
   const totalWithPhone = data?.sourceSummary?.reduce((sum, s) => sum + s.withPhone, 0) || 0;
@@ -2242,7 +2288,7 @@ export function NewCustomers() {
             <UserPlus className="h-5 w-5" />
             New Customers
           </h2>
-          <p className="text-sm text-muted-foreground">Recently synced customers from connected platforms</p>
+          <p className="text-sm text-muted-foreground">First-time visitors and shoppers added from connected platforms</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={days} onValueChange={(v) => { setDays(v); setPage(1); }}>
@@ -2270,6 +2316,60 @@ export function NewCustomers() {
           </Select>
         </div>
       </div>
+
+      {isStale && (
+        <div className="flex items-start gap-3 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800" data-testid="banner-sync-stale">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Customer data is out of date</p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
+              Toast last synced {formatRelative(syncStatus?.lastToastUpdate || null)} &bull; Shopify last synced {formatRelative(syncStatus?.lastShopifyUpdate || null)}.
+              New visitors and Shopify customers from those days are missing. Run a backfill to catch up.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Select value={backfillDays} onValueChange={setBackfillDays}>
+              <SelectTrigger className="w-[110px]" data-testid="select-backfill-days">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="14">Last 14 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="60">Last 60 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="default"
+              onClick={() => backfillMutation.mutate(parseInt(backfillDays))}
+              disabled={backfillMutation.isPending}
+              data-testid="button-run-backfill"
+            >
+              {backfillMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              {backfillMutation.isPending ? "Syncing..." : "Backfill Now"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!isStale && syncStatus && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-sync-status">
+          <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+          Toast synced {formatRelative(syncStatus.lastToastUpdate)} &bull; Shopify synced {formatRelative(syncStatus.lastShopifyUpdate)}
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-2"
+            onClick={() => backfillMutation.mutate(parseInt(backfillDays))}
+            disabled={backfillMutation.isPending}
+            data-testid="button-run-sync"
+          >
+            {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+            Sync Now
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
@@ -2379,7 +2479,7 @@ export function NewCustomers() {
                       </td>
                       <td className="p-3 text-right">
                         <span className="font-medium" data-testid={`text-spend-${c.id}`}>
-                          ${c.lifetimeSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ${c.lifetimeSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </td>
                       <td className="p-3">
@@ -2426,7 +2526,11 @@ export function NewCustomers() {
           <CardContent className="p-8 text-center">
             <UserPlus className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
             <p className="font-medium">No new customers in this period</p>
-            <p className="text-sm text-muted-foreground mt-1">Try selecting a longer time range to see recently synced customers.</p>
+            {isStale ? (
+              <p className="text-sm text-muted-foreground mt-1">Customer sync is out of date. Use the Backfill Now button above to import recent visitors.</p>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">Try selecting a longer time range, or all new visitors this week may be returning customers.</p>
+            )}
           </CardContent>
         </Card>
       )}
